@@ -229,7 +229,7 @@ export class AlignmentViewComponent extends BaseComponentDirective implements On
       this.syncLayoutAfterRender(this.isDirectLaunchAlignmentView());
     })
 
-    this.store.clusterUpdate$.pipe(takeUntil(this.destroy$)).subscribe(() => {
+    const refreshClusterDependentAlignment = () => {
       if (this.widgets['alignView-labelField'] == 'cluster') {
         this.onLabelFieldChange();
       }
@@ -237,7 +237,20 @@ export class AlignmentViewComponent extends BaseComponentDirective implements On
         this.onSortFieldChange()
       }
       this.cdref.detectChanges();
-    })
+    };
+    this.store.clusterUpdate$
+      .pipe(takeUntil(this.destroy$))
+      .subscribe(refreshClusterDependentAlignment);
+    this.store.networkDataRevision$
+      .pipe(takeUntil(this.destroy$))
+      .subscribe((revision) => {
+        if (
+          revision
+          && revision.loadGeneration === this.commonService.getDataLoadGeneration()
+        ) {
+          refreshClusterDependentAlignment();
+        }
+      });
   }
 
   ngAfterViewInit(): void {

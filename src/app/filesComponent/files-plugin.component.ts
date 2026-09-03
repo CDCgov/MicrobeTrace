@@ -2421,7 +2421,16 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
     //   }, 'generated'));
     // });
 
-    this.processSequence(loadGeneration)
+    void this.processSequence(loadGeneration).catch((error: any) => {
+      if (!this.commonService.isCurrentDataLoad(loadGeneration)) {
+        return;
+      }
+      console.error('Sequence-distance processing failed:', error);
+      this.showMessage(
+        ` - Error processing sequence distances: ${error?.message || error}`
+      );
+      this.commonService.session.network.isFullyLoaded = false;
+    });
   }
 
   /**
@@ -2495,36 +2504,59 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
       sequenceLength
     });
 
-    const consensus = await this.commonService.computeConsensus();
+    const consensus = await this.commonService.computeConsensus(subset);
     if (!isCurrentLoad()) {
       return;
     }
     (this.commonService.session.data as any).consensus = consensus;
-    await this.commonService.computeConsensusDistances();
-    if (!isCurrentLoad()) {
-      return;
-    }
-    subset.sort((a, b) => a['_diff'] - b['_diff']);
     if (this.commonService.session.style.widgets['ambiguity-resolution-strategy']) {
       await this.commonService.computeAmbiguityCounts();
       if (!isCurrentLoad()) {
         return;
       }
     }
-    this.showMessage('Computing Links based on Genomic Proximity...');
-    const k = await this.commonService.computeLinks(subset);
+    await this.commonService.computeConsensusDistances();
     if (!isCurrentLoad()) {
       return;
     }
+    subset.sort((a, b) => a['_diff'] - b['_diff']);
+    this.showMessage('Computing Links based on Genomic Proximity...');
+    const linkComputation = await this.commonService.computeLinks(subset);
+    if (!isCurrentLoad()) {
+      return;
+    }
+    const initialLinkCount = Number(linkComputation.initialLinkCount || 0);
 
     this.commonService.recordPerformanceTiming('sequence', 'processSequenceTotal', processSequenceStart, {
       nodes: n,
       sequences: subset.length,
       sequenceLength,
-      generatedLinks: k
+      generatedLinks: initialLinkCount,
+      initialComputedPairs: linkComputation.initialComputedPairs,
+      candidatePairs: linkComputation.candidatePairs,
+      deferredPairs: linkComputation.deferredPairs,
+      totalPairs: linkComputation.totalPairs,
+      provisional: linkComputation.provisional,
+      fallbackReason: linkComputation.fallbackReason
     });
-    this.showMessage(` - Found ${k} New Links from Genomic Proximity`);
-    this.commonService.runHamsters();
+    this.showMessage(` - Found ${initialLinkCount} New Links from Genomic Proximity`);
+    if (linkComputation.provisional) {
+      this.showMessage(
+        ` - Rendering a provisional TN93 network from ${linkComputation.initialComputedPairs.toLocaleString()} of ${linkComputation.totalPairs.toLocaleString()} dyads.`
+      );
+    }
+    try {
+      await this.commonService.runHamsters({ skipTree: linkComputation.provisional });
+    } finally {
+      // Even if the first view fails, do not strand the deferred complement.
+      // The coordinator retains its normal ready/timeout scheduling policy.
+      if (isCurrentLoad()) {
+        this.commonService.startTn93BackgroundAfterInitialRender(linkComputation);
+      }
+    }
+    if (!isCurrentLoad()) {
+      return;
+    }
 
 
     this.showMessage("Finishing...");
@@ -3265,12 +3297,26 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
     return String(this.SelectedDefaultDistanceMetricVariable || '').toLowerCase() === 'mlst';
   }
 
-  onAmbiguityStrategyChanged() {
+  async onAmbiguityStrategyChanged() {
     this.commonService.session.style.widgets['ambiguity-resolution-strategy'] = this.SelectedAmbiguityResolutionStrategyVariable;
+    if (
+      this.commonService.session.network.isFullyLoaded
+      && this.commonService.session.meta.anySequences
+      && String(this.commonService.session.style.widgets['default-distance-metric']).toLowerCase() === 'tn93'
+    ) {
+      await this.commonService.recomputeSequenceDerivedLinksForCurrentMetric();
+    }
   }
 
-  onAmbiguityThresholdChanged() {
+  async onAmbiguityThresholdChanged() {
     this.commonService.session.style.widgets['ambiguity-threshold'] = this.SelectedAmbiguityThresholdVariable;
+    if (
+      this.commonService.session.network.isFullyLoaded
+      && this.commonService.session.meta.anySequences
+      && String(this.commonService.session.style.widgets['default-distance-metric']).toLowerCase() === 'tn93'
+    ) {
+      await this.commonService.recomputeSequenceDerivedLinksForCurrentMetric();
+    }
   }
 
   applyStyleFileSettings() {

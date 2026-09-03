@@ -1,5 +1,9 @@
 ﻿import { ChangeDetectionStrategy, Component, OnInit, Injector, ViewChild, ViewChildren, AfterViewInit, ComponentRef, ViewContainerRef, QueryList, ElementRef, Output, EventEmitter, ChangeDetectorRef, OnDestroy, ViewEncapsulation, Renderer2 } from '@angular/core';
-import { CommonService } from './contactTraceCommonServices/common.service';
+import {
+    CommonService,
+    type PatristicDistanceCalculationProgress,
+    type PatristicDistanceCompletionStatus
+} from './contactTraceCommonServices/common.service';
 import * as d3 from 'd3';
 import { AppComponentBase } from '@shared/common/app-component-base';
 import { SelectItem, TreeNode, ConfirmationService } from 'primeng/api';
@@ -37,6 +41,7 @@ import {
     StyleKeyTableSortColumn
 } from './visualizationComponents/KeyTablesComponent/style-key-table.component';
 import type { ThresholdSweepSummary } from './contactTraceCommonServices/threshold-analysis';
+import type { Tn93DistanceStatus } from './workers/tn93-engine.types';
 import {
     ColorAssignmentService,
     NodeColorAssignmentParseError,
@@ -326,6 +331,17 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
     thresholdStabilityCurrent: ThresholdSweepSnapshot | null = null;
     thresholdStabilityRegions: ThresholdStabilityRegion[] = [];
     thresholdStabilityMessage: string = '';
+    patristicDistanceCompletionStatus: PatristicDistanceCompletionStatus = {
+        eligible: false,
+        complete: false,
+        nodeCount: 0,
+        expectedPairs: 0,
+        cachedPairs: 0
+    };
+    patristicDistanceCalculationProgress: PatristicDistanceCalculationProgress | null = null;
+    patristicDistanceCalculationError: string = '';
+    calculatingCompletePatristicDistances: boolean = false;
+    displayHeatmapDistanceWarningDialog: boolean = false;
 
     RevealTypes: any = [
         { label: 'Everything', value: 'Everything' }
@@ -435,6 +451,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
     private bpaaSPayloadWrappers: BpaaSPayloadWrapper[] = [];
 
     private networkRendered: boolean = false;
+    public tn93DistanceStatus: Tn93DistanceStatus | null = null;
 
     @Output() DisplayGlobalSettingsDialogEvent = new EventEmitter();
 
@@ -555,7 +572,15 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
                 if (this.GlobalSettingsDialogSettings?.isVisible) {
                     this.refreshThresholdStabilityPanel(false);
                 }
+                this.refreshKeyTablesView();
             }
+        });
+
+        this.store.tn93DistanceStatus$
+        .pipe(takeUntil(this.destroy$))
+        .subscribe(status => {
+            this.tn93DistanceStatus = status;
+            this.cdref.markForCheck();
         });
 
         this.store.clusterUpdate$.subscribe(() => {
@@ -1677,28 +1702,17 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
      * Updates metric based on selection
      * @param value - metric selected
      */
-     public updateMetric( value: string ) : void {
+     public async updateMetric( value: string ) : Promise<void> {
         this.metric = value;
         if(this.commonService.debugMode) {
             console.log('updating metric: ', this.metric);
         }
-
-        if (this.metric.toLowerCase() === "snps") {
-            //Hide Ambiguities
-            $('#ambiguities-menu').hide();
-            this.threshold = "16";
-            this.commonService.session.style.widgets["link-threshold"] = 16;
-        } else {
-
-            $('#ambiguities-menu').show();
-            this.threshold = "0.015";
-            this.commonService.session.style.widgets["link-threshold"] = 0.015;
-        }
-
-        // Update distance metric in style
-        this.commonService.session.style.widgets['default-distance-metric'] = this.metric.toLocaleLowerCase();
-        this.commonService.localStorageService.setItem('default-distance-metric', this.metric.toLocaleLowerCase());
-
+        this.SelectedDistanceMetricVariable = this.metric.toLowerCase();
+        this.commonService.localStorageService.setItem(
+            'default-distance-metric',
+            this.SelectedDistanceMetricVariable
+        );
+        await this.onDistanceMetricChanged();
     }
 
     private _lastLinkThreshold: number = this.commonService.session.style.widgets["link-threshold"];
@@ -1708,10 +1722,19 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
      * Updates ambiguity based on selection and store in style widgets
      * @param value - ambiguity selected
      */
-     public updateAmbiguity( value: string ) : void {
-        this.ambiguity = value;
-        this.commonService.session.style.widgets['ambiguity-resolution-strategy'] = this.ambiguity.toLocaleUpperCase();
-
+     public async updateAmbiguity( value: string ) : Promise<void> {
+        const normalized = value.toUpperCase() === 'HIV-TRACE -G'
+            ? 'HIVTRACE-G'
+            : value.toUpperCase();
+        this.ambiguity = normalized;
+        this.commonService.session.style.widgets['ambiguity-resolution-strategy'] = normalized;
+        if (
+            this.commonService.session.network.isFullyLoaded
+            && this.commonService.session.meta.anySequences
+            && String(this.commonService.session.style.widgets['default-distance-metric']).toLowerCase() === 'tn93'
+        ) {
+            await this.commonService.recomputeSequenceDerivedLinksForCurrentMetric();
+        }
     }
 
     /**
@@ -4145,9 +4168,15 @@ ${warnings.join('\n')}`,
                 this.commonService.updateNetworkVisuals(false, true);
             };
 
-            this.commonService.ensurePatristicEdgesForThreshold(parsedThreshold)
+            Promise.all([
+              this.commonService.ensurePatristicEdgesForThreshold(parsedThreshold),
+              this.commonService.ensureTn93CandidatesForThreshold(parsedThreshold)
+            ])
+                .then(() => this.commonService.updateThresholdHistogramIfChanged(
+                    this.linkThresholdSparkline?.nativeElement
+                ))
                 .catch(error => {
-                    console.error('Patristic threshold re-query failed:', error);
+                    console.error('Threshold-priority distance query failed:', error);
                 })
                 .finally(applyThresholdVisibility);
         }
@@ -4653,11 +4682,14 @@ ${warnings.join('\n')}`,
 
     getHeight() {
         const timelineHeight = this.commonService.session.style.widgets["timeline-date-field"] == 'None' ? 0 : 150
+        const tn93ProgressHeight = this.shouldShowTn93DistanceProgress()
+            ? Number($('#tn93-distance-progress').outerHeight(true) || 48)
+            : 0;
         if (this.officialInstance()) {
-            return window.innerHeight - 80 - timelineHeight;
+            return window.innerHeight - 80 - timelineHeight - tn93ProgressHeight;
         } else {
             const warningHeight = $('#url-warning-div').height()
-            return window.innerHeight - 80 - warningHeight - timelineHeight;
+            return window.innerHeight - 80 - warningHeight - timelineHeight - tn93ProgressHeight;
         }
     }
 
@@ -4805,7 +4837,7 @@ ${warnings.join('\n')}`,
         
     }
 
-    ExportTables() {
+    async ExportTables() {
         const exportOptions: ExportOptions = {
             filename: this.ExportTablesFilename,
             filetype: this.ExportTablesFileType,
@@ -4873,7 +4905,7 @@ ${warnings.join('\n')}`,
         saveAs(content as any, filename);
     }
 
-    DisplayStashDialog(saveStash: string) {
+    async DisplayStashDialog(saveStash: string) {
         switch (saveStash) {
             case "Save": {
 
@@ -4882,6 +4914,15 @@ ${warnings.join('\n')}`,
                     const blob = new Blob([data], { type: "application/json;charset=utf-8" });
                     this.saveGeneratedFile(blob, this.saveFileName+'.style')
                     this.displayStashDialog = false;
+                    return;
+                }
+
+                try {
+                    await this.commonService.waitForTn93DistanceCompletion(
+                        'Completing TN93 distances before saving the session...'
+                    );
+                } catch (error) {
+                    console.error('Session save is still unavailable:', error);
                     return;
                 }
 
@@ -5323,6 +5364,7 @@ ${warnings.join('\n')}`,
         this.syncThresholdDisplayFromStoredValue();
         setTimeout(() => this.syncThresholdDisplayFromStoredValue(), 0);
         this.thresholdStabilityExpanded = false;
+        this.refreshPatristicDistanceCompletionStatus();
 
         this.commonService.updateThresholdHistogram(this.linkThresholdSparkline.nativeElement);
         this.refreshThresholdStabilityPanel(false);
@@ -5477,6 +5519,108 @@ ${warnings.join('\n')}`,
 
     toggleThresholdStabilityPanel(): void {
         this.thresholdStabilityExpanded = !this.thresholdStabilityExpanded;
+    }
+
+    refreshPatristicDistanceCompletionStatus(): void {
+        this.patristicDistanceCompletionStatus = this.commonService.getPatristicDistanceCompletionStatus();
+    }
+
+    openHeatmapDistanceWarningDialog(): void {
+        this.refreshPatristicDistanceCompletionStatus();
+        if (this.patristicDistanceCompletionStatus.eligible && !this.patristicDistanceCompletionStatus.complete) {
+            this.displayHeatmapDistanceWarningDialog = true;
+            this.cdref.markForCheck();
+        }
+    }
+
+    getPatristicDistanceCalculationButtonLabel(): string {
+        if (this.calculatingCompletePatristicDistances) {
+            if (this.patristicDistanceCalculationProgress?.phase === 'finalizing') {
+                return 'Finalizing Distance Data...';
+            }
+
+            const percent = this.patristicDistanceCalculationProgress?.percent ?? 0;
+            return `Calculating Distances (${percent}%)`;
+        }
+
+        return this.patristicDistanceCompletionStatus.complete
+            ? 'Distance Data Complete'
+            : 'Calculate All Pairwise Distances';
+    }
+
+    calculateAllPatristicDistances(): void {
+        this.refreshPatristicDistanceCompletionStatus();
+        const status = this.patristicDistanceCompletionStatus;
+        if (!status.eligible || status.complete || this.calculatingCompletePatristicDistances) {
+            return;
+        }
+
+        const warningThreshold = this.commonService.getCompletePatristicDistanceWarningThreshold();
+        if (status.expectedPairs >= warningThreshold) {
+            this.confirmationService.confirm({
+                header: 'Large Pairwise Distance Calculation',
+                message: `This dataset has ${status.expectedPairs.toLocaleString()} possible pairwise links across ${status.nodeCount.toLocaleString()} nodes. Calculating every distance may take significant time and browser memory, but it will not add these links to the 2D network. Continue?`,
+                closable: false,
+                closeOnEscape: false,
+                icon: 'pi pi-exclamation-triangle',
+                rejectButtonProps: {
+                    label: 'Cancel',
+                    severity: 'secondary',
+                    outlined: true,
+                },
+                acceptButtonProps: {
+                    label: 'Continue',
+                },
+                accept: () => void this.runCompletePatristicDistanceCalculation()
+            });
+            return;
+        }
+
+        void this.runCompletePatristicDistanceCalculation();
+    }
+
+    private async runCompletePatristicDistanceCalculation(): Promise<void> {
+        this.calculatingCompletePatristicDistances = true;
+        this.patristicDistanceCalculationError = '';
+        this.patristicDistanceCalculationProgress = {
+            phase: 'calculating',
+            completedPairs: 0,
+            totalPairs: this.patristicDistanceCompletionStatus.expectedPairs,
+            percent: 0
+        };
+        this.cdref.markForCheck();
+
+        try {
+            this.patristicDistanceCompletionStatus = await this.commonService.calculateCompletePatristicDistanceData(
+                progress => {
+                    this.patristicDistanceCalculationProgress = progress;
+                    this.cdref.markForCheck();
+                }
+            );
+
+            if (this.linkThresholdSparkline?.nativeElement) {
+                await this.commonService.updateThresholdHistogram(this.linkThresholdSparkline.nativeElement);
+            }
+            this.refreshThresholdStabilityPanel(false);
+
+            const heatmapIsOpen = this.homepageTabs.some(tab => tab.label === 'Heatmap');
+            if (heatmapIsOpen && this.commonService.visuals.heatmap?.updateVisualization) {
+                this.commonService.visuals.heatmap.updateVisualization();
+            }
+
+            if (this.patristicDistanceCompletionStatus.complete) {
+                this.displayHeatmapDistanceWarningDialog = false;
+            }
+        } catch (error: any) {
+            this.patristicDistanceCalculationError = String(
+                error?.message || error || 'Unable to calculate all pairwise distances.'
+            );
+        } finally {
+            this.calculatingCompletePatristicDistances = false;
+            this.patristicDistanceCalculationProgress = null;
+            this.refreshPatristicDistanceCompletionStatus();
+            this.cdref.markForCheck();
+        }
     }
 
 
@@ -6248,12 +6392,70 @@ ${warnings.join('\n')}`,
     }
 
     ngOnDestroy(): void {
+        this.destroy$.next();
+        this.destroy$.complete();
         if (this.timelineTablesRefreshHandle !== null) {
             clearTimeout(this.timelineTablesRefreshHandle);
             this.timelineTablesRefreshHandle = null;
         }
 
         this.NewSession();
+    }
+
+    shouldShowTn93DistanceProgress(): boolean {
+        const status = this.tn93DistanceStatus;
+        return Boolean(
+            status
+            && (
+                (status.phase !== 'complete' && status.provisional)
+                || (status.phase === 'complete' && status.error)
+            )
+        );
+    }
+
+    hasTn93PostCompletionRefreshError(): boolean {
+        const status = this.tn93DistanceStatus;
+        return Boolean(status?.phase === 'complete' && status.error);
+    }
+
+    getTn93DistanceProgressPercent(): number {
+        const status = this.tn93DistanceStatus;
+        if (!status || status.totalPairs <= 0) {
+            return 0;
+        }
+        return Math.max(0, Math.min(100, (status.computedPairs / status.totalPairs) * 100));
+    }
+
+    getTn93DistanceProgressLabel(): string {
+        const status = this.tn93DistanceStatus;
+        if (!status) {
+            return '';
+        }
+
+        const computed = Number(status.computedPairs || 0).toLocaleString();
+        const total = Number(status.totalPairs || 0).toLocaleString();
+        if (status.phase === 'complete' && status.error) {
+            return status.error;
+        }
+        if (status.phase === 'error') {
+            return `Background TN93 completion failed after ${computed} of ${total} dyads. Exact-distance features remain unavailable.`;
+        }
+        if (status.phase === 'cancelled') {
+            return `TN93 computation was cancelled after ${computed} of ${total} dyads.`;
+        }
+        if (status.phase === 'promoting') {
+            return `Prioritizing newly eligible dyads for the higher threshold (${computed} of ${total} computed).`;
+        }
+        if (status.phase === 'planning') {
+            return `Planning the TN93 consensus window for ${total} dyads.`;
+        }
+        if (status.phase === 'foreground') {
+            return `Computing the initial TN93 candidate window (${computed} of ${total} dyads computed).`;
+        }
+        if (status.phase === 'provisional') {
+            return `Initial TN93 network ready (${computed} of ${total} dyads computed).`;
+        }
+        return `Completing TN93 distances in the background (${computed} of ${total} dyads computed).`;
     }
 
     getCurrentThresholdStepSize() {
@@ -6300,14 +6502,14 @@ ${warnings.join('\n')}`,
     this.syncThresholdDisplayFromStoredValue();
 
     didRecomputeSequenceLinks = await this.commonService.recomputeSequenceDerivedLinksForCurrentMetric();
-    if (didRecomputeSequenceLinks && this.commonService.session.style.widgets["link-show-nn"]) {
-      await this.commonService.computeMST();
-      this.commonService.session.style.widgets["mst-computed"] = true;
-    }
 
     this.onLinkThresholdChanged();
 
-    if (didRecomputeSequenceLinks && this.commonService.session.style.widgets["link-show-nn"]) {
+    if (
+      didRecomputeSequenceLinks
+      && this.commonService.session.style.widgets["link-show-nn"]
+      && !this.commonService.isTn93DistanceProvisional()
+    ) {
       this.commonService.session.style.widgets["mst-computed"] = true;
     }
 
@@ -6454,6 +6656,18 @@ ${warnings.join('\n')}`,
             this.thresholdStabilityCurrent = null;
             this.thresholdStabilityRegions = [];
             this.thresholdStabilityMessage = '';
+            if (markForCheck) {
+                this.cdref.markForCheck();
+            }
+            return;
+        }
+
+        if (this.tn93DistanceStatus?.provisional) {
+            this.thresholdSweepMetricLabel = 'distance';
+            this.thresholdSweepSampleCount = 0;
+            this.thresholdStabilityCurrent = null;
+            this.thresholdStabilityRegions = [];
+            this.thresholdStabilityMessage = 'Threshold stability will be available after all TN93 pairwise distances finish.';
             if (markForCheck) {
                 this.cdref.markForCheck();
             }

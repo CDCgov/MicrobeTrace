@@ -126,7 +126,7 @@
             </label>
           </div>
           <div class="col-6">
-            <input type="number" id="ambiguity-threshold" class="form-control form-control-sm" min="0" value="0.015" step="0.001" [(ngModel)]="SelectedAmbiguityThresholdVariable" (ngModelChange)="onAmbiguityThresholdChanged()">
+            <input type="number" id="ambiguity-threshold" class="form-control form-control-sm" min="0" value="0.015" step="0.001" [(ngModel)]="SelectedAmbiguityThresholdVariable" (change)="onAmbiguityThresholdChanged()">
           </div>
         </div>
       }

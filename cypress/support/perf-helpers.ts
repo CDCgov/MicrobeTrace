@@ -264,6 +264,8 @@ export function assertScenarioExpectedCounts(
 export function launchPerformanceScenarioToTwoD(
   scenario: PerformanceScenario,
   timeout = 120000,
+  beforeFileLoad?: (win: PerfWindow) => void,
+  afterFileLoad?: (win: PerfWindow) => void,
 ): Cypress.Chainable<PerformanceMeasurement> {
   const profile = asJourneyProfile(scenario);
   const marks = {} as TimingMarks;
@@ -274,6 +276,7 @@ export function launchPerformanceScenarioToTwoD(
 
   cy.window().then((win: unknown) => {
     const perfWindow = win as PerfWindow;
+    beforeFileLoad?.(perfWindow);
     marks.uploadStart = perfWindow.performance.now();
     initialHeap = readHeapUsed(perfWindow);
   });
@@ -288,7 +291,9 @@ export function launchPerformanceScenarioToTwoD(
   ensurePreLaunchProfileSynced(profile);
 
   cy.window().then((win: unknown) => {
-    marks.launchStart = (win as Window).performance.now();
+    const perfWindow = win as PerfWindow;
+    afterFileLoad?.(perfWindow);
+    marks.launchStart = perfWindow.performance.now();
   });
 
   launchAndWaitForProcessing(timeout);

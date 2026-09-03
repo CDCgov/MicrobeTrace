@@ -96,6 +96,33 @@
       </div>
     }
 
+    @if (shouldShowTn93DistanceProgress()) {
+      <div id="tn93-distance-progress" class="tn93-distance-progress" role="status" aria-live="polite">
+        <div class="tn93-distance-progress__copy">
+          @if (hasTn93PostCompletionRefreshError()) {
+            <strong>TN93 distances are complete, but a view refresh failed.</strong>
+          } @else {
+            <strong>TN93 network is provisional.</strong>
+            <span>Links, clusters, and statistics may change until all pairwise distances finish.</span>
+            @if (commonService.session.style.widgets['link-show-nn']) {
+              <span>Nearest-neighbor filtering will apply when the exact matrix is complete.</span>
+            }
+          }
+          <span>{{ getTn93DistanceProgressLabel() }}</span>
+        </div>
+        <div
+          class="tn93-distance-progress__bar"
+          role="progressbar"
+          aria-label="TN93 pairwise distance completion"
+          aria-valuemin="0"
+          aria-valuemax="100"
+          [attr.aria-valuenow]="getTn93DistanceProgressPercent()"
+        >
+          <span [style.width.%]="getTn93DistanceProgressPercent()"></span>
+        </div>
+      </div>
+    }
+
     @if (isNetworkSubsetFilterActive()) {
       <div id="network-subset-filter-notice" class="network-subset-filter-notice" data-testid="network-subset-filter-notice" role="status">
         <span>Subset active: {{ getNetworkSubsetFilterLabel() }}</span>
@@ -484,6 +511,41 @@
                       Hover chart for cluster count
                     </div>
                   </div>
+                  @if (patristicDistanceCompletionStatus.eligible) {
+                    <div class="complete-distance-shell" data-testid="complete-distance-panel">
+                      <div class="complete-distance-shell__header">
+                        <span class="complete-distance-shell__title">Pairwise Distance Data</span>
+                        <i
+                          class="pi pi-info-circle threshold-help-icon"
+                          title="Calculate every tree-based pairwise distance for the histogram and heatmap without adding links to the 2D network or recalculating clusters."></i>
+                      </div>
+                      <div class="complete-distance-shell__status" data-testid="complete-distance-status">
+                        @if (patristicDistanceCompletionStatus.complete) {
+                          All {{ patristicDistanceCompletionStatus.expectedPairs.toLocaleString() }} pairwise distances are available.
+                        } @else {
+                          {{ patristicDistanceCompletionStatus.cachedPairs.toLocaleString() }} of {{ patristicDistanceCompletionStatus.expectedPairs.toLocaleString() }} pairwise distances are available.
+                        }
+                      </div>
+                      <button
+                        type="button"
+                        class="btn btn-light btn-sm w-100 complete-distance-shell__action"
+                        data-testid="complete-distance-calculate"
+                        [disabled]="calculatingCompletePatristicDistances || patristicDistanceCompletionStatus.complete"
+                        (click)="calculateAllPatristicDistances()">
+                        @if (calculatingCompletePatristicDistances) {
+                          <i class="pi pi-spin pi-spinner"></i>
+                        } @else if (patristicDistanceCompletionStatus.complete) {
+                          <i class="pi pi-check"></i>
+                        }
+                        {{ getPatristicDistanceCalculationButtonLabel() }}
+                      </button>
+                      @if (patristicDistanceCalculationError) {
+                        <div class="complete-distance-shell__error" data-testid="complete-distance-error">
+                          {{ patristicDistanceCalculationError }} Try again.
+                        </div>
+                      }
+                    </div>
+                  }
                   <div class="threshold-stability-shell">
                     <button
                       type="button"
@@ -1028,6 +1090,43 @@
           <button type="button" class="btn btn-success" (click)="DisplayAbout()">Close</button>
         </div>
       </div>
+    </div>
+  </p-dialog>
+  <p-dialog
+    id="heatmap-distance-warning-dialog"
+    header="Incomplete Heatmap Distances"
+    [(visible)]="displayHeatmapDistanceWarningDialog"
+    [modal]="true"
+    [style]="{ width: '430px' }"
+    appendTo="body">
+    <div class="heatmap-distance-dialog" data-testid="heatmap-distance-warning-dialog">
+      <p>
+        Some Heatmap cells are blank because MicrobeTrace has only calculated the tree distances needed for the current network threshold.
+      </p>
+      <p>
+        Calculate every tree-based pairwise distance to fully populate the Heatmap and distance histogram. This will not add links to the 2D network or recalculate clusters.
+      </p>
+      <div class="heatmap-distance-dialog__status" data-testid="heatmap-distance-status">
+        {{ patristicDistanceCompletionStatus.cachedPairs.toLocaleString() }} of {{ patristicDistanceCompletionStatus.expectedPairs.toLocaleString() }} pairwise distances are available.
+      </div>
+      <button
+        type="button"
+        class="btn btn-primary btn-sm w-100 heatmap-distance-dialog__action"
+        data-testid="heatmap-distance-calculate"
+        [disabled]="calculatingCompletePatristicDistances || patristicDistanceCompletionStatus.complete"
+        (click)="calculateAllPatristicDistances()">
+        @if (calculatingCompletePatristicDistances) {
+          <i class="pi pi-spin pi-spinner"></i>
+        } @else if (patristicDistanceCompletionStatus.complete) {
+          <i class="pi pi-check"></i>
+        }
+        {{ getPatristicDistanceCalculationButtonLabel() }}
+      </button>
+      @if (patristicDistanceCalculationError) {
+        <div class="heatmap-distance-dialog__error" data-testid="heatmap-distance-error">
+          {{ patristicDistanceCalculationError }} Try again.
+        </div>
+      }
     </div>
   </p-dialog>
   <p-confirmDialog></p-confirmDialog> <!--This is for nearest neighbor confirmations, openNNConfirmation()-->

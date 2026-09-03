@@ -2,6 +2,7 @@
 
 const fs = require('fs');
 const path = require('path');
+const tn93 = require('tn93');
 
 const outDir = path.join(__dirname, '..', 'cypress', 'fixtures', 'performance');
 
@@ -348,6 +349,606 @@ function buildSequenceFixtures() {
   });
 }
 
+const TN93_PROGRESSIVE_SEQUENCE_COUNT = 180;
+const TN93_PROGRESSIVE_SEQUENCE_LENGTH = 1200;
+const TN93_PROGRESSIVE_THRESHOLD = 0.01;
+const TN93_PROGRESSIVE_MINIMUM_PAIR_COUNT = 5000;
+const TN93_PROGRESSIVE_MAXIMUM_CANDIDATE_RATIO = 0.8;
+const TN93_PROGRESSIVE_SCALING_COUNTS = [100, 250, 500, 750, 1000];
+
+function buildBalancedReference(sequenceLength) {
+  return Array.from(
+    { length: sequenceLength },
+    (_value, index) => DNA_ALPHABET[index % DNA_ALPHABET.length],
+  );
+}
+
+function chooseBalancedMutationPositions(random, perBaseCounts, reference) {
+  const positionsByBase = DNA_ALPHABET.map(() => []);
+  reference.forEach((base, index) => {
+    positionsByBase[DNA_ALPHABET.indexOf(base)].push(index);
+  });
+
+  return perBaseCounts.flatMap((count, baseIndex) => {
+    const available = positionsByBase[baseIndex].slice();
+    const chosen = [];
+
+    while (chosen.length < count) {
+      const positionIndex = Math.floor(random() * available.length);
+      chosen.push(available[positionIndex]);
+      available.splice(positionIndex, 1);
+    }
+    return chosen;
+  });
+}
+
+function mutateReference(reference, positions) {
+  const sequence = reference.slice();
+  positions.forEach((position) => {
+    sequence[position] = nextBase(sequence[position]);
+  });
+  return sequence.join('');
+}
+
+function buildTn93Consensus(records) {
+  const sequenceLength = records.reduce(
+    (maximum, record) => Math.max(maximum, record.encoded.length),
+    0,
+  );
+  const consensus = new Uint8Array(sequenceLength);
+
+  for (let site = 0; site < sequenceLength; site++) {
+    const counts = [0, 0, 0, 0, 0];
+    records.forEach((record) => {
+      if (site >= record.encoded.length) return;
+      const base = record.encoded[site];
+      if (base < 4) counts[base]++;
+      else if (base === 17) counts[4]++;
+    });
+
+    let selected = 0;
+    let maximum = counts[0];
+    for (let candidate = 1; candidate < counts.length; candidate++) {
+      if (maximum <= counts[candidate]) {
+        maximum = counts[candidate];
+        selected = candidate;
+      }
+    }
+    consensus[site] = selected === 4 ? 17 : selected;
+  }
+
+  return consensus;
+}
+
+function enumerateTn93CandidatePairs(radii, threshold) {
+  const finite = radii
+    .map((radius, index) => ({ radius, index }))
+    .filter((entry) => Number.isFinite(entry.radius))
+    .sort((left, right) => left.radius - right.radius || left.index - right.index);
+  const nonFiniteCount = radii.length - finite.length;
+  let candidates = nonFiniteCount * finite.length
+    + (nonFiniteCount * (nonFiniteCount - 1)) / 2;
+  let windowEnd = 1;
+
+  for (let windowStart = 0; windowStart < finite.length; windowStart++) {
+    windowEnd = Math.max(windowEnd, windowStart + 1);
+    while (
+      windowEnd < finite.length
+      && finite[windowEnd].radius - finite[windowStart].radius <= threshold
+    ) {
+      windowEnd++;
+    }
+    candidates += windowEnd - windowStart - 1;
+  }
+
+  return candidates;
+}
+
+function updateFnv1a(hash, value) {
+  return Math.imul((hash ^ value) >>> 0, 16777619) >>> 0;
+}
+
+function hashTn93Distances(distanceRecords) {
+  const buffer = new ArrayBuffer(4);
+  const view = new DataView(buffer);
+  let hash = 2166136261;
+
+  distanceRecords
+    .slice()
+    .sort((left, right) => (
+      left.source.localeCompare(right.source)
+      || left.target.localeCompare(right.target)
+    ))
+    .forEach((record) => {
+      `${record.source}\0${record.target}\0`.split('').forEach((character) => {
+        hash = updateFnv1a(hash, character.charCodeAt(0));
+      });
+      view.setFloat32(0, Math.fround(record.distance), true);
+      for (let byte = 0; byte < 4; byte++) {
+        hash = updateFnv1a(hash, view.getUint8(byte));
+      }
+    });
+
+  return hash.toString(16).padStart(8, '0');
+}
+
+function validateAndSummarizeTn93Fixture({
+  fileName,
+  records,
+  threshold,
+  expectedProgressive,
+  ambiguityStrategy = 'AVERAGE',
+  ambiguityThreshold = 1,
+}) {
+  const consensus = buildTn93Consensus(records);
+  const consensusSequence = Array.from(
+    consensus,
+    base => (['a', 'c', 'g', 't'][base] ?? '-'),
+  ).join('');
+  const ambiguityFraction = record => (
+    record.encoded.reduce((count, base) => count + (base > 3 ? 1 : 0), 0)
+      / Math.max(1, record.encoded.length)
+  );
+  const distanceBetween = (source, target, targetSequence) => {
+    let strategy = ambiguityStrategy;
+    if (strategy === 'HIVTRACE-G') {
+      strategy = ambiguityFraction(source) < ambiguityThreshold
+        && ambiguityFraction(target) < ambiguityThreshold
+        ? 'RESOLVE'
+        : 'AVERAGE';
+    }
+    return strategy === 'RESOLVE'
+      ? tn93(source.sequence, targetSequence, 'RESOLVE')
+      : tn93.onInts(source.encoded, target.encoded, strategy);
+  };
+  const consensusRecord = {
+    sequence: consensusSequence,
+    encoded: consensus,
+  };
+  const radii = records.map((record) => (
+    distanceBetween(record, consensusRecord, consensusSequence)
+  ));
+  const totalPairs = (records.length * (records.length - 1)) / 2;
+  const candidatePairs = enumerateTn93CandidatePairs(radii, threshold);
+  const candidateRatio = candidatePairs / totalPairs;
+  const fallbackReason = expectedProgressive
+    ? null
+    : totalPairs < TN93_PROGRESSIVE_MINIMUM_PAIR_COUNT
+      ? 'below-minimum-pair-count'
+      : 'candidate-ratio-too-high';
+  const distanceRecords = [];
+  let visibleLinks = 0;
+  let finiteDistances = 0;
+
+  for (let sourceIndex = 1; sourceIndex < records.length; sourceIndex++) {
+    for (let targetIndex = 0; targetIndex < sourceIndex; targetIndex++) {
+      const rawDistance = distanceBetween(
+        records[sourceIndex],
+        records[targetIndex],
+        records[targetIndex].sequence,
+      );
+      const distance = Math.fround(rawDistance);
+      if (Number.isFinite(distance)) finiteDistances++;
+      if (distance <= threshold) visibleLinks++;
+      const ids = [records[sourceIndex].id, records[targetIndex].id].sort();
+      distanceRecords.push({
+        source: ids[0],
+        target: ids[1],
+        distance,
+      });
+    }
+  }
+
+  if (
+    expectedProgressive
+    && totalPairs < TN93_PROGRESSIVE_MINIMUM_PAIR_COUNT
+  ) {
+    throw new Error(
+      `${fileName} has ${totalPairs} dyads; at least ${TN93_PROGRESSIVE_MINIMUM_PAIR_COUNT} are required.`,
+    );
+  }
+  if (
+    expectedProgressive
+    && candidateRatio > TN93_PROGRESSIVE_MAXIMUM_CANDIDATE_RATIO
+  ) {
+    throw new Error(
+      `${fileName} candidate ratio ${candidateRatio} does not activate progressive TN93.`,
+    );
+  }
+  if (
+    !expectedProgressive
+    && totalPairs >= TN93_PROGRESSIVE_MINIMUM_PAIR_COUNT
+    && candidateRatio <= TN93_PROGRESSIVE_MAXIMUM_CANDIDATE_RATIO
+  ) {
+    throw new Error(
+      `${fileName} candidate ratio ${candidateRatio} does not exercise adaptive fallback.`,
+    );
+  }
+
+  return {
+    fasta: `performance/${fileName}`,
+    nodes: records.length,
+    sequenceLength: records[0].sequence.length,
+    threshold,
+    ambiguityStrategy,
+    ambiguityThreshold,
+    totalPairs,
+    candidatePairs,
+    candidateRatio,
+    deferredPairs: expectedProgressive ? totalPairs - candidatePairs : 0,
+    expectedProgressive,
+    fallbackReason,
+    visibleLinks,
+    finiteDistances,
+    distanceFloat32Hash: hashTn93Distances(distanceRecords),
+  };
+}
+
+function writeTn93Fasta(fileName, records) {
+  const lines = [];
+  records.forEach((record) => {
+    lines.push(`>${record.id}`);
+    lines.push(wrapSequence(record.sequence));
+  });
+  fs.writeFileSync(path.join(outDir, fileName), `${lines.join('\n')}\n`, 'utf8');
+}
+
+function buildProgressiveTn93Records() {
+  const reference = buildBalancedReference(TN93_PROGRESSIVE_SEQUENCE_LENGTH);
+  const random = makeRandom(0x544e3931);
+  const records = [];
+
+  for (let index = 0; index < TN93_PROGRESSIVE_SEQUENCE_COUNT; index++) {
+    const mutationCount = Math.floor(index * 0.62);
+    const perBaseCounts = DNA_ALPHABET.map((_, baseIndex) => (
+      Math.floor((mutationCount + DNA_ALPHABET.length - 1 - baseIndex) / DNA_ALPHABET.length)
+    ));
+    const positions = chooseBalancedMutationPositions(
+      random,
+      perBaseCounts,
+      reference,
+    );
+    const sequence = mutateReference(reference, positions);
+    records.push({
+      id: `TPD${String(index + 1).padStart(4, '0')}`,
+      sequence,
+      encoded: tn93.toInts(sequence),
+    });
+  }
+
+  return records;
+}
+
+function buildFallbackTn93Records() {
+  const reference = buildBalancedReference(TN93_PROGRESSIVE_SEQUENCE_LENGTH);
+  const random = makeRandom(0x544e3932);
+  const records = [];
+
+  for (let index = 0; index < TN93_PROGRESSIVE_SEQUENCE_COUNT; index++) {
+    const positions = chooseBalancedMutationPositions(
+      random,
+      [9, 9, 9, 9],
+      reference,
+    );
+    const sequence = mutateReference(reference, positions);
+    records.push({
+      id: `TAF${String(index + 1).padStart(4, '0')}`,
+      sequence,
+      encoded: tn93.toInts(sequence),
+    });
+  }
+
+  return records;
+}
+
+function buildProgressiveTn93ScalingRecords(sequenceCount) {
+  const reference = buildBalancedReference(TN93_PROGRESSIVE_SEQUENCE_LENGTH);
+  const random = makeRandom((0x544e4000 + sequenceCount) >>> 0);
+  const records = [];
+  const maximumMutationCount = Math.floor(
+    (TN93_PROGRESSIVE_SEQUENCE_COUNT - 1) * 0.62,
+  );
+
+  for (let index = 0; index < sequenceCount; index++) {
+    const mutationCount = Math.floor(
+      index * maximumMutationCount / Math.max(1, sequenceCount - 1),
+    );
+    const perBaseCounts = DNA_ALPHABET.map((_, baseIndex) => (
+      Math.floor((mutationCount + DNA_ALPHABET.length - 1 - baseIndex) / DNA_ALPHABET.length)
+    ));
+    const positions = chooseBalancedMutationPositions(
+      random,
+      perBaseCounts,
+      reference,
+    );
+    const sequence = mutateReference(reference, positions);
+    records.push({
+      id: `TPS${String(index + 1).padStart(4, '0')}`,
+      sequence,
+      encoded: tn93.toInts(sequence),
+    });
+  }
+
+  return records;
+}
+
+function thresholdForTn93CandidateRatio(
+  records,
+  ambiguityStrategy,
+  ambiguityThreshold,
+  requestedRatio,
+) {
+  const consensus = buildTn93Consensus(records);
+  const consensusSequence = Array.from(
+    consensus,
+    base => (['a', 'c', 'g', 't'][base] ?? '-'),
+  ).join('');
+  const ambiguities = records.map(record => (
+    record.encoded.reduce((count, base) => count + (base > 3 ? 1 : 0), 0)
+      / Math.max(1, record.encoded.length)
+  ));
+  const consensusAmbiguity = consensus.reduce(
+    (count, base) => count + (base > 3 ? 1 : 0),
+    0,
+  ) / Math.max(1, consensus.length);
+  const radii = records.map((record, index) => {
+    let strategy = ambiguityStrategy;
+    if (strategy === 'HIVTRACE-G') {
+      strategy = ambiguities[index] < ambiguityThreshold
+        && consensusAmbiguity < ambiguityThreshold
+        ? 'RESOLVE'
+        : 'AVERAGE';
+    }
+    return strategy === 'RESOLVE'
+      ? tn93(record.sequence, consensusSequence, 'RESOLVE')
+      : tn93.onInts(record.encoded, consensus, strategy);
+  });
+  const finiteDifferences = [];
+  let nonFinitePairs = 0;
+  for (let source = 1; source < radii.length; source++) {
+    for (let target = 0; target < source; target++) {
+      if (Number.isFinite(radii[source]) && Number.isFinite(radii[target])) {
+        finiteDifferences.push(Math.abs(radii[source] - radii[target]));
+      } else {
+        nonFinitePairs++;
+      }
+    }
+  }
+  finiteDifferences.sort((left, right) => left - right);
+  const totalPairs = (records.length * (records.length - 1)) / 2;
+  const desiredPairs = Math.max(
+    nonFinitePairs,
+    Math.min(totalPairs, Math.floor(totalPairs * requestedRatio)),
+  );
+  const desiredFinitePairs = desiredPairs - nonFinitePairs;
+  return desiredFinitePairs <= 0
+    ? 0
+    : finiteDifferences[
+      Math.min(finiteDifferences.length - 1, desiredFinitePairs - 1)
+    ];
+}
+
+function buildFactorTn93Records({
+  sequenceCount,
+  sequenceLength,
+  profile,
+  ambiguityRate = 0,
+  nonFiniteShare = 0,
+  seed,
+}) {
+  const reference = buildBalancedReference(sequenceLength);
+  const random = makeRandom(seed);
+  const records = [];
+  const maximumMutationCount = Math.floor(sequenceLength * 0.09);
+  const nestedPositions = chooseBalancedMutationPositions(
+    random,
+    DNA_ALPHABET.map((_, baseIndex) => (
+      Math.floor(
+        (
+          maximumMutationCount
+          + DNA_ALPHABET.length
+          - 1
+          - baseIndex
+        ) / DNA_ALPHABET.length,
+      )
+    )),
+    reference,
+  );
+  const nonFiniteCount = Math.floor(sequenceCount * nonFiniteShare);
+
+  for (let index = 0; index < sequenceCount; index++) {
+    let sequence;
+    if (index < nonFiniteCount) {
+      sequence = 'r'.repeat(sequenceLength);
+    } else {
+      const finiteIndex = index - nonFiniteCount;
+      const finiteCount = sequenceCount - nonFiniteCount;
+      const position = finiteIndex / Math.max(1, finiteCount - 1);
+      const mutationCount = profile === 'shell'
+        ? Math.floor(sequenceLength * 0.045)
+        : Math.floor(maximumMutationCount * position);
+      const perBaseCounts = DNA_ALPHABET.map((_, baseIndex) => (
+        Math.floor((mutationCount + DNA_ALPHABET.length - 1 - baseIndex) / DNA_ALPHABET.length)
+      ));
+      const mutationPositions = profile === 'nested'
+        ? nestedPositions.slice(0, mutationCount)
+        : chooseBalancedMutationPositions(random, perBaseCounts, reference);
+      const sequenceCharacters = mutateReference(reference, mutationPositions).split('');
+      const ambiguityCount = Math.floor(sequenceLength * ambiguityRate);
+      const ambiguityPositions = choosePositions(
+        random,
+        ambiguityCount,
+        sequenceLength,
+        new Set(),
+      );
+      ambiguityPositions.forEach((ambiguityPosition, ambiguityIndex) => {
+        sequenceCharacters[ambiguityPosition] = ambiguityIndex % 2 === 0
+          ? 'n'
+          : 'r';
+      });
+      sequence = sequenceCharacters.join('');
+    }
+    records.push({
+      id: `TPF${String(index + 1).padStart(4, '0')}`,
+      sequence,
+      encoded: tn93.toInts(sequence),
+    });
+  }
+
+  return records;
+}
+
+function buildTn93FactorFixtures() {
+  const definitions = [
+    {
+      id: 'candidate-05-n500',
+      sequenceCount: 500,
+      sequenceLength: 1200,
+      profile: 'gradient',
+      candidateTarget: 0.05,
+      ambiguityStrategy: 'AVERAGE',
+    },
+    {
+      id: 'topology-shell-n500',
+      sequenceCount: 500,
+      sequenceLength: 1200,
+      profile: 'shell',
+      threshold: TN93_PROGRESSIVE_THRESHOLD,
+      ambiguityStrategy: 'AVERAGE',
+    },
+    {
+      id: 'topology-nested-n500',
+      sequenceCount: 500,
+      sequenceLength: 1200,
+      profile: 'nested',
+      threshold: TN93_PROGRESSIVE_THRESHOLD,
+      ambiguityStrategy: 'AVERAGE',
+    },
+    {
+      id: 'length-5000-n250',
+      sequenceCount: 250,
+      sequenceLength: 5000,
+      profile: 'gradient',
+      candidateTarget: 0.2,
+      ambiguityStrategy: 'AVERAGE',
+    },
+    {
+      id: 'resolve-ambiguity-05-n250',
+      sequenceCount: 250,
+      sequenceLength: 1200,
+      profile: 'gradient',
+      ambiguityRate: 0.05,
+      candidateTarget: 0.2,
+      ambiguityStrategy: 'RESOLVE',
+    },
+    {
+      id: 'nonfinite-10-n250',
+      sequenceCount: 250,
+      sequenceLength: 1200,
+      profile: 'gradient',
+      nonFiniteShare: 0.1,
+      threshold: TN93_PROGRESSIVE_THRESHOLD,
+      ambiguityStrategy: 'AVERAGE',
+    },
+  ];
+
+  return definitions.map((definition, definitionIndex) => {
+    const records = buildFactorTn93Records({
+      ...definition,
+      ambiguityRate: definition.ambiguityRate || 0,
+      nonFiniteShare: definition.nonFiniteShare || 0,
+      seed: 0x544f0000 + definitionIndex,
+    });
+    const threshold = definition.threshold ?? thresholdForTn93CandidateRatio(
+      records,
+      definition.ambiguityStrategy,
+      0.15,
+      definition.candidateTarget,
+    );
+    const fileName = `tn93-factor-${definition.id}.fasta`;
+    writeTn93Fasta(fileName, records);
+    const summary = validateAndSummarizeTn93Fixture({
+      fileName,
+      records,
+      threshold,
+      expectedProgressive: definition.id !== 'topology-shell-n500',
+      ambiguityStrategy: definition.ambiguityStrategy,
+      ambiguityThreshold: 0.15,
+    });
+    return {
+      ...summary,
+      id: definition.id,
+      factorFamily: definition.id.split('-n')[0],
+      ambiguityRate: definition.ambiguityRate || 0,
+      nonFiniteShare: definition.nonFiniteShare || 0,
+      radialProfile: definition.profile,
+      requestedCandidateRatio: definition.candidateTarget ?? null,
+    };
+  });
+}
+
+function buildProgressiveTn93Fixtures() {
+  const progressiveFileName = 'tn93-progressive-diverse-180.fasta';
+  const fallbackFileName = 'tn93-adaptive-fallback-180.fasta';
+  const progressiveRecords = buildProgressiveTn93Records();
+  const fallbackRecords = buildFallbackTn93Records();
+  const factorFixtures = buildTn93FactorFixtures();
+  const scalingFixtures = TN93_PROGRESSIVE_SCALING_COUNTS.map((sequenceCount) => {
+    const fileName = `tn93-progressive-scaling-${sequenceCount}.fasta`;
+    const records = buildProgressiveTn93ScalingRecords(sequenceCount);
+    writeTn93Fasta(fileName, records);
+    return validateAndSummarizeTn93Fixture({
+      fileName,
+      records,
+      threshold: TN93_PROGRESSIVE_THRESHOLD,
+      expectedProgressive:
+        (sequenceCount * (sequenceCount - 1)) / 2
+          >= TN93_PROGRESSIVE_MINIMUM_PAIR_COUNT,
+    });
+  });
+
+  writeTn93Fasta(progressiveFileName, progressiveRecords);
+  writeTn93Fasta(fallbackFileName, fallbackRecords);
+
+  const summary = {
+    schemaVersion: 1,
+    generator: 'scripts/generate-performance-fixtures.js',
+    seed: {
+      progressive: '0x544e3931',
+      adaptiveFallback: '0x544e3932',
+    },
+    acceptance: {
+      minimumRuns: 5,
+      progressiveMinimumPairCount: TN93_PROGRESSIVE_MINIMUM_PAIR_COUNT,
+      progressiveMaximumCandidateRatio:
+        TN93_PROGRESSIVE_MAXIMUM_CANDIDATE_RATIO,
+      maximumFallbackP50RegressionRatio: 1.1,
+    },
+    fixtures: {
+      progressive: validateAndSummarizeTn93Fixture({
+        fileName: progressiveFileName,
+        records: progressiveRecords,
+        threshold: TN93_PROGRESSIVE_THRESHOLD,
+        expectedProgressive: true,
+      }),
+      adaptiveFallback: validateAndSummarizeTn93Fixture({
+        fileName: fallbackFileName,
+        records: fallbackRecords,
+        threshold: TN93_PROGRESSIVE_THRESHOLD,
+        expectedProgressive: false,
+      }),
+      scaling: scalingFixtures,
+      factors: factorFixtures,
+    },
+  };
+
+  fs.writeFileSync(
+    path.join(outDir, 'tn93-progressive-summary.json'),
+    `${JSON.stringify(summary, null, 2)}\n`,
+    'utf8',
+  );
+}
+
 function buildNewickFixture({
   fileName,
   leafPrefix,
@@ -395,6 +996,7 @@ function buildNewickFixtures() {
 ensureDir(outDir);
 buildGraphFixtures();
 buildSequenceFixtures();
+buildProgressiveTn93Fixtures();
 buildNewickFixtures();
 
 console.log(`Generated performance fixtures in ${path.relative(process.cwd(), outDir)}`);

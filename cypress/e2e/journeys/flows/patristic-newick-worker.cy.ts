@@ -7,6 +7,7 @@ import {
   applyPreLaunchFileSettings,
   ensureTwoDNetworkView,
   ensurePreLaunchProfileSynced,
+  goToHeatmapView,
   launchAndWaitForProcessing,
   launchProfileToTwoD,
   openGlobalFilteringTab,
@@ -176,6 +177,42 @@ describe('Journey Flow - Patristic Newick worker safeguards', () => {
     setThresholdAndAssertVisibleLinks(0.02, 45);
     setThresholdAndAssertVisibleLinks(0.001, 2);
     setThresholdAndAssertVisibleLinks(0.015, 14);
+  });
+
+  it('renders all cached patristic pairs in Heatmap even when the network threshold is sparse', () => {
+    launchProfileToTwoD(tn93Profile);
+    assertVisibleLinkCount(14);
+
+    cy.window().then((win: any) => win.commonService.getDM()).then(({ dm, labels }: any) => {
+      const expectedPairCount = labels.length * (labels.length - 1) / 2;
+      let populatedPairCount = 0;
+
+      expect(labels, 'Heatmap labels').to.have.length(14);
+      expect(dm, 'Heatmap matrix rows').to.have.length(labels.length);
+
+      for (let row = 0; row < dm.length; row++) {
+        expect(dm[row], `Heatmap matrix row ${row}`).to.have.length(labels.length);
+        expect(dm[row][row], `Heatmap diagonal ${row}`).to.equal(0);
+        for (let column = 0; column < row; column++) {
+          expect(Number(dm[row][column]), `Heatmap distance ${row},${column}`).to.be.finite;
+          expect(dm[row][column], `symmetric Heatmap distance ${row},${column}`).to.equal(dm[column][row]);
+          populatedPairCount++;
+        }
+      }
+
+      expect(populatedPairCount, 'populated Heatmap pairs').to.equal(expectedPairCount);
+      expect(expectedPairCount, 'complete pairs exceed thresholded network links').to.be.greaterThan(14);
+    });
+
+    goToHeatmapView();
+    cy.window({ timeout: 30000 }).should((win: any) => {
+      const trace = win.commonService.visuals.heatmap?.heatmapData?.[0];
+      const values = trace?.z?.flat?.() || [];
+
+      expect(trace, 'Heatmap trace').to.exist;
+      expect(values, 'rendered Heatmap values').to.have.length(14 * 14);
+      expect(values.every((value: unknown) => Number.isFinite(Number(value))), 'rendered Heatmap is dense').to.equal(true);
+    });
   });
 
   it('warns and skips additional Newick edges when a threshold exceeds the browser guardrail', () => {

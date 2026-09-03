@@ -11,6 +11,143 @@ import type {
   PatristicProgressResponse,
   PatristicErrorResponse,
 } from '../workers/patristic-engine.types';
+import type {
+  ExhaustiveFallbackResult,
+  SequenceLinkComputationResult,
+  Tn93AmbiguityStrategy,
+  Tn93ComputeTimings,
+  Tn93DistanceBatch,
+  Tn93DistanceBatchResponse,
+  Tn93DistanceCompletionResult,
+  Tn93DistanceStatus,
+  Tn93InitialDoneResponse,
+  Tn93PlanReadyResponse,
+  Tn93PlanTimings,
+  Tn93PromotionDoneResponse,
+  Tn93WorkerRequest,
+  Tn93WorkerResponse,
+} from '../workers/tn93-engine.types';
+import type { PackedTn93Sequences } from '../workers/tn93-worker-payload';
+import { packedTn93Transferables } from '../workers/tn93-worker-payload';
+
+export type { ExhaustiveFallbackResult } from '../workers/tn93-engine.types';
+
+export interface StartTn93DistanceJobOptions {
+  packedSequences: PackedTn93Sequences;
+  strategy: Tn93AmbiguityStrategy;
+  ambiguityThreshold: number;
+  threshold: number;
+  loadGeneration: number;
+  inputSignature: string;
+  batchSize?: number;
+  chunkSize?: number;
+  maxInFlightBatches?: number;
+  minimumProgressivePairCount?: number;
+  maximumCandidateRatio?: number;
+  onBatch: (batch: Tn93DistanceBatch) => void | number | Promise<void | number>;
+  onStatus?: (status: Tn93DistanceStatus) => void;
+  fallbackToExhaustive?: (cause: Error) => Promise<ExhaustiveFallbackResult>;
+}
+
+export interface Tn93DistanceJobIdentity {
+  runId?: number;
+  loadGeneration?: number;
+  inputSignature?: string;
+}
+
+export interface Tn93ThresholdPromotionResult {
+  runId: number;
+  loadGeneration: number;
+  inputSignature: string;
+  threshold: number;
+  promotedPairs: number;
+  computedPairs: number;
+  candidatePairs: number;
+  totalPairs: number;
+}
+
+export interface Tn93CoordinatorTelemetry {
+  cancelledJobs: number;
+  staleResponses: number;
+  batchMergeFailures: number;
+}
+
+interface Deferred<T> {
+  promise: Promise<T>;
+  resolve: (value: T) => void;
+  reject: (reason?: any) => void;
+  settled: boolean;
+}
+
+interface PendingTn93Promotion {
+  requestId: number;
+  threshold: number;
+  deferred: Deferred<Tn93ThresholdPromotionResult>;
+}
+
+interface ActiveTn93DistanceJob {
+  worker: Worker;
+  runId: number;
+  loadGeneration: number;
+  inputSignature: string;
+  options: StartTn93DistanceJobOptions;
+  initial: Deferred<SequenceLinkComputationResult>;
+  background: Deferred<Tn93DistanceCompletionResult>;
+  promotions: Map<number, PendingTn93Promotion>;
+  messageHandler: (event: MessageEvent<Tn93WorkerResponse>) => void;
+  errorHandler: (event: ErrorEvent) => void;
+  latestStatus: Tn93DistanceStatus;
+  plan?: Tn93PlanReadyResponse;
+  backgroundStarted: boolean;
+  initialSettled: boolean;
+  provisional: boolean;
+  handlingFailure: boolean;
+  finished: boolean;
+  maxCoveredThreshold: number;
+  initialLinkCount: number;
+}
+
+interface CompletedTn93DistanceJob {
+  completion: Tn93DistanceCompletionResult;
+  candidatePairs: number;
+}
+
+export class Tn93DistanceJobCancelledError extends Error {
+  constructor(message = 'TN93 distance computation was cancelled.') {
+    super(message);
+    this.name = 'Tn93DistanceJobCancelledError';
+  }
+}
+
+export class Tn93StaleDistanceJobError extends Error {
+  constructor(message = 'The TN93 distance job no longer matches the active input.') {
+    super(message);
+    this.name = 'Tn93StaleDistanceJobError';
+  }
+}
+
+function createDeferred<T>(): Deferred<T> {
+  let resolvePromise: (value: T) => void;
+  let rejectPromise: (reason?: any) => void;
+  const deferred: Deferred<T> = {
+    promise: new Promise<T>((resolve, reject) => {
+      resolvePromise = resolve;
+      rejectPromise = reject;
+    }),
+    resolve: (value: T) => {
+      if (deferred.settled) return;
+      deferred.settled = true;
+      resolvePromise(value);
+    },
+    reject: (reason?: any) => {
+      if (deferred.settled) return;
+      deferred.settled = true;
+      rejectPromise(reason);
+    },
+    settled: false,
+  };
+  return deferred;
+}
 import {
   BOOTSTRAP_DEFAULT_STABILITY_TOLERANCE_PERCENT,
   buildSupportSnapshot,
@@ -39,6 +176,7 @@ interface ComputePatristicOptions {
   check?: any;
   maxEdges?: number;
   batchSize?: number;
+  isCurrent?: () => boolean;
 }
 
 interface PatristicVisibleEdgeGuardrails {
@@ -87,11 +225,24 @@ interface PatristicAnalysisEdge {
   value: number;
 }
 
-interface PatristicDistanceAnalysisResult {
+export interface PatristicDistanceAnalysisProgress {
+  completedPairs: number;
+  totalPairs: number;
+  percent: number;
+}
+
+export interface PatristicDistanceAnalysisResult {
   edges: PatristicAnalysisEdge[];
   totalPairs: number;
   skipped: boolean;
   skipReason?: string;
+}
+
+interface CollectPatristicDistanceAnalysisOptions {
+  maxPairs?: number;
+  batchSize?: number;
+  bypassPairLimit?: boolean;
+  onProgress?: (progress: PatristicDistanceAnalysisProgress) => void;
 }
 
 const DEFAULT_NEWICK_VISIBLE_LINK_WARNING_THRESHOLD = 75000;
@@ -107,7 +258,17 @@ const DEFAULT_NEWICK_THRESHOLD_ANALYSIS_PAIR_LIMIT = 500000;
   providedIn: 'root'
 })
 export class WorkerComputeService {
-  
+
+  private tn93RunId = 0;
+  private tn93PromotionRequestId = 0;
+  private activeTn93Job: ActiveTn93DistanceJob | null = null;
+  private completedTn93Job: CompletedTn93DistanceJob | null = null;
+  private tn93CoordinatorTelemetry: Tn93CoordinatorTelemetry = {
+    cancelledJobs: 0,
+    staleResponses: 0,
+    batchMergeFailures: 0,
+  };
+
   constructor(private computer: WorkerModule) {}
 
   /**
@@ -348,7 +509,7 @@ export class WorkerComputeService {
    * Note: We now pass an addLink callback so that we can call
    * the original addLink logic from CommonService.
    */
- public computeLinks(
+  public computeLinks(
     session: any,
     subset: any[],
     addLink: (link: any, check: any) => number
@@ -407,6 +568,811 @@ export class WorkerComputeService {
         sub.unsubscribe();
       });
     });
+  }
+
+  /**
+   * Start a stateful, progressive TN93 distance job.
+   *
+   * The returned promise resolves only after all foreground batches have been
+   * merged and acknowledged. The caller owns the first render and then calls
+   * result.startBackground() to release the worker to compute the complement.
+   */
+  public startTn93DistanceJob(
+    options: StartTn93DistanceJobOptions
+  ): Promise<SequenceLinkComputationResult> {
+    this.validateTn93StartOptions(options);
+    this.cancelTn93DistanceJob('superseded by a new TN93 distance job');
+    this.completedTn93Job = null;
+
+    const totalPairs = this.getPackedTn93PairCount(options.packedSequences);
+    const worker = this.computer.getTn93DistanceWorker();
+    const runId = ++this.tn93RunId;
+    const initial = createDeferred<SequenceLinkComputationResult>();
+    const background = createDeferred<Tn93DistanceCompletionResult>();
+
+    // A foreground failure can reject this promise before it is handed to a
+    // caller. Attach a noop rejection observer while retaining the rejecting
+    // promise for consumers that receive it through the initial result.
+    void background.promise.catch(() => undefined);
+
+    const initialStatus: Tn93DistanceStatus = {
+      phase: 'planning',
+      runId,
+      loadGeneration: options.loadGeneration,
+      inputSignature: options.inputSignature,
+      threshold: options.threshold,
+      computedPairs: 0,
+      candidatePairs: 0,
+      totalPairs,
+      provisional: true,
+    };
+
+    const job = {} as ActiveTn93DistanceJob;
+    job.worker = worker;
+    job.runId = runId;
+    job.loadGeneration = options.loadGeneration;
+    job.inputSignature = options.inputSignature;
+    job.options = options;
+    job.initial = initial;
+    job.background = background;
+    job.promotions = new Map<number, PendingTn93Promotion>();
+    job.latestStatus = initialStatus;
+    job.backgroundStarted = false;
+    job.initialSettled = false;
+    job.provisional = false;
+    job.handlingFailure = false;
+    job.finished = false;
+    job.maxCoveredThreshold = options.threshold;
+    job.initialLinkCount = 0;
+    job.messageHandler = (event: MessageEvent<Tn93WorkerResponse>) => {
+      this.handleTn93WorkerResponse(job, event.data);
+    };
+    job.errorHandler = (event: ErrorEvent) => {
+      const error = event?.error instanceof Error
+        ? event.error
+        : new Error(event?.message || 'The TN93 distance worker failed.');
+      void this.handleTn93JobFailure(job, error, !job.initialSettled);
+    };
+
+    this.activeTn93Job = job;
+    worker.addEventListener('message', job.messageHandler);
+    worker.addEventListener('error', job.errorHandler);
+    this.emitTn93Status(job, initialStatus);
+
+    const request: Tn93WorkerRequest = {
+      type: 'INIT',
+      runId,
+      loadGeneration: options.loadGeneration,
+      inputSignature: options.inputSignature,
+      sequences: options.packedSequences,
+      strategy: options.strategy,
+      ambiguityThreshold: options.ambiguityThreshold,
+      threshold: options.threshold,
+      batchSize: options.batchSize,
+      chunkSize: options.chunkSize,
+      maxInFlightBatches: options.maxInFlightBatches,
+      minimumProgressivePairCount: options.minimumProgressivePairCount,
+      maximumCandidateRatio: options.maximumCandidateRatio,
+    };
+
+    try {
+      worker.postMessage(request, packedTn93Transferables(options.packedSequences));
+    } catch (cause) {
+      void this.handleTn93JobFailure(
+        job,
+        this.asError(cause, 'Unable to start the TN93 distance worker.'),
+        true
+      );
+    }
+
+    return initial.promise;
+  }
+
+  /**
+   * Prioritize any not-yet-computed pairs newly eligible at a higher threshold.
+   * Lower/equal thresholds reuse the already computed foreground superset.
+   */
+  public ensureTn93CandidatesForThreshold(
+    threshold: number,
+    expected: Tn93DistanceJobIdentity = {}
+  ): Promise<Tn93ThresholdPromotionResult | null> {
+    if (!Number.isFinite(threshold) || threshold < 0) {
+      return Promise.reject(new Error(`Invalid TN93 link threshold: ${threshold}`));
+    }
+
+    const job = this.activeTn93Job;
+    if (!job || job.finished) {
+      const completed = this.completedTn93Job;
+      if (!completed || !this.tn93IdentityMatches(completed.completion, expected)) {
+        return Promise.resolve(null);
+      }
+
+      return Promise.resolve({
+        runId: completed.completion.runId,
+        loadGeneration: completed.completion.loadGeneration,
+        inputSignature: completed.completion.inputSignature,
+        threshold,
+        promotedPairs: 0,
+        computedPairs: completed.completion.computedPairs,
+        candidatePairs: completed.candidatePairs,
+        totalPairs: completed.completion.totalPairs,
+      });
+    }
+
+    if (!this.tn93IdentityMatches(job, expected)) {
+      return Promise.reject(new Tn93StaleDistanceJobError());
+    }
+
+    if (
+      threshold <= job.maxCoveredThreshold
+      || (job.plan !== undefined && !job.provisional)
+    ) {
+      return Promise.resolve(this.buildNoopTn93PromotionResult(job, threshold));
+    }
+
+    const coveringPromotion = Array.from(job.promotions.values())
+      .filter((promotion) => promotion.threshold >= threshold)
+      .sort((source, target) => source.threshold - target.threshold)[0];
+    if (coveringPromotion) {
+      return coveringPromotion.deferred.promise;
+    }
+
+    const requestId = ++this.tn93PromotionRequestId;
+    const deferred = createDeferred<Tn93ThresholdPromotionResult>();
+    const promotion: PendingTn93Promotion = {
+      requestId,
+      threshold,
+      deferred,
+    };
+    job.promotions.set(requestId, promotion);
+
+    this.emitTn93Status(job, {
+      ...job.latestStatus,
+      phase: 'promoting',
+      threshold,
+      provisional: true,
+    });
+
+    try {
+      this.postTn93Request(job, {
+        type: 'PRIORITIZE_THRESHOLD',
+        runId: job.runId,
+        loadGeneration: job.loadGeneration,
+        inputSignature: job.inputSignature,
+        requestId,
+        threshold,
+      });
+    } catch (cause) {
+      job.promotions.delete(requestId);
+      deferred.reject(this.asError(cause, 'Unable to prioritize the TN93 threshold.'));
+      void this.handleTn93JobFailure(
+        job,
+        this.asError(cause, 'Unable to prioritize the TN93 threshold.'),
+        !job.initialSettled
+      );
+    }
+
+    return deferred.promise;
+  }
+
+  /**
+   * Cancel and terminate the owned TN93 worker. Calling this during a
+   * provisional run rejects backgroundCompletion but leaves already merged
+   * distances untouched for the caller to replace or discard.
+   */
+  public cancelTn93DistanceJob(reason = 'TN93 distance computation cancelled'): void {
+    const job = this.activeTn93Job;
+    this.completedTn93Job = null;
+
+    if (!job || job.finished) {
+      this.computer.terminateTn93DistanceWorker();
+      return;
+    }
+
+    this.tn93CoordinatorTelemetry.cancelledJobs++;
+    const cancellation = new Tn93DistanceJobCancelledError(reason);
+
+    try {
+      this.postTn93Request(job, {
+        type: 'CANCEL',
+        runId: job.runId,
+        loadGeneration: job.loadGeneration,
+        inputSignature: job.inputSignature,
+        reason,
+      });
+    } catch {
+      // Termination below is the authoritative cancellation path.
+    }
+
+    this.emitTn93Status(job, {
+      ...job.latestStatus,
+      phase: 'cancelled',
+      provisional: job.provisional,
+    });
+    job.initial.reject(cancellation);
+    job.background.reject(cancellation);
+    this.rejectTn93Promotions(job, cancellation);
+    this.finishTn93Job(job);
+  }
+
+  public getTn93CoordinatorTelemetry(): Tn93CoordinatorTelemetry {
+    return { ...this.tn93CoordinatorTelemetry };
+  }
+
+  private validateTn93StartOptions(options: StartTn93DistanceJobOptions): void {
+    if (!options || typeof options !== 'object') {
+      throw new Error('TN93 distance job options are required.');
+    }
+    if (!options.packedSequences) {
+      throw new Error('Packed TN93 sequences are required.');
+    }
+    if (!Number.isFinite(options.loadGeneration)) {
+      throw new Error('A finite TN93 load generation is required.');
+    }
+    if (!options.inputSignature) {
+      throw new Error('A TN93 input signature is required.');
+    }
+    if (typeof options.onBatch !== 'function') {
+      throw new Error('A TN93 distance batch merge callback is required.');
+    }
+  }
+
+  private getPackedTn93PairCount(sequences: PackedTn93Sequences): number {
+    const offsets = new Uint32Array(sequences.sequenceOffsets);
+    const sequenceCount = Math.max(0, offsets.length - 1);
+    return (sequenceCount * (sequenceCount - 1)) / 2;
+  }
+
+  private handleTn93WorkerResponse(
+    job: ActiveTn93DistanceJob,
+    response: Tn93WorkerResponse
+  ): void {
+    if (!this.isCurrentTn93Response(job, response)) {
+      this.tn93CoordinatorTelemetry.staleResponses++;
+      return;
+    }
+
+    switch (response.type) {
+      case 'PLAN_READY':
+        this.handleTn93PlanReady(job, response);
+        break;
+      case 'PROGRESS':
+        this.emitTn93Status(job, {
+          phase: response.phase,
+          runId: job.runId,
+          loadGeneration: job.loadGeneration,
+          inputSignature: job.inputSignature,
+          threshold: response.threshold,
+          computedPairs: response.computedPairs,
+          candidatePairs: response.candidatePairs,
+          totalPairs: response.totalPairs,
+          provisional: response.provisional,
+          fallbackReason: job.plan?.fallbackReason,
+        });
+        break;
+      case 'DISTANCE_BATCH':
+        void this.mergeAndAcknowledgeTn93Batch(job, response);
+        break;
+      case 'INITIAL_DONE':
+        this.handleTn93InitialDone(job, response);
+        break;
+      case 'PROMOTION_DONE':
+        this.handleTn93PromotionDone(job, response);
+        break;
+      case 'COMPLETE':
+        this.completeTn93Job(job, {
+          runId: response.runId,
+          loadGeneration: response.loadGeneration,
+          inputSignature: response.inputSignature,
+          computedPairs: response.computedPairs,
+          totalPairs: response.totalPairs,
+          correctedBelowThresholdLinks: response.correctedBelowThresholdLinks,
+          timings: response.timings,
+        });
+        break;
+      case 'CANCELLED': {
+        const cancellation = new Tn93DistanceJobCancelledError(
+          response.reason || 'TN93 distance computation was cancelled.'
+        );
+        this.emitTn93Status(job, {
+          ...job.latestStatus,
+          phase: 'cancelled',
+          computedPairs: response.computedPairs,
+          totalPairs: response.totalPairs,
+          provisional: job.provisional,
+        });
+        job.initial.reject(cancellation);
+        job.background.reject(cancellation);
+        this.rejectTn93Promotions(job, cancellation);
+        this.finishTn93Job(job);
+        break;
+      }
+      case 'ERROR':
+        void this.handleTn93JobFailure(
+          job,
+          new Error(response.message),
+          response.beforeInitial || !job.initialSettled
+        );
+        break;
+    }
+  }
+
+  private handleTn93PlanReady(
+    job: ActiveTn93DistanceJob,
+    response: Tn93PlanReadyResponse
+  ): void {
+    job.plan = response;
+    job.provisional = response.provisional;
+    job.maxCoveredThreshold = Math.max(job.maxCoveredThreshold, response.threshold);
+    this.emitTn93Status(job, {
+      phase: 'foreground',
+      runId: job.runId,
+      loadGeneration: job.loadGeneration,
+      inputSignature: job.inputSignature,
+      threshold: response.threshold,
+      computedPairs: 0,
+      candidatePairs: response.candidatePairs,
+      totalPairs: response.totalPairs,
+      provisional: response.provisional,
+      fallbackReason: response.fallbackReason,
+    });
+  }
+
+  private async mergeAndAcknowledgeTn93Batch(
+    job: ActiveTn93DistanceJob,
+    response: Tn93DistanceBatchResponse
+  ): Promise<void> {
+    try {
+      const mergedLinks = await job.options.onBatch({
+        batchId: response.batchId,
+        stage: response.stage,
+        sources: response.sources,
+        targets: response.targets,
+        distances: response.distances,
+      });
+      if (
+        response.stage === 'foreground'
+        && typeof mergedLinks === 'number'
+        && Number.isFinite(mergedLinks)
+      ) {
+        job.initialLinkCount += mergedLinks;
+      }
+
+      if (!this.isCurrentTn93Response(job, response)) {
+        this.tn93CoordinatorTelemetry.staleResponses++;
+        return;
+      }
+
+      const phase = response.stage === 'foreground'
+        ? 'foreground'
+        : response.stage === 'promoting'
+          ? 'promoting'
+          : 'background';
+      this.emitTn93Status(job, {
+        ...job.latestStatus,
+        phase,
+        computedPairs: Math.max(job.latestStatus.computedPairs, response.totalComputed),
+        provisional: job.provisional,
+      });
+      this.postTn93Request(job, {
+        type: 'ACK',
+        runId: job.runId,
+        loadGeneration: job.loadGeneration,
+        inputSignature: job.inputSignature,
+        batchId: response.batchId,
+      });
+    } catch (cause) {
+      this.tn93CoordinatorTelemetry.batchMergeFailures++;
+      void this.handleTn93JobFailure(
+        job,
+        this.asError(cause, `Unable to merge TN93 ${response.stage} batch ${response.batchId}.`),
+        !job.initialSettled
+      );
+    }
+  }
+
+  private handleTn93InitialDone(
+    job: ActiveTn93DistanceJob,
+    response: Tn93InitialDoneResponse
+  ): void {
+    if (job.initialSettled) return;
+
+    job.initialSettled = true;
+    job.provisional = response.provisional;
+    job.maxCoveredThreshold = Math.max(job.maxCoveredThreshold, response.threshold);
+
+    const startBackground = () => {
+      if (
+        !response.provisional ||
+        job.backgroundStarted ||
+        job.finished ||
+        this.activeTn93Job !== job
+      ) {
+        return;
+      }
+
+      job.backgroundStarted = true;
+      this.emitTn93Status(job, {
+        ...job.latestStatus,
+        phase: 'background',
+        provisional: true,
+      });
+      try {
+        this.postTn93Request(job, {
+          type: 'START_BACKGROUND',
+          runId: job.runId,
+          loadGeneration: job.loadGeneration,
+          inputSignature: job.inputSignature,
+        });
+      } catch (cause) {
+        void this.handleTn93JobFailure(
+          job,
+          this.asError(cause, 'Unable to start background TN93 computation.'),
+          false
+        );
+      }
+    };
+
+    const result: SequenceLinkComputationResult = {
+      runId: job.runId,
+      loadGeneration: job.loadGeneration,
+      inputSignature: job.inputSignature,
+      initialComputedPairs: response.initialComputedPairs,
+      initialLinkCount: job.initialLinkCount,
+      candidatePairs: response.candidatePairs,
+      deferredPairs: response.deferredPairs,
+      totalPairs: response.totalPairs,
+      provisional: response.provisional,
+      fallbackReason: response.fallbackReason,
+      timings: response.timings,
+      startBackground,
+      backgroundCompletion: job.background.promise,
+    };
+
+    this.emitTn93Status(job, {
+      phase: response.provisional ? 'provisional' : 'complete',
+      runId: job.runId,
+      loadGeneration: job.loadGeneration,
+      inputSignature: job.inputSignature,
+      threshold: response.threshold,
+      computedPairs: response.initialComputedPairs,
+      candidatePairs: response.candidatePairs,
+      totalPairs: response.totalPairs,
+      provisional: response.provisional,
+      fallbackReason: response.fallbackReason,
+    });
+    job.initial.resolve(result);
+
+    if (!response.provisional) {
+      this.completeTn93Job(job, {
+        runId: job.runId,
+        loadGeneration: job.loadGeneration,
+        inputSignature: job.inputSignature,
+        computedPairs: response.initialComputedPairs,
+        totalPairs: response.totalPairs,
+        correctedBelowThresholdLinks: 0,
+        timings: response.computeTimings,
+      });
+    }
+  }
+
+  private handleTn93PromotionDone(
+    job: ActiveTn93DistanceJob,
+    response: Tn93PromotionDoneResponse
+  ): void {
+    const promotion = job.promotions.get(response.requestId);
+    if (!promotion) {
+      this.tn93CoordinatorTelemetry.staleResponses++;
+      return;
+    }
+
+    job.promotions.delete(response.requestId);
+    job.maxCoveredThreshold = Math.max(job.maxCoveredThreshold, response.threshold);
+
+    const result: Tn93ThresholdPromotionResult = {
+      runId: response.runId,
+      loadGeneration: response.loadGeneration,
+      inputSignature: response.inputSignature,
+      threshold: response.threshold,
+      promotedPairs: response.promotedPairs,
+      computedPairs: response.computedPairs,
+      candidatePairs: response.candidatePairs,
+      totalPairs: response.totalPairs,
+    };
+    promotion.deferred.resolve(result);
+
+    this.emitTn93Status(job, {
+      phase: job.backgroundStarted ? 'background' : 'provisional',
+      runId: job.runId,
+      loadGeneration: job.loadGeneration,
+      inputSignature: job.inputSignature,
+      threshold: job.maxCoveredThreshold,
+      computedPairs: response.computedPairs,
+      candidatePairs: response.candidatePairs,
+      totalPairs: response.totalPairs,
+      provisional: true,
+      fallbackReason: job.plan?.fallbackReason,
+    });
+  }
+
+  private completeTn93Job(
+    job: ActiveTn93DistanceJob,
+    completion: Tn93DistanceCompletionResult
+  ): void {
+    if (job.finished) return;
+
+    if (!job.initialSettled) {
+      const plan = job.plan;
+      const result: SequenceLinkComputationResult = {
+        runId: job.runId,
+        loadGeneration: job.loadGeneration,
+        inputSignature: job.inputSignature,
+        initialComputedPairs: completion.computedPairs,
+        initialLinkCount: job.initialLinkCount,
+        candidatePairs: plan?.candidatePairs ?? completion.totalPairs,
+        deferredPairs: 0,
+        totalPairs: completion.totalPairs,
+        provisional: false,
+        fallbackReason: plan?.fallbackReason,
+        timings: plan?.timings ?? this.emptyTn93PlanTimings(),
+        startBackground: () => undefined,
+        backgroundCompletion: job.background.promise,
+      };
+      job.initialSettled = true;
+      job.initial.resolve(result);
+    }
+
+    job.provisional = false;
+    this.emitTn93Status(job, {
+      phase: 'complete',
+      runId: job.runId,
+      loadGeneration: job.loadGeneration,
+      inputSignature: job.inputSignature,
+      threshold: job.maxCoveredThreshold,
+      computedPairs: completion.computedPairs,
+      candidatePairs: job.latestStatus.candidatePairs || completion.totalPairs,
+      totalPairs: completion.totalPairs,
+      provisional: false,
+      fallbackReason: job.plan?.fallbackReason,
+    });
+    job.background.resolve(completion);
+    this.resolveTn93PromotionsAtCompletion(job, completion);
+    this.completedTn93Job = {
+      completion,
+      candidatePairs: job.latestStatus.candidatePairs || completion.totalPairs,
+    };
+    this.finishTn93Job(job);
+  }
+
+  private async handleTn93JobFailure(
+    job: ActiveTn93DistanceJob,
+    cause: Error,
+    beforeInitial: boolean
+  ): Promise<void> {
+    if (job.finished || job.handlingFailure || this.activeTn93Job !== job) return;
+    job.handlingFailure = true;
+
+    if (beforeInitial && job.options.fallbackToExhaustive) {
+      this.detachTn93Worker(job);
+      try {
+        const fallback = await job.options.fallbackToExhaustive(cause);
+        if (job.finished || this.activeTn93Job !== job) return;
+        this.validateExhaustiveFallback(job, fallback);
+
+        const planTimings = this.planTimingsFromFallback(fallback.timings);
+        const computeTimings = this.computeTimingsFromFallback(fallback.timings);
+        const completion: Tn93DistanceCompletionResult = {
+          runId: job.runId,
+          loadGeneration: job.loadGeneration,
+          inputSignature: job.inputSignature,
+          computedPairs: fallback.computedPairs,
+          totalPairs: fallback.totalPairs,
+          correctedBelowThresholdLinks: 0,
+          timings: computeTimings,
+        };
+        const result: SequenceLinkComputationResult = {
+          runId: job.runId,
+          loadGeneration: job.loadGeneration,
+          inputSignature: job.inputSignature,
+          initialComputedPairs: fallback.computedPairs,
+          initialLinkCount: fallback.initialLinkCount,
+          candidatePairs: fallback.totalPairs,
+          deferredPairs: 0,
+          totalPairs: fallback.totalPairs,
+          provisional: false,
+          timings: planTimings,
+          startBackground: () => undefined,
+          backgroundCompletion: job.background.promise,
+        };
+
+        job.initialSettled = true;
+        job.provisional = false;
+        this.emitTn93Status(job, {
+          phase: 'complete',
+          runId: job.runId,
+          loadGeneration: job.loadGeneration,
+          inputSignature: job.inputSignature,
+          threshold: job.latestStatus.threshold,
+          computedPairs: fallback.computedPairs,
+          candidatePairs: fallback.totalPairs,
+          totalPairs: fallback.totalPairs,
+          provisional: false,
+        });
+        job.background.resolve(completion);
+        job.initial.resolve(result);
+        this.completedTn93Job = {
+          completion,
+          candidatePairs: fallback.totalPairs,
+        };
+        this.resolveTn93PromotionsAtCompletion(job, completion);
+        this.finishTn93Job(job);
+        return;
+      } catch (fallbackCause) {
+        cause = this.asError(fallbackCause, 'Exhaustive TN93 fallback failed.');
+      }
+    }
+
+    this.emitTn93Status(job, {
+      ...job.latestStatus,
+      phase: 'error',
+      provisional: job.provisional,
+      error: cause.message,
+    });
+    job.initial.reject(cause);
+    job.background.reject(cause);
+    this.rejectTn93Promotions(job, cause);
+    this.finishTn93Job(job);
+  }
+
+  private emitTn93Status(
+    job: ActiveTn93DistanceJob,
+    status: Tn93DistanceStatus
+  ): void {
+    job.latestStatus = status;
+    try {
+      job.options.onStatus?.({ ...status });
+    } catch (cause) {
+      console.error('TN93 distance status callback failed:', cause);
+    }
+  }
+
+  private isCurrentTn93Response(
+    job: ActiveTn93DistanceJob,
+    response: Pick<Tn93WorkerResponse, 'runId' | 'loadGeneration' | 'inputSignature'>
+  ): boolean {
+    return !job.finished
+      && this.activeTn93Job === job
+      && response.runId === job.runId
+      && response.loadGeneration === job.loadGeneration
+      && response.inputSignature === job.inputSignature;
+  }
+
+  private tn93IdentityMatches(
+    identity: { runId: number; loadGeneration: number; inputSignature: string },
+    expected: Tn93DistanceJobIdentity
+  ): boolean {
+    return (expected.runId === undefined || expected.runId === identity.runId)
+      && (expected.loadGeneration === undefined || expected.loadGeneration === identity.loadGeneration)
+      && (expected.inputSignature === undefined || expected.inputSignature === identity.inputSignature);
+  }
+
+  private postTn93Request(job: ActiveTn93DistanceJob, request: Tn93WorkerRequest): void {
+    if (
+      job.finished ||
+      this.activeTn93Job !== job ||
+      request.runId !== job.runId ||
+      request.loadGeneration !== job.loadGeneration ||
+      request.inputSignature !== job.inputSignature
+    ) {
+      throw new Tn93StaleDistanceJobError();
+    }
+    job.worker.postMessage(request);
+  }
+
+  private buildNoopTn93PromotionResult(
+    job: ActiveTn93DistanceJob,
+    threshold: number
+  ): Tn93ThresholdPromotionResult {
+    return {
+      runId: job.runId,
+      loadGeneration: job.loadGeneration,
+      inputSignature: job.inputSignature,
+      threshold,
+      promotedPairs: 0,
+      computedPairs: job.latestStatus.computedPairs,
+      candidatePairs: job.latestStatus.candidatePairs,
+      totalPairs: job.latestStatus.totalPairs,
+    };
+  }
+
+  private rejectTn93Promotions(job: ActiveTn93DistanceJob, reason: Error): void {
+    job.promotions.forEach((promotion) => promotion.deferred.reject(reason));
+    job.promotions.clear();
+  }
+
+  private resolveTn93PromotionsAtCompletion(
+    job: ActiveTn93DistanceJob,
+    completion: Tn93DistanceCompletionResult
+  ): void {
+    job.promotions.forEach((promotion) => {
+      promotion.deferred.resolve({
+        runId: completion.runId,
+        loadGeneration: completion.loadGeneration,
+        inputSignature: completion.inputSignature,
+        threshold: promotion.threshold,
+        promotedPairs: 0,
+        computedPairs: completion.computedPairs,
+        candidatePairs: completion.totalPairs,
+        totalPairs: completion.totalPairs,
+      });
+    });
+    job.promotions.clear();
+  }
+
+  private detachTn93Worker(job: ActiveTn93DistanceJob): void {
+    job.worker.removeEventListener('message', job.messageHandler);
+    job.worker.removeEventListener('error', job.errorHandler);
+    this.computer.terminateTn93DistanceWorker();
+  }
+
+  private finishTn93Job(job: ActiveTn93DistanceJob): void {
+    if (job.finished) return;
+    job.finished = true;
+    this.detachTn93Worker(job);
+    if (this.activeTn93Job === job) {
+      this.activeTn93Job = null;
+    }
+  }
+
+  private validateExhaustiveFallback(
+    job: ActiveTn93DistanceJob,
+    fallback: ExhaustiveFallbackResult
+  ): void {
+    if (
+      !fallback ||
+      !Number.isFinite(fallback.computedPairs) ||
+      !Number.isFinite(fallback.totalPairs) ||
+      fallback.computedPairs !== fallback.totalPairs ||
+      fallback.totalPairs !== job.latestStatus.totalPairs
+    ) {
+      throw new Error('Exhaustive TN93 fallback returned an incomplete distance matrix.');
+    }
+  }
+
+  private emptyTn93PlanTimings(): Tn93PlanTimings {
+    return {
+      ambiguityMs: 0,
+      consensusMs: 0,
+      radialDistanceMs: 0,
+      sortAndWindowMs: 0,
+      totalPlanningMs: 0,
+    };
+  }
+
+  private planTimingsFromFallback(_timings?: Partial<Tn93ComputeTimings>): Tn93PlanTimings {
+    return this.emptyTn93PlanTimings();
+  }
+
+  private computeTimingsFromFallback(timings?: Partial<Tn93ComputeTimings>): Tn93ComputeTimings {
+    return {
+      foregroundMs: this.finiteTiming(timings?.foregroundMs ?? timings?.totalWorkerMs),
+      backgroundMs: 0,
+      promotionMs: 0,
+      totalWorkerMs: this.finiteTiming(timings?.totalWorkerMs ?? timings?.foregroundMs),
+      batches: this.finiteTiming(timings?.batches),
+      payloadBytes: this.finiteTiming(timings?.payloadBytes),
+      longTasks: this.finiteTiming(timings?.longTasks),
+    };
+  }
+
+  private finiteTiming(value: number | undefined): number {
+    return Number.isFinite(value) ? Number(value) : 0;
+  }
+
+  private asError(cause: unknown, fallbackMessage: string): Error {
+    if (cause instanceof Error) return cause;
+    if (typeof cause === 'string' && cause) return new Error(cause);
+    return new Error(fallbackMessage);
   }
 
   /**
@@ -897,6 +1863,7 @@ export class WorkerComputeService {
   private patristicLeafNames: string[] = [];
   private patristicNewickString = '';
   private patristicGeneratedMaxThreshold = -Infinity;
+  private patristicMaxDistance = Infinity;
   private patristicOrigin: string[] = ['Newick Tree'];
   private patristicDistanceOrigin = 'Newick Tree';
   private patristicTreeInitCount = 0;
@@ -1130,6 +2097,7 @@ export class WorkerComputeService {
             this.patristicLeafNames = msg.leafNames;
             this.patristicNewickString = newickString;
             this.patristicGeneratedMaxThreshold = -Infinity;
+            this.patristicMaxDistance = Number.isFinite(msg.maxDistance) ? msg.maxDistance : Infinity;
             this.patristicGuardrailFallbackThresholds.clear();
             this.patristicTreeInitCount++;
             worker.removeEventListener('message', handler);
@@ -1150,6 +2118,21 @@ export class WorkerComputeService {
         newickString,
       } as PatristicWorkerRequest);
     });
+  }
+
+  public async ensurePatristicTreeInitialized(newickString: string, session?: any): Promise<string[]> {
+    if (typeof newickString !== 'string' || newickString.trim().length === 0) {
+      throw new Error('No Newick tree is available for pairwise distance calculation.');
+    }
+
+    if (newickString !== this.patristicNewickString || this.patristicLeafNames.length === 0) {
+      const treeReady = await this.initPatristicTree(newickString);
+      this.recordPatristicPerformance(session, {
+        treeReady: this.treeReadyTelemetry(treeReady),
+      });
+    }
+
+    return [...this.patristicLeafNames];
   }
 
   /**
@@ -1447,11 +2430,18 @@ export class WorkerComputeService {
     }
 
     const start = Date.now();
+    const isCurrent = () => !options.isCurrent || options.isCurrent();
+    if (!isCurrent()) {
+      throw new Error('Discarded stale patristic nearest-neighbor computation.');
+    }
     this.setPatristicMetadata(options.origin, options.distanceOrigin);
 
     let treeReady: PatristicTreeReadyResponse | undefined;
     if (newickString !== this.patristicNewickString || this.patristicLeafNames.length === 0) {
       treeReady = await this.initPatristicTree(newickString);
+      if (!isCurrent()) {
+        throw new Error('Discarded stale patristic nearest-neighbor computation.');
+      }
       this.recordPatristicPerformance(session, {
         treeReady: this.treeReadyTelemetry(treeReady),
       });
@@ -1464,6 +2454,9 @@ export class WorkerComputeService {
     const rawEpsilon = Number(session?.style?.widgets?.["filtering-epsilon"]);
     const epsilon = Number.isFinite(rawEpsilon) ? Math.pow(10, rawEpsilon) : 0;
 
+    if (!isCurrent()) {
+      throw new Error('Discarded stale patristic nearest-neighbor computation.');
+    }
     for (const link of session?.data?.links || []) {
       link.nn = false;
     }
@@ -1473,9 +2466,21 @@ export class WorkerComputeService {
       let totalLinks = 0;
       let selectedLinks = 0;
       let finalTimings: PatristicNearestNeighborBatchResponse['timings'] | undefined;
+      let settled = false;
+      let subscription: any;
+      const fail = (error: any) => {
+        if (settled) return;
+        settled = true;
+        subscription?.unsubscribe();
+        reject(error instanceof Error ? error : new Error(String(error)));
+      };
 
-      this.buildPatristicNearestNeighborEdges(epsilon, options.batchSize).subscribe({
+      subscription = this.buildPatristicNearestNeighborEdges(epsilon, options.batchSize).subscribe({
         next: (batch) => {
+          if (!isCurrent()) {
+            fail(new Error('Discarded stale patristic nearest-neighbor result.'));
+            return;
+          }
           const n = batch.sources.length;
           for (let k = 0; k < n; k++) {
             const source = leafNames[batch.sources[k]];
@@ -1503,8 +2508,13 @@ export class WorkerComputeService {
             finalTimings = batch.timings;
           }
         },
-        error: (err) => reject(err),
+        error: (err) => fail(err),
         complete: () => {
+          if (settled) return;
+          if (!isCurrent()) {
+            fail(new Error('Discarded stale patristic nearest-neighbor result.'));
+            return;
+          }
           if (session?.debugMode) {
             console.log(
               'Patristic nearest-neighbor generation + merge time:',
@@ -1523,6 +2533,8 @@ export class WorkerComputeService {
               timings: finalTimings,
             },
           });
+          settled = true;
+          subscription?.unsubscribe();
           resolve({ newLinks, totalLinks, selectedLinks, leafNames, treeReady });
         },
       });
@@ -1568,7 +2580,11 @@ export class WorkerComputeService {
       };
     }
 
-    if (threshold <= this.patristicGeneratedMaxThreshold) {
+    const generatedAllKnownDistances =
+      Number.isFinite(this.patristicMaxDistance) &&
+      this.patristicGeneratedMaxThreshold >= this.patristicMaxDistance;
+
+    if (generatedAllKnownDistances || threshold <= this.patristicGeneratedMaxThreshold) {
       this.clearPatristicGuardrailWarnings(session, threshold);
       return {
         newLinks: 0,
@@ -1588,15 +2604,18 @@ export class WorkerComputeService {
 
   public collectPatristicDistanceAnalysisEdges(
     session?: any,
-    options: { maxPairs?: number; batchSize?: number } = {}
+    options: CollectPatristicDistanceAnalysisOptions = {}
   ): Promise<PatristicDistanceAnalysisResult> {
     const leafCount = this.patristicLeafNames.length;
     const totalPairs = (leafCount * (leafCount - 1)) / 2;
-    const maxPairs = Number.isFinite(Number(options.maxPairs))
+    const maxPairs = options.bypassPairLimit
+      ? Number.POSITIVE_INFINITY
+      : Number.isFinite(Number(options.maxPairs))
       ? Number(options.maxPairs)
       : this.getPatristicThresholdAnalysisPairLimit(session);
 
     if (!leafCount || totalPairs <= 0) {
+      options.onProgress?.({ completedPairs: totalPairs, totalPairs, percent: 100 });
       return Promise.resolve({ edges: [], totalPairs, skipped: false });
     }
 
@@ -1611,6 +2630,7 @@ export class WorkerComputeService {
 
     return new Promise((resolve, reject) => {
       const edges: PatristicAnalysisEdge[] = [];
+      options.onProgress?.({ completedPairs: 0, totalPairs, percent: 0 });
 
       this.buildPatristicEdges(Number.POSITIVE_INFINITY, totalPairs + 1, options.batchSize).subscribe({
         next: (batch) => {
@@ -1622,6 +2642,11 @@ export class WorkerComputeService {
               value: batch.distances[k],
             });
           }
+          options.onProgress?.({
+            completedPairs: edges.length,
+            totalPairs,
+            percent: Math.min(100, Math.floor((edges.length / totalPairs) * 100)),
+          });
         },
         error: (err) => reject(err),
         complete: () => resolve({ edges, totalPairs, skipped: false }),
@@ -1657,6 +2682,7 @@ export class WorkerComputeService {
     this.patristicLeafNames = [];
     this.patristicNewickString = '';
     this.patristicGeneratedMaxThreshold = -Infinity;
+    this.patristicMaxDistance = Infinity;
     this.patristicGuardrailFallbackThresholds.clear();
     this.patristicTreeInitCount = 0;
   }

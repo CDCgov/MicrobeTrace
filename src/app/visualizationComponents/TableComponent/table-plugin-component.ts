@@ -232,7 +232,21 @@ import { sanitizeExportCell } from '@app/contactTraceCommonServices/export-sanit
      *
      * For exporting as a csv it uses exportCSV() which is built into primeNG table object
      */
-    exportVisualization() {
+    async exportVisualization(): Promise<void> {
+      const tableType = this.SelectedTableData?.tableType || this.TableType;
+      if (tableType === 'link') {
+        try {
+          await this.commonService.waitForTn93DistanceCompletion(
+            'Completing TN93 distances before exporting link data...'
+          );
+          // Completion can add qualifying rows and change visibility.
+          this.createTable('link', true);
+        } catch (error) {
+          console.error('Link-data export is still unavailable:', error);
+          return;
+        }
+      }
+
       if (this.SelectedTableExportFileTypeListVariable == 'xlsx') {
         this.saveAsExcelFile();
       } else {
@@ -364,7 +378,10 @@ import { sanitizeExportCell } from '@app/contactTraceCommonServices/export-sanit
       this.cdref.detectChanges();
     }
 
-    private restoreSavedFilters(tableData: TableData): void {
+    private restoreSavedFilters(
+      tableData: TableData,
+      synchronously: boolean = false
+    ): void {
       if (!this.dataTable) return;
 
       const activeFilters = tableData.tableColumns.filter(
@@ -373,7 +390,7 @@ import { sanitizeExportCell } from '@app/contactTraceCommonServices/export-sanit
 
       if (!activeFilters.length) return;
 
-      setTimeout(() => {
+      const restore = () => {
         if (!this.dataTable || this.TableType !== tableData.tableType) return;
 
         this.dataTable.filters = {};
@@ -391,7 +408,13 @@ import { sanitizeExportCell } from '@app/contactTraceCommonServices/export-sanit
           this.selectedRows = filteredRows.length;
           this.applySelectedRowsToTable();
         }
-      });
+      };
+
+      if (synchronously) {
+        restore();
+      } else {
+        setTimeout(restore);
+      }
     }
   
     /**
@@ -435,7 +458,7 @@ import { sanitizeExportCell } from '@app/contactTraceCommonServices/export-sanit
      * Update variables (such as TableType, selectedTableData) needed to update the contents of the table
      * @param type The type of data (node, link, cluster) to create table with
      */
-    createTable(type: any = 'node') {
+    createTable(type: any = 'node', restoreFiltersSynchronously: boolean = false) {
       type = type.toLowerCase();
       this.visuals.tableComp.TableType = type;
       const sourceData = type === 'node'
@@ -574,7 +597,7 @@ import { sanitizeExportCell } from '@app/contactTraceCommonServices/export-sanit
 
       this.cdref.detectChanges();
 
-      this.restoreSavedFilters(tableData);
+      this.restoreSavedFilters(tableData, restoreFiltersSynchronously);
 
       if (this.allRowsPaginatorSelected) {
         this.selectedRows = tableData.data.length;

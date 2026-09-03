@@ -14,6 +14,7 @@ export class WorkerModule implements OnInit {
   // persistent state (flattened tree, LCA index) across messages and uses
   // a custom message protocol with typed-array transfers.
   private patristicWorker: Worker | null = null;
+  private tn93DistanceWorker: Worker | null = null;
 
   constructor() {
     this.compute_parse_csv_matrixWorker = new Worker('assets/parse-csv-matrix.js');
@@ -103,6 +104,29 @@ export class WorkerModule implements OnInit {
     if (this.patristicWorker) {
       this.patristicWorker.terminate();
       this.patristicWorker = null;
+    }
+  }
+
+  /**
+   * Get or create the dedicated, stateful progressive TN93 worker.
+   */
+  public getTn93DistanceWorker(): Worker {
+    if (!this.tn93DistanceWorker) {
+      this.tn93DistanceWorker = new Worker(
+        new URL('./tn93-engine.worker', import.meta.url),
+        { type: 'module', name: 'mt-tn93-engine' }
+      );
+    }
+    return this.tn93DistanceWorker;
+  }
+
+  /**
+   * Terminate the TN93 worker and discard its packed sequences and pair state.
+   */
+  public terminateTn93DistanceWorker(): void {
+    if (this.tn93DistanceWorker) {
+      this.tn93DistanceWorker.terminate();
+      this.tn93DistanceWorker = null;
     }
   }
 

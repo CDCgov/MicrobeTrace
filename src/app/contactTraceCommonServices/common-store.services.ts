@@ -1,5 +1,12 @@
 import { Injectable } from '@angular/core';
 import { BehaviorSubject, Subject } from 'rxjs';
+import type {
+  Tn93DistanceStatus,
+  Tn93NetworkDataRevision,
+  Tn93NetworkRevisionReason
+} from '../workers/tn93-engine.types';
+
+export type NetworkDataRevision = Tn93NetworkDataRevision;
 
 @Injectable({
   providedIn: 'root'
@@ -21,6 +28,13 @@ export class CommonStoreService {
 
   private _networkUpdated$ = new BehaviorSubject<boolean>(false);
   networkUpdated$ = this._networkUpdated$.asObservable();
+
+  private _tn93DistanceStatus$ = new BehaviorSubject<Tn93DistanceStatus | null>(null);
+  tn93DistanceStatus$ = this._tn93DistanceStatus$.asObservable();
+
+  private networkDataRevision = 0;
+  private _networkDataRevision$ = new BehaviorSubject<NetworkDataRevision | null>(null);
+  networkDataRevision$ = this._networkDataRevision$.asObservable();
 
   private _settingsLoaded$ = new BehaviorSubject<boolean>(false);
   settingsLoaded$ = this._settingsLoaded$.asObservable();
@@ -96,6 +110,51 @@ export class CommonStoreService {
   }
   setNetworkUpdated(isUpdated: boolean): void {
     this.updateValue(this._networkUpdated$, isUpdated);
+  }
+
+  get tn93DistanceStatusValue(): Tn93DistanceStatus | null {
+    return this._tn93DistanceStatus$.value;
+  }
+  setTn93DistanceStatus(status: Tn93DistanceStatus | null): void {
+    this._tn93DistanceStatus$.next(status);
+  }
+  patchTn93DistanceStatus(patch: Partial<Tn93DistanceStatus>): void {
+    const current = this._tn93DistanceStatus$.value;
+    if (!current) {
+      return;
+    }
+    this._tn93DistanceStatus$.next({ ...current, ...patch });
+  }
+  resetTn93DistanceStatus(): void {
+    this._tn93DistanceStatus$.next(null);
+  }
+
+  get networkDataRevisionValue(): NetworkDataRevision | null {
+    return this._networkDataRevision$.value;
+  }
+  publishNetworkDataRevision(
+    reason: Tn93NetworkRevisionReason,
+    runId: number | null = null,
+    loadGeneration: number | null = null,
+    inputSignature: string | null = null
+  ): NetworkDataRevision {
+    const revision: NetworkDataRevision = {
+      revision: ++this.networkDataRevision,
+      reason,
+      runId,
+      loadGeneration,
+      inputSignature,
+      recordedAt: Date.now()
+    };
+    this._networkDataRevision$.next(revision);
+
+    // Compatibility bridge for views that still consume the legacy boolean.
+    // Emit directly so a foreground/final pair cannot be deduplicated while
+    // the value remains true, then restore the idle value so later ordinary
+    // setNetworkUpdated(true) calls are not suppressed.
+    this._networkUpdated$.next(true);
+    this._networkUpdated$.next(false);
+    return revision;
   }
 
   get settingsLoadedValue(): boolean {
