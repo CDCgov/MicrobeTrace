@@ -1,6 +1,6 @@
 {
   "name": "MicrobeTrace",
-  "version": "2.2.1",
+  "version": "2.3.0",
   "scripts": {
     "ng": "ng",
     "start": "ng serve -c development",
@@ -46,6 +46,8 @@
     "e2e:perf:realistic": "start-server-and-test start:local-cypress http://127.0.0.1:4210 e2e:perf:realistic:local",
     "e2e:perf:dunes:local": "npx cypress run --headless --browser chrome --config baseUrl=http://127.0.0.1:4210,trashAssetsBeforeRuns=false --env perfMode=1,perfDunesSamples=1 --spec \"cypress/e2e/performance/dunes-samples.perf.cy.ts\"",
     "e2e:perf:dunes": "start-server-and-test start:local-cypress http://127.0.0.1:4210 e2e:perf:dunes:local",
+    "e2e:perf:bootstrap:local": "npx cypress run --headless --browser chrome --config baseUrl=http://127.0.0.1:4210,trashAssetsBeforeRuns=false --env perfMode=1,perfBootstrap=1 --spec \"cypress/e2e/performance/phylogenetic-bootstrap.perf.cy.ts\"",
+    "e2e:perf:bootstrap": "start-server-and-test start:local-cypress http://127.0.0.1:4210 e2e:perf:bootstrap:local",
     "e2e:perf:summarize": "node scripts/summarize-performance-runs.js --min-samples 5",
     "e2e:perf:budgets:propose": "node scripts/propose-performance-budgets.js --min-samples 5",
     "e2e:perf:budgets:check": "node scripts/check-performance-budgets.js",
@@ -92,11 +94,11 @@
     "@eslint/js": "^9.9.1",
     "@fontsource/roboto": "^5.2.10",
     "@google/markerclusterer": "^2.0.9",
+    "@maplibre/maplibre-gl-leaflet": "^0.1.4",
     "@primeng/themes": "21.0.4",
     "@types/googlemaps": "^3.43.3",
     "@types/leaflet.markercluster": "^1.5.1",
     "angular-cli-ghpages": "^3.0.2",
-    "angular-google-tag-manager": "1.10.0",
     "angular-plotly.js": "^6.0.0",
     "assert": "^2.1.0",
     "chart.js": "^2.9.4",
@@ -118,6 +120,7 @@
     "leaflet.markercluster": "^1.5.3",
     "localforage": "^1.10.0",
     "lodash": "^4.18.1",
+    "maplibre-gl": "^4.7.1",
     "material-icons": "^1.13.14",
     "moment": "^2.29.4",
     "moment-timezone": "^0.5.43",
@@ -129,11 +132,11 @@
     "primeicons": "^7.0.0",
     "primeng": "21.1.1",
     "probe-image-size": "^7.2.3",
-    "quill": "^2.0.3",
+    "quill": "2.0.2",
     "rxjs": "^7.8.1",
     "sass-loader": "^13.2.2",
     "save-svg-as-png": "^1.4.17",
-    "sharp": "^0.34.5",
+    "sharp": "^0.35.3",
     "tabulator-tables": "^5.4.4",
     "zone.js": "^0.15.1"
   },
@@ -171,7 +174,7 @@
     "fs": "0.0.1-security",
     "jasmine-core": "~3.8.0",
     "jasmine-spec-reporter": "~5.0.0",
-    "js-yaml": "^4.2.0",
+    "js-yaml": "^4.3.1",
     "karma": "~6.4.2",
     "karma-chrome-launcher": "~3.1.0",
     "karma-coverage-istanbul-reporter": "~2.0.1",
@@ -193,12 +196,30 @@
     "typescript": "~5.9.3",
     "webpack": "^5.82.0",
     "webpack-bundle-analyzer": "^4.10.2",
-    "xlsx": "^0.18.5"
+    "xlsx": "file:vendor/xlsx-0.20.3.tgz"
   },
   "overrides": {
     "@angular-devkit/build-angular": {
-      "undici": "7.24.0",
-      "vite": "7.3.2"
-    }
+      "http-proxy-middleware": "3.0.7",
+      "less": "4.8.1",
+      "undici": "7.29.0",
+      "vite": "7.3.5",
+      "webpack-dev-server": "5.2.6"
+    },
+    "@babel/core": "7.29.6",
+    "@hono/node-server": "2.0.10",
+    "d3-color": "3.1.0",
+    "engine.io": {
+      "ws": "8.21.0"
+    },
+    "esbuild": "0.28.1",
+    "picomatch": "4.0.4",
+    "piscina": "5.2.0",
+    "postcss": "8.5.23",
+    "qs": "6.15.3",
+    "socket.io-adapter": {
+      "ws": "8.21.0"
+    },
+    "uuid": "11.1.1"
   }
 }

@@ -1,0 +1,43 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "properties": {
+        "_id": "KF773425"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [12, 8]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "_id": "KF773426"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [20, 4],
+            [24, 4],
+            [24, 12],
+            [20, 12],
+            [20, 4]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "_id": "missing-node"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [30, 30]
+      }
+    }
+  ]
+}

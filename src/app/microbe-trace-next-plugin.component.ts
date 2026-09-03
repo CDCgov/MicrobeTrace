@@ -22,14 +22,31 @@ import JSZip from 'jszip';
 import html2canvas from 'html2canvas';
 import { CommonStoreService } from './contactTraceCommonServices/common-store.services';
 import { ExportService, ExportOptions } from './contactTraceCommonServices/export.service';
+import { GraphMLService } from './contactTraceCommonServices/graphml.service';
 import { sanitizeExportRows } from './contactTraceCommonServices/export-sanitization';
 import * as XLSX from 'xlsx';
-import { buildDate, commitHash } from "src/environments/version";
+import { buildDate, commitHash, version as appVersion } from "src/environments/version";
 import { EmbedHandoffService } from './embed/embed-handoff.service';
 import { KeyTablesComponent } from './visualizationComponents/KeyTablesComponent/key-tables.component';
 import { KEY_TABLE_NAMES, KeyTableName, KeyTablesController } from './visualizationComponents/KeyTablesComponent/key-tables.controller';
+import { NetworkStatisticsComponent } from './visualizationComponents/NetworkStatisticsComponent/network-statistics-plugin.component';
+import {
+    StyleKeyTableAlphaRequest,
+    StyleKeyTableColorChange,
+    StyleKeyTableColumnNameChange,
+    StyleKeyTableRow,
+    StyleKeyTableRowNameChange,
+    StyleKeyTableShapeChange,
+    StyleKeyTableShapePanelRequest,
+    StyleKeyTableSortColumn
+} from './visualizationComponents/KeyTablesComponent/style-key-table.component';
 import type { ThresholdSweepSummary } from './contactTraceCommonServices/threshold-analysis';
 import type { Tn93DistanceStatus } from './workers/tn93-engine.types';
+import {
+    ColorAssignmentService,
+    NodeColorAssignmentParseError,
+    ParsedNodeColorAssignments
+} from './contactTraceCommonServices/color-assignment.service';
 import {
     NODE_SHAPE_GROUPS,
     NODE_SYMBOL_OPTIONS,
@@ -37,6 +54,12 @@ import {
     NodeShapeOption,
     resolveNodeShapeKey
 } from '@app/contactTraceCommonServices/node-shapes';
+import {
+    DialogRectSnapshot,
+    GlobalSettingsDialogRequest,
+    NormalizedGlobalSettingsDialogRequest
+} from './helperClasses/globalSettingsDialogRequest';
+import { AnalyticsService } from './contactTraceCommonServices/analytics.service';
 
 type ThresholdSweepSnapshot = {
     threshold: number;
@@ -67,6 +90,18 @@ type DashboardOpenEntry = {
 };
 
 type KeyTableDisplayMode = 'Show' | 'Dock' | 'Hide';
+type TimelineRangeBoundary = 'start' | 'end' | 'both';
+
+type DialogPlacementCandidate = {
+    top: number;
+    left: number;
+    overlapArea: number;
+};
+
+type NodeColorAssignmentStatus = {
+    kind: 'success' | 'error' | 'info';
+    message: string;
+};
 
 interface NodeShapeOptionGroup {
     key: NodeShapeGroupKey;
@@ -159,9 +194,22 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
     ExportDashboardScale: number = 1;
     ExportDashboardResolution: { width: number, height:number, summary:string} = {width: 0, height: 0, summary: ''};
     public readonly keyTablesController = new KeyTablesController();
+    public readonly GlobalSettingsDialogBaseZIndex = 5000;
+    public GlobalSettingsDialogStyle: Record<string, string> = { 'z-index': String(this.GlobalSettingsDialogBaseZIndex) };
     private preserveNextKeyTablesRemoval: boolean = false;
+    private readonly linkedSettingsDialogGap = 16;
+    private readonly linkedSettingsDialogViewportMargin = 8;
 
     private thresholdDebouncer: Subject<number> = new Subject<number>();
+    nodeColorRows: StyleKeyTableRow[] = [];
+    linkColorRows: StyleKeyTableRow[] = [];
+    nodeColorTableHeaders = { value: '', count: 'Count', frequency: 'Frequency' };
+    linkColorTableHeaders = { value: '', count: 'Count', frequency: 'Frequency' };
+    nodeColorTableEditable = true;
+    linkColorTableEditable = true;
+    private nodeColorDomain: string[] = [];
+    private linkColorDomain: string[] = [];
+    private colorTableSortState: Record<string, { column: StyleKeyTableSortColumn; ascending: boolean }> = {};
 
     showExportTablesMenu: boolean = false;
     ExportTablesFilename: string = '';
@@ -187,7 +235,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
     // messages to display in loading modal
     messages: string[] = [];
 
-    version: string = '2.2.1';
+    readonly version: string = appVersion;
     auspiceUrlVal: string|null = '';
 
     private thresholdSubscription: Subscription;
@@ -210,6 +258,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
     private destroy$ = new Subject<void>();
     private applyingPendingDashboardRestore = false;
     private duoLinkOrigins: string[] = [];
+    private timelineTablesRefreshHandle: ReturnType<typeof setTimeout> | null = null;
 
 
     // posts: BlockchainProofHashDto[] = new Array<BlockchainProofHashDto>();
@@ -234,6 +283,29 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
 
     FieldList: SelectItem[] = [];
     ToolTipFieldList: SelectItem[] = [];
+    NetworkSubsetOperatorTypes: SelectItem[] = [
+        { label: 'Contains', value: 'contains' },
+        { label: 'Equals', value: 'equals' },
+        { label: 'Does Not Equal', value: 'notEquals' },
+        { label: 'Starts With', value: 'startsWith' },
+        { label: 'Ends With', value: 'endsWith' },
+        { label: 'In List', value: 'in' },
+        { label: '<', value: 'lt' },
+        { label: '<=', value: 'lte' },
+        { label: '>', value: 'gt' },
+        { label: '>=', value: 'gte' }
+    ];
+    SelectedNetworkSubsetNodeField: string = 'None';
+    SelectedNetworkSubsetNodeOperator: string = 'equals';
+    SelectedNetworkSubsetNodeValue: string = '';
+    SelectedNetworkSubsetLinkField: string = 'None';
+    SelectedNetworkSubsetLinkOperator: string = 'contains';
+    SelectedNetworkSubsetLinkValue: string = '';
+    NetworkSubsetNodeValueOptions: string[] = [];
+    NetworkSubsetLinkValueOptions: string[] = [];
+    private NetworkSubsetNodeAllValueOptions: string[] = [];
+    private NetworkSubsetLinkAllValueOptions: string[] = [];
+    private readonly NetworkSubsetValueSuggestionLimit = 50;
 
     PruneWityTypes: any = [
         { label: 'None', value: 'None' },
@@ -319,6 +391,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
     SelectedColorVariable: string = '#ff8300';
     SelectedBackgroundColorVariable: string = '#ffffff';
     SelectedApplyStyleVariable: string = '';
+    nodeColorAssignmentStatus: NodeColorAssignmentStatus | null = null;
 
 
     activeTabNdx = null;
@@ -340,8 +413,16 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
     public playBtnText: string = "Play";
 
     public handle: any;
+
+    public rangeStartHandle: any;
+
+    public rangeEndHandle: any;
     
     public label: any;
+
+    public rangeStartLabel: any;
+
+    public rangeEndLabel: any;
 
     public xAttribute: any;
 
@@ -349,7 +430,21 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
 
     public currentTimelineValue: any;
 
+    public currentTimelineStartValue: any;
+
     public currentTimelineTargetValue: any;
+
+    public timelineRangeStartInput: string = '';
+
+    public timelineRangeEndInput: string = '';
+
+    private rangeSelection: any;
+
+    private timelineDomainStart: Date | null = null;
+
+    private timelineDomainEnd: Date | null = null;
+
+    private timelinePlaybackPaused: boolean = false;
 
     private previousTab: string = '';
 
@@ -387,7 +482,10 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         private el: ElementRef, 
         private store: CommonStoreService,
         private exportService: ExportService,
-        private embedHandoffService: EmbedHandoffService
+        private graphMLService: GraphMLService,
+        private embedHandoffService: EmbedHandoffService,
+        private colorAssignmentService: ColorAssignmentService,
+        private analyticsService: AnalyticsService
     ) {
 
 
@@ -752,6 +850,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         const componentRef = this._goldenLayoutHostComponent.getComponentRef(goldenLayoutComponent.container);
         
         this.addTab(component, component + this.activeTabIndex, this.activeTabIndex, componentRef);
+        this.analyticsService.trackView(component);
         
         console.log('--- addComponent Tab added');
 
@@ -1017,10 +1116,10 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         }
 
         const floatingTable = table === 'node-color'
-            ? this.nodeColorTable?.nativeElement
+            ? document.querySelector('#node-color-table')
             : table === 'link-color'
-                ? this.linkColorTable?.nativeElement
-                : this.nodeShapeTable?.nativeElement;
+                ? document.querySelector('#link-color-table')
+                : document.querySelector('#node-shape-table');
 
         return floatingTable as HTMLTableElement | undefined;
     }
@@ -1081,18 +1180,46 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         try {
             // Retrieve export options from the service
             const options: ExportOptions = this.exportService.getExportOptions();
+            const mapLibreCanvasSnapshots = elementsForExport.flatMap((element) =>
+                Array.from(element.querySelectorAll<HTMLCanvasElement>('canvas.maplibregl-canvas')).map((canvas) => ({
+                    dataUrl: canvas.toDataURL('image/png'),
+                    width: canvas.width,
+                    height: canvas.height
+                }))
+            );
             let settings = {
                 scale: Number(options.scale) || 1,
                 useCORS: true, // Enable CORS if images are loaded from external sources,
                 allowTaint: true,
-                onclone: (clonedDoc) => {
+                onclone: async (clonedDoc: Document) => {
+                    // html2canvas does not reliably preserve a transformed WebGL canvas.
+                    // Replace MapLibre canvases in the clone with snapshots of their current
+                    // composited frames so panned/zoomed basemaps export at the visible position.
+                    const clonedMapLibreCanvases = clonedDoc.querySelectorAll<HTMLCanvasElement>('canvas.maplibregl-canvas');
+                    const mapLibreImageLoads: Promise<void>[] = [];
+                    clonedMapLibreCanvases.forEach((clonedCanvas, index) => {
+                        const snapshot = mapLibreCanvasSnapshots[index];
+                        if (!snapshot) {
+                            return;
+                        }
+
+                        const image = clonedDoc.createElement('img');
+                        image.src = snapshot.dataUrl;
+                        image.width = snapshot.width;
+                        image.height = snapshot.height;
+                        image.className = clonedCanvas.className;
+                        image.style.cssText = clonedCanvas.style.cssText;
+                        clonedCanvas.parentNode?.replaceChild(image, clonedCanvas);
+                        mapLibreImageLoads.push(image.decode());
+                    });
+
                     // Remove all transparency symbols
                     const clonedTransparencySymbols = clonedDoc.querySelectorAll('a.transparency-symbol');
                     clonedTransparencySymbols.forEach(symbol => {
                         symbol.parentNode?.removeChild(symbol);
                     })
                     // Replace color input elements with colored spans
-                    const clonedInputs = clonedDoc.querySelectorAll('input[type="color"]');
+                    const clonedInputs = clonedDoc.querySelectorAll<HTMLInputElement>('input[type="color"]');
                     clonedInputs.forEach(input => {
                         const color = input.getAttribute('value') || '#ffffff';
                         const opacity = input.style.opacity || '1'
@@ -1106,6 +1233,8 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
                         span.style.border = '1px solid #777777'; // Optional: Add border for visibility
                         input.parentNode?.replaceChild(span, input);
                     });
+
+                    await Promise.all(mapLibreImageLoads);
     
                     // Optionally, handle other elements that display hex codes
                     // For example, if you have spans or divs showing hex values:
@@ -1792,6 +1921,127 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
     }
 
     /**
+     * Parses and applies a node color-assignment file to the field selected in
+     * Color Nodes By. Parsing is atomic; state changes only after validation
+     * and any dataset-label mismatch confirmation succeeds.
+     */
+    public onApplyNodeColorAssignments(event: Event): void {
+        const input = event.target as HTMLInputElement;
+        const file = input.files?.[0];
+
+        if (!file) {
+            return;
+        }
+
+        const reader = new FileReader();
+        reader.onerror = () => {
+            this.setNodeColorAssignmentStatus('error', `Unable to read "${file.name}".`);
+            input.value = '';
+        };
+        reader.onload = () => {
+            try {
+                const contents = String(reader.result ?? '');
+                const descriptor = this.colorAssignmentService.inspect(contents);
+                const selectedField = this.resolveNodeColorAssignmentField(descriptor.declaredField);
+                const parsed = this.colorAssignmentService.parse(
+                    contents,
+                    selectedField,
+                    this.commonService.session.data.nodes || []
+                );
+                this.applyParsedNodeColorAssignments(parsed, selectedField, file.name);
+            } catch (error) {
+                const message = error instanceof NodeColorAssignmentParseError || error instanceof Error
+                    ? error.message
+                    : 'The color assignment file could not be parsed.';
+                this.setNodeColorAssignmentStatus('error', message);
+            } finally {
+                input.value = '';
+            }
+        };
+        reader.readAsText(file, 'UTF-8');
+    }
+
+    private resolveNodeColorAssignmentField(declaredField?: string): string {
+        const requestedField = String(declaredField ?? '').trim();
+        const currentField = String(this.SelectedColorNodesByVariable ?? '').trim();
+
+        if (!requestedField) {
+            if (currentField && currentField !== 'None') {
+                return currentField;
+            }
+            throw new Error('The color assignment file does not declare a node field. Add DATASET_LABEL to an iTOL file or use the node field as the first table-column header.');
+        }
+
+        const styleableFields = this.commonService.getStyleableNodeFields();
+        const normalizeFieldName = (value: string): string => String(value ?? '')
+            .trim()
+            .toLocaleLowerCase()
+            .replace(/[^a-z0-9]/g, '');
+        const requestedKey = normalizeFieldName(requestedField);
+        const idAliases = new Set(['id', 'isolate', 'isolateid', 'sample', 'sampleid', 'nodeid']);
+        const matchedField = styleableFields.find(field => normalizeFieldName(field) === requestedKey)
+            ?? (idAliases.has(requestedKey)
+                ? styleableFields.find(field => String(field).trim().toLocaleLowerCase() === '_id')
+                : undefined);
+
+        if (!matchedField) {
+            throw new Error(`The color assignment field "${requestedField}" is not available as a node color variable in the current dataset.`);
+        }
+
+        return matchedField;
+    }
+
+    private applyParsedNodeColorAssignments(
+        parsed: ParsedNodeColorAssignments,
+        selectedField: string,
+        fileName: string
+    ): void {
+        try {
+            this.commonService.applyNodeColorAssignments(selectedField, parsed.assignments);
+
+            const currentValues = new Set<string>();
+            this.commonService.session.data.nodes.forEach(node => {
+                const rawValue = node?.[selectedField];
+                currentValues.add(String(rawValue === null ? 'null' : rawValue).trim());
+            });
+            const importedValues = Object.keys(parsed.assignments);
+            const matchedCount = importedValues.filter(value => currentValues.has(value)).length;
+            const unmappedCurrentCount = Array.from(currentValues)
+                .filter(value => !Object.prototype.hasOwnProperty.call(parsed.assignments, value))
+                .length;
+            const retainedForFutureCount = importedValues.length - matchedCount;
+
+            if (this.SelectedColorNodesByVariable !== selectedField) {
+                this.SelectedColorNodesByVariable = selectedField;
+                this.onColorNodesByChanged();
+            } else {
+                if (this.GlobalSettingsNodeColorDialogSettings?.isVisible) {
+                    this.generateNodeColorTable('#node-color-table');
+                }
+                this.refreshKeyTablesView();
+                this.publishUpdateNodeColors();
+            }
+            this.setNodeColorAssignmentStatus(
+                'success',
+                `Applied ${parsed.uniqueAssignmentCount} color assignment${parsed.uniqueAssignmentCount === 1 ? '' : 's'} from "${fileName}" and set Color Nodes By to ${selectedField}: ` +
+                `${matchedCount} matched current value${matchedCount === 1 ? '' : 's'}, ` +
+                `${unmappedCurrentCount} current value${unmappedCurrentCount === 1 ? '' : 's'} kept existing colors, and ` +
+                `${retainedForFutureCount} retained for future data.`
+            );
+        } catch (error) {
+            this.setNodeColorAssignmentStatus(
+                'error',
+                error instanceof Error ? error.message : 'The color assignments could not be applied.'
+            );
+        }
+    }
+
+    private setNodeColorAssignmentStatus(kind: NodeColorAssignmentStatus['kind'], message: string): void {
+        this.nodeColorAssignmentStatus = { kind, message };
+        this.cdref.markForCheck();
+    }
+
+    /**
      * Reads the file and applies the style to MicrobeTrace session.style
      * 
      */
@@ -1872,6 +2122,50 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
                 this.SelectedPruneWithTypesVariable = 'None';
             },
         }, );
+    }
+
+    public openNodeCollapseShapeConfirmation(accept: () => void, reject?: () => void): void {
+        this.confirmationService.confirm({
+            message: `All collapsed nodes will be displayed as circles. Custom node shapes are not preserved while nodes are collapsed.
+             Are you sure that you want to proceed?`,
+            closable: false,
+            closeOnEscape: false,
+            icon: 'pi pi-exclamation-triangle',
+            rejectButtonProps: {
+                label: 'Cancel',
+                severity: 'secondary',
+                outlined: true,
+            },
+            acceptButtonProps: {
+                label: 'Confirm',
+            },
+            accept,
+            reject,
+        });
+    }
+
+    openNetworkImportWarnings(warnings: string[]) {
+        if (!warnings.length) {
+            return;
+        }
+
+        this.confirmationService.confirm({
+            header: 'Network Import Warnings',
+            message: `Some Network file features are not supported by MicrobeTrace and were ignored or imported as data fields.
+
+${warnings.join('\n')}`,
+            closable: false,
+            closeOnEscape: false,
+            icon: 'pi pi-exclamation-triangle',
+            rejectVisible: false,
+            acceptButtonProps: {
+                label: 'Confirm',
+            },
+        });
+    }
+
+    openGraphMLImportWarnings(warnings: string[]) {
+        this.openNetworkImportWarnings(warnings);
     }
 
     onPruneWithTypesChanged(newValue: string) {
@@ -2086,6 +2380,26 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         this.refreshKeyTablesView();
     }
 
+    private refreshTimelineSensitiveTables(): void {
+        this.refreshVisibleColorTables();
+
+        const tableComp = this.commonService.visuals.tableComp;
+        if (tableComp?.viewActive && tableComp.dataSetViewSelected == 'Link') {
+            tableComp.onFilterDataChange();
+        }
+    }
+
+    private scheduleTimelineTablesRefresh(): void {
+        if (this.timelineTablesRefreshHandle !== null) {
+            return;
+        }
+
+        this.timelineTablesRefreshHandle = setTimeout(() => {
+            this.timelineTablesRefreshHandle = null;
+            this.refreshTimelineSensitiveTables();
+        }, 0);
+    }
+
     mapPreviousShapeNameToCurrent(name: string): string {
         return resolveNodeShapeKey(name);
     }
@@ -2106,6 +2420,18 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         });
     }
 
+    get nodeShapeRows(): StyleKeyTableRow[] {
+        return this.shapeAggregates.map(group => ({
+            rawValue: group.rawValue,
+            trackKey: `node-shape-${String(group.rawValue)}`,
+            displayName: this.getNodeValueDisplayName(group.rawValue, this.SelectedNodeSymbolVariable),
+            count: group.count,
+            frequency: group.frequency,
+            shapeSelection: this.getNodeShapeTableValue(group.rawValue),
+            shapeKey: this.commonService.temp.style.nodeSymbolMap?.(group.rawValue) ?? null
+        }));
+    }
+
     private getNodeValueNameMap(): Record<string, string> {
         const style = this.commonService.session.style;
         if (!style.nodeValueNames || typeof style.nodeValueNames !== 'object') {
@@ -2115,12 +2441,27 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         return style.nodeValueNames;
     }
 
-    public getNodeValueDisplayName(rawValue: any): string {
+    private getStyleValueDisplayName(
+        rawValue: any,
+        selectedVariable: string,
+        valueNames: Record<string, string>
+    ): string {
         const key = String(rawValue);
-        const nodeValueNames = this.getNodeValueNameMap();
-        return Object.prototype.hasOwnProperty.call(nodeValueNames, key)
-            ? nodeValueNames[key]
+        if (Object.prototype.hasOwnProperty.call(valueNames, key)) {
+            return valueNames[key];
+        }
+
+        return selectedVariable?.toLowerCase() === 'origin'
+            ? key
             : this.commonService.titleize(key);
+    }
+
+    public getNodeValueDisplayName(rawValue: any, selectedVariable: string = ''): string {
+        return this.getStyleValueDisplayName(
+            rawValue,
+            selectedVariable,
+            this.getNodeValueNameMap()
+        );
     }
 
     public setNodeValueDisplayName(rawValue: any, displayName: any): void {
@@ -2575,10 +2916,12 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
 
         this.commonService.session.style.nodeColorsTable = {};
         this.commonService.session.style.nodeColorsTableKeys = {};
+        this.commonService.session.style.nodeColorAssignments = {};
         this.commonService.session.style.linkColorsTable = {};
         this.commonService.session.style.linkColorsTableKeys = {};
         this.commonService.session.style.nodeSymbolsTable = {};
         this.commonService.session.style.nodeSymbolsTableKeys = {};
+        this.nodeColorAssignmentStatus = null;
 
         KEY_TABLE_NAMES.forEach(table => {
             this.setKeyTableDisplayMode(table, 'Dock');
@@ -2665,7 +3008,8 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         this.onLinkColorTableChanged(silent);
         if (this.isKeyTableDocked('link-color')) {
           this.GlobalSettingsLinkColorDialogSettings.setVisibility(false);
-          $('#link-color-table').empty();
+          this.linkColorRows = [];
+          this.linkColorDomain = [];
           this.refreshKeyTablesView();
         }
         if (!silent) {
@@ -2676,7 +3020,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
 
 
     private getDuoLinkSwatchSegments(fallbackOrigins: string[] = []): Array<{ color: string; opacity: number }> {
-        const visibleDuoLink = this.commonService.getVisibleLinks().find((link: any) =>
+        const visibleDuoLink = this.commonService.getVisibleLinksForCurrentTimeline().find((link: any) =>
             Array.isArray(link?.origin) && link.origin.length > 1,
         );
 
@@ -2704,238 +3048,230 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         }));
     }
 
-    // The actual function that builds your color table
-  generateNodeLinkTable(tableId: string, isEditable: boolean = true) {
-    const valueColumnName = this.getKeyTableColumnDisplayName('link-color', 'value', 'Link ' + this.commonService.titleize(this.SelectedColorLinksByVariable));
-    const countColumnName = this.getKeyTableColumnDisplayName('link-color', 'count', 'Count');
-    const frequencyColumnName = this.getKeyTableColumnDisplayName('link-color', 'frequency', 'Frequency');
-    const linkColorTable = $(tableId).empty().append(
-      '<tr>' +
-      "<th class='p-1 table-header-row'><div class='header-content'><span contenteditable data-table-key='link-color' data-column-key='value'>" +
-        valueColumnName +
-      "</span><a class='sort-button' style='cursor: pointer'>⇅</a></div></th>" +
-      `<th class='table-header-row tableCount' ${this.widgets['link-color-table-counts'] ? '' : 'style="display: none"'}><div class='header-content'><span contenteditable data-table-key='link-color' data-column-key='count'>${countColumnName}</span><a class='sort-button' style='cursor: pointer'>⇅</a></div></th>` +
-      `<th class='table-header-row tableFrequency' ${this.widgets['link-color-table-frequencies'] ? '' : 'style="display: none"'}><div class='header-content'><span contenteditable data-table-key='link-color' data-column-key='frequency'>${frequencyColumnName}</span><a class='sort-button' style='cursor: pointer'>⇅</a></div></th>` +
-      '<th>Color</th>' +
-      '</tr>'
-    );
+    generateNodeLinkTable(tableId: string, isEditable: boolean = true) {
+        this.linkColorTableEditable = isEditable;
+        this.linkColorTableHeaders = {
+            value: this.getKeyTableColumnDisplayName('link-color', 'value', 'Link ' + this.commonService.titleize(this.SelectedColorLinksByVariable)),
+            count: this.getKeyTableColumnDisplayName('link-color', 'count', 'Count'),
+            frequency: this.getKeyTableColumnDisplayName('link-color', 'frequency', 'Frequency')
+        };
 
-    const aggregates = this.commonService.createLinkColorMap();
+        if (!this.commonService.session.style.linkValueNames) {
+            this.commonService.session.style.linkValueNames = {};
+        }
 
-    const vlinks = this.commonService.getVisibleLinks();
-
-    const aggregateValues = Object.keys(aggregates);
-        const disabled: string = isEditable ? '' : 'disabled';
-
-        const duoLinkSegments = this.SelectedColorLinksByVariable == 'origin'
+        const aggregates = this.commonService.createLinkColorMap();
+        const vlinks = this.commonService.getVisibleLinks();
+        const aggregateValues = Object.keys(aggregates);
+        this.linkColorDomain = aggregateValues;
+        const duoLinkSegments = this.SelectedColorLinksByVariable === 'origin'
             ? this.getDuoLinkSwatchSegments(aggregateValues)
             : [];
-        aggregateValues.forEach((value, i) => {
-            let duoLinkRow = value == 'Duo-Link' && this.SelectedColorLinksByVariable == 'origin' ? true : false;
-            const hasBlankAggregate = aggregates[value] == 0;
+
+        this.linkColorRows = aggregateValues.map((value, i) => {
+            const duoLinkRow = value === 'Duo-Link' && this.SelectedColorLinksByVariable === 'origin';
+            const hasBlankAggregate = aggregates[value] === 0;
             const aggregateCountText = hasBlankAggregate ? '' : aggregates[value];
             const aggregateFrequencyText = hasBlankAggregate || vlinks.length === 0
                 ? ''
                 : (aggregates[value] / vlinks.length).toLocaleString();
-                // console.log('link color aggregates value: ', aggregates[value]);
-                // console.log('link color value: ', value);
-                // console.log('link color map: ', this.commonService.temp.style.linkColorMap);
-                // console.log('link color map value: ', this.commonService.temp.style.linkColorMap(value));
-            
-
-            // Grab color of link from session
-            const color = this.commonService.temp.style.linkColorMap(value);
-
-            // Create color input element with color value and assign id to retrieve new value on change
-            const colorinput = duoLinkRow ? $(``) : $(`<input type="color" value="${color}" style="opacity:${this.commonService.temp.style.linkAlphaMap(value)}; border:none" ${disabled}>`)
-                .on("change", e => {
-                    // need to update the value in the dom which is used when exportings
-                    e.currentTarget.attributes[1].value = e.target['value'];
-                    e.currentTarget.style['opacity'] = this.commonService.temp.style.linkAlphaMap(value);
-
-                    const nextColor = e.target['value'];
-                    const selectedVariable = this.SelectedColorLinksByVariable;
-                    const linkColorKeys = this.commonService.session.style.linkColorsTableKeys?.[selectedVariable] || aggregateValues;
-                    const key = linkColorKeys.findIndex(k => k === value);
-                    const resolvedKey = key >= 0 ? key : i;
-                    const variableColors = this.commonService.session.style.linkColorsTable?.[selectedVariable] || [];
-
-                    // Need to get value from id since "this" keyword is used by angular
-                    // Update that value at the index in the color table
-                    variableColors.splice(resolvedKey, 1, nextColor);
-                    this.commonService.session.style.linkColorsTable[selectedVariable] = variableColors;
-                    this.commonService.session.style.linkColorsTableHistory[value] = nextColor;
-                    (this.commonService.session.style.linkColors as any).splice(resolvedKey, 1, nextColor);
-
-                    // Generate new color map with updated table
-                    this.commonService.temp.style.linkColorMap = d3
-                        .scaleOrdinal(this.commonService.session.style.linkColorsTable[selectedVariable])
-                        .domain(linkColorKeys);
-
-
-                    // Call the updateLinkColor method in all tabs
-                    this.publishUpdateLinkColor()
-
-                    if (this.SelectedColorLinksByVariable == 'origin') {
-                        this.updateDuoLinkCell(value, nextColor, e.currentTarget.style['opacity'])
-                    }
-
-                });
-
-            const alphainput = duoLinkRow ? $(``) : $(`<a class="transparency-symbol">⇳</a>`)
-                .on("click", e => {
-
-                    $("#color-transparency-wrapper").css({
-                        top: e.clientY + 129,
-                        left: e.clientX,
-                        display: "block"
-                    });
-
-                    $("#color-transparency")
-                        .off("change")
-                        .val(this.commonService.session.style.linkAlphas[i])
-                        .one("change", (f) => {
-
-                            // Update table with new alpha value
-                            // Need to get value from id since "this" keyword is used by angular
-                            this.commonService.session.style.linkAlphas.splice(i, 1, parseFloat((f.target['value'] as string)));
-                            this.commonService.temp.style.linkAlphaMap = d3
-                                .scaleOrdinal(this.commonService.session.style.linkAlphas)
-                                .domain(aggregateValues);
-                            $("#color-transparency-wrapper").fadeOut();
-
-                            colorinput.trigger('change', this.commonService.temp.style.linkColorMap(value))
-                            // this.goldenLayout.componentInstances[1].updateLinkColor();
-
-                            if (this.SelectedColorLinksByVariable == 'origin') {
-                                this.updateDuoLinkCell(value, this.commonService.temp.style.linkColorMap(value), f.target['value'] as string)
-                            }
-                        });
-                });
-
-            const row = $(
-                "<tr>" +
-                "<td data-value='" + value + "'>" +
-                (this.commonService.session.style.linkValueNames[value] ? this.commonService.session.style.linkValueNames[value] : this.commonService.titleize("" + value)) +
-                "</td>" +
-                `<td class='tableCount' ${ this.widgets['link-color-table-counts'] ? "" : "style='display: none'"}>` + aggregateCountText + "</td>" +
-                `<td class='tableFrequency' ${ this.widgets['link-color-table-frequencies'] ? "" : "style='display: none'"}>` + aggregateFrequencyText + "</td>" +
-                "</tr>"
+            const linkValueNames = this.commonService.session.style.linkValueNames;
+            const displayName = this.getStyleValueDisplayName(
+                value,
+                this.SelectedColorLinksByVariable,
+                linkValueNames
             );
 
-
-            let duoCell;
-            if (duoLinkRow) {
-                duoCell = $("<td></td>").append(
-                $("<div></div>")
-                    .css({  height: "25px", width: "50px", display: "flex", background: "#F0F0F0", padding: "4px"})
-                    .append($("<div></div>").css({ border: "1px solid #777777", height: "17px", width: "42px", display: "inline-block" })
-                        .append($("<span></span>")
-                            .addClass("duo-link-color-segment")
-                            .attr("data-duo-index", "0")
-                            .css({
-                                height: "100%",
-                                width: "50%",
-                                background: duoLinkSegments[0]?.color ?? "#f0f0f0",
-                                opacity: duoLinkSegments[0]?.opacity ?? 1,
-                                'vertical-align': "top",
-                                display: "inline-block"
-                            }))
-                        .append($("<span></span>")
-                            .addClass("duo-link-color-segment")
-                            .attr("data-duo-index", "1")
-                            .css({
-                                height: "100%",
-                                width: "50%",
-                                background: duoLinkSegments[1]?.color ?? "#f0f0f0",
-                                opacity: duoLinkSegments[1]?.opacity ?? 1,
-                                'vertical-align': "top",
-                                display: "inline-block"
-                            })))
-                );
-            }
-            const nonEditCell = `<td style="background-color:${color}"></td>`;
-
-            if (duoLinkRow) {
-                row.append(duoCell)
-            } else if (isEditable) {
-                row.append($("<td></td>").append(colorinput).append(alphainput));
-            } else {
-                row.append(nonEditCell);
-            }
-
-            linkColorTable.append(row);
-
+            return {
+                rawValue: value,
+                trackKey: `link-color-${String(value)}`,
+                displayName,
+                count: aggregateCountText,
+                frequency: aggregateFrequencyText,
+                color: this.commonService.temp.style.linkColorMap(value),
+                alpha: this.commonService.temp.style.linkAlphaMap(value),
+                index: i,
+                duoSegments: duoLinkRow ? duoLinkSegments : undefined
+            };
         });
 
-        if (isEditable) {
-            if (!this.commonService.session.style.linkValueNames) {
-                this.commonService.session.style.linkValueNames = {};
-            }
-
-            linkColorTable
-                .find("td[data-value]")
-                .on("dblclick", function () {
-                    $(this).attr("contenteditable", "true").focus();
-                })
-                .on("focusout", (event) => {
-                    const $cell = $(event.currentTarget);
-                    const rawValue = $cell.data("value");
-                    $cell.attr("contenteditable", "false");
-
-                    if (rawValue === undefined || rawValue === null) {
-                        return;
-                    }
-
-                    this.commonService.session.style.linkValueNames[String(rawValue)] = $cell.text();
-                    this.cdref.markForCheck();
-                });
-
-            linkColorTable
-                .find("[data-table-key][data-column-key]")
-                .on("focusout", (event) => {
-                    const cell = event.currentTarget as HTMLElement;
-                    this.setKeyTableColumnDisplayName(
-                        String(cell.getAttribute('data-table-key')),
-                        String(cell.getAttribute('data-column-key')),
-                        cell.textContent ?? ''
-                    );
-                });
-        }
-
-        let isAscending = true;  // add this line before the click event handler
-        this.updateCountFreqTable('link-color')
+        this.applyStyleKeyTableSort('link-color');
         $('#linkColorTableSettings').on('mouseleave', () => $('#linkColorTableSettings').delay(500).css('display', 'none'));
+        this.cdref.markForCheck();
+    }
 
-        // console lof the rows in the table
-        $(tableId).off('click', '.sort-button').on('click', '.sort-button', function() {
-            const table = $(this).parents('table').eq(0);
-            let rows = table.find('tr:gt(0)').toArray().sort(comparer($(this).parent().parent().index()));
-            isAscending = !isAscending;  // replace 'this.asc' with 'isAscending'
-            if (!isAscending){rows = rows.reverse();}
-            for (let i = 0; i < rows.length; i++){
-                table.append(rows[i]);
-            }
-        });
-        
-        
-        function comparer(index) {
-            return function(a, b) {
-                const valA = getCellValue(a, index), valB = getCellValue(b, index);
-                return !isNaN(Number(valA)) && !isNaN(Number(valB)) ? Number(valA) - Number(valB) : valA.toString().localeCompare(valB);
+    private stopTimelinePlayback(paused = false): void {
+        clearInterval(this.commonService.session.timeline);
+        this.playBtnText = "Play";
+        this.timelinePlaybackPaused = paused;
+        d3.select("#timeline-play-button").text("Play");
+    }
+
+    private parseTimelineDate(value: any): Date | null {
+        if (value instanceof Date) {
+            return Number.isFinite(value.getTime()) ? value : null;
+        }
+
+        if (value == null || value === '') {
+            return null;
+        }
+
+        const strictDate = moment(String(value), 'YYYY-MM-DD', true);
+        if (strictDate.isValid()) {
+            return strictDate.toDate();
+        }
+
+        const parsed = moment(value);
+        return parsed.isValid() ? parsed.toDate() : null;
+    }
+
+    private formatTimelineDateInput(date: Date | null): string {
+        return date ? moment(date).format('YYYY-MM-DD') : '';
+    }
+
+    private clampTimelineDate(date: Date): Date {
+        if (!this.timelineDomainStart || !this.timelineDomainEnd) {
+            return date;
+        }
+
+        const time = date.getTime();
+        const min = this.timelineDomainStart.getTime();
+        const max = this.timelineDomainEnd.getTime();
+        return new Date(Math.min(Math.max(time, min), max));
+    }
+
+    private getSelectedTimelineStart(): Date {
+        const parsed = this.parseTimelineDate(this.commonService.session.state.timeStart);
+        return this.clampTimelineDate(parsed ?? this.timelineDomainStart ?? new Date(0));
+    }
+
+    private getSelectedTimelineEnd(): Date {
+        const parsedTarget = this.parseTimelineDate(this.commonService.session.state.timeTarget);
+        const parsedEnd = this.parseTimelineDate(this.commonService.session.state.timeEnd);
+        return this.clampTimelineDate(parsedTarget ?? parsedEnd ?? this.timelineDomainEnd ?? new Date());
+    }
+
+    private getActiveTimelineEnd(): Date {
+        const parsed = this.parseTimelineDate(this.commonService.session.state.timeEnd);
+        const rangeStart = this.getSelectedTimelineStart();
+        const rangeEnd = this.getSelectedTimelineEnd();
+        const active = this.clampTimelineDate(parsed ?? rangeStart);
+        return new Date(Math.min(Math.max(active.getTime(), rangeStart.getTime()), rangeEnd.getTime()));
+    }
+
+    private syncTimelineRangeInputs(startDate = this.getSelectedTimelineStart(), endDate = this.getSelectedTimelineEnd()): void {
+        this.timelineRangeStartInput = this.formatTimelineDateInput(startDate);
+        this.timelineRangeEndInput = this.formatTimelineDateInput(endDate);
+        $("#timeline-range-start").val(this.timelineRangeStartInput);
+        $("#timeline-range-end").val(this.timelineRangeEndInput);
+    }
+
+    private syncTimelineRangeGraphics(): void {
+        if (!this.xAttribute) {
+            return;
+        }
+
+        const startDate = this.getSelectedTimelineStart();
+        const endDate = this.getSelectedTimelineEnd();
+        const startX = this.xAttribute(startDate);
+        const endX = this.xAttribute(endDate);
+
+        this.currentTimelineStartValue = startX;
+        this.currentTimelineTargetValue = endX;
+
+        if (this.rangeSelection) {
+            this.rangeSelection
+                .attr("x1", startX)
+                .attr("x2", endX);
+        }
+
+        if (this.rangeStartHandle) {
+            this.rangeStartHandle
+                .attr("data-x", startX)
+                .attr("transform", `translate(${startX},0)`);
+        }
+
+        if (this.rangeEndHandle) {
+            this.rangeEndHandle
+                .attr("data-x", endX)
+                .attr("transform", `translate(${endX},0)`);
+        }
+
+        if (this.rangeStartLabel) {
+            this.rangeStartLabel
+                .attr("x", startX)
+                .text(this.handleDateFormat ? this.handleDateFormat(startDate) : '');
+        }
+
+        if (this.rangeEndLabel) {
+            this.rangeEndLabel
+                .attr("x", endX)
+                .text(this.handleDateFormat ? this.handleDateFormat(endDate) : '');
+        }
+    }
+
+    private applyTimelineVisibility(): void {
+        this.commonService.setNodeVisibility(false);
+        this.commonService.setLinkVisibility(false);
+        this.commonService.updateStatistics();
+        this.scheduleTimelineTablesRefresh();
+    }
+
+    private setTimelineRange(
+        startValue: any,
+        endValue: any,
+        changedBoundary: TimelineRangeBoundary = 'both',
+        stopPlayback = true,
+    ): void {
+        if (!this.timelineDomainStart || !this.timelineDomainEnd) {
+            return;
+        }
+
+        if (stopPlayback) {
+            this.stopTimelinePlayback(false);
+        }
+
+        let startDate = this.clampTimelineDate(
+            this.parseTimelineDate(startValue) ?? this.getSelectedTimelineStart()
+        );
+        let endDate = this.clampTimelineDate(
+            this.parseTimelineDate(endValue) ?? this.getSelectedTimelineEnd()
+        );
+
+        if (startDate.getTime() > endDate.getTime()) {
+            if (changedBoundary === 'start') {
+                endDate = startDate;
+            } else if (changedBoundary === 'end') {
+                startDate = endDate;
+            } else {
+                const previousStart = startDate;
+                startDate = endDate;
+                endDate = previousStart;
             }
         }
-        
-        function getCellValue(row, index){ 
-            const value = $(row).children('td').eq(index).text();
-            return value;
-        }        
-     }
 
-    updateDuoLinkCell(originValue: string, color: string, opacity: string) {
-        const index = this.duoLinkOrigins.findIndex(origin => origin === originValue);
-        if (index !== 0 && index !== 1) return;
-        $(`.duo-link-color-segment[data-duo-index="${index}"]`).css({ background: color, opacity: opacity })
+        this.commonService.session.state.timeStart = startDate;
+        this.commonService.session.state.timeTarget = endDate;
+        this.commonService.session.state.timeEnd = endDate;
+        this.syncTimelineRangeInputs(startDate, endDate);
+        this.syncTimelineRangeGraphics();
+        this.update(endDate);
+    }
+
+    public onTimelineRangeStartInputChanged(value: string): void {
+        this.setTimelineRange(value, this.commonService.session.state.timeTarget, 'start');
+    }
+
+    public onTimelineRangeEndInputChanged(value: string): void {
+        this.setTimelineRange(this.commonService.session.state.timeStart, value, 'end');
+    }
+
+    public resetTimelineRange(): void {
+        if (!this.timelineDomainStart || !this.timelineDomainEnd) {
+            return;
+        }
+
+        this.setTimelineRange(this.timelineDomainStart, this.timelineDomainEnd, 'both');
     }
 
     public onTimelineChanged(e) : void {
@@ -2944,23 +3280,26 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
             console.log('timeline changed: ', e);
         }
         d3.select('#global-timeline svg').remove();
-        clearInterval(this.commonService.session.timeline);
+        this.stopTimelinePlayback();
+        this.timelineDomainStart = null;
+        this.timelineDomainEnd = null;
         let variable = e;  
         let loadingJsonFile = this.commonService.session.style.widgets["node-timeline-variable"] == variable;
         if (this.commonService.session.style.widgets["node-timeline-variable"] != 'None' && !loadingJsonFile) {
             // change timeline variable when end time not reaching target time - redraw netwrok to start fresh
             if (moment(this.commonService.session.state.timeEnd).toDate() < moment(this.commonService.session.state.timeTarget).toDate()) {
                 this.commonService.session.state.timeEnd = this.commonService.session.state.timeTarget;
-            this.commonService.setNodeVisibility(false);
-            this.commonService.setLinkVisibility(false);
-            this.commonService.updateStatistics();
-            this.store.setNetworkUpdated(true);
+                this.applyTimelineVisibility();
+                this.store.setNetworkUpdated(true);
             }
         }
         this.commonService.session.style.widgets["node-timeline-variable"] = variable;
         if (variable == "None") {
             $("#global-timeline-field").empty();
             this.commonService.session.style.widgets["timeline-date-field"] = 'None'  
+            this.timelineRangeStartInput = '';
+            this.timelineRangeEndInput = '';
+            this.timelinePlaybackPaused = false;
             $("#global-timeline-wrapper").fadeOut();
             // $('#pinbutton').prop("disabled", false);
             // if(!this.commonService.session.network.timelinePinned) {
@@ -2968,9 +3307,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
             // this.commonService.updatePinNodes(false);
             // }
             this.commonService.session.network.timelineNodes = [];
-            this.commonService.setNodeVisibility(false);
-            this.commonService.setLinkVisibility(false);
-            this.commonService.updateStatistics();
+            this.applyTimelineVisibility();
             this.store.setNetworkUpdated(true);
             return;
         }
@@ -3034,8 +3371,10 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         if (times.length < 2) {
             times = [new Date(2000, 1, 1), new Date()];
         }
-        const timeDomainStart = Math.min(...times);
-        const timeDomainEnd = Math.max(...times);
+        const timeDomainStart = new Date(Math.min(...times));
+        const timeDomainEnd = new Date(Math.max(...times));
+        this.timelineDomainStart = timeDomainStart;
+        this.timelineDomainEnd = timeDomainEnd;
 
         const days = moment(timeDomainEnd).diff(moment(timeDomainStart), 'days');
         const tickDateFormat = d => {
@@ -3050,31 +3389,57 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         }
         const startDate = timeDomainStart;
         const endDate = timeDomainEnd;
-        const margin = {top:50, right:50, bottom:0, left:50},
-            width = ($('#visualwrapper').width() * 4 / 5) - margin.left - margin.right,
+        const margin = {top:50, right:0, bottom:0, left:0},
+            width = Math.max(0, (($('#visualwrapper').width() || 0) * 4 / 5) - margin.left - margin.right),
             height = 200 - margin.top - margin.bottom;
 
         var svgTimeline = d3.select("#global-timeline")
             .append("svg")
             .attr("width", width + margin.left + margin.right)
-            .attr("height", 120);  
+            .attr("height", 120)
+            .style("overflow", "visible");
 
             ////////// slider //////////
-        this.currentTimelineValue = 0;
+        this.currentTimelineStartValue = 0;
+        this.currentTimelineValue = width;
         this.currentTimelineTargetValue = width;
         this.commonService.session.state.timeStart = startDate;
+        const timelineHorizontalPadding = Math.min(9, width / 2);
 
         const that = this;
         const playButton = d3.select("#timeline-play-button");
         if (playButton.text() == "Pause") playButton.text("Play");
         this.xAttribute = d3.scaleTime()
             .domain([startDate, endDate])
-            .range([0, this.currentTimelineTargetValue])
-            .clamp(true)
-            .nice();
+            .range([timelineHorizontalPadding, this.currentTimelineTargetValue - timelineHorizontalPadding])
+            .clamp(true);
+        const estimateTimelineTickWidth = (date: Date) => Math.max(28, String(tickDateFormat(date)).length * 7);
+        const tickValues = [startDate, ...this.xAttribute.ticks(12), endDate]
+            .sort((a, b) => a.getTime() - b.getTime())
+            .filter((date, index, dates) => index === 0 || date.getTime() !== dates[index - 1].getTime())
+            .filter((date, index, dates) => {
+                const isEndpoint = date.getTime() === startDate.getTime() || date.getTime() === endDate.getTime();
+                if (isEndpoint) {
+                    return true;
+                }
+
+                const previousDate = dates[index - 1];
+                const nextDate = dates[index + 1];
+                const x = this.xAttribute(date);
+                const previousX = previousDate ? this.xAttribute(previousDate) : Number.NEGATIVE_INFINITY;
+                const nextX = nextDate ? this.xAttribute(nextDate) : Number.POSITIVE_INFINITY;
+                const minimumPreviousGap = (estimateTimelineTickWidth(date) + (previousDate ? estimateTimelineTickWidth(previousDate) : 0)) / 2 + 6;
+                const minimumNextGap = (estimateTimelineTickWidth(date) + (nextDate ? estimateTimelineTickWidth(nextDate) : 0)) / 2 + 6;
+                return x - previousX >= minimumPreviousGap && nextX - x >= minimumNextGap;
+            });
         const slider = svgTimeline.append("g")
             .attr("class", "slider")
-            .attr("transform", "translate(30," + height/2 + ")");
+            .attr("transform", "translate(0," + height/2 + ")");
+        const moveActiveTimelineMarker = () => {
+            const date = that.xAttribute.invert((d3 as any).event.x);
+            that.stopTimelinePlayback(true);
+            that.update(date);
+        };
 
         slider.append("line")
             .attr("class", "track")
@@ -3092,6 +3457,10 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
             .attr("stroke", "#ddd")  // Ensure this is a visible color
             .attr("stroke-width", "10px")  // Ensure this is a sufficient width
             //.each(function() { this.parentNode.appendChild(this.cloneNode(true)); })
+        this.rangeSelection = slider.append('line')
+            .attr("class", "timeline-selected-range")
+            .attr("x1", this.xAttribute.range()[0])
+            .attr("x2", this.xAttribute.range()[1]);
         slider.append('line')
             // Pre D3
             // .select(function() { return this.parentNode.appendChild(this.cloneNode(true)); })
@@ -3102,20 +3471,13 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
             .attr("stroke-width", "10px")  // Ensure this is a sufficient width
             .call(d3.drag()
                 .on("start.interrupt", function() { slider.interrupt(); })
-                .on("start drag", function() {
-                    that.currentTimelineValue = (d3 as any).event.x;
-                    that.update(that.xAttribute.invert(that.currentTimelineValue));
-                    if (that.playBtnText == "Pause") {
-                        that.playBtnText = "Play";
-                    clearInterval(that.commonService.session.timeline);
-                    }
-                })
+                .on("start drag", moveActiveTimelineMarker)
             );
         slider.insert("g", ".track-overlay")
             .attr("class", "ticks")
             .attr("transform", "translate(0," + 18 + ")")
             .selectAll("text")
-            .data(this.xAttribute.ticks(12))
+            .data(tickValues)
             .enter()
             .append("text")
             .attr("x", this.xAttribute)
@@ -3124,27 +3486,88 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
             .text(function(d) { return tickDateFormat(d); });
 
 
+        this.rangeStartLabel = slider.append("text")
+            .attr("class", "timeline-range-label timeline-range-start-label")
+            .attr("text-anchor", "middle")
+            .attr("y", -46);
+
+        this.rangeEndLabel = slider.append("text")
+            .attr("class", "timeline-range-label timeline-range-end-label")
+            .attr("text-anchor", "middle")
+            .attr("y", -46);
+
         this.label = slider.append("text")  
             .attr("class", "label")
             .attr("text-anchor", "middle")
-            .text(this.handleDateFormat(startDate))
-            .attr("transform", "translate(25," + (-20) + ")")
+            .text(this.handleDateFormat(endDate))
+            .attr("y", -25);
 
-            this.handle = slider.insert("circle", ".track-overlay")
+        this.handle = slider.append("circle")
             .attr("class", "handle")
-            .attr("r", 9);
+            .attr("data-testid", "timeline-current-handle")
+            .attr("r", 9)
+            .call(d3.drag()
+                .on("start.interrupt", function() { slider.interrupt(); })
+                .on("start drag", moveActiveTimelineMarker)
+            );
+
+        this.rangeStartHandle = slider.append("path")
+            .attr("class", "timeline-range-handle timeline-range-start-handle")
+            .attr("data-testid", "timeline-range-start-handle")
+            .attr("d", "M -8,-19 L 8,-19 L 0,-5 Z")
+            .call(d3.drag()
+                .on("start.interrupt", function() { slider.interrupt(); })
+                .on("start drag", function() {
+                    const date = that.xAttribute.invert((d3 as any).event.x);
+                    that.setTimelineRange(date, that.commonService.session.state.timeTarget, 'start');
+                })
+            );
+
+        this.rangeEndHandle = slider.append("path")
+            .attr("class", "timeline-range-handle timeline-range-end-handle")
+            .attr("data-testid", "timeline-range-end-handle")
+            .attr("d", "M -8,-19 L 8,-19 L 0,-5 Z")
+            .call(d3.drag()
+                .on("start.interrupt", function() { slider.interrupt(); })
+                .on("start drag", function() {
+                    const date = that.xAttribute.invert((d3 as any).event.x);
+                    that.setTimelineRange(that.commonService.session.state.timeStart, date, 'end');
+                })
+            );
 
         this.commonService.session.style.widgets["timeline-date-field"] = field;
-        this.commonService.session.state.timeStart = startDate;
-        this.commonService.session.state.timeTarget = this.xAttribute.invert(this.currentTimelineTargetValue);
-        if (loadingJsonFile && moment(this.commonService.session.state.timeEnd).toDate() < moment(this.commonService.session.state.timeTarget).toDate()) {
-            let t = moment(this.commonService.session.state.timeEnd).toDate();
-            this.currentTimelineTargetValue = this.xAttribute(t);
-            this.handle.attr("cx", this.xAttribute(t));
-            this.label
-            .attr("x", this.xAttribute(t))
-            .text(this.handleDateFormat(t));
+        let selectedStartDate = startDate;
+        let selectedEndDate = endDate;
+        let activeEndDate = selectedStartDate;
+
+        if (loadingJsonFile) {
+            selectedStartDate = this.clampTimelineDate(
+                this.parseTimelineDate(this.commonService.session.state.timeStart) ?? startDate
+            );
+            selectedEndDate = this.clampTimelineDate(
+                this.parseTimelineDate(this.commonService.session.state.timeTarget) ?? endDate
+            );
+
+            if (selectedStartDate.getTime() > selectedEndDate.getTime()) {
+                selectedStartDate = startDate;
+                selectedEndDate = endDate;
+            }
+
+            activeEndDate = this.clampTimelineDate(
+                this.parseTimelineDate(this.commonService.session.state.timeEnd) ?? selectedStartDate
+            );
+            activeEndDate = new Date(Math.min(
+                Math.max(activeEndDate.getTime(), selectedStartDate.getTime()),
+                selectedEndDate.getTime()
+            ));
         }
+
+        this.commonService.session.state.timeStart = selectedStartDate;
+        this.commonService.session.state.timeTarget = selectedEndDate;
+        this.commonService.session.state.timeEnd = activeEndDate;
+        this.syncTimelineRangeInputs(selectedStartDate, selectedEndDate);
+        this.syncTimelineRangeGraphics();
+        this.update(activeEndDate);
         $("#global-timeline-wrapper").fadeIn();
        
     }
@@ -3152,10 +3575,29 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
     public playTimeline() : void {
 
             if (this.playBtnText == "Pause") {
-                this.playBtnText = "Play";
-                clearInterval(this.commonService.session.timeline);
+                this.stopTimelinePlayback(true);
             } else {
+                if (!this.xAttribute) {
+                    return;
+                }
+
+                const startDate = this.getSelectedTimelineStart();
+                const endDate = this.getSelectedTimelineEnd();
+                const activeDate = this.timelinePlaybackPaused ? this.getActiveTimelineEnd() : startDate;
+                const playbackStartDate = activeDate.getTime() >= endDate.getTime() ? startDate : activeDate;
+                this.timelinePlaybackPaused = false;
+                this.currentTimelineStartValue = this.xAttribute(playbackStartDate);
+                this.currentTimelineTargetValue = this.xAttribute(endDate);
+                this.currentTimelineValue = this.currentTimelineStartValue;
+                this.update(playbackStartDate);
+
+                if (this.currentTimelineStartValue >= this.currentTimelineTargetValue) {
+                    this.stopTimelinePlayback();
+                    return;
+                }
+
                 this.playBtnText = "Pause";
+                d3.select("#timeline-play-button").text("Pause");
                 this.commonService.session.timeline = setInterval(this.step, this.timelineSpeed, this);
             }
 
@@ -3174,26 +3616,58 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
 
         // Timeline-aware views update from node-visibility; other views should
         // not treat playback ticks as generic network updates.
-        this.handle.attr("cx", this.xAttribute(h));
-        this.label
-        .attr("x", this.xAttribute(h))
-        .text(this.handleDateFormat(h));
-        this.commonService.session.state.timeEnd = h;
-        this.commonService.setNodeVisibility(false);
-        this.commonService.setLinkVisibility(false);
-        this.commonService.updateStatistics();
+        if (!this.xAttribute) {
+            return;
+        }
+
+        const selectedStart = this.getSelectedTimelineStart();
+        const selectedEnd = this.getSelectedTimelineEnd();
+        const parsedDate = this.parseTimelineDate(h) ?? selectedEnd;
+        const nextDate = new Date(Math.min(
+            Math.max(this.clampTimelineDate(parsedDate).getTime(), selectedStart.getTime()),
+            selectedEnd.getTime()
+        ));
+        const nextX = this.xAttribute(nextDate);
+
+        this.currentTimelineValue = nextX;
+        this.commonService.session.state.timeStart = selectedStart;
+        this.commonService.session.state.timeTarget = selectedEnd;
+        this.commonService.session.state.timeEnd = nextDate;
+        this.syncTimelineRangeInputs(selectedStart, selectedEnd);
+        this.syncTimelineRangeGraphics();
+
+        if (this.handle) {
+            this.handle.attr("cx", nextX);
+        }
+
+        if (this.label) {
+            this.label
+                .attr("x", nextX)
+                .text(this.handleDateFormat(nextDate));
+        }
+
+        this.applyTimelineVisibility();
   }
 
     step(that : any) { 
-        that.update(that.xAttribute.invert(that.currentTimelineValue));
-        if (that.currentTimelineValue > that.currentTimelineTargetValue) { 
-            that.currentTimelineValue = 0;
-        clearInterval(that.commonService.session.timeline);
-        that.playBtnText = "Play";
-        return;
-        }
-        that.currentTimelineValue = that.currentTimelineValue + (that.currentTimelineTargetValue/151);
+        const startValue = Number(that.currentTimelineStartValue ?? 0);
+        const targetValue = Number(that.currentTimelineTargetValue ?? 0);
+        const currentValue = Number(that.currentTimelineValue ?? startValue);
 
+        if (targetValue <= startValue || currentValue >= targetValue) {
+            that.update(that.xAttribute.invert(targetValue));
+            that.stopTimelinePlayback();
+            return;
+        }
+
+        const stepSize = Math.max((targetValue - startValue) / 151, 1);
+        const nextValue = Math.min(currentValue + stepSize, targetValue);
+        that.currentTimelineValue = nextValue;
+        that.update(that.xAttribute.invert(nextValue));
+
+        if (nextValue >= targetValue) {
+            that.stopTimelinePlayback();
+        }
     }
 
     showNodeColorTable() {
@@ -3263,7 +3737,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
      * Called when SelectedColorNodesByVariable (keeps track of what variable to use to color nodes by) is changed.
      */
     onColorNodesByChanged(silent: boolean = false) {
-
+        this.nodeColorAssignmentStatus = null;
         this.commonService.GlobalSettingsModel.SelectedColorNodesByVariable = this.SelectedColorNodesByVariable;
         if (this.SelectedColorNodesByVariable !== 'None' && this.getKeyTableDisplayMode('node-color') === 'Dock') {
             this.keyTablesController.setDocked('node-color', true);
@@ -3294,7 +3768,8 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         if (this.SelectedColorNodesByVariable !== "None") {
             if (!shouldFloatNodeColorTable) {
                 this.GlobalSettingsNodeColorDialogSettings.setVisibility(false);
-                $('#node-color-table').empty();
+                this.nodeColorRows = [];
+                this.nodeColorDomain = [];
                 this.commonService.createNodeColorMap();
                 this.refreshKeyTablesView();
 
@@ -3316,7 +3791,8 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         // if color nodes by equals None, then hide node color table
         } else {
 
-            $('#node-color-table').empty();
+            this.nodeColorRows = [];
+            this.nodeColorDomain = [];
             this.applyKeyTableDisplayMode('node-color', silent);
             this.refreshKeyTablesView();
 
@@ -3328,181 +3804,219 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
     }
 
     generateNodeColorTable(tableId: string, isEditable: boolean = true) {
-        const valueColumnName = this.getKeyTableColumnDisplayName('node-color', 'value', 'Node ' + this.commonService.titleize(this.SelectedColorNodesByVariable));
-        const countColumnName = this.getKeyTableColumnDisplayName('node-color', 'count', 'Count');
-        const frequencyColumnName = this.getKeyTableColumnDisplayName('node-color', 'frequency', 'Frequency');
-        const nodeColorTable = $(tableId)
-        .empty()
-        .append(
-            "<tr>" +
-            "<th class='p-1 table-header-row'><div class='header-content'><span contenteditable data-table-key='node-color' data-column-key='value'>" + valueColumnName + "</span><a class='sort-button' style='cursor: pointer'>⇅</a></div></th>" +
-            `<th class='table-header-row tableCount' ${ this.widgets['node-color-table-counts'] ? "" : "style='display: none'"}><div class='header-content'><span contenteditable data-table-key='node-color' data-column-key='count'>${countColumnName}</span><a class='sort-button' style='cursor: pointer'>⇅</a></div></th>` +
-            `<th class='table-header-row tableFrequency' ${ this.widgets['node-color-table-frequencies'] ? "": "style='display: none'"}><div class='header-content'><span contenteditable data-table-key='node-color' data-column-key='frequency'>${frequencyColumnName}</span><a class='sort-button' style='cursor: pointer'>⇅</a></div></th>` +
-            "<th>Color</th>" +
-            "</tr>"
-        );
-
+        this.nodeColorTableEditable = isEditable;
+        this.nodeColorTableHeaders = {
+            value: this.getKeyTableColumnDisplayName('node-color', 'value', 'Node ' + this.commonService.titleize(this.SelectedColorNodesByVariable)),
+            count: this.getKeyTableColumnDisplayName('node-color', 'count', 'Count'),
+            frequency: this.getKeyTableColumnDisplayName('node-color', 'frequency', 'Frequency')
+        };
 
         this.getNodeValueNameMap();
 
-
         const aggregates = this.commonService.createNodeColorMap();
-
         const vnodes = this.commonService.getVisibleNodes();
-
         const aggregateValues = Object.keys(aggregates);
+        this.nodeColorDomain = aggregateValues;
 
-        const disabled = isEditable ? '' : 'disabled';
+        this.nodeColorRows = aggregateValues
+            .map((value, i) => ({ value, i }))
+            .filter(({ value }) => aggregates[value] >= 1)
+            .map(({ value, i }) => ({
+                rawValue: value,
+                trackKey: `node-color-${String(value)}`,
+                displayName: this.getNodeValueDisplayName(value, this.SelectedColorNodesByVariable),
+                count: aggregates[value],
+                frequency: vnodes.length === 0 ? '' : (aggregates[value] / vnodes.length).toLocaleString(),
+                color: this.commonService.temp.style.nodeColorMap(value),
+                alpha: this.commonService.temp.style.nodeAlphaMap(value),
+                index: i
+            }));
 
-        aggregateValues.forEach((value, i) => {
-            if (aggregates[value] < 1) return;
-
-            const color = this.commonService.temp.style.nodeColorMap(value);
-
-            const colorinput = $(`<input type="color" value="${color}" style="opacity:${this.commonService.temp.style.nodeAlphaMap(value)}; border:none" ${disabled}>`)
-                .on("change", e => {
-                    // need to update the value in the dom which is used when exportings
-                    e.currentTarget.attributes[1].value = e.target['value'];
-                    e.currentTarget.style['opacity'] = this.commonService.temp.style.nodeAlphaMap(value);
-
-                    if(this.commonService.debugMode) {
-                        console.log('color: ', this.SelectedColorNodesByVariable);
-                        console.log('color2: ',  this.commonService.session.style.nodeColorsTableKeys);                    
-                    }
- 
-                    const nextColor = e.target['value'];
-                    let key = this.commonService.session.style.nodeColorsTableKeys[this.SelectedColorNodesByVariable].findIndex( k => k === value);
-                    this.commonService.session.style.nodeColorsTable[this.SelectedColorNodesByVariable].splice(key, 1, nextColor);
-
-                    // Update this variable's history without changing matching values
-                    // that belong to other node fields.
-                    const nodeColorsTableHistory = this.commonService.session.style.nodeColorsTableHistory;
-                    const storedVariableHistory = nodeColorsTableHistory[this.SelectedColorNodesByVariable];
-                    const variableHistory = storedVariableHistory
-                        && typeof storedVariableHistory === 'object'
-                        && !Array.isArray(storedVariableHistory)
-                        ? storedVariableHistory
-                        : {};
-                    nodeColorsTableHistory[this.SelectedColorNodesByVariable] = variableHistory;
-                    variableHistory[this.commonService.session.style.nodeColorsTableKeys[this.SelectedColorNodesByVariable][key]] = nextColor;
-
-                  
-
-                    //if (this.commonService.session.style.widgets["node-timeline-variable"] == 'None') {
-                          // Update table with new alpha value
-                        // Need to get value from id since "this" keyword is used by angular
-                        this.commonService.session.style.nodeColors.splice(i, 1, nextColor);
-                        this.commonService.temp.style.nodeColorMap = d3
-                            .scaleOrdinal(this.commonService.session.style.nodeColors)
-                            .domain(aggregateValues);
-                        // temp.style.nodeColorMap = d3
-                            // .scaleOrdinal(session.style.nodeColorsTable[variable])
-                            // .domain(session.style.nodeColorsTableKeys[variable]);
-                        // } else {
-                        //     let temKey = this.commonService.temp.style.nodeColorKeys.findIndex( k => k === value);
-                        //     this.commonService.temp.style.nodeColor.splice(temKey, 1, e);
-                        //     this.commonService.temp.style.nodeColorMap = d3
-                        //         .scaleOrdinal(this.commonService.temp.style.nodeColor)
-                        //         .domain(this.commonService.temp.style.nodeColorKeys);
-                        // }
-
-                    this.publishUpdateNodeColors();
-
-                });
-
-            const alphainput = $(`<a class="transparency-symbol">⇳</a>`).on("click", e => {
-
-                $("#color-transparency-wrapper").css({
-                    top: e.clientY + 129,
-                    left: e.clientX,
-                    display: "block"
-                });
-
-                $("#color-transparency")
-                    .off("change")
-                    .val(this.commonService.session.style.nodeAlphas[i])
-                    .one("change", f => {
-
-                        // Update table with new alpha value
-                        // Need to get value from id since "this" keyword is used by angular
-                        const alphaValue = this.commonService.clampStyleAlpha(parseFloat(f.target['value'] as string));
-                        this.commonService.session.style.nodeAlphas.splice(i, 1, alphaValue);
-
-                        this.commonService.temp.style.nodeAlphaMap = d3
-                            .scaleOrdinal(this.commonService.session.style.nodeAlphas)
-                            .domain(aggregateValues);
-
-                        colorinput.css('opacity', alphaValue);
-                        this.publishUpdateNodeColors();
-                        $("#color-transparency-wrapper").fadeOut();
-
-                    });
-            });
-
-            const nonEditCell = `<td style="background-color:${color}"></td>`;
-
-            const cell = $("<td></td>")
-                .append(colorinput)
-                .append(alphainput);
-
-            const row = $(
-                "<tr>" +
-                "<td data-value='" + value + "'>" +
-                this.getNodeValueDisplayName(value) +
-                "</td>" +
-                `<td class='tableCount' ${ this.widgets['node-color-table-counts'] ? "" : "style='display: none'"}>` + aggregates[value] + "</td>" +
-                `<td class='tableFrequency' ${ this.widgets['node-color-table-frequencies'] ? "": "style='display: none'"}>` + (aggregates[value] / vnodes.length).toLocaleString() + "</td>" +
-                "</tr>"
-            ).append(isEditable ? cell : nonEditCell);
-
-            nodeColorTable.append(row);
-        });
-
-        if (isEditable) {
-            nodeColorTable
-                .find("td[data-value]")
-                .on("dblclick", function () {
-                    $(this).attr("contenteditable", "true").focus();
-                })
-                .on("focusout", (event) => {
-                    const $this = $(event.currentTarget);
-                    $this.attr("contenteditable", "false");
-
-                    this.setNodeValueDisplayName($this.data("value"), $this.text());
-                });
-
-            nodeColorTable
-                .find("[data-table-key][data-column-key]")
-                .on("focusout", (event) => {
-                    const cell = event.currentTarget as HTMLElement;
-                    this.setKeyTableColumnDisplayName(
-                        String(cell.getAttribute('data-table-key')),
-                        String(cell.getAttribute('data-column-key')),
-                        cell.textContent ?? ''
-                    );
-                });
-        }
-
-        this.updateCountFreqTable('node-color');
+        this.applyStyleKeyTableSort('node-color');
         $('#nodeColorTableSettings').on('mouseleave', () => $('#nodeColorTableSettings').delay(500).css('display', 'none'));
-        
-        $(tableId).off('click', '.sort-button').on('click', '.sort-button', function() {
-            const table = $(this).parents('table').eq(0);
-            let rows = table.find('tr:gt(0)').toArray().sort(comparer($(this).parent().parent().index()));
-            this.asc = !this.asc; // using property 'asc' on DOM object instead of jQuery data function
-            if (!this.asc){rows = rows.reverse();}
-            for (let i = 0; i < rows.length; i++){table.append(rows[i]);}
-        });
-        
-        function comparer(index) {
-            return function(a, b) {
-                const valA = getCellValue(a, index), valB = getCellValue(b, index);
-                return !isNaN(Number(valA)) && !isNaN(Number(valB)) ? Number(valA) - Number(valB) : valA.toString().localeCompare(valB);
-            }
-        }
-        
-        function getCellValue(row, index){ return $(row).children('td').eq(index).text() }
+        this.cdref.markForCheck();
+    }
 
+    onStyleKeyTableColumnNameChange(change: StyleKeyTableColumnNameChange): void {
+        this.setKeyTableColumnDisplayName(change.table, change.column, change.displayName);
+    }
+
+    onNodeColorRowNameChange(change: StyleKeyTableRowNameChange): void {
+        this.setNodeValueDisplayName(change.value, change.displayName);
+    }
+
+    onLinkColorRowNameChange(change: StyleKeyTableRowNameChange): void {
+        if (!this.commonService.session.style.linkValueNames) {
+            this.commonService.session.style.linkValueNames = {};
+        }
+
+        this.commonService.session.style.linkValueNames[String(change.value)] = change.displayName;
+        this.cdref.markForCheck();
+    }
+
+    onNodeShapeRowNameChange(change: StyleKeyTableRowNameChange): void {
+        this.setNodeValueDisplayName(change.value, change.displayName);
+    }
+
+    onNodeColorTableColorChange(change: StyleKeyTableColorChange): void {
+        const value = change.value;
+        const aggregateValues = this.nodeColorDomain.length ? this.nodeColorDomain : this.nodeColorRows.map(row => row.rawValue);
+        const tableKeys = this.commonService.session.style.nodeColorsTableKeys?.[this.SelectedColorNodesByVariable] ?? aggregateValues;
+        const key = tableKeys.findIndex(k => k === value);
+        const resolvedKey = key >= 0 ? key : change.row.index ?? 0;
+        const nextColor = change.color;
+
+        this.commonService.session.style.nodeColorsTable[this.SelectedColorNodesByVariable].splice(resolvedKey, 1, nextColor);
+        const nodeColorsTableHistory = this.commonService.session.style.nodeColorsTableHistory || {};
+        this.commonService.session.style.nodeColorsTableHistory = nodeColorsTableHistory;
+        const storedVariableHistory = nodeColorsTableHistory[this.SelectedColorNodesByVariable];
+        const variableHistory = storedVariableHistory
+            && typeof storedVariableHistory === 'object'
+            && !Array.isArray(storedVariableHistory)
+            ? storedVariableHistory
+            : {};
+        nodeColorsTableHistory[this.SelectedColorNodesByVariable] = variableHistory;
+        variableHistory[tableKeys[resolvedKey]] = nextColor;
+
+        const explicitAssignments = this.commonService.session.style.nodeColorAssignments?.[this.SelectedColorNodesByVariable];
+        if (explicitAssignments && Object.prototype.hasOwnProperty.call(explicitAssignments, value)) {
+            explicitAssignments[value] = nextColor;
+        }
+
+        this.commonService.session.style.nodeColors.splice(change.row.index ?? resolvedKey, 1, nextColor);
+        this.commonService.temp.style.nodeColorMap = d3
+            .scaleOrdinal(this.commonService.session.style.nodeColors)
+            .domain(aggregateValues);
+
+        this.generateNodeColorTable('', true);
+        this.publishUpdateNodeColors();
+    }
+
+    onLinkColorTableColorChange(change: StyleKeyTableColorChange): void {
+        if (change.row.duoSegments?.length) {
+            return;
+        }
+
+        const value = change.value;
+        const selectedVariable = this.SelectedColorLinksByVariable;
+        const aggregateValues = this.linkColorDomain.length ? this.linkColorDomain : this.linkColorRows.map(row => row.rawValue);
+        const linkColorKeys = this.commonService.session.style.linkColorsTableKeys?.[selectedVariable] || aggregateValues;
+        const key = linkColorKeys.findIndex(k => k === value);
+        const resolvedKey = key >= 0 ? key : change.row.index ?? 0;
+        const nextColor = change.color;
+        const variableColors = this.commonService.session.style.linkColorsTable?.[selectedVariable] || [];
+
+        variableColors.splice(resolvedKey, 1, nextColor);
+        this.commonService.session.style.linkColorsTable[selectedVariable] = variableColors;
+        this.commonService.session.style.linkColorsTableHistory[value] = nextColor;
+        (this.commonService.session.style.linkColors as any).splice(resolvedKey, 1, nextColor);
+        this.commonService.temp.style.linkColorMap = d3
+            .scaleOrdinal(this.commonService.session.style.linkColorsTable[selectedVariable])
+            .domain(linkColorKeys);
+
+        this.generateNodeLinkTable('', true);
+        this.publishUpdateLinkColor();
+    }
+
+    onNodeColorAlphaRequested(request: StyleKeyTableAlphaRequest): void {
+        this.showColorAlphaPicker(
+            request,
+            this.commonService.session.style.nodeAlphas[request.row.index ?? 0],
+            alphaValue => {
+                const aggregateValues = this.nodeColorDomain.length ? this.nodeColorDomain : this.nodeColorRows.map(row => row.rawValue);
+                const index = request.row.index ?? 0;
+                const alpha = this.commonService.clampStyleAlpha(alphaValue);
+                this.commonService.session.style.nodeAlphas.splice(index, 1, alpha);
+                this.commonService.temp.style.nodeAlphaMap = d3
+                    .scaleOrdinal(this.commonService.session.style.nodeAlphas)
+                    .domain(aggregateValues);
+                this.generateNodeColorTable('', true);
+                this.publishUpdateNodeColors();
+            }
+        );
+    }
+
+    onLinkColorAlphaRequested(request: StyleKeyTableAlphaRequest): void {
+        this.showColorAlphaPicker(
+            request,
+            this.commonService.session.style.linkAlphas[request.row.index ?? 0],
+            alphaValue => {
+                const aggregateValues = this.linkColorDomain.length ? this.linkColorDomain : this.linkColorRows.map(row => row.rawValue);
+                const index = request.row.index ?? 0;
+                this.commonService.session.style.linkAlphas.splice(index, 1, parseFloat(String(alphaValue)));
+                this.commonService.temp.style.linkAlphaMap = d3
+                    .scaleOrdinal(this.commonService.session.style.linkAlphas)
+                    .domain(aggregateValues);
+                this.generateNodeLinkTable('', true);
+                this.publishUpdateLinkColor();
+            }
+        );
+    }
+
+    onNodeShapeTableShapeChange(change: StyleKeyTableShapeChange): void {
+        this.onNodeShapeTableTreeChange(change.selectedNode, change.value);
+    }
+
+    onNodeShapeTablePanelRequest(request: StyleKeyTableShapePanelRequest): void {
+        this.onShapeTreeShow(request.shapeKey);
+    }
+
+    onStyleKeyTableSort(table: 'node-color' | 'link-color' | 'node-shape', column: StyleKeyTableSortColumn): void {
+        if (table === 'node-shape') {
+            this.onNodeShapeSort(column === 'value' ? 'key' : column);
+            return;
+        }
+
+        const previous = this.colorTableSortState[table];
+        const ascending = previous?.column === column ? !previous.ascending : true;
+        this.colorTableSortState[table] = { column, ascending };
+        this.applyStyleKeyTableSort(table);
+        this.cdref.markForCheck();
+    }
+
+    private applyStyleKeyTableSort(table: 'node-color' | 'link-color'): void {
+        const sortState = this.colorTableSortState[table];
+        if (!sortState) {
+            return;
+        }
+
+        const rows = table === 'node-color' ? [...this.nodeColorRows] : [...this.linkColorRows];
+        rows.sort((a, b) => this.compareStyleKeyTableRows(a, b, sortState.column, sortState.ascending));
+
+        if (table === 'node-color') {
+            this.nodeColorRows = rows;
+        } else {
+            this.linkColorRows = rows;
+        }
+    }
+
+    private compareStyleKeyTableRows(a: StyleKeyTableRow, b: StyleKeyTableRow, column: StyleKeyTableSortColumn, ascending: boolean): number {
+        const aValue = column === 'count' ? a.count : column === 'frequency' ? a.frequency : a.displayName;
+        const bValue = column === 'count' ? b.count : column === 'frequency' ? b.frequency : b.displayName;
+        const aNumber = Number(aValue);
+        const bNumber = Number(bValue);
+        const comparison = !isNaN(aNumber) && !isNaN(bNumber)
+            ? aNumber - bNumber
+            : String(aValue).localeCompare(String(bValue));
+
+        return ascending ? comparison : -comparison;
+    }
+
+    private showColorAlphaPicker(request: StyleKeyTableAlphaRequest, currentAlpha: number, onChange: (alphaValue: number) => void): void {
+        $("#color-transparency-wrapper").css({
+            top: request.event.clientY + 129,
+            left: request.event.clientX,
+            display: "block"
+        });
+
+        $("#color-transparency")
+            .off("change")
+            .val(currentAlpha)
+            .one("change", event => {
+                onChange(parseFloat((event.target['value'] as string)));
+                $("#color-transparency-wrapper").fadeOut();
+                this.cdref.markForCheck();
+            });
     }
 
     /**
@@ -3573,6 +4087,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         } else {
             return;
         }
+        this.cdref.markForCheck();
         const countSelector = tableName == 'node-color'
             ? '#global-settings-node-color-table .tableCount, #key-tables-node-table .tableCount'
             : tableName == 'link-color'
@@ -3607,6 +4122,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         }
 
         this.syncThresholdDisplayFromStoredValue();
+        this.store.setLinkThreshold(parsedThreshold);
 
         if(this.commonService.session.data.nodes.length === 0) {
             return;
@@ -3722,6 +4238,8 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
 
         $("#cluster-minimum-size").val(1);
         this.commonService.session.style.widgets["cluster-minimum-size"] = 1;
+        this.commonService.clearNetworkSubsetFilter(false);
+        this.loadNetworkSubsetFilterSettings();
         $("#filtering-wrapper").slideDown();
         this.commonService.setClusterVisibility(true);
        
@@ -3835,11 +4353,163 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
 
 
         this.SelectedLinkSortVariable = this.commonService.GlobalSettingsModel.SelectedLinkSortVariable;
+        this.loadNetworkSubsetFilterSettings();
         //this.commonService.updateThresholdHistogram();
         this.refreshThresholdStabilityPanel(false);
 
         console.log('--- getGlobalSettingsData end - last of loadDefaultVisualization in MT');
 
+    }
+
+    private loadNetworkSubsetFilterSettings(): void {
+        const filter = this.commonService.ensureNetworkSubsetFilterState();
+        this.SelectedNetworkSubsetNodeField = filter.node?.field || 'None';
+        this.SelectedNetworkSubsetNodeOperator = filter.node?.operator || 'equals';
+        this.SelectedNetworkSubsetNodeValue = filter.node?.value ?? '';
+        this.SelectedNetworkSubsetLinkField = filter.link?.field || 'None';
+        this.SelectedNetworkSubsetLinkOperator = filter.link?.operator || 'contains';
+        this.SelectedNetworkSubsetLinkValue = filter.link?.value ?? '';
+        this.refreshNetworkSubsetValueOptions();
+    }
+
+    private hasNetworkSubsetRule(field: string, value: any): boolean {
+        return field !== 'None' && value !== undefined && value !== null && `${value}`.trim() !== '';
+    }
+
+    onNetworkSubsetNodeFieldChanged(field: string): void {
+        this.SelectedNetworkSubsetNodeField = field;
+        this.refreshNetworkSubsetNodeValueOptions();
+    }
+
+    onNetworkSubsetLinkFieldChanged(field: string): void {
+        this.SelectedNetworkSubsetLinkField = field;
+        this.refreshNetworkSubsetLinkValueOptions();
+    }
+
+    onNetworkSubsetNodeValueChanged(value: string): void {
+        this.SelectedNetworkSubsetNodeValue = value;
+        this.filterNetworkSubsetNodeValueOptions();
+    }
+
+    onNetworkSubsetLinkValueChanged(value: string): void {
+        this.SelectedNetworkSubsetLinkValue = value;
+        this.filterNetworkSubsetLinkValueOptions();
+    }
+
+    private refreshNetworkSubsetValueOptions(): void {
+        this.refreshNetworkSubsetNodeValueOptions();
+        this.refreshNetworkSubsetLinkValueOptions();
+    }
+
+    private refreshNetworkSubsetNodeValueOptions(): void {
+        this.NetworkSubsetNodeAllValueOptions = this.getNetworkSubsetValueOptions(
+            this.commonService.session.data.nodes || [],
+            this.SelectedNetworkSubsetNodeField
+        );
+        this.filterNetworkSubsetNodeValueOptions();
+    }
+
+    private refreshNetworkSubsetLinkValueOptions(): void {
+        this.NetworkSubsetLinkAllValueOptions = this.getNetworkSubsetValueOptions(
+            this.commonService.session.data.links || [],
+            this.SelectedNetworkSubsetLinkField
+        );
+        this.filterNetworkSubsetLinkValueOptions();
+    }
+
+    private filterNetworkSubsetNodeValueOptions(): void {
+        this.NetworkSubsetNodeValueOptions = this.filterNetworkSubsetValueOptions(
+            this.NetworkSubsetNodeAllValueOptions,
+            this.SelectedNetworkSubsetNodeValue
+        );
+    }
+
+    private filterNetworkSubsetLinkValueOptions(): void {
+        this.NetworkSubsetLinkValueOptions = this.filterNetworkSubsetValueOptions(
+            this.NetworkSubsetLinkAllValueOptions,
+            this.SelectedNetworkSubsetLinkValue
+        );
+    }
+
+    private getNetworkSubsetValueOptions(records: any[], field: string): string[] {
+        if (!field || field === 'None') {
+            return [];
+        }
+
+        const options = new Set<string>();
+        records.forEach(record => {
+            const rawValue = record?.[field];
+            const values = Array.isArray(rawValue) ? rawValue : [rawValue];
+
+            values.forEach(value => {
+                const normalizedValue = this.normalizeNetworkSubsetOptionValue(value);
+                if (normalizedValue.length > 0) {
+                    options.add(normalizedValue);
+                }
+            });
+        });
+
+        return Array.from(options).sort((a, b) => a.localeCompare(b, undefined, {
+            numeric: true,
+            sensitivity: 'base'
+        }));
+    }
+
+    private filterNetworkSubsetValueOptions(options: string[], query: string): string[] {
+        const normalizedQuery = `${query ?? ''}`.trim().toLowerCase();
+        const filteredOptions = normalizedQuery.length
+            ? options.filter(option => option.toLowerCase().includes(normalizedQuery))
+            : options;
+
+        return filteredOptions.slice(0, this.NetworkSubsetValueSuggestionLimit);
+    }
+
+    private normalizeNetworkSubsetOptionValue(value: any): string {
+        if (value === undefined || value === null) {
+            return '';
+        }
+
+        if (value instanceof Date) {
+            return value.toISOString();
+        }
+
+        if (typeof value === 'object') {
+            return JSON.stringify(value);
+        }
+
+        return `${value}`.trim();
+    }
+
+    applyNetworkSubsetFilter(): void {
+        this.commonService.setNetworkSubsetFilterState({
+            node: {
+                enabled: this.hasNetworkSubsetRule(this.SelectedNetworkSubsetNodeField, this.SelectedNetworkSubsetNodeValue),
+                field: this.SelectedNetworkSubsetNodeField,
+                operator: this.SelectedNetworkSubsetNodeOperator,
+                value: this.SelectedNetworkSubsetNodeValue
+            },
+            link: {
+                enabled: this.hasNetworkSubsetRule(this.SelectedNetworkSubsetLinkField, this.SelectedNetworkSubsetLinkValue),
+                field: this.SelectedNetworkSubsetLinkField,
+                operator: this.SelectedNetworkSubsetLinkOperator,
+                value: this.SelectedNetworkSubsetLinkValue
+            }
+        });
+    }
+
+    clearNetworkSubsetFilter(): void {
+        this.commonService.clearNetworkSubsetFilter(false);
+        this.loadNetworkSubsetFilterSettings();
+        this.commonService.setLinkVisibility(true, false);
+        this.commonService.updateNetworkVisuals(false, true);
+    }
+
+    isNetworkSubsetFilterActive(): boolean {
+        return this.commonService.isNetworkSubsetFilterActive();
+    }
+
+    getNetworkSubsetFilterLabel(): string {
+        return this.commonService.getNetworkSubsetFilterLabel();
     }
 
     /**
@@ -3926,7 +4596,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
             console.log('linktable vis - false tab changed: ', this.GlobalSettingsLinkColorDialogSettings.isVisible);
 
         });
-        
+
         this.store.updatecurrentThresholdStepSize(this.SelectedDistanceMetricVariable);
         console.log('tab changed end: ');
     }
@@ -4197,6 +4867,12 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         } else {
             this.performExport(elementsToExport, this.exportTables['node-color'], this.exportTables['link-color'], this.exportTables['node-symbol']);
         }
+    }
+
+    ExportGraphML() {
+        const graphMLExport = this.graphMLService.exportSession(this.commonService.session);
+        const blob = new Blob([graphMLExport.contents], { type: 'application/graphml+xml;charset=utf-8' });
+        this.saveGeneratedFile(blob, 'microbetrace.graphml');
     }
 
     updateExportResolution() {
@@ -4645,7 +5321,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
                     void instance._rerender();
                 }
             } else if (
-                ['Table', 'Crosstab', 'Aggregate'].includes(viewName) &&
+                ['Table', NetworkStatisticsComponent.componentTypeName, 'Crosstab', 'Aggregate'].includes(viewName) &&
                 instance.onLoadNewData
             ) {
                 instance.onLoadNewData();
@@ -4674,7 +5350,9 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
 
     }
 
-    DisplayGlobalSettingsDialog(activeTab = "Styling") {
+    DisplayGlobalSettingsDialog(request: GlobalSettingsDialogRequest = "Styling") {
+        const dialogRequest = this.normalizeGlobalSettingsDialogRequest(request);
+        this.GlobalSettingsDialogStyle = this.getGlobalSettingsDialogBaseStyle();
 
         this.getGlobalSettingsData();
         // TODO: May need to refacor this
@@ -4691,7 +5369,152 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         this.commonService.updateThresholdHistogram(this.linkThresholdSparkline.nativeElement);
         this.refreshThresholdStabilityPanel(false);
 
-        this.globalSettingsTab.tabs[activeTab === "Styling" ? 1 : 0].active = true;
+        this.globalSettingsTab.tabs[dialogRequest.activeTab === "Styling" ? 1 : 0].active = true;
+
+        if (dialogRequest.sourceDialogRect) {
+            this.scheduleGlobalSettingsDialogPlacement(dialogRequest.sourceDialogRect);
+        }
+    }
+
+    private normalizeGlobalSettingsDialogRequest(request: GlobalSettingsDialogRequest): NormalizedGlobalSettingsDialogRequest {
+        if (typeof request === 'string') {
+            return { activeTab: request };
+        }
+
+        return {
+            activeTab: request?.activeTab ?? 'Styling',
+            sourceDialogRect: request?.sourceDialogRect
+        };
+    }
+
+    private getGlobalSettingsDialogBaseStyle(): Record<string, string> {
+        return { 'z-index': String(this.GlobalSettingsDialogBaseZIndex) };
+    }
+
+    private getGlobalSettingsDialogPlacementStyle(top: number, left: number): Record<string, string> {
+        const margin = this.linkedSettingsDialogViewportMargin;
+        return {
+            ...this.getGlobalSettingsDialogBaseStyle(),
+            position: 'fixed',
+            top: `${Math.round(top)}px`,
+            left: `${Math.round(left)}px`,
+            margin: '0',
+            transform: 'none',
+            overflow: 'auto',
+            'max-height': `calc(100vh - ${margin * 2}px)`,
+            'max-width': `calc(100vw - ${margin * 2}px)`
+        };
+    }
+
+    private scheduleGlobalSettingsDialogPlacement(sourceDialogRect: DialogRectSnapshot): void {
+        const runNextFrame = window.requestAnimationFrame?.bind(window) ?? ((callback: FrameRequestCallback) => window.setTimeout(() => callback(Date.now()), 0));
+
+        setTimeout(() => {
+            runNextFrame(() => {
+                runNextFrame(() => this.positionGlobalSettingsDialogNearSource(sourceDialogRect));
+            });
+        }, 0);
+    }
+
+    private positionGlobalSettingsDialogNearSource(sourceDialogRect: DialogRectSnapshot): void {
+        const dialog = this.getVisibleDialogByTitle('Global Settings');
+        if (!dialog) {
+            return;
+        }
+
+        const dialogRect = dialog.getBoundingClientRect();
+        const dialogWidth = dialog.offsetWidth || dialogRect.width;
+        const dialogHeight = dialog.offsetHeight || dialogRect.height;
+        const placement = this.findBestGlobalSettingsDialogPlacement(sourceDialogRect, dialogWidth, dialogHeight);
+        const style = this.getGlobalSettingsDialogPlacementStyle(placement.top, placement.left);
+
+        this.GlobalSettingsDialogStyle = style;
+        this.applyDialogStyle(dialog, style);
+        this.cdref.detectChanges();
+    }
+
+    private getVisibleDialogByTitle(title: string): HTMLElement | undefined {
+        return Array
+            .from(document.querySelectorAll<HTMLElement>('.p-dialog'))
+            .find(dialog => {
+                const titleElement = dialog.querySelector<HTMLElement>('.p-dialog-title');
+                const computedStyle = window.getComputedStyle(dialog);
+                return titleElement?.textContent?.trim() === title
+                    && computedStyle.display !== 'none'
+                    && computedStyle.visibility !== 'hidden';
+            });
+    }
+
+    private findBestGlobalSettingsDialogPlacement(
+        sourceRect: DialogRectSnapshot,
+        dialogWidth: number,
+        dialogHeight: number
+    ): DialogPlacementCandidate {
+        const gap = this.linkedSettingsDialogGap;
+        const margin = this.linkedSettingsDialogViewportMargin;
+        const viewportWidth = window.innerWidth || document.documentElement.clientWidth;
+        const viewportHeight = window.innerHeight || document.documentElement.clientHeight;
+        const placementWidth = Math.min(dialogWidth, Math.max(0, viewportWidth - margin * 2));
+        const placementHeight = Math.min(dialogHeight, Math.max(0, viewportHeight - margin * 2));
+        const rawCandidates = [
+            { left: sourceRect.right + gap, top: sourceRect.top },
+            { left: sourceRect.left - placementWidth - gap, top: sourceRect.top },
+            { left: sourceRect.left, top: sourceRect.bottom + gap },
+            { left: sourceRect.left, top: sourceRect.top - placementHeight - gap }
+        ];
+
+        const candidates = rawCandidates.map(candidate => {
+            const placement = this.clampDialogPlacement(candidate.left, candidate.top, placementWidth, placementHeight);
+            return {
+                ...placement,
+                overlapArea: this.getDialogOverlapArea(
+                    {
+                        ...placement,
+                        right: placement.left + placementWidth,
+                        bottom: placement.top + placementHeight,
+                        width: placementWidth,
+                        height: placementHeight
+                    },
+                    sourceRect
+                )
+            };
+        });
+
+        return candidates.find(candidate => candidate.overlapArea === 0)
+            ?? candidates.reduce((best, candidate) => candidate.overlapArea < best.overlapArea ? candidate : best);
+    }
+
+    private clampDialogPlacement(
+        left: number,
+        top: number,
+        dialogWidth: number,
+        dialogHeight: number
+    ): { top: number; left: number } {
+        const margin = this.linkedSettingsDialogViewportMargin;
+        const viewportWidth = window.innerWidth || document.documentElement.clientWidth;
+        const viewportHeight = window.innerHeight || document.documentElement.clientHeight;
+        const maxLeft = Math.max(margin, viewportWidth - dialogWidth - margin);
+        const maxTop = Math.max(margin, viewportHeight - dialogHeight - margin);
+
+        return {
+            left: this.clamp(left, margin, maxLeft),
+            top: this.clamp(top, margin, maxTop)
+        };
+    }
+
+    private getDialogOverlapArea(first: DialogRectSnapshot, second: DialogRectSnapshot): number {
+        const width = Math.max(0, Math.min(first.right, second.right) - Math.max(first.left, second.left));
+        const height = Math.max(0, Math.min(first.bottom, second.bottom) - Math.max(first.top, second.top));
+
+        return width * height;
+    }
+
+    private clamp(value: number, minimum: number, maximum: number): number {
+        return Math.min(Math.max(value, minimum), maximum);
+    }
+
+    private applyDialogStyle(dialog: HTMLElement, style: Record<string, string>): void {
+        Object.entries(style).forEach(([property, value]) => dialog.style.setProperty(property, value));
     }
 
     toggleThresholdStabilityPanel(): void {
@@ -4938,6 +5761,18 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
 
                 break;
             }
+            case NetworkStatisticsComponent.componentTypeName: {
+
+                this.showSettings = false;
+                this.showExport = true;
+                this.showCenter = false;
+                this.showPinAllNodes = false;
+                this.showRefresh = false;
+                this.showButtonGroup = true;
+                this.showSorting = true;
+
+                break;
+            }
             case "Map": {
 
                 this.showSettings = true;
@@ -5033,7 +5868,30 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
     }
 
     clearTable(tableId) {
-        const linkColorTable = $(tableId).empty();
+        if (tableId === '#node-color-table' || tableId === 'node-color-table'
+            || tableId === '#key-tables-node-table' || tableId === 'key-tables-node-table') {
+            this.nodeColorRows = [];
+            this.nodeColorDomain = [];
+            this.cdref.markForCheck();
+            return;
+        }
+
+        if (tableId === '#link-color-table' || tableId === 'link-color-table'
+            || tableId === '#key-tables-link-table' || tableId === 'key-tables-link-table') {
+            this.linkColorRows = [];
+            this.linkColorDomain = [];
+            this.cdref.markForCheck();
+            return;
+        }
+
+        if (tableId === '#node-shape-table' || tableId === 'node-shape-table'
+            || tableId === '#key-tables-node-shape-table' || tableId === 'key-tables-node-shape-table') {
+            this.shapeAggregates = [];
+            this.cdref.markForCheck();
+            return;
+        }
+
+        $(tableId).empty();
     }
 
     private normalizeKeyTableDisplayMode(value: any): KeyTableDisplayMode {
@@ -5102,16 +5960,21 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
 
     private clearFloatingKeyTable(table: KeyTableName): void {
         if (table === 'node-color') {
-            $('#node-color-table').empty();
+            this.nodeColorRows = [];
+            this.nodeColorDomain = [];
+            this.cdref.markForCheck();
             return;
         }
 
         if (table === 'link-color') {
-            $('#link-color-table').empty();
+            this.linkColorRows = [];
+            this.linkColorDomain = [];
+            this.cdref.markForCheck();
             return;
         }
 
         this.shapeAggregates = [];
+        this.cdref.markForCheck();
     }
 
     private buildFloatingKeyTable(table: KeyTableName): void {
@@ -5531,6 +6394,11 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
     ngOnDestroy(): void {
         this.destroy$.next();
         this.destroy$.complete();
+        if (this.timelineTablesRefreshHandle !== null) {
+            clearTimeout(this.timelineTablesRefreshHandle);
+            this.timelineTablesRefreshHandle = null;
+        }
+
         this.NewSession();
     }
 
@@ -5598,6 +6466,10 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         return String(this.SelectedDistanceMetricVariable || this.commonService.session.style.widgets['default-distance-metric'] || '').toLowerCase() === 'tn93';
     }
 
+    isMLSTSelected() {
+        return String(this.SelectedDistanceMetricVariable || '').toLowerCase() === 'mlst';
+    }
+
     /**
      * Updates default-distance-metric widget and this.SelectedLinkThresholdVariable (7 for snps, 0.015 for TN93).
      * Calls onLinkThresholdChanged to updated links
@@ -5605,11 +6477,12 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
   onDistanceMetricChanged = async () => {
     if(!this.SelectedDistanceMetricVariable) this.SelectedDistanceMetricVariable = this.commonService.session.style.widgets['default-distance-metric'];
     const selectedMetric = String(this.SelectedDistanceMetricVariable).toLowerCase();
+    const calculationMetric = this.commonService.normalizeDistanceMetric(selectedMetric);
     this.SelectedDistanceMetricVariable = selectedMetric;
-    this.metric = selectedMetric;
-    this.store.updatecurrentThresholdStepSize(selectedMetric);
+    this.metric = calculationMetric;
+    this.store.updatecurrentThresholdStepSize(calculationMetric);
     let didRecomputeSequenceLinks = false;
-    if (selectedMetric === 'snps') {
+    if (calculationMetric === 'snps') {
       $('#default-distance-threshold')
         .attr('step', 1)
         .val(16)
@@ -5644,6 +6517,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
       this.commonService.updateThresholdHistogram(this.linkThresholdSparkline.nativeElement);
     }
 
+    this.commonService.visuals.twoD?.refreshDistanceMetricSettings?.();
     this.refreshThresholdStabilityPanel();
   }
 

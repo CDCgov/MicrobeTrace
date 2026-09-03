@@ -86,10 +86,16 @@ const contractMode =
       });
 
       openGlobalFilteringTab();
-      cy.get(byTestId(testIds.filterMinimumClusterSize))
-        .clear()
-        .type(String(minimumClusterSize!.to))
-        .blur();
+      const minimumClusterSizeSelector = byTestId(testIds.filterMinimumClusterSize);
+      const expectedMinimumClusterSize = String(minimumClusterSize!.to);
+
+      cy.get(minimumClusterSizeSelector).clear();
+      cy.get(minimumClusterSizeSelector)
+        .should('be.visible')
+        .and('have.value', '')
+        .type(expectedMinimumClusterSize);
+      cy.get(minimumClusterSizeSelector)
+        .should('have.value', expectedMinimumClusterSize);
       cy.window()
         .its('commonService.session.style.widgets.cluster-minimum-size')
         .should('equal', minimumClusterSize!.to);

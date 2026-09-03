@@ -10,7 +10,6 @@ import { generateCanvas } from './generateAlignmentViewCanvas';
 import { SelectItem } from 'primeng/api';
 import { saveAs } from 'file-saver';
 import { svgAsPngUri } from 'save-svg-as-png';
-import { GoogleTagManagerService } from 'angular-google-tag-manager';
 import { ExportService } from '@app/contactTraceCommonServices/export.service';
 import { Subject, takeUntil } from 'rxjs';
 import { CommonStoreService } from '@app/contactTraceCommonServices/common-store.services';
@@ -150,7 +149,6 @@ export class AlignmentViewComponent extends BaseComponentDirective implements On
     @Inject(BaseComponentDirective.GoldenLayoutContainerInjectionToken) private container: ComponentContainer, 
     elRef: ElementRef,
     private cdref: ChangeDetectorRef,
-    private gtmService: GoogleTagManagerService,
     private store: CommonStoreService,
     private exportService: ExportService) {
 
@@ -163,11 +161,6 @@ export class AlignmentViewComponent extends BaseComponentDirective implements On
 
   ngOnInit(): void {
 
-    this.gtmService.pushTag({
-            event: "page_view",
-            page_location: "/alignment",
-            page_title: "Alignment View"
-        });
     // set events such as node-selected
     this.setEvents();
 

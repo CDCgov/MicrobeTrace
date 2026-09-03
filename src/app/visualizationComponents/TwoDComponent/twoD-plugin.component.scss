@@ -4,6 +4,16 @@
     min-width: 150px;
 }
 
+.export-scope-label {
+  background: #f5f7fa;
+  border: 1px solid #d9e1ea;
+  color: #39424e;
+  font-size: 12px;
+  line-height: 1.35;
+  margin-bottom: 10px;
+  padding: 6px 8px;
+}
+
 :host {
   position: absolute;
   overflow: hidden;
@@ -40,6 +50,7 @@
   position: relative;
   width: 100%;
   height: 100%;
+  z-index: 0;
 }
 
 /* Grid Overlay Styling */
@@ -64,11 +75,22 @@
 }
 
 #cy {
-  // position: absolute;
+  position: relative;
   width: 100%;
   height: 100%;
   top: 0;
   left: 0;
+  z-index: 0;
+}
+
+#tool-btn-container,
+#network-statistics-wrapper,
+.view-controls {
+  z-index: 10;
+}
+
+.view-controls {
+  position: relative;
 }
 
 
@@ -118,11 +140,12 @@
   /* Button appearance on hover */
 .btn-icon:hover {
   transform: scale(1.1); /* Slight enlarge on hover */
-  background-color: rgba(0, 0, 0, 0.1); /* Subtle background color on hover */
+  background-color: #eef2f6; /* Subtle background color on hover */
 }
 
 .btn-icon {
   margin-right: 10px;
+  background-color: #ffffff;
   box-shadow: 2px 2px 2px rgba(0, 0, 0, 0.2);
 }
 

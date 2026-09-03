@@ -8,7 +8,6 @@ import { saveAs } from 'file-saver';
 import * as domToImage from 'html-to-image';
 import { BaseComponentDirective } from '@app/base-component.directive';
 import { ComponentContainer } from 'golden-layout';
-import { GoogleTagManagerService } from 'angular-google-tag-manager';
 import { DialogSettings } from '../../helperClasses/dialogSettings';
 import { PlotlyComponent, PlotlyModule } from 'angular-plotly.js';
 import { SelectItem } from 'primeng/api';
@@ -82,7 +81,6 @@ export class HeatmapComponent extends BaseComponentDirective implements OnInit, 
         @Inject(BaseComponentDirective.GoldenLayoutContainerInjectionToken) private container: ComponentContainer, 
         elRef: ElementRef,
         private cdref: ChangeDetectorRef,
-        private gtmService: GoogleTagManagerService,
         private renderer: Renderer2,
         private exportService: ExportService,
         private plotlyModule: PlotlyModule,
@@ -125,12 +123,6 @@ export class HeatmapComponent extends BaseComponentDirective implements OnInit, 
 
 
     this.viewActive = true;
-    this.gtmService.pushTag({
-            event: "page_view",
-            page_location: "/heatmap",
-            page_title: "Heatmap View"
-        });
-
     //this.nodeIds = this.getNodeIds();
     this.visuals.heatmap.FieldList.push(
       {

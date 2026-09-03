@@ -3,8 +3,10 @@
 import * as bioseq from 'bioseq';
 import * as patristic from 'patristic';
 
+import { computeNetworkStatistics } from '../contactTraceCommonServices/network-statistics';
 import type { ComputeWorkerRequest } from './compute-worker.types';
 import { tn93DistanceOnInts } from './tn93-distance';
+import { clampNegativeBranchLengthsToZero } from './phylogenetic-tree-utils';
 
 function postBufferResponse(
   field: string,
@@ -223,10 +225,16 @@ function handleLinks(payload: any, jobId: number): void {
 function handleTree(payload: any, jobId: number): void {
   try {
     const tree = patristic.parseMatrix(payload.matrix, payload.labels);
+    clampNegativeBranchLengthsToZero(tree);
     postJsonResponse('tree', tree.toObject(), Date.now(), jobId);
   } catch {
     postJsonResponse('tree', {}, Date.now(), jobId);
   }
+}
+
+function handleNetworkStatistics(payload: any, jobId: number): void {
+  const result = computeNetworkStatistics(payload);
+  postJsonResponse('networkStatistics', result, Date.now(), jobId);
 }
 
 function handleDirectionality(payload: any, jobId: number): void {
@@ -561,6 +569,9 @@ addEventListener('message', ({ data }) => {
       break;
     case 'parseFasta':
       handleParseFasta(request.payload, request.jobId);
+      break;
+    case 'networkStatistics':
+      handleNetworkStatistics(request.payload, request.jobId);
       break;
     default:
       throw new Error(`Unknown compute worker task: ${(request as any).task}`);

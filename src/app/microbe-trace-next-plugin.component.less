@@ -15,6 +15,20 @@
   cursor: default;
 }
 
+.partner-dataset-name {
+  border-left: 1px solid rgba(255, 255, 255, 0.45);
+  display: inline-block;
+  font-size: 13px;
+  line-height: 20px;
+  margin-left: 12px;
+  max-width: min(28vw, 320px);
+  overflow: hidden;
+  padding-left: 12px;
+  text-overflow: ellipsis;
+  vertical-align: middle;
+  white-space: nowrap;
+}
+
 #loading-information {
   font-family: "Courier New", Courier, "Lucida Sans Typewriter", "Lucida Typewriter", monospace;
   font-size: 11px;
@@ -155,6 +169,28 @@
   }
 }
 
+.network-subset-filter-notice {
+  align-items: center;
+  background: #e8f3ff;
+  border: 1px solid #9dccf4;
+  color: #103f66;
+  display: flex;
+  font-size: 13px;
+  gap: 12px;
+  justify-content: space-between;
+  line-height: 1.3;
+  margin: 6px;
+  padding: 8px 12px;
+  position: relative;
+  z-index: 4;
+
+  .btn-link {
+    color: #103f66;
+    padding: 0;
+    white-space: nowrap;
+  }
+}
+
 #search-form {
   display: none;
   float: right;
@@ -286,7 +322,7 @@ label[for="search"] {
 #color-transparency-wrapper {
     display: none;
     position: absolute;
-    z-index: 1100;
+    z-index: 1300;
     border-radius: 0.25rem;
     color: #303030;
     background-color: #f8f9fa !important;
@@ -396,7 +432,11 @@ label[for="search"] {
     left: 0px;
     bottom: 0px;
     right: 15px;
-    z-index: 1001;
+    z-index: 100;
+  }
+
+  #global-timeline svg {
+    overflow: visible;
   }
   
   #timeline-play-button {
@@ -435,11 +475,17 @@ label[for="search"] {
     stroke: #dcdcdc;
     stroke-width: 8px;
   }
+  .timeline-selected-range {
+    stroke: #3b82f6;
+    stroke-width: 8px;
+    stroke-linecap: round;
+    pointer-events: none;
+  }
   .track-overlay {
     pointer-events: stroke;
     stroke-width: 50px;
     stroke: transparent;
-    // cursor: crosshair;
+    cursor: pointer;
   }
   .handle {
     fill: #fff;
@@ -447,6 +493,26 @@ label[for="search"] {
     cursor:grab;
     stroke-opacity: 0.5;
     stroke-width: 1.25px;
+  }
+  .handle:active {
+    cursor: grabbing;
+  }
+  .timeline-range-handle {
+    fill: #fff;
+    stroke-width: 2px;
+    stroke-linejoin: miter;
+    cursor: ew-resize;
+  }
+  .timeline-range-start-handle {
+    stroke: #16a34a;
+  }
+  .timeline-range-end-handle {
+    stroke: #dc2626;
+  }
+  .timeline-range-label {
+    fill: #495057;
+    font-size: 11px;
+    pointer-events: none;
   }
 
   .p-dialog .p-dialog-header button {
@@ -741,4 +807,30 @@ label.disabled {
     flex-direction: column;
     align-items: flex-start;
   }
+}
+
+.node-color-assignment-status {
+  margin: -8px 0 12px 41.6667%;
+  padding: 7px 9px;
+  border-radius: 4px;
+  font-size: 11px;
+  line-height: 1.35;
+}
+
+.node-color-assignment-status--success {
+  color: #155724;
+  background: #d4edda;
+  border: 1px solid #c3e6cb;
+}
+
+.node-color-assignment-status--error {
+  color: #721c24;
+  background: #f8d7da;
+  border: 1px solid #f5c6cb;
+}
+
+.node-color-assignment-status--info {
+  color: #0c5460;
+  background: #d1ecf1;
+  border: 1px solid #bee5eb;
 }

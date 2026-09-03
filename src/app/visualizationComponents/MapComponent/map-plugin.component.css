@@ -11,6 +11,16 @@
     /* position: sticky !important; */
 }
 
+.export-scope-label {
+  background: #f5f7fa;
+  border: 1px solid #d9e1ea;
+  color: #39424e;
+  font-size: 12px;
+  line-height: 1.35;
+  margin-bottom: 10px;
+  padding: 6px 8px;
+}
+
 :host {
   position: absolute;
   overflow: hidden;
@@ -21,6 +31,54 @@
   height: 100%;
   width: 100%;
   position: relative;
+}
+
+.map-boundary-editor-toolbar {
+  background: rgba(255, 255, 255, .97);
+  border: 1px solid #9aa7b2;
+  border-radius: .35rem;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, .25);
+  left: 50%;
+  max-width: calc(100% - 2rem);
+  padding: .65rem;
+  position: absolute;
+  top: 1rem;
+  transform: translateX(-50%);
+  width: 390px;
+  z-index: 1000;
+}
+
+.map-boundary-editor-title {
+  color: #273746;
+  font-weight: 600;
+  margin-bottom: .2rem;
+}
+
+.map-boundary-editor-message {
+  color: #495057;
+  font-size: .8rem;
+  margin-bottom: .5rem;
+}
+
+.map-boundary-editor-point-summary {
+  background: #eef7f4;
+  border-left: 3px solid #167d63;
+  color: #31564c;
+  font-size: .78rem;
+  margin-bottom: .5rem;
+  padding: .3rem .45rem;
+}
+
+.map-boundary-editor-label {
+  color: #495057;
+  font-size: .8rem;
+  margin-bottom: .2rem;
+}
+
+.map-boundary-editor-actions {
+  display: flex;
+  gap: .4rem;
+  justify-content: flex-end;
 }
 
 
@@ -74,6 +132,180 @@
   background-color: #2196f3;
   border: 1px solid #2196f3;
   color: white
+}
+
+.map-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.65;
+}
+
+.map-user-geojson-summary {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.map-geojson-color-picker {
+  background: transparent;
+  border: 1px solid #ced4da;
+  border-radius: .25rem;
+  cursor: pointer;
+  height: 31px;
+  padding: .15rem;
+  width: 100%;
+}
+
+.map-geojson-transparency-control {
+  align-items: center;
+  display: flex;
+  gap: .5rem;
+}
+
+.map-geojson-transparency-control .custom-range {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.map-geojson-transparency-value {
+  color: #495057;
+  flex: 0 0 3rem;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+:host ::ng-deep .map-user-geojson-label {
+  border-radius: 0;
+  box-shadow: none;
+  max-width: none;
+  overflow: visible;
+  padding: 0;
+  text-overflow: clip;
+}
+
+:host ::ng-deep .map-user-geojson-label::before {
+  display: none;
+}
+
+.map-manual-position-heading {
+  border-top: 1px solid #d9dee3;
+  color: #495057;
+  font-weight: 600;
+  padding-top: .5rem;
+}
+
+.map-manual-position-summary {
+  color: #495057;
+  line-height: 31px;
+}
+
+.map-boundary-list {
+  border: 1px solid #d9dee3;
+  border-radius: .25rem;
+  max-height: 180px;
+  overflow-y: auto;
+}
+
+.map-boundary-list-item {
+  align-items: center;
+  display: flex;
+  gap: .5rem;
+  justify-content: space-between;
+  padding: .4rem;
+}
+
+.map-boundary-list-item + .map-boundary-list-item {
+  border-top: 1px solid #e7eaed;
+}
+
+.map-boundary-list-label {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.map-boundary-list-actions {
+  display: flex;
+  flex: 0 0 auto;
+  gap: .25rem;
+}
+
+.map-boundary-list-actions .btn {
+  font-size: .7rem;
+  padding: .2rem .35rem;
+}
+
+:host ::ng-deep .map-boundary-freehand-active {
+  cursor: crosshair !important;
+  touch-action: none;
+}
+
+:host ::ng-deep .map-floorplan-boundary-label {
+  background: rgba(255, 255, 255, .9);
+  border: 1px solid #1f6f8b;
+  box-shadow: none;
+  color: #164b5f;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 5px;
+  pointer-events: none;
+}
+
+:host ::ng-deep .map-boundary-vertex-handle,
+:host ::ng-deep .map-boundary-midpoint-handle {
+  background: #ffffff;
+  border: 2px solid #f05a28;
+  border-radius: 50%;
+  box-sizing: border-box;
+}
+
+:host ::ng-deep .map-boundary-vertex-selected {
+  background: #f05a28;
+  box-shadow: 0 0 0 3px rgba(240, 90, 40, .3);
+}
+
+:host ::ng-deep .map-boundary-midpoint-handle {
+  background: #ffd166;
+  border-color: #a86b00;
+  height: 10px !important;
+  margin-left: -5px !important;
+  margin-top: -5px !important;
+  width: 10px !important;
+}
+
+:host ::ng-deep .map-boundary-drawing-vertex {
+  align-items: center;
+  background: #ffffff;
+  border: 3px solid #f05a28;
+  border-radius: 50%;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, .45);
+  box-sizing: border-box;
+  color: #873112;
+  display: flex !important;
+  font-size: 10px;
+  font-weight: 700;
+  justify-content: center;
+  line-height: 1;
+}
+
+:host ::ng-deep .map-boundary-drawing-vertex-first {
+  background: #167d63;
+  border-color: #ffffff;
+  color: #ffffff;
+  box-shadow: 0 0 0 3px rgba(22, 125, 99, .4), 0 1px 4px rgba(0, 0, 0, .45);
+}
+
+:host ::ng-deep .map-boundary-drawing-vertex-latest {
+  background: #f05a28;
+  border-color: #ffffff;
+  color: #ffffff;
+  box-shadow: 0 0 0 4px rgba(240, 90, 40, .4), 0 1px 4px rgba(0, 0, 0, .45);
+}
+
+:host ::ng-deep .map-boundary-drawing-vertex-first.map-boundary-drawing-vertex-latest {
+  background: #167d63;
+  box-shadow: 0 0 0 4px rgba(240, 90, 40, .5), 0 1px 4px rgba(0, 0, 0, .45);
 }
 
 :host ::ng-deep .map-admin-label {

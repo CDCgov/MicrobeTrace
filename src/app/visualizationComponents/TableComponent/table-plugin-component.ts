@@ -22,7 +22,6 @@
   import { BaseComponentDirective } from '@app/base-component.directive';
   import { ComponentContainer } from 'golden-layout';
   import { saveAs } from 'file-saver';
-  import { GoogleTagManagerService } from 'angular-google-tag-manager';
   import { Subject, takeUntil } from 'rxjs';
 import { CommonStoreService } from '@app/contactTraceCommonServices/common-store.services';
 import { sanitizeExportCell } from '@app/contactTraceCommonServices/export-sanitization';
@@ -144,8 +143,7 @@ import { sanitizeExportCell } from '@app/contactTraceCommonServices/export-sanit
       private cdref: ChangeDetectorRef,
       private eventManager: EventManager,
       private commonService: CommonService,
-      private store: CommonStoreService,
-      private gtmService: GoogleTagManagerService
+      private store: CommonStoreService
     ) {
       super(elRef.nativeElement);
   
@@ -154,11 +152,6 @@ import { sanitizeExportCell } from '@app/contactTraceCommonServices/export-sanit
     }
   
     ngOnInit() {
-      this.gtmService.pushTag({
-        event: 'page_view',
-        page_location: '/table',
-        page_title: 'Table View'
-      });
       this.dataSetView = [];
       this.dataSetView.push({ label: 'Nodes', value: 'Node' });
       this.dataSetView.push({ label: 'Links', value: 'Link' });
@@ -471,7 +464,7 @@ import { sanitizeExportCell } from '@app/contactTraceCommonServices/export-sanit
       const sourceData = type === 'node'
         ? this.visuals.tableComp.commonService.getVisibleNodes()
         : type === 'link'
-          ? this.visuals.tableComp.commonService.session.data.links.filter((link) => link.visible)
+          ? this.visuals.tableComp.commonService.getVisibleLinksForCurrentTimeline()
           : this.visuals.tableComp.commonService.session.data.clusters.filter((cluster) => cluster.visible);
   
       // checks if data for tableData exists in TableDatas, if not, creates a new TableData object and adds it to TableDatas

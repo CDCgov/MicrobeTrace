@@ -11,7 +11,6 @@ import * as _ from 'lodash';
 import * as d3sankey from 'd3-sankey';
 import { BaseComponentDirective } from '@app/base-component.directive';
 import { ComponentContainer } from 'golden-layout';
-import { GoogleTagManagerService } from 'angular-google-tag-manager';
 //import { MultiSelectModule } from 'primeng/multiselect';
 import type { SankeyNode, SankeyLink } from './sankey-types';
 import { ExportService } from '@app/contactTraceCommonServices/export.service';
@@ -115,8 +114,7 @@ export class SankeyComponent extends BaseComponentDirective implements OnInit, O
     @Inject(BaseComponentDirective.GoldenLayoutContainerInjectionToken) private container: ComponentContainer, 
     elRef: ElementRef,
     private cdref: ChangeDetectorRef,
-    private store: CommonStoreService,
-    private gtmService: GoogleTagManagerService) {
+    private store: CommonStoreService) {
 
     super(elRef.nativeElement);
 

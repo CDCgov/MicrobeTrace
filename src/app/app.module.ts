@@ -50,6 +50,7 @@ import { PhylogeneticComponent } from './visualizationComponents/PhylogeneticCom
 import { TimelineComponent } from './visualizationComponents/TimelineComponent/timeline-component.component';
 import { TwoDComponent } from './visualizationComponents/TwoDComponent/twoD-plugin.component';
 import { TableComponent } from './visualizationComponents/TableComponent/table-plugin-component';
+import { NetworkStatisticsComponent } from './visualizationComponents/NetworkStatisticsComponent/network-statistics-plugin.component';
 import { MapComponent } from './visualizationComponents/MapComponent/map-plugin.component';
 import { AlignmentViewComponent } from './visualizationComponents/AlignmentViewComponent/alignment-view-plugin-component';
 import { LeafletModule } from '@bluehalo/ngx-leaflet';
@@ -79,9 +80,9 @@ import { GanttChartComponent } from './visualizationComponents/GanttComponent/ga
 import { GanttChartService } from './visualizationComponents/GanttComponent/gantt-chart/gantt-chart.service';
 import { HeatmapComponent } from './visualizationComponents/HeatmapComponent/heatmap.component';
 import { WaterfallComponent } from './visualizationComponents/WaterfallComponent/waterfall.component';
-import { GoogleTagManagerModule } from 'angular-google-tag-manager';
 import { SankeyComponent } from './visualizationComponents/SankeyComponent/sankey.component';
 import { KeyTablesComponent } from './visualizationComponents/KeyTablesComponent/key-tables.component';
+import { StyleKeyTableComponent } from './visualizationComponents/KeyTablesComponent/style-key-table.component';
 import * as PlotlyJS from 'plotly.js-dist-min';
 import { PlotlyModule } from 'angular-plotly.js';
 import { GlobalErrorHandler } from './runtime-security/global-error-handler';
@@ -89,13 +90,6 @@ import { GlobalErrorHandler } from './runtime-security/global-error-handler';
 PlotlyModule.plotlyjs = PlotlyJS;
 // It is required to have JQuery as global in the window object.
 window['$'] = $;
-const hashParamsText = window.location.hash.replace(/^#/, '').includes('?')
-  ? window.location.hash.replace(/^#/, '').slice(window.location.hash.replace(/^#/, '').indexOf('?') + 1)
-  : window.location.hash.replace(/^#/, '');
-const analyticsDisabledForHandoff = new URLSearchParams(window.location.search).has('handoff')
-  || new URLSearchParams(hashParamsText).has('handoff');
-const googleTagManagerMode = analyticsDisabledForHandoff ? 'silent' : 'noisy';
-
 const routerOptions: ExtraOptions = {
   // Your router configurations
 };
@@ -118,6 +112,7 @@ export class TestedComponent {
         FilesComponent,
         TwoDComponent,
         TableComponent,
+        NetworkStatisticsComponent,
         GoldenLayoutHostComponent,
         MapComponent,
         TestedComponent,
@@ -134,6 +129,7 @@ export class TestedComponent {
         WaterfallComponent,
         SankeyComponent,
         KeyTablesComponent,
+        StyleKeyTableComponent,
     ],
     exports: [
         SelectButtonModule
@@ -179,7 +175,6 @@ export class TestedComponent {
         LeafletModule,
         LeafletMarkerClusterModule,
         OrderListModule,
-        GoogleTagManagerModule.forRoot({ id: analyticsDisabledForHandoff ? null : 'G-0MWHB1NG2M', }),
         CommonModule], providers: [
           providePrimeNG({
             theme: {
@@ -193,7 +188,6 @@ export class TestedComponent {
         GanttChartService,
         GoldenLayoutComponentService,
         PlotlyModule,
-        { provide: 'googleTagManagerMode', useValue: googleTagManagerMode },
         {
           provide: ErrorHandler,
           useClass: GlobalErrorHandler,

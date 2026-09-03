@@ -1,0 +1,9 @@
+DATASET_COLORSTRIP
+SEPARATOR SPACE
+DATASET_LABEL Lineage
+# Values not present in the current dataset should remain available for future data.
+COLOR #00ff00
+DATA
+SYNTH-1 #123456 B.1.617.2
+SYNTH-2 #abcdef B.1.617.1
+SYNTH-3 #fedcba FUTURE.LINEAGE

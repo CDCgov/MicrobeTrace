@@ -47,6 +47,7 @@ export class ColorMappingService {
     nodeColorsTable: any,
     nodeColorsTableKeys: any,
     nodeColorsTableHistory: any,
+    nodeColorAssignments: Record<string, string>,
     debugMode: boolean
   ): {
     aggregates: Record<string, number>;
@@ -84,6 +85,7 @@ export class ColorMappingService {
     let updatedNodeColors = [...nodeColors];  // we may expand this array
     let updatedNodeAlphas = [...nodeAlphas];  // same reason
     const updatedColorsTableHistory = nodeColorsTableHistory || {};
+    const explicitAssignments = nodeColorAssignments || {};
 
     // If we already have a stored array of colors for this particular variable
     // (like "nodeColorsTable[myVariable]"), let’s reuse them
@@ -155,10 +157,15 @@ export class ColorMappingService {
       );
     }
 
-    // For each distinct value, see if we have a color in the “history”
+    // For each distinct value, prefer an explicit field assignment, then the
+    // stored table color and field-scoped history.
     const reservedColors = new Set<string>();
     distinctValues.forEach((value) => {
-      const existingColor = storedColorsByValue[value] ?? variableHistory[value];
+      const explicitColor = explicitAssignments[value];
+      const existingColor = Object.prototype.hasOwnProperty.call(explicitAssignments, value)
+        && typeof explicitColor === 'string'
+        ? explicitColor
+        : storedColorsByValue[value] ?? variableHistory[value];
       if (typeof existingColor === 'string') {
         reservedColors.add(existingColor);
       }
@@ -166,7 +173,11 @@ export class ColorMappingService {
 
     const usedColors = new Set<string>();
     const mappedColors = distinctValues.map((value, index) => {
-      const existingColor = storedColorsByValue[value] ?? variableHistory[value];
+      const explicitColor = explicitAssignments[value];
+      const existingColor = Object.prototype.hasOwnProperty.call(explicitAssignments, value)
+        && typeof explicitColor === 'string'
+        ? explicitColor
+        : storedColorsByValue[value] ?? variableHistory[value];
       if (typeof existingColor === 'string') {
         variableHistory[value] = existingColor;
         usedColors.add(existingColor);
@@ -197,7 +208,8 @@ export class ColorMappingService {
       mappedColors[index] ?? fallbackPalette[index % fallbackPalette.length]
     );
 
-    // We store this updated array back into the “table”
+    // Keep the table domain limited to current values. Assignments for values
+    // absent from this dataset remain in session.style.nodeColorAssignments.
     updatedColorsTableKeys[nodeColorVariable] = distinctValues;
     updatedColorsTable[nodeColorVariable] = updatedNodeColors;
 

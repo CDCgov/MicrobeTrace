@@ -12,7 +12,6 @@ import * as _ from 'lodash';
 import { BaseComponentDirective } from '@app/base-component.directive';
 import { saveSvgAsPng } from 'save-svg-as-png';
 import { ComponentContainer } from 'golden-layout';
-import { GoogleTagManagerService } from 'angular-google-tag-manager';
 import { GraphData } from './data';
 import { getCustomNodeShapeData, getCustomNodeShapeVectorData, isCustomNodeShape as isCustomNodeIconShape, resolveNodeShapeCytoscapeShape as resolveCustomNodeIconCytoscapeShape, resolveNodeShapeForNode, resolveNodeShapeKey } from '@app/contactTraceCommonServices/node-shapes';
 import cytoscape, { Core, Style } from 'cytoscape';
@@ -23,6 +22,17 @@ import * as d3f from 'd3-force';
 import { CommonStoreService } from '@app/contactTraceCommonServices/common-store.services';
 import { ExportService, ExportOptions } from '@app/contactTraceCommonServices/export.service';
 import { NgZone } from '@angular/core'; 
+import {
+    StyleKeyTableAlphaRequest,
+    StyleKeyTableColorChange,
+    StyleKeyTableColumnNameChange,
+    StyleKeyTableRow,
+    StyleKeyTableRowNameChange,
+    StyleKeyTableSortColumn
+} from '../KeyTablesComponent/style-key-table.component';
+import { buildThresholdConnectedComponents } from '@app/contactTraceCommonServices/threshold-analysis';
+import { buildPieChartSvgDataUri, PieChartSlice } from '@app/contactTraceCommonServices/pie-chart-utils';
+import { createGlobalSettingsDialogRequest, GlobalSettingsDialogRequest } from '@app/helperClasses/globalSettingsDialogRequest';
 
 interface CustomNodeSvgExportReplacement {
     exportHeight: number;
@@ -40,6 +50,12 @@ interface CustomNodeSvgExportReplacement {
 
 type PolygonColorTableDisplayMode = 'Show' | 'Dock' | 'Hide';
 
+interface CollapsedAggregatePositionAnchor {
+    id: string;
+    memberIds: Set<string>;
+    position: { x: number; y: number };
+}
+
 @Component({
     selector: 'TwoDComponent',
     templateUrl: './twoD-plugin.component.html',
@@ -48,7 +64,7 @@ type PolygonColorTableDisplayMode = 'Show' | 'Dock' | 'Hide';
     standalone: false
 })
 export class TwoDComponent extends BaseComponentDirective implements OnInit, MicobeTraceNextPluginEvents, OnDestroy {
-    @Output() DisplayGlobalSettingsDialogEvent = new EventEmitter();
+    @Output() DisplayGlobalSettingsDialogEvent = new EventEmitter<GlobalSettingsDialogRequest>();
 
     // Reference to the Cytoscape container
     @ViewChild('cy', { static: false }) cyContainer: ElementRef;
@@ -74,6 +90,14 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         links: []
     };
     selectedNodeId = undefined;
+    private readonly collapsedNodeIdPrefix = 'twod-collapse-';
+    private collapsedAggregatePositionAnchors: CollapsedAggregatePositionAnchor[] = [];
+    private timelineFinalCollapsedAggregatePositionAnchors: CollapsedAggregatePositionAnchor[] = [];
+    private timelineFinalCollapsedLayoutReady = false;
+    private nodeCollapseShapeWarningConfirmed = false;
+    private nodeCollapseShapeWarningPending = false;
+    private nodeCollapseRefreshPending = false;
+    private nodeCollapseRefreshScheduled = false;
 
     private getPerformanceNow(): number {
         return typeof performance !== 'undefined' && performance.now
@@ -101,10 +125,29 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         return Math.max(48, Number(this.widgets?.['node-radius'] || 20) * 3);
     }
 
+    private getNodeCollisionRadius(node: any): number {
+        const aggregateRenderedSize = Number(node?.aggregateRenderedSize);
+        const configuredNodeSize = Number(node?.nodeSize ?? this.widgets?.['node-radius']);
+        const fallbackNodeSize = Number.isFinite(configuredNodeSize) && configuredNodeSize > 0
+            ? configuredNodeSize
+            : 20;
+        const renderedDiameter = node?.isCollapsedAggregate === true
+            && Number.isFinite(aggregateRenderedSize)
+            && aggregateRenderedSize > 0
+                ? aggregateRenderedSize
+                : this.mapNodeSize(fallbackNodeSize);
+
+        return (renderedDiameter / 2) + 6;
+    }
+
     private assignNoLinkGridPositions(nodes: any[], force: boolean = false): void {
         if (!nodes || nodes.length === 0) return;
 
-        const spacing = this.getNodeLayoutSpacing();
+        const largestCollisionDiameter = nodes.reduce(
+            (largest, node) => Math.max(largest, this.getNodeCollisionRadius(node) * 2),
+            0
+        );
+        const spacing = Math.max(this.getNodeLayoutSpacing(), largestCollisionDiameter);
         const columns = Math.max(1, Math.ceil(Math.sqrt(nodes.length)));
 
         nodes.forEach((node, index) => {
@@ -190,6 +233,138 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         return this.normalizeGroupingValue(this.getCyNodeDataValue(node, field));
     }
 
+    private getActiveNodeGroupingField(): string | null {
+        if (this.widgets?.['polygons-show'] !== true) {
+            return null;
+        }
+
+        const groupingField = String(this.widgets?.['polygons-foci'] || '').trim();
+        return groupingField && groupingField !== 'None' ? groupingField : null;
+    }
+
+    private isRenderedLayoutNode(node: cytoscape.NodeSingular): boolean {
+        return !node.hasClass('parent')
+            && node.children().length === 0
+            && !node.hasClass('hidden');
+    }
+
+    private getRenderedLayoutLinks(): Array<{ source: string; target: string }> {
+        if (!this.cy) return [];
+
+        const renderedNodeIds = new Set(
+            this.cy.nodes()
+                .filter((node: any) => this.isRenderedLayoutNode(node as cytoscape.NodeSingular))
+                .map(node => node.id())
+        );
+
+        return this.cy.edges()
+            .filter((edge: any) => (
+                !edge.hasClass('hidden')
+                && renderedNodeIds.has(edge.source().id())
+                && renderedNodeIds.has(edge.target().id())
+            ))
+            .map((edge: any) => ({
+                source: edge.source().id(),
+                target: edge.target().id()
+            }));
+    }
+
+    private cacheCollapsedAggregatePositions(): void {
+        if (!this.cy) return;
+
+        const positionAnchors: CollapsedAggregatePositionAnchor[] = [];
+        this.cy.nodes()
+            .filter((node: any) => (
+                this.isRenderedLayoutNode(node as cytoscape.NodeSingular)
+                && node.data('isCollapsedAggregate') === true
+            ))
+            .forEach((node: any) => {
+                const currentPosition = node.position();
+                const position = {
+                    x: Number(currentPosition?.x),
+                    y: Number(currentPosition?.y)
+                };
+                if (!Number.isFinite(position.x) || !Number.isFinite(position.y)) {
+                    return;
+                }
+
+                this.nodePositions.set(node.id(), position);
+                const memberIds = new Set<string>(
+                    (node.data('collapsedMemberIds') || []).map((memberId: any) => String(memberId))
+                );
+                if (memberIds.size > 0) {
+                    positionAnchors.push({
+                        id: node.id(),
+                        memberIds,
+                        position
+                    });
+                }
+            });
+
+        this.collapsedAggregatePositionAnchors = positionAnchors;
+    }
+
+    private getCollapsedAggregatePosition(
+        memberIds: any[],
+        anchors: CollapsedAggregatePositionAnchor[]
+    ): { x: number; y: number } | undefined {
+        if (!memberIds?.length || anchors.length === 0) {
+            return undefined;
+        }
+
+        const normalizedMemberIds = new Set(memberIds.map(memberId => String(memberId)));
+        let bestAnchor: CollapsedAggregatePositionAnchor | undefined;
+        let bestOverlap = 0;
+
+        anchors.forEach(anchor => {
+            let overlap = 0;
+            anchor.memberIds.forEach(memberId => {
+                if (normalizedMemberIds.has(memberId)) overlap++;
+            });
+
+            if (
+                overlap > bestOverlap
+                || (overlap === bestOverlap && overlap > 0 && anchor.id < (bestAnchor?.id || ''))
+            ) {
+                bestAnchor = anchor;
+                bestOverlap = overlap;
+            }
+        });
+
+        return bestAnchor && bestOverlap > 0
+            ? { ...bestAnchor.position }
+            : undefined;
+    }
+
+    private buildCollapsedAggregatePositionAnchors(nodes: any[]): CollapsedAggregatePositionAnchor[] {
+        return (nodes || []).reduce((anchors, node) => {
+            if (node?.isCollapsedAggregate !== true) {
+                return anchors;
+            }
+
+            const x = Number(node.x);
+            const y = Number(node.y);
+            const memberIds = new Set<string>(
+                (node.collapsedMemberIds || []).map((memberId: any) => String(memberId))
+            );
+            if (!Number.isFinite(x) || !Number.isFinite(y) || memberIds.size === 0) {
+                return anchors;
+            }
+
+            anchors.push({
+                id: this.getNodeId(node),
+                memberIds,
+                position: { x, y }
+            });
+            return anchors;
+        }, [] as CollapsedAggregatePositionAnchor[]);
+    }
+
+    private clearTimelineFinalCollapsedAggregatePositions(): void {
+        this.timelineFinalCollapsedAggregatePositionAnchors = [];
+        this.timelineFinalCollapsedLayoutReady = false;
+    }
+
     private isCytoscapeNodeMetadataValue(value: any): boolean {
         if (value === undefined) return false;
         if (value === null) return true;
@@ -233,9 +408,17 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             selected: node.selected,
             degree: node.degree,
             label: node.label,
+            isCollapsedAggregate: node.isCollapsedAggregate,
+            collapsedMemberIds: node.collapsedMemberIds,
+            totalCount: node.totalCount,
+            counts: node.counts,
+            meanInternalDistance: node.meanInternalDistance,
+            internalDistancePairCount: node.internalDistancePairCount,
             nodeSize: node.nodeSize,
+            aggregateRenderedSize: node.aggregateRenderedSize,
             nodeColor: node.nodeColor,
             bgOpacity: node.bgOpacity,
+            pieBackgroundImage: node.pieBackgroundImage,
             borderWidth: node.borderWidth,
             selectedBorderColor: this.widgets['selected-color'],
             fontSize: this.getNodeFontSize(node),
@@ -268,11 +451,9 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         if (!this.cy) return;
 
         const layoutStart = this.getPerformanceNow();
-        const childNodes = this.cy.nodes().filter((node: any) => (
-            !node.hasClass('parent') &&
-            node.children().length === 0 &&
-            !node.hasClass('hidden')
-        )).toArray();
+        const childNodes = this.cy.nodes()
+            .filter((node: any) => this.isRenderedLayoutNode(node as cytoscape.NodeSingular))
+            .toArray();
 
         if (childNodes.length === 0) return;
 
@@ -285,7 +466,13 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         });
 
         const groups = Array.from(groupMap.entries()).map(([key, values]) => ({ key, values }));
-        const spacing = this.getNodeLayoutSpacing();
+        const spacing = Math.max(
+            this.getNodeLayoutSpacing(),
+            childNodes.reduce(
+                (largest, node) => Math.max(largest, this.getNodeCollisionRadius(node.data()) * 2),
+                0
+            )
+        );
         const groupColumns = Math.max(1, Math.ceil(Math.sqrt(groups.length)));
         const groupLayouts = groups.map(group => {
             const columns = Math.max(1, Math.ceil(Math.sqrt(group.values.length)));
@@ -401,8 +588,16 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
     SelectedNodeTooltipVariable: any = "None";
     SelectedNodeRadiusVariable: string = "None";
     SelectedNodeRadiusSizeVariable: number = 50;
+    SelectedNodeCollapseTypeVariable: boolean = false;
+    SelectedNodeCollapseThresholdDisplayedVariable: number = 0;
+    SelectedNodeCollapseMetricLabel: string = 'TN93';
+    NodeCollapseThresholdMinDisplayed: number = 0;
+    NodeCollapseThresholdMaxDisplayed: number = 1;
+    NodeCollapseThresholdStepDisplayed: number = 0.001;
 
     SelectedNetworkTableTypeVariable: PolygonColorTableDisplayMode = "Dock";
+    polygonColorRows: StyleKeyTableRow[] = [];
+    polygonColorTableHeaders = { value: '', count: 'Count', frequency: 'Frequency' };
 
     // Link Tab
     SelectedLinkTooltipVariable: any = "None";
@@ -510,7 +705,6 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         elRef: ElementRef,
         private cdref: ChangeDetectorRef,
         private clipboard: Clipboard,
-        private gtmService: GoogleTagManagerService,
         private store: CommonStoreService,
         private exportService: ExportService,
         private zone: NgZone 
@@ -521,6 +715,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         // this.setExpanded(this.mainSite);
 
         this.widgets = this.commonService.session.style.widgets;
+        this.ensureNodeCollapseWidgetDefaults();
 
         this.container.on('resize', () => { setTimeout(() => this.fit(), 200)})
         this.container.on('hide', () => { 
@@ -569,6 +764,252 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         return String(endpoint ?? '');
     }
 
+    private getNodeId(node: any): string {
+        const id = node?._id ?? node?.id ?? '';
+        return typeof id === 'string' ? id : String(id);
+    }
+
+    private getCollapsedAggregateId(memberNodes: any[]): string {
+        const memberSignature = JSON.stringify(
+            memberNodes
+                .map(node => this.getNodeId(node))
+                .sort()
+        );
+        let primaryHash = 2166136261;
+        let secondaryHash = 2246822507;
+
+        for (let index = 0; index < memberSignature.length; index++) {
+            const code = memberSignature.charCodeAt(index);
+            primaryHash = Math.imul(primaryHash ^ code, 16777619);
+            secondaryHash = Math.imul(secondaryHash ^ code, 1597334677);
+        }
+
+        return `${this.collapsedNodeIdPrefix}${memberNodes.length}-${(primaryHash >>> 0).toString(36)}-${(secondaryHash >>> 0).toString(36)}`;
+    }
+
+    private getTimelineCollapsedAggregatePosition(memberNodes: any[]): { x: number; y: number } | undefined {
+        if (!this.isTimelineFilteringActive()) {
+            return undefined;
+        }
+
+        const memberIds = memberNodes.map(node => this.getNodeId(node));
+        return this.getCollapsedAggregatePosition(
+            memberIds,
+            this.timelineFinalCollapsedAggregatePositionAnchors
+        ) || this.getCollapsedAggregatePosition(memberIds, this.collapsedAggregatePositionAnchors);
+    }
+
+    private getFinalTimelineNetworkDataForLayout(): { nodes: any[]; links: any[] } {
+        const nodes = this.commonService.getVisibleNodesIgnoringTimeline(true) || [];
+        const nodeIds = new Set(nodes.map(node => this.getNodeId(node)));
+        const links = (this.commonService.getVisibleLinksIgnoringTimeline(true) || [])
+            .filter(link => (
+                nodeIds.has(this.getLinkEndpointId(link.source))
+                && nodeIds.has(this.getLinkEndpointId(link.target))
+            ));
+
+        return { nodes, links };
+    }
+
+    private async refreshTimelineFinalCollapsedAggregatePositions(
+        reuseCurrentLayoutIfFinal: boolean
+    ): Promise<void> {
+        this.clearTimelineFinalCollapsedAggregatePositions();
+        if (!this.isTimelineFilteringActive() || !this.isNodeCollapseEnabled()) {
+            return;
+        }
+
+        const layoutStart = this.getPerformanceNow();
+        let finalNetworkData = this.getFinalTimelineNetworkDataForLayout();
+        finalNetworkData.nodes.forEach(node => {
+            node.nodeSize = Number(this.getNodeSize(node));
+        });
+        this.normalizeNetworkDataForCytoscape(finalNetworkData, false);
+        finalNetworkData = this.applyNodeCollapseToNetworkData(finalNetworkData);
+        this.normalizeNetworkDataForCytoscape(finalNetworkData, false);
+
+        const finalAggregateIds = new Set(
+            finalNetworkData.nodes
+                .filter(node => node?.isCollapsedAggregate === true)
+                .map(node => this.getNodeId(node))
+        );
+        const currentAnchorById = new Map(
+            this.collapsedAggregatePositionAnchors.map(anchor => [anchor.id, anchor])
+        );
+        const currentLayoutIsFinal = reuseCurrentLayoutIfFinal
+            && finalAggregateIds.size === this.collapsedAggregatePositionAnchors.length
+            && Array.from(finalAggregateIds).every(aggregateId => currentAnchorById.has(aggregateId));
+
+        if (currentLayoutIsFinal) {
+            this.timelineFinalCollapsedAggregatePositionAnchors = Array.from(finalAggregateIds)
+                .map(aggregateId => currentAnchorById.get(aggregateId))
+                .filter((anchor): anchor is CollapsedAggregatePositionAnchor => !!anchor)
+                .map(anchor => ({
+                    id: anchor.id,
+                    memberIds: new Set(anchor.memberIds),
+                    position: { ...anchor.position }
+                }));
+            this.timelineFinalCollapsedLayoutReady = true;
+            this.recordTwoDRenderTiming('twoDTimelineFinalCollapseLayout', layoutStart, {
+                aggregates: this.timelineFinalCollapsedAggregatePositionAnchors.length,
+                mode: 'reuse-current-final-layout'
+            });
+            return;
+        }
+
+        const finalLayout = await this.precomputePositionsWithD3(
+            finalNetworkData.nodes,
+            finalNetworkData.links,
+            60,
+            false
+        );
+        this.timelineFinalCollapsedAggregatePositionAnchors =
+            this.buildCollapsedAggregatePositionAnchors(finalLayout.nodes);
+        this.timelineFinalCollapsedAggregatePositionAnchors.forEach(anchor => {
+            this.nodePositions.set(anchor.id, { ...anchor.position });
+        });
+        this.timelineFinalCollapsedLayoutReady = true;
+        this.recordTwoDRenderTiming('twoDTimelineFinalCollapseLayout', layoutStart, {
+            aggregates: this.timelineFinalCollapsedAggregatePositionAnchors.length,
+            nodes: finalLayout.nodes.length,
+            links: finalLayout.links.length,
+            mode: 'precomputed-final-layout',
+            ticks: 60,
+            tickBatches: finalLayout.tickBatches,
+            ticksPerYield: finalLayout.ticksPerYield
+        });
+    }
+
+    private applyTimelineFinalCollapsedAggregatePositions(nodes: any[]): void {
+        if (!this.isTimelineFilteringActive() || !this.timelineFinalCollapsedLayoutReady) {
+            return;
+        }
+
+        (nodes || []).forEach(node => {
+            if (node?.isCollapsedAggregate !== true) {
+                return;
+            }
+
+            const position = this.getCollapsedAggregatePosition(
+                node.collapsedMemberIds || [],
+                this.timelineFinalCollapsedAggregatePositionAnchors
+            );
+            if (!position) {
+                return;
+            }
+
+            node.x = position.x;
+            node.y = position.y;
+            node.vx = 0;
+            node.vy = 0;
+        });
+    }
+
+    private restoreTimelineFinalCollapsedAggregateCyPositions(): void {
+        if (
+            !this.cy
+            || !this.isTimelineFilteringActive()
+            || !this.timelineFinalCollapsedLayoutReady
+        ) {
+            return;
+        }
+
+        this.cy.batch(() => {
+            this.cy.nodes()
+                .filter((node: any) => node.data('isCollapsedAggregate') === true)
+                .forEach((node: any) => {
+                    const position = this.getCollapsedAggregatePosition(
+                        node.data('collapsedMemberIds') || [],
+                        this.timelineFinalCollapsedAggregatePositionAnchors
+                    );
+                    if (position) {
+                        node.position(position);
+                    }
+                });
+        });
+        this.cacheCollapsedAggregatePositions();
+    }
+
+    private getNodeRenderPosition(node: any): { x: number; y: number } {
+        const cachedPosition = this.nodePositions.get(this.getNodeId(node));
+        const resolveCoordinate = (value: any, cachedValue: any): number => {
+            const numericValue = Number(value);
+            if (value !== null && value !== undefined && value !== '' && Number.isFinite(numericValue)) {
+                return numericValue;
+            }
+
+            const numericCachedValue = Number(cachedValue);
+            return Number.isFinite(numericCachedValue)
+                ? numericCachedValue
+                : Math.random() * 500;
+        };
+
+        return {
+            x: resolveCoordinate(node?.x, cachedPosition?.x),
+            y: resolveCoordinate(node?.y, cachedPosition?.y)
+        };
+    }
+
+    private getSessionNetworkNodes(): any[] {
+        const networkNodes = this.commonService.session?.network?.nodes;
+        if (Array.isArray(networkNodes) && networkNodes.length > 0) {
+            return networkNodes;
+        }
+
+        const filteredNodes = this.commonService.session?.data?.nodeFilteredValues;
+        if (Array.isArray(filteredNodes) && filteredNodes.length > 0) {
+            return filteredNodes;
+        }
+
+        const dataNodes = this.commonService.session?.data?.nodes;
+        return Array.isArray(dataNodes) ? dataNodes : [];
+    }
+
+    private getSessionNetworkNodeByEndpoint(nodes: any[], endpoint: any): any {
+        const endpointId = this.getLinkEndpointId(endpoint);
+        return nodes.find(node => this.getNodeId(node) === endpointId);
+    }
+
+    private isNetworkRendering(): boolean {
+        return this.commonService.session?.network?.rendering === true;
+    }
+
+    private setNetworkRendering(rendering: boolean): void {
+        const network = this.commonService.session?.network;
+        if (network) {
+            network.rendering = rendering;
+        }
+    }
+
+    private normalizeNetworkDataForCytoscape(
+        networkData: { nodes: any[]; links: any[] },
+        warnInvalidLinks = true
+    ): Set<string> {
+        networkData.nodes.forEach(node => {
+            node.id = this.getNodeId(node);
+        });
+
+        const nodeIds = new Set(networkData.nodes.map(node => this.getNodeId(node)));
+
+        networkData.links.forEach(link => {
+            link.source = this.getLinkEndpointId(link.source);
+            link.target = this.getLinkEndpointId(link.target);
+        });
+
+        if (warnInvalidLinks) {
+            networkData.links.forEach(link => {
+                if (!nodeIds.has(link.source)) {
+                    console.warn('Link source not found in nodes:', link.source, link);
+                }
+                if (!nodeIds.has(link.target)) {
+                    console.warn('Link target not found in nodes:', link.target, link);
+                }
+            });
+        }
+
+        return nodeIds;
+    }
+
     private getVisibleNetworkDataForRender(filterLinksByVisibleNodes = this.isTimelineFilteringActive()) {
         const nodes = this.commonService.getVisibleNodes();
         let links = this.commonService.getVisibleLinks(true);
@@ -582,6 +1023,638 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         }
 
         return { nodes, links };
+    }
+
+    private ensureNodeCollapseWidgetDefaults(): void {
+        const sessionWidgets = this.commonService.session?.style?.widgets;
+        if (sessionWidgets) {
+            this.widgets = sessionWidgets;
+        }
+        if (!this.widgets) return;
+        if (this.widgets['network-node-collapse-enabled'] === undefined || this.widgets['network-node-collapse-enabled'] === null) {
+            this.widgets['network-node-collapse-enabled'] = false;
+        }
+        if (!Number.isFinite(Number(this.widgets['network-node-collapse-threshold']))) {
+            this.widgets['network-node-collapse-threshold'] = 0;
+        }
+    }
+
+    private getNodeCollapseMetric(): string {
+        return String(this.widgets?.['link-sort-variable'] || this.widgets?.['default-distance-metric'] || 'distance');
+    }
+
+    private getNodeCollapseMetricLabel(metric: string): string {
+        const normalizedMetric = String(metric || 'distance').toLowerCase();
+        const effectiveMetric = normalizedMetric === 'distance'
+            ? String(this.widgets?.['default-distance-metric'] || 'distance').toLowerCase()
+            : normalizedMetric;
+
+        if (
+            effectiveMetric === 'tn93'
+            && String(this.widgets?.['tn93-distance-display-format'] || 'decimal').toLowerCase() === 'percentage'
+        ) {
+            return 'TN93 (%)';
+        }
+
+        return this.commonService.titleize(effectiveMetric);
+    }
+
+    private getNodeCollapseRawStep(metric: string): number {
+        return String(metric || '').toLowerCase() === 'snps' ||
+            String(this.widgets?.['default-distance-metric'] || '').toLowerCase() === 'snps'
+            ? 1
+            : 0.001;
+    }
+
+    private getNodeCollapseThresholdRaw(): number {
+        this.ensureNodeCollapseWidgetDefaults();
+        return Number(this.widgets['network-node-collapse-threshold']);
+    }
+
+    private isNodeCollapseEnabled(): boolean {
+        this.ensureNodeCollapseWidgetDefaults();
+        return this.widgets['network-node-collapse-enabled'] === true;
+    }
+
+    private getNumericMetricValue(link: any, metric: string): number | null {
+        const raw = link?.[metric];
+        if (typeof raw === 'number') {
+            return Number.isFinite(raw) ? raw : null;
+        }
+
+        if (typeof raw === 'string' && raw.trim().length > 0) {
+            const parsed = Number(raw);
+            return Number.isFinite(parsed) ? parsed : null;
+        }
+
+        return null;
+    }
+
+    private getNumericNodeCollapseDistanceValue(link: any, metric: string): number | null {
+        const primaryValue = this.getNumericMetricValue(link, metric);
+        if (primaryValue !== null) {
+            return primaryValue;
+        }
+
+        const selectedMetric = String(this.widgets?.['default-distance-metric'] || '').toLowerCase();
+        return selectedMetric !== metric
+            ? this.getNumericMetricValue(link, selectedMetric)
+            : null;
+    }
+
+    private isNodeCollapseDistanceLink(link: any, metric: string): boolean {
+        if (link?.hasDistance !== true || this.getNumericNodeCollapseDistanceValue(link, metric) === null) {
+            return false;
+        }
+
+        const distanceOrigins = this.commonService.getLinkDistanceOrigins?.(link) || [];
+        if (distanceOrigins.length > 0) {
+            return true;
+        }
+
+        const origins = Array.isArray(link?.origin) ? link.origin : [];
+        return origins.some((origin: any) => String(origin || '').toLowerCase().includes('distance'));
+    }
+
+    private getNodeCollapseDistanceLinks(nodeIds: Set<string>, metric: string): any[] {
+        return (this.commonService.session.data.links || []).reduce((acc, link) => {
+            const source = this.getLinkEndpointId(link.source);
+            const target = this.getLinkEndpointId(link.target);
+            const value = this.getNumericNodeCollapseDistanceValue(link, metric);
+
+            if (
+                nodeIds.has(source)
+                && nodeIds.has(target)
+                && this.isNodeCollapseDistanceLink(link, metric)
+                && value !== null
+            ) {
+                acc.push(link[metric] === value ? link : { ...link, [metric]: value });
+            }
+
+            return acc;
+        }, [] as any[]);
+    }
+
+    private updateNodeCollapseThresholdDisplayBounds(): void {
+        this.ensureNodeCollapseWidgetDefaults();
+        const metric = this.getNodeCollapseMetric();
+        const nodeIds = new Set((this.commonService.session.data.nodes || []).map(node => this.getNodeId(node)));
+        const values = this.getNodeCollapseDistanceLinks(nodeIds, metric)
+            .map(link => this.getNumericNodeCollapseDistanceValue(link, metric))
+            .filter((value): value is number => value !== null)
+            .sort((a, b) => a - b);
+
+        const storedThreshold = this.getNodeCollapseThresholdRaw();
+        const rawStep = this.getNodeCollapseRawStep(metric);
+        const rawMin = values.length ? Math.min(0, values[0]) : 0;
+        const linkThreshold = Number(this.widgets?.['link-threshold']);
+        const rawMax = Number.isFinite(linkThreshold)
+            ? Math.max(rawMin, linkThreshold)
+            : Math.max(rawMin, rawStep);
+        const clampedStoredThreshold = Math.min(Math.max(storedThreshold, rawMin), rawMax);
+
+        if (clampedStoredThreshold !== storedThreshold) {
+            this.widgets['network-node-collapse-threshold'] = clampedStoredThreshold;
+        }
+
+        this.SelectedNodeCollapseMetricLabel = this.getNodeCollapseMetricLabel(metric);
+        this.NodeCollapseThresholdMinDisplayed = this.commonService.toDisplayedDistanceValue(rawMin, metric);
+        this.NodeCollapseThresholdMaxDisplayed = this.commonService.toDisplayedDistanceValue(rawMax, metric);
+        this.NodeCollapseThresholdStepDisplayed = this.commonService.toDisplayedDistanceValue(rawStep, metric);
+        this.SelectedNodeCollapseThresholdDisplayedVariable = this.commonService.toDisplayedDistanceValue(clampedStoredThreshold, metric);
+        this.syncNodeCollapseThresholdDomControls();
+    }
+
+    private syncNodeCollapseThresholdDomControls(): void {
+        const control = $('#network-node-collapse-threshold-input');
+        control
+            .attr('min', this.NodeCollapseThresholdMinDisplayed)
+            .attr('max', this.NodeCollapseThresholdMaxDisplayed)
+            .attr('step', this.NodeCollapseThresholdStepDisplayed)
+            .prop('disabled', this.commonService.session.style.widgets['network-node-collapse-enabled'] !== true)
+            .val(this.SelectedNodeCollapseThresholdDisplayedVariable);
+    }
+
+    private syncNodeCollapseControlsFromWidgets(): void {
+        this.widgets = this.commonService.session.style.widgets;
+        this.ensureNodeCollapseWidgetDefaults();
+        this.SelectedNodeCollapseTypeVariable = this.widgets['network-node-collapse-enabled'] === true;
+        this.updateNodeCollapseThresholdDisplayBounds();
+    }
+
+    private refreshNodeCollapseRender(): void {
+        this.nodeCollapseRefreshPending = true;
+
+        if (!this.viewActive) {
+            this.nodeCollapseRefreshPending = false;
+            this.rerenderOnActive = true;
+            return;
+        }
+
+        this.scheduleNodeCollapseRefresh();
+    }
+
+    private scheduleNodeCollapseRefresh(delayMs: number = 0): void {
+        if (this.nodeCollapseRefreshScheduled || this.isDestroyed) {
+            return;
+        }
+
+        this.nodeCollapseRefreshScheduled = true;
+        setTimeout(() => {
+            this.nodeCollapseRefreshScheduled = false;
+
+            if (this.isDestroyed || !this.nodeCollapseRefreshPending) {
+                return;
+            }
+
+            if (!this.viewActive) {
+                this.nodeCollapseRefreshPending = false;
+                this.rerenderOnActive = true;
+                return;
+            }
+
+            if (this.isNetworkRendering()) {
+                this.scheduleNodeCollapseRefresh(25);
+                return;
+            }
+
+            this.nodeCollapseRefreshPending = false;
+            void this._rerender(false)
+                .finally(() => {
+                    if (!this.isDestroyed) {
+                        this.setNetworkRendering(false);
+                        if (this.nodeCollapseRefreshPending) {
+                            this.scheduleNodeCollapseRefresh();
+                        }
+                    }
+                });
+        }, delayMs);
+    }
+
+    private isNonCircleNodeShape(shapeKey: any): boolean {
+        const rawShape = String(shapeKey ?? '').trim();
+        if (!rawShape) {
+            return false;
+        }
+
+        return resolveNodeShapeKey(rawShape, rawShape) !== 'ellipse';
+    }
+
+    private hasActiveNonCircleNodeShapes(): boolean {
+        if (this.cy) {
+            const renderedNodes = this.cy.nodes(':visible')
+                .filter((node: any) => !this.isGroupNode(node) && !node.data('isCollapsedAggregate'));
+
+            if (renderedNodes.toArray().some((node: any) => (
+                this.isNonCircleNodeShape(node.data('shapeKey') || node.data('shape') || node.style('shape'))
+            ))) {
+                return true;
+            }
+        }
+
+        const visibleNodes = this.getVisibleNetworkDataForRender().nodes || [];
+        return visibleNodes.some((node: any) => (
+            !node?.isCollapsedAggregate && this.isNonCircleNodeShape(this.getNodeShape(node))
+        ));
+    }
+
+    private setNodeCollapseEnabled(enabled: boolean, refreshRender = true): void {
+        this.ensureNodeCollapseWidgetDefaults();
+        this.widgets['network-node-collapse-enabled'] = enabled === true;
+        this.SelectedNodeCollapseTypeVariable = this.widgets['network-node-collapse-enabled'];
+        this.updateNodeCollapseThresholdDisplayBounds();
+        this.cdref.markForCheck();
+        this.cdref.detectChanges();
+
+        if (refreshRender) {
+            this.refreshNodeCollapseRender();
+        }
+    }
+
+    private syncNodeCollapseDisabledControlState(): void {
+        this.ensureNodeCollapseWidgetDefaults();
+        this.widgets['network-node-collapse-enabled'] = false;
+        this.SelectedNodeCollapseTypeVariable = null as any;
+        this.updateNodeCollapseThresholdDisplayBounds();
+        this.cdref.markForCheck();
+        this.cdref.detectChanges();
+
+        setTimeout(() => {
+            if (!this.isDestroyed && this.widgets['network-node-collapse-enabled'] !== true) {
+                this.setNodeCollapseEnabled(false, false);
+            }
+        }, 0);
+    }
+
+    public onNodeCollapseEnabledChange(enabled: boolean, warnOnNonCircleShapes = false): void {
+        this.ensureNodeCollapseWidgetDefaults();
+        const shouldCheckShapeWarning = enabled === true
+            && warnOnNonCircleShapes
+            && !this.nodeCollapseShapeWarningConfirmed;
+        const shouldWarnForNonCircleShapes = shouldCheckShapeWarning
+            && (this.nodeCollapseShapeWarningPending || this.hasActiveNonCircleNodeShapes());
+
+        if (shouldWarnForNonCircleShapes) {
+            this.nodeCollapseShapeWarningPending = true;
+            this.syncNodeCollapseDisabledControlState();
+
+            const confirmationHost = this.commonService.visuals.microbeTrace;
+            if (confirmationHost?.openNodeCollapseShapeConfirmation) {
+                confirmationHost.openNodeCollapseShapeConfirmation(
+                    () => {
+                        this.nodeCollapseShapeWarningConfirmed = true;
+                        this.nodeCollapseShapeWarningPending = false;
+                        this.setNodeCollapseEnabled(true);
+                    },
+                    () => this.syncNodeCollapseDisabledControlState()
+                );
+                return;
+            }
+        }
+
+        if (shouldCheckShapeWarning && !shouldWarnForNonCircleShapes) {
+            this.nodeCollapseShapeWarningPending = false;
+        }
+
+        this.setNodeCollapseEnabled(enabled);
+    }
+
+    public onNodeCollapseThresholdDisplayedChange(value: any, syncControl = true): void {
+        this.ensureNodeCollapseWidgetDefaults();
+        const metric = this.getNodeCollapseMetric();
+        const rawDisplayedValue = value && typeof value === 'object' && 'target' in value
+            ? (value.target as HTMLInputElement)?.value
+            : value;
+
+        if (rawDisplayedValue === null || rawDisplayedValue === undefined || rawDisplayedValue === '') {
+            return;
+        }
+
+        const displayedValue = Number(rawDisplayedValue);
+
+        if (!Number.isFinite(displayedValue)) {
+            return;
+        }
+
+        const clampedDisplayedValue = Math.min(
+            Math.max(displayedValue, this.NodeCollapseThresholdMinDisplayed),
+            this.NodeCollapseThresholdMaxDisplayed
+        );
+        const rawThreshold = this.commonService.fromDisplayedDistanceValue(clampedDisplayedValue, metric);
+
+        if (!Number.isFinite(rawThreshold)) {
+            return;
+        }
+
+        this.widgets['network-node-collapse-threshold'] = rawThreshold;
+        this.SelectedNodeCollapseThresholdDisplayedVariable = this.commonService.toDisplayedDistanceValue(rawThreshold, metric);
+        if (syncControl) {
+            this.syncNodeCollapseThresholdDomControls();
+        }
+
+        if (this.isNodeCollapseEnabled()) {
+            this.refreshNodeCollapseRender();
+        }
+    }
+
+    public onNodeCollapseThresholdKeydown(event: KeyboardEvent, direction: -1 | 1): void {
+        const input = event.target as HTMLInputElement | null;
+        const inputValue = Number(input?.value);
+        const currentValue = Number.isFinite(inputValue)
+            ? inputValue
+            : this.SelectedNodeCollapseThresholdDisplayedVariable;
+        const step = Number(this.NodeCollapseThresholdStepDisplayed);
+
+        if (!Number.isFinite(currentValue) || !Number.isFinite(step) || step <= 0) {
+            return;
+        }
+
+        event.preventDefault();
+        const nextValue = Number((currentValue + (direction * step)).toPrecision(12));
+        this.onNodeCollapseThresholdDisplayedChange(nextValue, true);
+    }
+
+    public onNodeCollapseThresholdInputBlur(): void {
+        const metric = this.getNodeCollapseMetric();
+        this.SelectedNodeCollapseThresholdDisplayedVariable = this.commonService.toDisplayedDistanceValue(
+            this.getNodeCollapseThresholdRaw(),
+            metric
+        );
+        this.syncNodeCollapseThresholdDomControls();
+    }
+
+    private getCollapsedNodeBaseSize(): number {
+        const rawSize = Number(this.widgets?.['node-radius']);
+        return Number.isFinite(rawSize) && rawSize > 0 ? rawSize : 20;
+    }
+
+    private getCollapsedNodeRenderedSize(totalCount: number): number {
+        return this.mapNodeSize(this.getCollapsedNodeBaseSize()) * Math.sqrt(Math.max(1, Number(totalCount) || 1));
+    }
+
+    private buildCollapsedNodeCounts(memberNodes: any[]): Array<{ label: string; count: number }> {
+        const colorVariable = this.widgets['node-color-variable'];
+
+        if (colorVariable === 'None') {
+            return [{ label: 'All Nodes', count: memberNodes.length }];
+        }
+
+        const counts = new Map<string, number>();
+        memberNodes.forEach(node => {
+            const rawLabel = node?.[colorVariable];
+            const label = rawLabel === undefined || rawLabel === null ? '' : String(rawLabel);
+            counts.set(label, (counts.get(label) || 0) + 1);
+        });
+
+        return Array.from(counts.entries()).map(([label, count]) => ({ label, count }));
+    }
+
+    private getCollapsedPieSlices(counts: Array<{ label: string; count: number }>): PieChartSlice[] {
+        const colorVariable = this.widgets['node-color-variable'];
+        const fixedColor = this.widgets['node-color'];
+
+        return counts.map(count => ({
+            label: count.label,
+            count: count.count,
+            color: colorVariable === 'None'
+                ? fixedColor
+                : this.commonService.temp.style.nodeColorMap(count.label),
+            alpha: colorVariable === 'None'
+                ? 1 - Number(this.widgets['node-opacity'] || 0)
+                : this.commonService.temp.style.nodeAlphaMap(count.label)
+        }));
+    }
+
+    private getCollapsedSolidNodeColor(counts: Array<{ label: string; count: number }>): [string, number] {
+        const colorVariable = this.widgets['node-color-variable'];
+
+        if (colorVariable === 'None') {
+            return [this.widgets['node-color'], 1 - Number(this.widgets['node-opacity'] || 0)];
+        }
+
+        const label = counts[0]?.label ?? '';
+        return [
+            this.commonService.temp.style.nodeColorMap(label),
+            this.commonService.temp.style.nodeAlphaMap(label)
+        ];
+    }
+
+    private getCollapsedNodeDistanceSummary(
+        memberNodes: any[],
+        metric: string
+    ): { meanInternalDistance: number | null; internalDistancePairCount: number } {
+        const memberIds = new Set(memberNodes.map(node => this.getNodeId(node)));
+        // Collapse membership is threshold-driven; this summary uses every available member-pair distance.
+        const distanceLinks = this.getNodeCollapseDistanceLinks(memberIds, metric);
+        const pairValues = new Map<string, number[]>();
+
+        distanceLinks.forEach(link => {
+            const source = this.getLinkEndpointId(link.source);
+            const target = this.getLinkEndpointId(link.target);
+
+            if (
+                source === target ||
+                !memberIds.has(source) ||
+                !memberIds.has(target)
+            ) {
+                return;
+            }
+
+            const value = this.getNumericNodeCollapseDistanceValue(link, metric);
+            if (value === null) {
+                return;
+            }
+
+            const pairKey = JSON.stringify(source < target ? [source, target] : [target, source]);
+            const values = pairValues.get(pairKey) || [];
+            values.push(value);
+            pairValues.set(pairKey, values);
+        });
+
+        const pairMeans = Array.from(pairValues.values())
+            .map(values => values.reduce((sum, value) => sum + value, 0) / values.length);
+
+        if (pairMeans.length === 0) {
+            return {
+                meanInternalDistance: null,
+                internalDistancePairCount: 0
+            };
+        }
+
+        return {
+            meanInternalDistance: pairMeans.reduce((sum, value) => sum + value, 0) / pairMeans.length,
+            internalDistancePairCount: pairMeans.length
+        };
+    }
+
+    private createCollapsedAggregateNode(
+        memberNodes: any[],
+        componentIndex: number,
+        metric: string
+    ): any {
+        const aggregateId = this.getCollapsedAggregateId(memberNodes);
+        const firstMember = memberNodes[0] || {};
+        const finiteX = memberNodes.map(node => Number(node.x)).filter(value => Number.isFinite(value));
+        const finiteY = memberNodes.map(node => Number(node.y)).filter(value => Number.isFinite(value));
+        const cachedPosition = this.getTimelineCollapsedAggregatePosition(memberNodes)
+            || this.nodePositions.get(aggregateId);
+        const cachedX = Number(cachedPosition?.x);
+        const cachedY = Number(cachedPosition?.y);
+        const x = Number.isFinite(cachedX)
+            ? cachedX
+            : finiteX.length
+                ? finiteX.reduce((sum, value) => sum + value, 0) / finiteX.length
+                : 0;
+        const y = Number.isFinite(cachedY)
+            ? cachedY
+            : finiteY.length
+                ? finiteY.reduce((sum, value) => sum + value, 0) / finiteY.length
+                : 0;
+        const totalCount = memberNodes.length;
+        const nodeSize = this.getCollapsedNodeBaseSize() * Math.sqrt(totalCount);
+        const aggregateRenderedSize = this.getCollapsedNodeRenderedSize(totalCount);
+        const counts = this.buildCollapsedNodeCounts(memberNodes);
+        const slices = this.getCollapsedPieSlices(counts);
+        const hasPie = this.widgets['node-color-variable'] !== 'None' && slices.length > 1;
+        const [solidColor, solidOpacity] = this.getCollapsedSolidNodeColor(counts);
+        const distanceSummary = this.getCollapsedNodeDistanceSummary(memberNodes, metric);
+
+        return {
+            ...firstMember,
+            id: aggregateId,
+            _id: aggregateId,
+            index: firstMember.index,
+            cluster: undefined,
+            group: undefined,
+            x,
+            y,
+            vx: 0,
+            vy: 0,
+            visible: true,
+            selected: false,
+            isCollapsedAggregate: true,
+            collapsedMemberIds: memberNodes.map(node => this.getNodeId(node)),
+            totalCount,
+            counts,
+            meanInternalDistance: distanceSummary.meanInternalDistance,
+            internalDistancePairCount: distanceSummary.internalDistancePairCount,
+            label: `${totalCount} nodes`,
+            nodeSize,
+            aggregateRenderedSize,
+            nodeColor: hasPie ? 'transparent' : solidColor,
+            bgOpacity: hasPie ? 0 : solidOpacity,
+            borderWidth: this.getNodeBorderWidth(firstMember),
+            pieBackgroundImage: hasPie
+                ? buildPieChartSvgDataUri(`twod-collapse-pie-${componentIndex}`, aggregateRenderedSize, slices)
+                : undefined
+        };
+    }
+
+    private applyNodeCollapseToNetworkData(networkData: { nodes: any[]; links: any[] }): { nodes: any[]; links: any[] } {
+        if (!this.isNodeCollapseEnabled()) {
+            return networkData;
+        }
+
+        const nodes = networkData.nodes || [];
+        if (nodes.length === 0) {
+            return networkData;
+        }
+
+        const metric = this.getNodeCollapseMetric();
+        const threshold = this.getNodeCollapseThresholdRaw();
+        if (!Number.isFinite(threshold)) {
+            return networkData;
+        }
+
+        const nodeById = new Map<string, any>();
+        nodes.forEach(node => {
+            const nodeId = this.getNodeId(node);
+            node.id = nodeId;
+            nodeById.set(nodeId, node);
+        });
+
+        const nodeIds = new Set(nodeById.keys());
+        const groupingField = this.getActiveNodeGroupingField();
+        const distanceLinks = this.getNodeCollapseDistanceLinks(nodeIds, metric)
+            .filter(link => {
+                if (!groupingField) {
+                    return true;
+                }
+
+                const sourceNode = nodeById.get(this.getLinkEndpointId(link.source));
+                const targetNode = nodeById.get(this.getLinkEndpointId(link.target));
+                const sourceGroup = this.normalizeGroupingValue(sourceNode?.[groupingField]);
+                const targetGroup = this.normalizeGroupingValue(targetNode?.[groupingField]);
+
+                return sourceGroup === targetGroup;
+            });
+        const summary = buildThresholdConnectedComponents(nodes, distanceLinks, metric, threshold);
+        const collapsedComponentIds = new Set<number>();
+
+        summary.components.forEach((component, componentIndex) => {
+            if (component.nodeIds.length > 1) {
+                collapsedComponentIds.add(componentIndex);
+            }
+        });
+
+        if (collapsedComponentIds.size === 0) {
+            return networkData;
+        }
+
+        const renderedNodeIdByOriginalId = new Map<string, string>();
+        const renderedNodes: any[] = [];
+        const renderedNodeIds = new Set<string>();
+
+        summary.components.forEach((component, componentIndex) => {
+            if (!collapsedComponentIds.has(componentIndex)) {
+                const node = nodeById.get(component.nodeIds[0]);
+                if (node) {
+                    renderedNodes.push(node);
+                    renderedNodeIds.add(this.getNodeId(node));
+                    renderedNodeIdByOriginalId.set(this.getNodeId(node), this.getNodeId(node));
+                }
+                return;
+            }
+
+            const memberNodes = component.nodeIds
+                .map(nodeId => nodeById.get(nodeId))
+                .filter(Boolean);
+            const aggregateNode = this.createCollapsedAggregateNode(memberNodes, componentIndex, metric);
+            if (groupingField) {
+                aggregateNode[groupingField] = memberNodes[0]?.[groupingField];
+            }
+            renderedNodes.push(aggregateNode);
+            renderedNodeIds.add(aggregateNode.id);
+            component.nodeIds.forEach(nodeId => renderedNodeIdByOriginalId.set(nodeId, aggregateNode.id));
+        });
+
+        const renderedLinks = (networkData.links || []).reduce((acc, link, index) => {
+            const source = this.getLinkEndpointId(link.source);
+            const target = this.getLinkEndpointId(link.target);
+            const collapsedSource = renderedNodeIdByOriginalId.get(source) || source;
+            const collapsedTarget = renderedNodeIdByOriginalId.get(target) || target;
+
+            if (
+                collapsedSource === collapsedTarget ||
+                !renderedNodeIds.has(collapsedSource) ||
+                !renderedNodeIds.has(collapsedTarget)
+            ) {
+                return acc;
+            }
+
+            acc.push({
+                ...link,
+                id: link.id ?? `collapsed-link-${index}`,
+                source: collapsedSource,
+                target: collapsedTarget
+            });
+            return acc;
+        }, [] as any[]);
+
+        return {
+            nodes: renderedNodes,
+            links: renderedLinks
+        };
     }
 
 
@@ -626,6 +1699,9 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
     this.thresholdSubscription = this.store.linkThreshold$
         .pipe(takeUntil(this.destroy$))
         .subscribe(newThreshold => {
+            this.syncNodeCollapseControlsFromWidgets();
+            this.cdref.markForCheck();
+
             if (!this.commonService.session.network.isFullyLoaded) return;
 
             if(this.commonService.activeTab === '2D Network') {
@@ -664,6 +1740,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                     source: link.source,
                     target: link.target,
                     lineSelectedColor: this.widgets['selected-color'],
+                    mtRawLinkLabel: this.getRawLinkLabel(link),
                     label: this.getLinkLabel(link).text, // Existing link label
                     lineColor: this.getLinkColor({origin: originItem}).color, // Default to black if not specified
                     lineOpacity: this.getLinkColor({origin: originItem}).opacity, // Default to fully opaque if not specified
@@ -680,6 +1757,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             source: link.source,
             target: link.target,
             lineSelectedColor: this.widgets['selected-color'],
+            mtRawLinkLabel: this.getRawLinkLabel(link),
             label: this.getLinkLabel(link).text, // Existing link label
             lineColor: this.getLinkColor(link).color, // Default to black if not specified
             lineOpacity: this.getLinkColor(link).opacity, // Default to fully opaque if not specified
@@ -707,10 +1785,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
 	            const parent = (node.group && this.widgets['polygons-show']) || undefined;
 	            return {
 	                data: this.buildCytoscapeNodeData(node, shapeKey, parent),
-	                position: { 
-	                    x:node.x || this.nodePositions.get(node.id)?.x || Math.random() * 500,
-	                    y:node.y || this.nodePositions.get(node.id)?.y || Math.random() * 500
-	                }
+	                position: this.getNodeRenderPosition(node)
 	            }
         } else {
 	            node.label = this.getNodeLabel(node);
@@ -721,10 +1796,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
 	            const parent = (node.group && this.widgets['polygons-show']) || undefined;
 	            return {
 	                data: this.buildCytoscapeNodeData(node, shapeKey, parent),
-	                position: {
-	                    x: node.x || this.nodePositions.get(node.id)?.x || Math.random() * 500,
-	                    y: node.y || this.nodePositions.get(node.id)?.y || Math.random() * 500
-	                  }
+	                position: this.getNodeRenderPosition(node)
                   
             };
         }
@@ -801,6 +1873,13 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                 }
             },
             {
+                selector: 'node[!isParent][isCollapsedAggregate][aggregateRenderedSize]',
+                css: {
+                    'width': 'data(aggregateRenderedSize)',
+                    'height': 'data(aggregateRenderedSize)'
+                }
+            },
+            {
                 selector: 'node[bgOpacity]',
                 css: {
                     // @ts-ignore
@@ -822,6 +1901,20 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                     'background-image-opacity': 'data(bgOpacity)',
                     'background-opacity': 0,
                     'border-width': 0
+                }
+            },
+            {
+                selector: 'node[!isParent][pieBackgroundImage]',
+                css: {
+                    // @ts-ignore
+                    'background-image': 'data(pieBackgroundImage)',
+                    'background-fit': 'cover',
+                    'background-clip': 'node',
+                    'background-position-x': '50%',
+                    'background-position-y': '50%',
+                    'background-repeat': 'no-repeat',
+                    'background-color': 'transparent',
+                    'background-opacity': 0
                 }
             },
                 {
@@ -914,7 +2007,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                 }
             },
             {
-                selector: 'node:selected[!isParent][!iconBackgroundImage]',
+                selector: 'node:selected[!isParent][!iconBackgroundImage][!pieBackgroundImage]',
                 css: {
                     'background-color': 'data(nodeColor)',
                     'border-color': 'data(selectedBorderColor)',
@@ -927,6 +2020,15 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                     'background-color': '#ffffff',
                     // @ts-ignore
                     'background-opacity': 'data(bgOpacity)',
+                    'border-color': 'data(selectedBorderColor)',
+                    'border-width': 3
+                }
+            },
+            {
+                selector: 'node:selected[!isParent][pieBackgroundImage]',
+                css: {
+                    'background-color': 'transparent',
+                    'background-opacity': 0,
                     'border-color': 'data(selectedBorderColor)',
                     'border-width': 3
                 }
@@ -956,8 +2058,12 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
 
         // Debounced function to sync Cytoscape selections with the common service.
         const syncCySelectionToService = _.debounce(() => {
-            const selectedNodes = this.cy.nodes(':selected');
+            const selectedNodes = this.cy.nodes(':selected').filter((node: any) => !node.data('isCollapsedAggregate'));
             const selectedIds = new Set(selectedNodes.map(node => node.id()));
+
+            if (this.isNodeCollapseEnabled() && selectedIds.size === 0) {
+                return;
+            }
 
             let selectionChanged = false;
             // Sync with the main nodes array
@@ -1006,7 +2112,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
 
 	        this.cy.on('cxttap', 'node', (evt) => {
             const node = evt.target;
-            if (node.data('isParent')) {
+            if (node.data('isParent') || node.data('isCollapsedAggregate')) {
                 return;
             }
 
@@ -1140,6 +2246,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
 
         // updates node position values (x, y) stored in commonService 
         this.syncVisibleNodePositionsFromCy(visNodes);
+        this.cacheCollapsedAggregatePositions();
 
         this.fit();
 
@@ -1153,13 +2260,17 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
      */
     async applyGatherForce(ticks: number = 10): Promise<{ nodes: any[]; links: any[] }> {
                 //let nodes = this.commonService.getVisibleNodes()
-        let links = this.commonService.getVisibleLinks().map(link =>{ return {'source': link.source, 'target': link.target} });
+        const links = this.getRenderedLayoutLinks();
         
         let tickCount = 0;
         
         let childNodes: {id: string, parentX: any, parentY: any,  x: number, y: number, vx?:number, vy?:number, size: number}[] = [];
 
         this.cy.nodes().forEach(node => {
+            if (!this.isRenderedLayoutNode(node)) {
+                return;
+            }
+
             if (node.children().length > 0) {
                 return;
             } else if (node.parent().length > 0) {
@@ -1217,7 +2328,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
      * Applies force to gather nodes within a group and separate them from other groups
      */
     async applySeparationForce(): Promise<{ nodes: any[]; links: any[], parentNodes: any[] }> {
-        let links = this.commonService.getVisibleLinks().map(link =>{ return {'source': link.source, 'target': link.target} });
+        const links = this.getRenderedLayoutLinks();
         let ticks = 20;
         let tickCount = 0;
 
@@ -1225,7 +2336,17 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         let childNodes: {id: string, parent: any, x: number, y: number, vx?:number, vy?:number, size: number}[] = [];
 
         this.cy.nodes().forEach(node => {
+            if (node.hasClass('hidden')) {
+                return;
+            }
+
             if (node.children().length > 0) {
+                const renderedChildren = node.children()
+                    .filter((child: any) => this.isRenderedLayoutNode(child as cytoscape.NodeSingular));
+                if (renderedChildren.length === 0) {
+                    return;
+                }
+
                 //console.log(node);
                 parentNodes.push({
                     id: node.id(),
@@ -1245,7 +2366,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             } else {
                 parentNodes.push({
                     id: node.id(),
-                    max_dim: 35,
+                    max_dim: Math.max(node.width(), node.height()),
                     x: node.position('x'),
                     y: node.position('y'),
                     group: false,
@@ -1343,7 +2464,40 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         }
         if (!links || links.length === 0) {
             this.assignNoLinkGridPositions(nodes, initial || nodes.some(node => !this.hasFinitePosition(node)));
-            return { nodes, links, tickBatches: 0, ticksPerYield: 0 };
+
+            if (!nodes.some(node => node?.isCollapsedAggregate === true)) {
+                return { nodes, links, tickBatches: 0, ticksPerYield: 0 };
+            }
+
+            const layoutOrigins = new Map<any, { x: number; y: number }>(
+                nodes.map(node => [node, { x: Number(node.x), y: Number(node.y) }])
+            );
+            const collisionSimulation = d3.forceSimulation(nodes)
+                .force(
+                    'x',
+                    d3.forceX((node: any) => layoutOrigins.get(node)?.x ?? 0).strength(0.05)
+                )
+                .force(
+                    'y',
+                    d3.forceY((node: any) => layoutOrigins.get(node)?.y ?? 0).strength(0.05)
+                )
+                .force(
+                    'collide',
+                    d3.forceCollide()
+                        .radius((node: any) => this.getNodeCollisionRadius(node))
+                        .strength(1)
+                        .iterations(3)
+                )
+                .stop();
+            const collisionTicks = Math.min(ticks, 60);
+            const ticksPerYield = this.getD3TicksPerYield(nodes, links);
+            const tickBatches = await this.runStoppedD3Ticks(
+                collisionSimulation,
+                collisionTicks,
+                ticksPerYield
+            );
+
+            return { nodes, links, tickBatches, ticksPerYield };
         }
         let simulation;
         if (initial) {
@@ -1357,7 +2511,13 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                 .force('charge', d3.forceManyBody().strength(-30))
                 .force('link', d3.forceLink(links).id((d: any) => d.id).distance(this.SelectedLinkLengthVariable))
                 .force('center', d3.forceCenter(0, 0))
-                .force('collide', d3.forceCollide().radius(d => this.mapNodeSize(d.nodeSize ? d.nodeSize : this.widgets['node-radius'])))
+                .force(
+                    'collide',
+                    d3.forceCollide()
+                        .radius((node: any) => this.getNodeCollisionRadius(node))
+                        .strength(1)
+                        .iterations(2)
+                )
                 .force('x', d3.forceX().strength(.005))
                 .force('y', d3.forceY().strength(.005))
                 .stop(); 
@@ -1391,6 +2551,10 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         const nodeId = node.id();
         // This is for REAL user events. It reads the now-updated position from Cytoscape.
         const newPosition = node.position(); 
+        if (node.data('isCollapsedAggregate')) {
+            this.nodePositions.set(nodeId, newPosition);
+            return;
+        }
         this.commonService.updateNodePosition(nodeId, newPosition);
     }
     /** Initializes the view.
@@ -1405,11 +2569,6 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
 
         console.log('--- TwoD InitView called');
 
-        this.gtmService.pushTag({
-            event: "page_view",
-            page_location: "/2d_network",
-            page_title: "2D Network View"
-        });
         this.IsDataAvailable = (this.commonService.session.data.nodes.length === 0 ? false : true);
         if (!this.widgets['default-distance-metric']) {
             this.widgets['default-distance-metric'] =
@@ -1417,6 +2576,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             this.widgets['link-threshold'] =
                 this.commonService.GlobalSettingsModel.SelectedLinkThresholdVariable;
         }
+        this.ensureNodeCollapseWidgetDefaults();
 
         // Subscribe to style file applied event
         this.styleFileSub = this.store.styleFileApplied$.subscribe(() => {
@@ -1600,9 +2760,9 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
     /**
      * Opens Global Setting Dialog
      */
-    showGlobalSettings() {
+    showGlobalSettings(event?: MouseEvent) {
         //console.log("threshold: ",  this.commonService.GlobalSettingsModel.SelectedLinkThresholdVariable);
-        this.DisplayGlobalSettingsDialogEvent.emit("Styling");
+        this.DisplayGlobalSettingsDialogEvent.emit(createGlobalSettingsDialogRequest('Styling', event));
     }
 
 
@@ -1840,6 +3000,174 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         });
     }
 
+    private addCollapsedPieSvgExportImages(doc: XMLDocument): void {
+        if (!this.cy) {
+            return;
+        }
+
+        const svgNamespace = 'http://www.w3.org/2000/svg';
+        const xlinkNamespace = 'http://www.w3.org/1999/xlink';
+        const svgRoot = doc.documentElement;
+        let definitions = doc.getElementsByTagName('defs')[0];
+        if (!definitions) {
+            definitions = doc.createElementNS(svgNamespace, 'defs') as SVGDefsElement;
+            svgRoot.insertBefore(definitions, svgRoot.firstChild);
+        }
+
+        const rootGroup = Array.from(svgRoot.children)
+            .find(element => element.tagName.toLowerCase() === 'g');
+        const graphGroup = rootGroup
+            ? Array.from(rootGroup.children).find(element => (
+                element.tagName.toLowerCase() === 'g'
+                && element.hasAttribute('transform')
+            ))
+            : null;
+
+        if (!graphGroup) {
+            return;
+        }
+
+        const trailingTransformReset = Array.from(graphGroup.children)
+            .find(element => element.tagName.toLowerCase() === 'g' && element.childElementCount === 0) || null;
+
+        this.cy.nodes(':visible')
+            .filter((node: any) => (
+                node.data('isCollapsedAggregate') === true
+                && String(node.data('pieBackgroundImage') || '').startsWith('data:image/')
+            ))
+            .forEach((node: any, index: number) => {
+                const href = String(node.data('pieBackgroundImage'));
+                const width = Number(node.width());
+                const height = Number(node.height());
+                const position = node.position();
+                if (
+                    !Number.isFinite(width)
+                    || !Number.isFinite(height)
+                    || width <= 0
+                    || height <= 0
+                    || !Number.isFinite(position?.x)
+                    || !Number.isFinite(position?.y)
+                ) {
+                    return;
+                }
+
+                const x = position.x - (width / 2);
+                const y = position.y - (height / 2);
+                const matchTolerance = Math.max(4, (width + height) * 0.1);
+                const existingImage = Array.from(doc.getElementsByTagName('image'))
+                    .find(image => {
+                        const imageHref = this.getSvgImageHref(image);
+                        if (
+                            !imageHref
+                            || !imageHref.startsWith('data:image/')
+                            || image.getAttribute('data-microbetrace-collapsed-pie-image') === 'true'
+                            || !this.hasClipPathAncestor(image)
+                        ) {
+                            return false;
+                        }
+
+                        if (imageHref === href) {
+                            return true;
+                        }
+
+                        const imageTranslate = this.getSvgTranslateTransform(image);
+                        const imageX = imageTranslate?.x ?? this.getSvgLengthAttribute(image, 'x');
+                        const imageY = imageTranslate?.y ?? this.getSvgLengthAttribute(image, 'y');
+                        const imageWidth = this.getSvgLengthAttribute(image, 'width');
+                        const imageHeight = this.getSvgLengthAttribute(image, 'height');
+                        if (imageX === null || imageY === null || imageWidth === null || imageHeight === null) {
+                            return false;
+                        }
+
+                        const score = Math.abs(imageX - x)
+                            + Math.abs(imageY - y)
+                            + Math.abs(imageWidth - width)
+                            + Math.abs(imageHeight - height);
+                        return score <= matchTolerance;
+                    });
+                if (existingImage) {
+                    existingImage.setAttribute('data-microbetrace-collapsed-pie-image', 'true');
+                    return;
+                }
+
+                const clipId = `microbetrace-collapsed-pie-clip-${index}`;
+                const clipPath = doc.createElementNS(svgNamespace, 'clipPath');
+                clipPath.setAttribute('id', clipId);
+                clipPath.setAttribute('clipPathUnits', 'userSpaceOnUse');
+
+                const clipCircle = doc.createElementNS(svgNamespace, 'circle');
+                clipCircle.setAttribute('cx', `${position.x}`);
+                clipCircle.setAttribute('cy', `${position.y}`);
+                clipCircle.setAttribute('r', `${Math.min(width, height) / 2}`);
+                clipPath.appendChild(clipCircle);
+                definitions.appendChild(clipPath);
+
+                const clippedGroup = doc.createElementNS(svgNamespace, 'g');
+                clippedGroup.setAttribute('clip-path', `url(#${clipId})`);
+
+                const image = doc.createElementNS(svgNamespace, 'image');
+                image.setAttribute('x', `${x}`);
+                image.setAttribute('y', `${y}`);
+                image.setAttribute('width', `${width}`);
+                image.setAttribute('height', `${height}`);
+                image.setAttribute('preserveAspectRatio', 'xMidYMid slice');
+                image.setAttribute('data-microbetrace-collapsed-pie-image', 'true');
+                image.setAttribute('href', href);
+                image.setAttributeNS(xlinkNamespace, 'xlink:href', href);
+                clippedGroup.appendChild(image);
+                graphGroup.insertBefore(clippedGroup, trailingTransformReset);
+            });
+    }
+
+    private addCollapsedPieSvgExportOutlines(doc: XMLDocument): void {
+        const svgNamespace = 'http://www.w3.org/2000/svg';
+        const borderWidth = Math.max(0, Number(this.widgets?.['node-border-width']) || 0);
+        if (borderWidth <= 0) {
+            return;
+        }
+
+        const images = Array.from(doc.getElementsByTagName('image'))
+            .filter(image => {
+                const href = this.getSvgImageHref(image);
+                return !!href
+                    && href.startsWith('data:image/')
+                    && image.getAttribute('data-microbetrace-collapsed-pie-image') === 'true'
+                    && this.hasClipPathAncestor(image);
+            });
+
+        images.forEach(image => {
+            if (!image.parentNode) {
+                return;
+            }
+
+            const imageWidth = this.getSvgLengthAttribute(image, 'width');
+            const imageHeight = this.getSvgLengthAttribute(image, 'height');
+            if (imageWidth === null || imageHeight === null || imageWidth <= 0 || imageHeight <= 0) {
+                return;
+            }
+
+            const imageX = this.getSvgLengthAttribute(image, 'x') ?? 0;
+            const imageY = this.getSvgLengthAttribute(image, 'y') ?? 0;
+            const radius = Math.max(0.1, (Math.min(imageWidth, imageHeight) / 2) - (borderWidth / 2));
+            const outline = doc.createElementNS(svgNamespace, 'circle');
+            outline.setAttribute('cx', `${imageX + (imageWidth / 2)}`);
+            outline.setAttribute('cy', `${imageY + (imageHeight / 2)}`);
+            outline.setAttribute('r', `${radius}`);
+            outline.setAttribute('fill', 'none');
+            outline.setAttribute('stroke', '#000000');
+            outline.setAttribute('stroke-width', `${borderWidth}`);
+            outline.setAttribute('stroke-opacity', '1');
+            outline.setAttribute('data-microbetrace-collapsed-pie-outline', 'true');
+
+            const imageTransform = image.getAttribute('transform');
+            if (imageTransform) {
+                outline.setAttribute('transform', imageTransform);
+            }
+
+            image.parentNode.insertBefore(outline, image.nextSibling);
+        });
+    }
+
     /**
      * Hides export pane, sets isExporting variable to true and calls exportWork2 to export the twoD network image
      */
@@ -1866,7 +3194,9 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             // Add 10px of padding around network
             const parser = new DOMParser();
             const doc = parser.parseFromString(content, 'image/svg+xml');
+            this.addCollapsedPieSvgExportImages(doc);
             this.replaceExportedCustomNodeImagesWithVectorShapes(doc);
+            this.addCollapsedPieSvgExportOutlines(doc);
             const svg1 = doc.documentElement;          
             svg1.setAttribute('height', (parseFloat(svg1.getAttribute('height'))+20).toString());
             svg1.setAttribute('width', (parseFloat(svg1.getAttribute('width'))+20).toString());
@@ -1945,7 +3275,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             display: "none"
         });
 
-        this.commonService.session.network.nodes.forEach(node => {
+        this.getSessionNetworkNodes().forEach(node => {
             node.selected = false;
         });
     }
@@ -1968,155 +3298,128 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         const countColumnName = microbeTrace?.getKeyTableColumnDisplayName('polygon-color', 'count', 'Count') ?? 'Count';
         const frequencyColumnName = microbeTrace?.getKeyTableColumnDisplayName('polygon-color', 'frequency', 'Frequency') ?? 'Frequency';
 
-        let polygonColorTable = $(tableSelector)
-            .empty()
-            .append(            
-                "<tr>" +
-                "<th class='p-1 table-header-row'><div class='header-content'><span contenteditable data-table-key='polygon-color' data-column-key='value'>" + valueColumnName + "</span><a class='sort-button sortName' style='cursor: pointer'>⇅</a></div></th>" +
-                `<th class='table-header-row tableCount' ${ this.widgets['polygon-color-table-counts'] ? "" : "style='display: none'"}><div class='header-content'><span contenteditable data-table-key='polygon-color' data-column-key='count'>${countColumnName}</span><a class='sort-button sortCount' style='cursor: pointer'>⇅</a></div></th>` +
-                `<th class='table-header-row tableFrequency' ${ this.widgets['polygon-color-table-frequencies'] ? "": "style='display: none'"}><div class='header-content'><span contenteditable data-table-key='polygon-color' data-column-key='frequency'>${frequencyColumnName}</span><a class='sort-button sortCount' style='cursor: pointer'>⇅</a></div></th>` +
-                "<th>Color</th>" +
-                "</tr>");
-            //.append(polygonHeader)
-            // .append(countHeader)
-            // .append((this.widgets["polygon-color-table-frequencies"] ? "<th>Frequency</th>" : ""))
-            // .append("<th>Color</th>");
-        
+        this.polygonColorTableHeaders = {
+            value: valueColumnName,
+            count: countColumnName,
+            frequency: frequencyColumnName
+        };
+
         if (!this.commonService.session.style['polygonValueNames']) this.commonService.session.style['polygonValueNames'] = {};
-        let aggregates = this.commonService.createPolygonColorMap().reduce((acc, item) => {
+        const aggregates = this.commonService.createPolygonColorMap().reduce((acc, item) => {
             acc[item.key] = item.values.length;
             return acc;
         }, {} as Record<string, number>)
-        let values = Object.keys(aggregates);
+        const values = Object.keys(aggregates);
 
-        // By default both are set to "DESC", if one changed the other is set to ""; Default sort is by counts DESC
         if (this.widgets["polygon-color-table-counts-sort"] == "ASC") {
-            values.sort(function (a, b) { return aggregates[a] - aggregates[b] });
+            values.sort((a, b) => aggregates[a] - aggregates[b]);
         } else if (this.widgets["polygon-color-table-name-sort"] == "ASC") {
-            values.sort(function (a, b) { return a as any - (b as any) });
+            values.sort((a, b) => String(a).localeCompare(String(b)));
         } else if (this.widgets["polygon-color-table-counts-sort"] == "DESC") {
-            values.sort(function (a, b) { return aggregates[b] - aggregates[a] });
-        } else { // if (this.widgets["polygon-color-table-name-sort"] == "DESC")
-            values.sort(function (a, b) { return b as any - (a as any) });
+            values.sort((a, b) => aggregates[b] - aggregates[a]);
+        } else {
+            values.sort((a, b) => String(b).localeCompare(String(a)));
         }
 
         let total = 0;
         values.forEach(d => total += aggregates[d]);
 
-        let that = this;
+        this.polygonColorRows = values.map(value => {
+            const polygonValueNames = this.commonService.session.style['polygonValueNames'];
+            const displayName = Object.prototype.hasOwnProperty.call(polygonValueNames, value)
+                ? polygonValueNames[value]
+                : this.commonService.titleize(String(value));
+            const polygonGroup = this.commonService.temp.polygonGroups.find(x => x.key == value);
 
-        values.forEach((value, i) => {
-            let colorinput = $('<input type="color" value="' + that.commonService.temp.style.polygonColorMap(value) + '" style="opacity:' + that.commonService.temp.style.polygonAlphaMap(value) +'; border:none">')
-                .on("change", function (e) {
-                    let locInPolygonColors = that.commonService.temp.polygonGroups.find(x => x.key == value).index
-                    // need to update the value in the dom which is used when exportings
-                    e.currentTarget.attributes[1].value = e.target['value'];
-                    e.currentTarget.style['opacity'] = that.commonService.temp.style.polygonAlphaMap(value);
-
-                    that.commonService.session.style['polygonColors'].splice(locInPolygonColors, 1, $(this).val() as string);
-                    that.commonService.createPolygonColorMap()
-                    that.updateGroupNodeColors();
-                });
-            let alphainput = $("<a class='transparency-symbol'>⇳</a>").on("click", e => {
-                $("#color-transparency-wrapper").css({
-                    top: e.clientY + 129,
-                    left: e.clientX,
-                    display: "block"
-                });
-                $("#color-transparency")
-                    .off("change")
-                    .val(that.commonService.temp.style.polygonAlphaMap(value))
-                    .one("change", function () {
-                        let locInPolygonAlphas = that.commonService.temp.polygonGroups.find(x => x.key == value).index
-                        that.commonService.session.style['polygonAlphas'].splice(locInPolygonAlphas, 1, parseFloat($(this).val() as string));
-                        that.commonService.temp.style.polygonAlphaMap = d3
-                            .scaleOrdinal(that.commonService.session.style['polygonAlphas'])
-                            .domain(that.commonService.temp.polygonGroups.map(d => d.key));
-                        $("#color-transparency-wrapper").fadeOut();
-                        colorinput.trigger('change', that.commonService.temp.style.polygonColorMap(value))
-                    });
-            });
-            let cell = $("<td></td>")
-                .append(colorinput)
-                .append(alphainput);
-
-            let row = $(
-                "<tr>" +
-                "<td data-value='" + value + "'>" +
-                (that.commonService.session.style['polygonValueNames'][value] ? that.commonService.session.style['polygonValueNames'][value] : that.commonService.titleize("" + value)) +
-                "</td>" +
-                `<td class='tableCount' ${that.widgets["polygon-color-table-counts"] ? "" : "style='display: none'"}>${aggregates[value]}</td>` + 
-                `<td class='tableFrequency' ${that.widgets["polygon-color-table-frequencies"] ? "" : "style='display: none'"}>${(aggregates[value] / total).toLocaleString()}</td>` +
-                "</tr>"
-            ).append(cell);
-
-            polygonColorTable.append(row);
+            return {
+                rawValue: value,
+                trackKey: `polygon-color-${String(value)}`,
+                displayName,
+                count: aggregates[value],
+                frequency: total === 0 ? '' : (aggregates[value] / total).toLocaleString(),
+                color: this.commonService.temp.style.polygonColorMap(value),
+                alpha: this.commonService.temp.style.polygonAlphaMap(value),
+                index: polygonGroup?.index
+            };
         });
 
-        // PRE D3
-        // this.commonService.temp.style.polygonColorMap = d3
-        //   .scaleOrdinal(this.commonService.session.style['polygonColors'])
-        //   .domain(values);
-        //   this.commonService.temp.style.polygonAlphaMap = d3
-        //   .scaleOrdinal(this.commonService.session.style['polygonAlphas'])
-        //   .domain(values);
+        this.cdref.markForCheck();
+    }
 
-        polygonColorTable
-            .find("td[data-value]")
-            .on("dblclick", function () {
-                $(this).attr("contenteditable", "true").focus();
-            })
-            .on("focusout", function () {
-                let $this = $(this);
-                $this.attr("contenteditable", "false");
-                that.commonService.session.style['polygonValueNames'][$this.data("value")] = $this.text();
-            });
+    onPolygonKeyTableColumnNameChange(change: StyleKeyTableColumnNameChange): void {
+        this.commonService.visuals.microbeTrace?.setKeyTableColumnDisplayName(
+            change.table,
+            change.column,
+            change.displayName
+        );
+        this.cdref.markForCheck();
+    }
 
-        polygonColorTable
-            .find("[data-table-key][data-column-key]")
-            .on("focusout", function (event) {
-                const cell = event.currentTarget as HTMLElement;
-                microbeTrace?.setKeyTableColumnDisplayName(
-                    String(cell.getAttribute('data-table-key')),
-                    String(cell.getAttribute('data-column-key')),
-                    cell.textContent ?? ''
+    onPolygonColorRowNameChange(change: StyleKeyTableRowNameChange): void {
+        if (!this.commonService.session.style['polygonValueNames']) {
+            this.commonService.session.style['polygonValueNames'] = {};
+        }
+
+        this.commonService.session.style['polygonValueNames'][String(change.value)] = change.displayName;
+        this.cdref.markForCheck();
+    }
+
+    onPolygonColorTableColorChange(change: StyleKeyTableColorChange): void {
+        const polygonGroup = this.commonService.temp.polygonGroups.find(x => x.key == change.value);
+        const locInPolygonColors = polygonGroup?.index ?? change.row.index;
+        if (locInPolygonColors === undefined || locInPolygonColors === null) {
+            return;
+        }
+
+        this.commonService.session.style['polygonColors'].splice(locInPolygonColors, 1, change.color);
+        this.commonService.createPolygonColorMap();
+        this.updatePolygonColors();
+        this.updateGroupNodeColors();
+    }
+
+    onPolygonColorAlphaRequested(request: StyleKeyTableAlphaRequest): void {
+        $("#color-transparency-wrapper").css({
+            top: request.event.clientY + 129,
+            left: request.event.clientX,
+            display: "block"
+        });
+
+        $("#color-transparency")
+            .off("change")
+            .val(this.commonService.temp.style.polygonAlphaMap(request.value))
+            .one("change", event => {
+                const polygonGroup = this.commonService.temp.polygonGroups.find(x => x.key == request.value);
+                const locInPolygonAlphas = polygonGroup?.index ?? request.row.index;
+                if (locInPolygonAlphas === undefined || locInPolygonAlphas === null) {
+                    return;
+                }
+
+                this.commonService.session.style['polygonAlphas'].splice(
+                    locInPolygonAlphas,
+                    1,
+                    parseFloat((event.target['value'] as string))
                 );
+                this.commonService.temp.style.polygonAlphaMap = d3
+                    .scaleOrdinal(this.commonService.session.style['polygonAlphas'])
+                    .domain(this.commonService.temp.polygonGroups.map(d => d.key));
+                $("#color-transparency-wrapper").fadeOut();
+                this.updatePolygonColors();
+                this.updateGroupNodeColors();
             });
+    }
 
-
-        // The sorting functionality is added here
-        $(tableSelector).off('click', 'th .sort-button').on('click', 'th .sort-button', function (e) {
-            let isAscending: boolean;
-            let index: number;
-            if (e.currentTarget.classList.value.includes('sortName')) {
-                index = 0;
-                isAscending = that.widgets["polygon-color-table-name-sort"] == "DESC" ? true : false;
-                that.widgets["polygon-color-table-name-sort"] = isAscending ? "ASC" : "DESC";
-                that.widgets["polygon-color-table-counts-sort"] = "";
-            } else {
-                index = 1;
-                isAscending = that.widgets["polygon-color-table-counts-sort"] == "DESC" ? true : false;
-                that.widgets["polygon-color-table-counts-sort"] = isAscending ? "ASC" : "DESC";
-                that.widgets["polygon-color-table-name-sort"] = "";
-            }
-            let table = $(this).parents('table').eq(0);
-            let rows = table.find('tr:gt(0)').toArray().sort(comparer(index));
-            if (!isAscending) { rows = rows.reverse(); }
-            for (let i = 0; i < rows.length; i++) { table.append(rows[i]); }
-        });
-
-        function comparer(index) {
-            return function (a, b) {
-                let valA = getCellValue(a, index), valB = getCellValue(b, index);
-                console.log(`Comparing: ${valA} and ${valB}`);  // New line
-                return !isNaN(Number(valA)) && !isNaN(Number(valB)) ? Number(valA) - Number(valB) : valA.toString().localeCompare(valB);
-            }
+    onPolygonColorSort(column: StyleKeyTableSortColumn): void {
+        if (column === 'value') {
+            const isAscending = this.widgets["polygon-color-table-name-sort"] === "DESC";
+            this.widgets["polygon-color-table-name-sort"] = isAscending ? "ASC" : "DESC";
+            this.widgets["polygon-color-table-counts-sort"] = "";
+        } else {
+            const isAscending = this.widgets["polygon-color-table-counts-sort"] === "DESC";
+            this.widgets["polygon-color-table-counts-sort"] = isAscending ? "ASC" : "DESC";
+            this.widgets["polygon-color-table-name-sort"] = "";
         }
 
-        function getCellValue(row, index) {
-            return $(row).children('td').eq(index).text();
-        }
-
+        this.updatePolygonColors();
     }
 
     private getDockedPolygonColorTableSelector(): string {
@@ -2130,14 +3433,15 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
     }
 
     private clearPolygonColorTables(): void {
-        $('#polygon-color-table').empty();
-        $(this.getDockedPolygonColorTableSelector()).empty();
+        this.polygonColorRows = [];
+        this.cdref.markForCheck();
     }
 
     public getPolygonColorTableElementForExport(): HTMLTableElement | undefined {
-        return this.isPolygonColorTableDocked
-            ? document.querySelector(this.getDockedPolygonColorTableSelector()) as HTMLTableElement | undefined
-            : this.polygonColorTable?.nativeElement;
+        const selector = this.isPolygonColorTableDocked
+            ? this.getDockedPolygonColorTableSelector()
+            : '#polygon-color-table';
+        return document.querySelector(selector) as HTMLTableElement | undefined;
     }
 
     private normalizePolygonColorTableDisplayMode(value: any): PolygonColorTableDisplayMode {
@@ -2184,7 +3488,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
     }
 
     public clearDockedPolygonColorTable(): void {
-        $(this.getDockedPolygonColorTableSelector()).empty();
+        this.cdref.markForCheck();
     }
 
     public dockPolygonColorTableIfVisible(): boolean {
@@ -2324,11 +3628,20 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
      * That widget controls whether polygons are shown or not
      * 
      */
-    polygonsToggle(flag: boolean) {
+    polygonsToggle(flag: boolean, refreshCollapse: boolean = true) {
 
         this.widgets['polygons-show'] = flag;
 
-        this.updateNodeGrouping(flag);
+        if (!flag) {
+            this.updateNodeGrouping(false);
+        }
+
+        if (refreshCollapse && this.isNodeCollapseEnabled()) {
+            this.refreshNodeCollapseRender();
+        } else if (flag) {
+            this.updateNodeGrouping(flag);
+        }
+        this.cdref.markForCheck();
 
         if (flag) {
             this.applyPolygonLabelStyle();
@@ -2337,7 +3650,8 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             //$('.polygons-label-row').slideUp();
             $("#polygon-color-table-row").slideUp();
             $("#polygon-color-value-row").slideUp();
-            $("#polygon-color-table").empty();
+            this.polygonColorRows = [];
+            this.cdref.markForCheck();
         }
 
         this.syncPolygonColorTableVisibility();
@@ -2371,10 +3685,16 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
      * @param cy Cytoscape instance
      */
     private addParentNodesAndGroupChildren(cy: cytoscape.Core): void {
+        // Rebuild compound parents from the currently rendered children. Reusing
+        // the previous parents leaves groups missing when filters reveal nodes
+        // that were hidden during the prior grouping pass.
+        this.removeParentNodesAndUngroupChildren(cy);
+
         const groupMap: Map<string, cytoscape.NodeSingular[]> = new Map();
         let foci = this.commonService.session.style.widgets['polygons-foci'];
+        const includeHiddenNodes = !this.isNodeCollapseEnabled();
         cy.nodes().forEach(node => {
-            if (node.hasClass('parent')) {
+            if (node.hasClass('parent') || (!includeHiddenNodes && node.hasClass('hidden'))) {
                 return;
             }
 
@@ -2420,18 +3740,15 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                     classes: 'parent' // Assigning the 'parent' class
                 });
             }
+
+            const parent = cy.getElementById(parentId);
+            const hasVisibleChild = nodesInGroup.some(node => !node.hasClass('hidden'));
+            parent.toggleClass('hidden', !hasVisibleChild);
         });
 
-        cy.nodes().forEach(node => {
-            if (node.hasClass('parent')) {
-                return;
-            }
-
-            const group = this.getCyNodeGroupingKey(node, foci);
-            if (group !== null) {
-                const parentId = `group-${group}`;
-                node.move({ parent: parentId });
-            }
+        groupMap.forEach((nodesInGroup, group) => {
+            const parentId = `group-${group}`;
+            nodesInGroup.forEach(node => node.move({ parent: parentId }));
         });
 
           // **Step 6:** Create and Assign the `groups` Object for polygonGroups
@@ -2513,7 +3830,8 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             this.widgets['polygons-color-show'] = false;
             $("#polygon-color-value-row").slideDown();
             $("#polygon-color-table-row").slideUp();
-            $("#polygon-color-table").empty();
+            this.polygonColorRows = [];
+            this.cdref.markForCheck();
             this.syncPolygonColorTableVisibility();
             setTimeout(() => {
                 // first removes polygons, if needed second call add them back
@@ -2562,7 +3880,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         let vlinks = this.commonService.getVisibleLinks(true);
         let output = [];
         let n = vlinks.length;
-        let nodes = this.commonService.session.network.nodes;
+        let nodes = this.getSessionNetworkNodes();
         for (let i = 0; i < n; i++) {
             if (vlinks[i].origin) {
                 if (typeof vlinks[i].origin === 'object') {
@@ -2573,8 +3891,8 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                                 origin: o,
                                 oNum: j,
                                 origins: l.length,
-                                source: nodes.find(d => d._id === vlinks[i].source || d.id === vlinks[i].source),
-                                target: nodes.find(d => d._id === vlinks[i].target || d.id === vlinks[i].target)
+                                source: this.getSessionNetworkNodeByEndpoint(nodes, vlinks[i].source),
+                                target: this.getSessionNetworkNodeByEndpoint(nodes, vlinks[i].target)
                             });
                             output.push(holder);
                         });
@@ -2582,8 +3900,8 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                         const holder = Object.assign({}, vlinks[i], {
                             oNum: 0,
                             origins: 1,
-                            source: nodes.find(d => d._id === vlinks[i].source || d.id === vlinks[i].source),
-                            target: nodes.find(d => d._id === vlinks[i].target || d.id === vlinks[i].target)
+                            source: this.getSessionNetworkNodeByEndpoint(nodes, vlinks[i].source),
+                            target: this.getSessionNetworkNodeByEndpoint(nodes, vlinks[i].target)
                         });
                         output.push(holder);
                     }
@@ -2591,8 +3909,8 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                     const holder = Object.assign({}, vlinks[i], {
                         oNum: 0,
                         origins: 1,
-                        source: nodes.find(d => d._id === vlinks[i].source || d.id === vlinks[i].source),
-                        target: nodes.find(d => d._id === vlinks[i].target || d.id === vlinks[i].target)
+                        source: this.getSessionNetworkNodeByEndpoint(nodes, vlinks[i].source),
+                        target: this.getSessionNetworkNodeByEndpoint(nodes, vlinks[i].target)
                     });
                     //console.log(holder);
                     output.push(holder);
@@ -2602,8 +3920,8 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                     origin: 'Unknown',
                     oNum: 0,
                     origins: 1,
-                    source: nodes.find(d => d._id === vlinks[i].source || d.id === vlinks[i].source),
-                    target: nodes.find(d => d._id === vlinks[i].target || d.id === vlinks[i].target)
+                    source: this.getSessionNetworkNodeByEndpoint(nodes, vlinks[i].source),
+                    target: this.getSessionNetworkNodeByEndpoint(nodes, vlinks[i].target)
                 });
                 output.push(holder);
             }
@@ -2624,9 +3942,10 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
     getLLinks() {
         let vlinks = this.commonService.getVisibleLinks(true);
         let n = vlinks.length;
+        const nodes = this.getSessionNetworkNodes();
         for (let i = 0; i < n; i++) {
-            vlinks[i].source = this.commonService.session.network.nodes.find(d => d._id == vlinks[i].source);
-            vlinks[i].target = this.commonService.session.network.nodes.find(d => d._id == vlinks[i].target);
+            vlinks[i].source = this.getSessionNetworkNodeByEndpoint(nodes, vlinks[i].source);
+            vlinks[i].target = this.getSessionNetworkNodeByEndpoint(nodes, vlinks[i].target);
         }
         return vlinks;
     };
@@ -2781,9 +4100,10 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
      * Generate a tabular HTML string from the data array
      * @param data [ [Col1, ...], ...] - An Array of arrays where arrays within outer array represent different rows and
      *  values within inner array represent the cells within that row
+     * @param headers Optional table header cells
      * @returns an HTML string with a table representation of the data
      */
-    tabulate(data: any[]) {
+    tabulate(data: any[], headers: any[] = []) {
 
         let tableHtml = `
             <style>
@@ -2812,7 +4132,17 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                 background-color: #fff;
             }
             </style>
-            <table id="tooltip-table"><tbody>`;
+            <table id="tooltip-table">`;
+
+        if (headers.length > 0) {
+            tableHtml += '<thead><tr>';
+            for (let header of headers) {
+                tableHtml += '<th>' + header + '</th>';
+            }
+            tableHtml += '</tr></thead>';
+        }
+
+        tableHtml += '<tbody>';
 
         for (let row of data) {
             tableHtml += '<tr>';
@@ -2841,15 +4171,35 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
           this.selectedNodeId = d.id;
         }
 
-        let tt_var_len = this.widgets['node-tooltip-variable'].length
         let tooltipHtml: string;
 
-        if (tt_var_len == 0) {
-          return null;
-        } else if (tt_var_len == 1) {
-         tooltipHtml =  `${d[this.widgets['node-tooltip-variable'][0]]}`
+        if (d.isCollapsedAggregate) {
+          const totalCount = Number(d.totalCount || 0);
+          const colorVariable = this.commonService.capitalize(this.widgets['node-color-variable']);
+          const collapseMetric = this.getNodeCollapseMetric();
+          const meanDistanceLabel = `Mean Distance (${this.getNodeCollapseMetricLabel(collapseMetric)})`;
+          const meanDistanceValue = this.formatNodeCollapseDistanceForDisplay(d.meanInternalDistance, collapseMetric);
+          const countRows = (d.counts || []).map(count => {
+            const countValue = Number(count.count || 0);
+            const percent = totalCount > 0 ? (countValue / totalCount * 100).toFixed(1) + '%' : '0.0%';
+            return [count.label, countValue, percent];
+          });
+
+          tooltipHtml = this.tabulate([
+            ...countRows,
+            ['Total', totalCount, ''],
+            [meanDistanceLabel, meanDistanceValue, '']
+          ], [colorVariable, 'Count', '%']);
         } else {
-          tooltipHtml =  this.tabulate(this.widgets['node-tooltip-variable'].map(variable => [this.titleize(variable), d[variable]]))
+          let tt_var_len = this.widgets['node-tooltip-variable'].length
+
+          if (tt_var_len == 0) {
+            return null;
+          } else if (tt_var_len == 1) {
+           tooltipHtml =  `${d[this.widgets['node-tooltip-variable'][0]]}`
+          } else {
+            tooltipHtml =  this.tabulate(this.widgets['node-tooltip-variable'].map(variable => [this.titleize(variable), d[variable]]))
+          }
         }
 
         let [X, Y] = this.getRelativeMousePosition(event);
@@ -2955,14 +4305,18 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
      * This is called when the variable used to grouped by/created polygons is changed
      * 
      */
-    async centerPolygons(e, updateLayout: boolean = true) {
+    async centerPolygons(e, updateLayout: boolean = true, refreshCollapse: boolean = true) {
 
         this.widgets['polygons-foci'] = e;
+        if (refreshCollapse && this.isNodeCollapseEnabled()) {
+            this.refreshNodeCollapseRender();
+            return;
+        }
+
         if (this.shouldChunkLargeNoLinkLayout()) {
             this.updateGroupAssignmentsNoLinkFast(e);
             if (this.widgets['polygons-color-show'] == true) {
                 console.log('centerPolygons: show ');
-                $("#polygon-color-table").empty();
                 this.updatePolygonColors();
                 this.updateGroupNodeColors();
             }
@@ -2971,7 +4325,6 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
 
         if (this.widgets['polygons-color-show'] == true) {
             console.log('centerPolygons: show ');
-            $("#polygon-color-table").empty();
             this.updateGroupAssignments(e);
             this.updatePolygonColors();
             this.updateGroupNodeColors();
@@ -2989,7 +4342,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
     async updateLayout(): Promise<void> {
         if (this.commonService.session.style.widgets['polygons-show'] == false || this.commonService.session.style.widgets['polygons-foci'] == 'None') {
             await this._partialUpdate();
-        } else if (this.commonService.getVisibleLinks().length === 0) {
+        } else if (this.getRenderedLayoutLinks().length === 0) {
             await this.applyNoLinkGroupedLayout(this.commonService.session.style.widgets['polygons-foci']);
         } else {
             await this.gatherGroups();
@@ -3026,8 +4379,13 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
     
             // Determine new groups based on foci
             const groupMap: Map<string, cytoscape.NodeSingular[]> = new Map();
+            const includeHiddenNodes = !this.isNodeCollapseEnabled();
     
             cy.nodes().forEach(node => {
+                if (node.hasClass('parent') || (!includeHiddenNodes && node.hasClass('hidden'))) {
+                    return;
+                }
+
                 // if(node.data('id') === '30578_KF773488_D99cl05') {
                 //     console.log('nodeee1: ', node.data());
                 //     console.log('nodeee2: ', node.data(foci));
@@ -3072,11 +4430,19 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                 nodesInGroup.forEach(childNode => {
                     childNode.move({ parent: parentId });
                 });
+                parentNode.toggleClass(
+                    'hidden',
+                    !nodesInGroup.some(childNode => !childNode.hasClass('hidden'))
+                );
             });
     
             // Handle nodes without a group (optional)
             cy.nodes().forEach(node => {
-                if (!node.parent().length && this.getCyNodeGroupingKey(node, foci) !== null) {
+                if (
+                    !node.hasClass('parent')
+                    && !node.parent().length
+                    && this.getCyNodeGroupingKey(node, foci) !== null
+                ) {
                     node.move({ parent: null });
                 }
             });
@@ -3106,9 +4472,10 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
 
         const layoutStart = this.getPerformanceNow();
         const groupMap: Map<string, cytoscape.NodeSingular[]> = new Map();
+        const includeHiddenNodes = !this.isNodeCollapseEnabled();
 
         cy.nodes().forEach(node => {
-            if (node.hasClass('parent')) return;
+            if (node.hasClass('parent') || (!includeHiddenNodes && node.hasClass('hidden'))) return;
 
             const group = this.getCyNodeGroupingKey(node, foci);
             if (group !== null) {
@@ -3125,14 +4492,25 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             return;
         }
 
-        const groups = Array.from(groupMap.entries()).map(([key, values]) => ({ key, values }));
-        const spacing = this.getNodeLayoutSpacing();
+        const groups = Array.from(groupMap.entries()).map(([key, values]) => ({
+            key,
+            values,
+            visibleValues: values.filter(node => !node.hasClass('hidden'))
+        }));
+        const renderedNodes = groups.flatMap(group => group.visibleValues);
+        const spacing = Math.max(
+            this.getNodeLayoutSpacing(),
+            renderedNodes.reduce(
+                (largest, node) => Math.max(largest, this.getNodeCollisionRadius(node.data()) * 2),
+                0
+            )
+        );
         const groupColumns = Math.max(1, Math.ceil(Math.sqrt(groups.length)));
         const groupLayouts = groups.map(group => {
-            const columns = Math.max(1, Math.ceil(Math.sqrt(group.values.length)));
+            const columns = Math.max(1, Math.ceil(Math.sqrt(group.visibleValues.length)));
             return {
                 columns,
-                rows: Math.max(1, Math.ceil(group.values.length / columns))
+                rows: Math.max(1, Math.ceil(group.visibleValues.length / columns))
             };
         });
         const cellWidth = (Math.max(...groupLayouts.map(layout => layout.columns), 1) + 3) * spacing;
@@ -3167,10 +4545,10 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                         shape: 'rectangle',
                         bgOpacity: alphaVal,
                     },
-                    classes: 'parent'
+                    classes: group.visibleValues.length > 0 ? 'parent' : 'parent hidden'
                 });
 
-                group.values.forEach((node, nodeIndex) => {
+                group.visibleValues.forEach((node, nodeIndex) => {
                     node.position({
                         x: originX + offsetX + (nodeIndex % layout.columns) * spacing,
                         y: originY + offsetY + Math.floor(nodeIndex / layout.columns) * spacing
@@ -3427,6 +4805,10 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
 
     getNodeSize(node: any) {
 
+        if (node?.isCollapsedAggregate) {
+            return Number(node.nodeSize);
+        }
+
         let sizeVariable = this.widgets['node-radius-variable'];
 
         if (sizeVariable == 'None') {
@@ -3457,6 +4839,13 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
     }
 
     getNodeColor(node: any): [string, number] {
+        if (node?.isCollapsedAggregate) {
+            return [
+                node.nodeColor || this.widgets['node-color'],
+                Number.isFinite(Number(node.bgOpacity)) ? Number(node.bgOpacity) : 1
+            ];
+        }
+
         // If this node is a parent (polygon/group), keep using polygonColorMap
         if (node.isParent) {
             if (!this.commonService.session.style.widgets['polygons-color-show']) {
@@ -3553,6 +4942,9 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
     getNodeLabel(node: any) {
 
         // If no label variable then should be none
+        if (node?.isCollapsedAggregate) {
+            return (this.widgets['node-label-variable'] == 'None') ? '' : (node.label || `${node.totalCount || 0} nodes`);
+        }
         return (this.widgets['node-label-variable'] == 'None') ? '' : (String(node[this.widgets['node-label-variable']]) || '');
 
     }
@@ -3585,6 +4977,14 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         return usePercentageDisplay ? `${formattedValue}%` : formattedValue;
     }
 
+    private formatNodeCollapseDistanceForDisplay(value: any, metric: string): string {
+        if (String(metric || '').toLowerCase() === 'snps') {
+            return this.commonService.formatDisplayedDistanceValue(value, 'distance', { decimals: 0 });
+        }
+
+        return this.commonService.formatDisplayedDistanceValue(value, metric);
+    }
+
     /**
      * Gets the label for a link based on link label variable
      * @param link the link we retrieve to get the value of the variable
@@ -3609,6 +5009,9 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             } else if (labelVariable == 'target_index') { // currently doesn't work; previous link.source and link.target were object now they are just a string of the id
                 return { text: link['target'] }
                 //return link['target']['index']
+            } else if (labelVariable == 'label') {
+                const labelValue = this.getRawLinkLabel(link);
+                return { text: labelValue === undefined || labelValue === null ? '' : `${labelValue}` };
             } else if (labelVariable != 'distance') {
                 return { text: `${link[labelVariable]}`  || '' };
             }
@@ -3637,6 +5040,10 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             }
 
         }
+    }
+
+    private getRawLinkLabel(link: any): any {
+        return link?.mtRawLinkLabel ?? link?.label;
     }
 
 
@@ -3798,6 +5205,10 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
     public onNodeRadiusChange(e) {
 
         this.widgets['node-radius'] = this.SelectedNodeRadiusSizeVariable;
+        if (this.isNodeCollapseEnabled() && this.cy) {
+            this.refreshNodeCollapseRender();
+            return;
+        }
         this.updateNodeSizes(); // Update node sizes without rerendering the entire network
 
     }
@@ -3824,7 +5235,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
 
         if (!timelineTick) {
             // If the network is in the middle of rendering, don't rerender
-            if(this.commonService.session.network.rendering) {
+            if(this.isNetworkRendering()) {
                 this.recordTwoDRenderTiming('twoDRerenderSkipped', rerenderStart, {
                     reason: 'already-rendering',
                     timelineTick
@@ -3833,54 +5244,57 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             }
 
             // Set rendering to true to prevent actions during rerendering
-            this.commonService.session.network.rendering = true;
+            this.setNetworkRendering(true);
 
             // Set rendered to false so to prevent other changes.  Needed to check to differentiate network has rendered for the first time vs checking if rendering is false
             this.store.setNetworkRendered(false);
         }
 
+        if (timelineTick && this.cy) {
+            this.cacheCollapsedAggregatePositions();
+        }
+
+        const useTimelineFinalCollapseLayout = this.isTimelineFilteringActive()
+            && this.isNodeCollapseEnabled();
+        if (!useTimelineFinalCollapseLayout) {
+            this.clearTimelineFinalCollapsedAggregatePositions();
+        } else if (!timelineTick || !this.timelineFinalCollapsedLayoutReady) {
+            await this.refreshTimelineFinalCollapsedAggregatePositions(timelineTick);
+            if (this.isDestroyed) {
+                this.setNetworkRendering(false);
+                return;
+            }
+        }
+
         const collectDataStart = this.getPerformanceNow();
         let networkData = this.getVisibleNetworkDataForRender(timelineTick || this.isTimelineFilteringActive());
+        this.normalizeNetworkDataForCytoscape(networkData, false);
+        networkData = this.applyNodeCollapseToNetworkData(networkData);
+        this.normalizeNetworkDataForCytoscape(networkData, false);
         this.recordTwoDRenderTiming('twoDCollectVisibleGraphData', collectDataStart, {
             timelineTick,
             nodes: networkData.nodes.length,
             links: networkData.links.length
         });
 
-       
-        // Need to convert source and target to string ids for cytoscape
-        networkData.links.forEach((link) => {
-            // If link.source is an object, grab its _id and convert to string
-            if (typeof link.source === 'object') {
-            link.source = link.source._id.toString();
-            }
-
-            // Same for link.target
-            if (typeof link.target === 'object') {
-            link.target = link.target._id.toString();
-            }
-        });
-
-        const nodeIds = new Set(networkData.nodes.map(n => n.id));
-
-
        // Instead of calling synchronously, await the precomputation:
        if (!this.cy) {
         const precomputeStart = this.getPerformanceNow();
         const initialLayout = await this.precomputePositionsWithD3(networkData.nodes, networkData.links, 300);
-        const refinementLayout = await this.precomputePositionsWithD3(initialLayout.nodes, initialLayout.links, 5, false);
+        const refinementTicks = this.isNodeCollapseEnabled() ? 60 : 5;
+        const refinementLayout = await this.precomputePositionsWithD3(initialLayout.nodes, initialLayout.links, refinementTicks, false);
         const { nodes: laidOutNodes, links: laidOutLinks } = refinementLayout;
         this.recordTwoDRenderTiming('twoDPrecomputePositions', precomputeStart, {
             nodes: laidOutNodes.length,
             links: laidOutLinks.length,
-            ticks: 305,
+            ticks: 300 + refinementTicks,
             tickBatches: initialLayout.tickBatches + refinementLayout.tickBatches,
             initialTicksPerYield: initialLayout.ticksPerYield,
             refinementTicksPerYield: refinementLayout.ticksPerYield
         });
 
         if (this.isDestroyed || !this.cyContainer?.nativeElement) {
-            this.commonService.session.network.rendering = false;
+            this.setNetworkRendering(false);
             return;
         }
 
@@ -3891,37 +5305,22 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         // Update networkData with the precomputed positions
         networkData.nodes = laidOutNodes;
         networkData.links = laidOutLinks;
-
-
-        networkData.links.forEach((link, i) => {
-            // If link.source is an object, grab its _id and convert to string
-            if (typeof link.source === 'object') {
-            link.source = link.source._id.toString();
-            }
-        
-            // Same for link.target
-            if (typeof link.target === 'object') {
-            link.target = link.target._id.toString();
-            }
-        });
-
-
-        networkData.links.forEach(link => {
-            if (!nodeIds.has(link.source)) {
-                console.warn('Link source not found in nodes:', link.source, link);
-            }
-            if (!nodeIds.has(link.target)) {
-                console.warn('Link target not found in nodes:', link.target, link);
-            }
-        });
+        this.applyTimelineFinalCollapsedAggregatePositions(networkData.nodes);
        }
+
+        this.normalizeNetworkDataForCytoscape(networkData);
 
 
         // Update Cytoscape visualization if it exists
         if (this.cy && !timelineTick) {
         
             await this._partialUpdate();
-            this.ensurePolygon();
+            if (!this.cy || this.isDestroyed || !this.isCytoscapeUsable(this.cy)) {
+                this.setNetworkRendering(false);
+                return;
+            }
+            await this.ensurePolygon();
+            this.restoreTimelineFinalCollapsedAggregateCyPositions();
             this.recordTwoDRenderTiming('twoDRerender', rerenderStart, {
                 mode: 'partial',
                 timelineTick,
@@ -3956,6 +5355,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             if (this.commonService.session.style.widgets['polygons-show']) {
                 this.updateGroupAssignments(this.widgets['polygons-foci'], false);
             }
+            this.restoreTimelineFinalCollapsedAggregateCyPositions();
             this.recordTwoDRenderTiming('twoDRerender', rerenderStart, {
                 mode: 'timeline',
                 timelineTick,
@@ -4294,8 +5694,8 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                     console.log('twod 2323 polygons color show: ', this.commonService.session.style.widgets['polygons-color-show']);
                 }
 
-                this.polygonsToggle(true)
-                this.centerPolygons(this.commonService.session.style.widgets['polygons-foci']);
+                this.polygonsToggle(true, false)
+                this.centerPolygons(this.commonService.session.style.widgets['polygons-foci'], true, false);
                 if (this.debugMode) {
                     console.log('twod 11 polygons color show: ', this.commonService.session.style.widgets['polygons-color-show']);
                 }
@@ -4318,7 +5718,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
               // Mark as rendered
               this.store.setNetworkRendered(true);
               this.store.setNetworkUpdated(false);
-              this.commonService.session.network.rendering = false;
+              this.setNetworkRendering(false);
               this.commonService.demoNetworkRendered = true;
 
               if (this.pendingPartialUpdate) {
@@ -4348,12 +5748,16 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             console.log('--- TwoD DATA network rerender complete');
     }
 
-    ensurePolygon(updateLayout: boolean = true) {          
+    async ensurePolygon(updateLayout: boolean = true): Promise<void> {
             
         if (this.commonService.session.style.widgets['polygons-show']) {
 
-            this.polygonsToggle(true)
-            this.centerPolygons(this.commonService.session.style.widgets['polygons-foci'], updateLayout);
+            this.polygonsToggle(true, false)
+            await this.centerPolygons(
+                this.commonService.session.style.widgets['polygons-foci'],
+                updateLayout,
+                false
+            );
             this.cy.nodes().forEach(node => {
                 if (node.classes().includes('parent')) {
                     let numVisibleChildren = node.children().filter(child => child.visible()).length;
@@ -4368,6 +5772,10 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
     }
 
     public getNodeShape(node: any) {
+        if (node?.isCollapsedAggregate) {
+            return 'ellipse';
+        }
+
         return resolveNodeShapeForNode(
             node,
             this.commonService.session.style.widgets,
@@ -4390,6 +5798,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         if (table == 'polygon-color') {
             this.updateCountFreqTable(table);
         }
+        this.cdref.markForCheck();
     }
 
     /**
@@ -4417,6 +5826,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         if (tableName == 'polygon-color') {
             showCount = this.widgets['polygon-color-table-counts'];
             showFreq = this.widgets['polygon-color-table-frequencies'];
+            this.cdref.markForCheck();
         }
         const tableSelector = tableName == 'polygon-color'
             ? this.getActivePolygonColorTableSelector()
@@ -4458,8 +5868,21 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         });
     }
 
+    public refreshDistanceMetricSettings(): void {
+        this.ensureNodeCollapseWidgetDefaults();
+        this.updateLinkLabels();
+        this.syncNodeCollapseControlsFromWidgets();
+        this.cdref.detectChanges();
+
+        if (this.isNodeCollapseEnabled()) {
+            this.refreshNodeCollapseRender();
+        }
+    }
+
     refreshDistanceDisplayFormat(): void {
         this.updateLinkLabels();
+        this.syncNodeCollapseControlsFromWidgets();
+        this.cdref.detectChanges();
     }
 
     /**
@@ -4879,6 +6302,10 @@ private updateArrowStyles(): void {
 
         if(!this.cy) return;
 
+        if (this.isNodeCollapseEnabled()) {
+            this.refreshNodeCollapseRender();
+            return;
+        }
 
         let variable = this.widgets['node-color-variable'];
         let color = this.widgets['node-color']
@@ -5006,6 +6433,7 @@ scaleLinkWidth() {
         (this.Node2DNetworkExportDialogSettings.isVisible) ? this.Node2DNetworkExportDialogSettings.setVisibility(false) : this.Node2DNetworkExportDialogSettings.setVisibility(true);
         this.ShowStatistics = !this.Show2DSettingsPane;
         this.updateLinkWidthRows(this.SelectedLinkWidthByVariable);
+        this.syncNodeCollapseControlsFromWidgets();
     }
 
     /**
@@ -5103,22 +6531,20 @@ scaleLinkWidth() {
     // Retrieve fresh node/link data. Timeline renders only links whose
     // endpoints are currently timeline-visible, matching the statistics panel.
     const collectDataStart = this.getPerformanceNow();
-    const networkData = this.getVisibleNetworkDataForRender();
+    let networkData = this.getVisibleNetworkDataForRender();
     this.recordTwoDRenderTiming('twoDPartialCollectVisibleGraphData', collectDataStart, {
         nodes: networkData.nodes.length,
         links: networkData.links.length
     });
 
-    // Add nodeSize to each node so that infomration can be used with calcuating node position
-    if (this.SelectedNodeRadiusVariable == 'None') {
-        networkData.nodes.forEach(node => {
-            node.nodeSize = Number(this.widgets['node-radius']);
-        })
-    } else {
-        networkData.nodes.forEach(node => {
-            node.nodeSize = Number(cy.nodes().getElementById(node._id).data('nodeSize'));
-        })
-    }
+    // Keep layout collision sizing in sync with current style widgets.
+    networkData.nodes.forEach(node => {
+        node.nodeSize = Number(this.getNodeSize(node));
+    });
+    this.normalizeNetworkDataForCytoscape(networkData, false);
+    networkData = this.applyNodeCollapseToNetworkData(networkData);
+    this.normalizeNetworkDataForCytoscape(networkData);
+
     const precomputeStart = this.getPerformanceNow();
     const partialLayout = await this.precomputePositionsWithD3(networkData.nodes, networkData.links, 30, false);
     const { nodes: laidOutNodes, links: laidOutLinks } = partialLayout;
@@ -5129,6 +6555,8 @@ scaleLinkWidth() {
 
     networkData.nodes = laidOutNodes;
     networkData.links = laidOutLinks;
+    this.applyTimelineFinalCollapsedAggregatePositions(networkData.nodes);
+    this.normalizeNetworkDataForCytoscape(networkData);
     this.recordTwoDRenderTiming('twoDPartialPrecomputePositions', precomputeStart, {
         nodes: laidOutNodes.length,
         links: laidOutLinks.length,
@@ -5140,35 +6568,6 @@ scaleLinkWidth() {
     // Use batch mode to disable auto-panning during updates
     const batchStart = this.getPerformanceNow();
     cy.batch(() => {
-
-        networkData.nodes.forEach(node => {
-            node.id = node._id.toString();
-        });
-        networkData.links.forEach((link, i) => {
-            // Set a unique link id if desired
-            //link.id =  i.toString();  // or link.index.toString()
-            // If link.source is an object, grab its _id and convert to string
-            if (typeof link.source === 'object') {
-                link.source = link.source._id.toString();
-            }
-
-            // Same for link.target
-            if (typeof link.target === 'object') {
-            link.target = link.target._id.toString();
-            }
-        });
-
-        const nodeIds = new Set(networkData.nodes.map(n => n.id));
-
-        networkData.links.forEach(link => {
-        if (!nodeIds.has(link.source)) {
-            console.warn('Link source not found in nodes:', link.source, link);
-        }
-        if (!nodeIds.has(link.target)) {
-            console.warn('Link target not found in nodes:', link.target, link);
-        }
-        });
-
         if (this.debugMode) {
             console.log('--- TwoDComponent _partialUpdate called:  ', networkData.links);
         }
@@ -5183,10 +6582,14 @@ scaleLinkWidth() {
         // @ts-ignore
         const newLinkIds = new Set(newElements.edges.map(l => l.data.id));
 
-        let cyNodeCount = 0;
         // Update node visibility and restore positions
         cy.nodes().forEach(node => {
-            if (!node.hasClass('parent')) { cyNodeCount += 1;}
+            if (!newNodeIds.has(node.id()) && node.data('isCollapsedAggregate') === true) {
+                this.nodePositions.delete(node.id());
+                cy.remove(node);
+                return;
+            }
+
             if (!newNodeIds.has(node.id()) && !node.hasClass('parent')) {
                 // Hide node but keep its cached position
                 node.addClass('hidden');
@@ -5203,21 +6606,14 @@ scaleLinkWidth() {
             }
         });
 
-        // some series of operations (ie. min-cluster size set to 2, then playing timeline, then setting min-cluster size back to) led to nodes being removed from
-        // this.cy.nodes, this checks and adds them back
-        if (cyNodeCount < newElements.nodes.length) {
-            let countd = 0;
-            newElements.nodes.forEach(n => {
-                const cyNode = cy.getElementById(n.data.id);
-                if (!cyNode || !cyNode.length) {
-                    countd += 1;
-                    cy.add(n); // Add node
-                } else {
-                    return
-                }
-
-            });
-        }
+        // Always add missing render IDs. Collapse can reduce total nodes while
+        // introducing new aggregate IDs, so count-based checks are insufficient.
+        newElements.nodes.forEach(n => {
+            const cyNode = cy.getElementById(n.data.id);
+            if (!cyNode || !cyNode.length) {
+                cy.add(n);
+            }
+        });
 
         // Remove old edges
         cy.edges().forEach(edge => {
@@ -5231,9 +6627,13 @@ scaleLinkWidth() {
 
         // Add/Update new edges
         newElements.edges.forEach(e => {
-            const cyEdge = cy.getElementById(e.data.id);
+            let cyEdge = cy.getElementById(e.data.id);
             if (!cyEdge || !cyEdge.length) {
-                cy.add(e); // Add edge
+                cyEdge = cy.add(e); // Add edge
+            } else if (cyEdge.source().id() !== e.data.source || cyEdge.target().id() !== e.data.target) {
+                // Cytoscape edge endpoints are not retargeted by mutating data.
+                cy.remove(cyEdge);
+                cyEdge = cy.add(e);
             } else {
                 cyEdge.data({ ...cyEdge.data(), ...e.data }); // Update edge data
             }
@@ -5258,6 +6658,8 @@ scaleLinkWidth() {
         edges: cy.edges().length
     });
 
+        this.cacheCollapsedAggregatePositions();
+
         if (this.isDestroyed || this.cy !== cy || !this.isCytoscapeUsable(cy)) {
             return;
         }
@@ -5276,7 +6678,7 @@ scaleLinkWidth() {
            this.store.setNetworkRendered(true); 
            // Now we can set network update to false after its been updated fully
            this.store.setNetworkUpdated(false); 
-           this.commonService.session.network.rendering = false;
+           this.setNetworkRendering(false);
            this.recordTwoDRenderTiming('twoDPartialUpdate', partialUpdateStart, {
             nodes: cy.nodes().length,
             edges: cy.edges().length
@@ -5286,6 +6688,7 @@ scaleLinkWidth() {
 
     applyStyleFileSettings() {
         this.widgets = this.commonService.session.style.widgets;
+        this.ensureNodeCollapseWidgetDefaults();
         this.loadSettings();
         this._partialUpdate(); 
     }
@@ -5297,7 +6700,7 @@ scaleLinkWidth() {
         this.pendingPartialUpdate = false;
         this.destroy$.next();
         this.destroy$.complete();
-        this.commonService.session.network.rendering = false;
+        this.setNetworkRendering(false);
 
         this.styleFileSub.unsubscribe();
 
@@ -5332,6 +6735,7 @@ scaleLinkWidth() {
 
         console.log('onLoadNewData');
         this.widgets = this.commonService.session.style.widgets;
+        this.ensureNodeCollapseWidgetDefaults();
         this.IsDataAvailable = (this.commonService.session.data.nodes.length > 0);
 
         if (!this.IsDataAvailable) {
@@ -5384,6 +6788,7 @@ scaleLinkWidth() {
      * (ie. onPolygonLabelVariableChange, onPolygonLabelVariableChange, onPolygonLabelOrientationChange all call redrawPolygonLabels) XXXXX
      */
     loadSettings() {
+        this.ensureNodeCollapseWidgetDefaults();
 
         //Polygons|Label Size
         this.SelectedPolygonLabelSizeVariable = this.widgets['polygons-label-size'];
@@ -5394,7 +6799,7 @@ scaleLinkWidth() {
         this.SelectedPolygonLabelOrientationVariable = widgetPolygonOrientation == 'top' ? 'Top' : widgetPolygonOrientation == 'bottom' ? 'Bottom': widgetPolygonOrientation == 'middle'? 'Middle': widgetPolygonOrientation;
         this.onPolygonLabelOrientationChange(this.SelectedPolygonLabelOrientationVariable);
 
-        this.polygonsToggle(this.widgets['polygons-show']);
+        this.polygonsToggle(this.widgets['polygons-show'], false);
         if (this.commonService.session.style.widgets['polygons-show']) {
             this.polygonColorsToggle(this.commonService.session.style.widgets['polygons-color-show'], false);
             this.onPolygonColorTableChange(this.commonService.session.style.widgets['polygon-color-table-visible']);
@@ -5437,6 +6842,7 @@ scaleLinkWidth() {
         this.onNodeRadiusChange(this.SelectedNodeRadiusSizeVariable);
 
         this.nodeBorderWidth = this.widgets['node-border-width']
+        this.syncNodeCollapseControlsFromWidgets();
 
         //Links|Tooltip
         this.SelectedLinkTooltipVariable = this.widgets['link-tooltip-variable'];
@@ -5637,6 +7043,13 @@ scaleLinkWidth() {
                 return;
             }
 	            const fullNode = this.getFullNodeDataForCyNode(node);
+            if (fullNode?.isCollapsedAggregate) {
+                node.data('shapeKey', 'ellipse');
+                node.data('shape', 'ellipse');
+                node.removeData('iconBackgroundImage');
+                node.removeData('customIconKey');
+                return;
+            }
 	            const shapeKey = this.getNodeShape(fullNode);
 	            node.data('shapeKey', shapeKey);
             node.data('shape', resolveCustomNodeIconCytoscapeShape(shapeKey));
