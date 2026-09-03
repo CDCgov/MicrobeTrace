@@ -207,9 +207,9 @@ export function normalizeBootstrapSupportThreshold(value: unknown): number {
   return Math.min(100, Math.max(0, parsed));
 }
 
-export function formatBootstrapSupportPercent(value: unknown, decimalLength: unknown): string {
+export function formatBootstrapSupportLabel(value: unknown, decimalLength: unknown): string {
   const bounded = normalizeBootstrapSupportPercentValue(value);
-  return `${bounded.toFixed(normalizeBootstrapDecimalLength(decimalLength))}%`;
+  return bounded.toFixed(normalizeBootstrapDecimalLength(decimalLength));
 }
 
 export function normalizeBootstrapSupportPercentValue(value: unknown): number {

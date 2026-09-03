@@ -30,7 +30,7 @@ import {
   canonicalSplitKey,
   collectLeafIds,
   collectTreeSplitKeys,
-  formatBootstrapSupportPercent,
+  formatBootstrapSupportLabel,
   normalizeBootstrapDecimalLength,
   normalizeBootstrapReplicateCount,
   normalizeBootstrapSupportThreshold,
@@ -449,7 +449,7 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
     const supportValue = this.getBootstrapSupportForBranch(data);
     const selection = d3.select(label).interrupt();
     if (supportValue !== null) {
-      selection.text(formatBootstrapSupportPercent(supportValue, this.SelectedBootstrapDecimalLength));
+      selection.text(formatBootstrapSupportLabel(supportValue, this.SelectedBootstrapDecimalLength));
     }
     const meetsSupportThreshold = supportValue === null || supportValue >= this.SelectedBootstrapSupportThreshold;
     selection
