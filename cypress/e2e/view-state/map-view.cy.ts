@@ -537,10 +537,8 @@ describe('Map View', () => {
       cy.wait(100)
       cy.window().its('commonService.visuals.gisMap').then(mapView => {
         expect(mapView.lmap.hasLayer(mapView.layers.basemap)).to.equal(true)
-        expect(mapView.layers.basemap._url).to.contain('basemaps.cartocdn.com/rastertiles/voyager')
-        expect(mapView.layers.basemap._url).not.to.contain('tile.openstreetmap.org')
-        expect(mapView.layers.basemap._url).not.to.contain('access_token')
-        expect(mapView.layers.basemap.getAttribution()).to.contain('CARTO')
+        expect(mapView.layers.basemap.getContainer().dataset.basemapProvider).to.equal('OpenFreeMap')
+        expect(mapView.layers.basemap.getAttribution()).to.contain('OpenFreeMap')
       });
     })
     

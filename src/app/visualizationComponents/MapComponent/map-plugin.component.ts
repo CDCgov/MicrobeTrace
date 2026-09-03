@@ -9,6 +9,7 @@ import * as L from 'leaflet';
 // import * as moment from 'moment';
 //import moment from 'moment';
 import 'leaflet.markercluster';
+import { maplibreGL } from '@maplibre/maplibre-gl-leaflet';
 
 import * as MarkerCluster from 'leaflet.markercluster';
 import { SelectItem } from 'primeng/api';
@@ -35,6 +36,7 @@ import {
     randomPointInFloorplanPolygon,
     validateFloorplanPolygon
 } from './floorplan-boundaries';
+import { ENGLISH_MAP_NAME_EXPRESSION, OPENFREEMAP_ATTRIBUTION, OPENFREEMAP_STYLE_URL, transformOpenFreeMapStyleToEnglish } from './openfreemap-style';
 
 declare var google: any;
 
@@ -67,8 +69,6 @@ interface FloorplanBaseLayerState {
     counties: string;
 }
 
-const CARTO_VOYAGER_TILE_URL = 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png';
-const CARTO_ATTRIBUTION = '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions" target="_blank">CARTO</a>';
 const ESRI_WORLD_IMAGERY_TILE_URL = 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}';
 const ESRI_WORLD_IMAGERY_ATTRIBUTION = 'Tiles &copy; Esri - Source: Esri, Maxar, Earthstar Geographics, and the GIS User Community';
 
@@ -528,11 +528,15 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
     }
 
     initializeLeafletMap(latitude: number, longitude: number) {
-        this.layers.basemap = tileLayer(CARTO_VOYAGER_TILE_URL, {
-            maxZoom: 20,
-            subdomains: 'abcd',
-            attribution: CARTO_ATTRIBUTION
-        }); 
+        this.layers.basemap = maplibreGL({
+            style: OPENFREEMAP_STYLE_URL,
+            preserveDrawingBuffer: true,
+            attributionControl: {
+                compact: true,
+                customAttribution: OPENFREEMAP_ATTRIBUTION
+            },
+            className: 'microbetrace-openfreemap-basemap'
+        } as any);
         this.layers.satellite = tileLayer(ESRI_WORLD_IMAGERY_TILE_URL, {
             maxZoom: 19,
             attribution: ESRI_WORLD_IMAGERY_ATTRIBUTION
@@ -541,6 +545,7 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
         this.leafletInitialOptions = {
             zoom: 4,
             zoomControl: true,
+            minZoom: 1,
             maxZoom: 15,
             preferCanvas: true,
             center: latLng([latitude, longitude]),
@@ -3592,7 +3597,8 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
             this.commonService.session.style.widgets['map-basemap-show'] = true;
 
             this.layers.basemap.addTo(this.lmap);
-            this.layers.basemap.bringToFront();
+            this.configureOpenFreeMapEnglishLabels();
+            this.moveOpenFreeMapLayer('front');
 
             if (!isReload) {
                 this.SelectedSatelliteTypeVariable = 'Hide';
@@ -3614,6 +3620,43 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
             }
 
             this.layers.basemap.remove();
+        }
+    }
+
+    private configureOpenFreeMapEnglishLabels(): void {
+        const maplibreMap = this.layers.basemap.getMaplibreMap();
+        const applyEnglishLabels = () => {
+            const currentStyle = maplibreMap.getStyle();
+            const englishStyle = transformOpenFreeMapStyleToEnglish(currentStyle);
+
+            englishStyle.layers.forEach((layer, index) => {
+                if (layer === currentStyle.layers[index] || layer.type !== 'symbol') {
+                    return;
+                }
+
+                maplibreMap.setLayoutProperty(layer.id, 'text-field', ENGLISH_MAP_NAME_EXPRESSION as any);
+            });
+        };
+
+        if (maplibreMap.isStyleLoaded()) {
+            applyEnglishLabels();
+        } else {
+            maplibreMap.once('style.load', applyEnglishLabels);
+        }
+    }
+
+    private moveOpenFreeMapLayer(position: 'front' | 'back'): void {
+        const container = this.layers.basemap.getContainer();
+        const pane = container.parentElement;
+        if (!pane) {
+            return;
+        }
+
+        container.dataset.basemapProvider = 'OpenFreeMap';
+        if (position === 'front') {
+            pane.appendChild(container);
+        } else {
+            pane.prepend(container);
         }
     }
 
@@ -4508,7 +4551,7 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
     resetStack() {
         //Tile Layers, in reverse order:
         if (this.layers.satellite && this.commonService.session.style.widgets['map-satellite-show']) this.layers.satellite.bringToBack();
-        if (this.layers.basemap && this.commonService.session.style.widgets['map-basemap-show']) this.layers.basemap.bringToBack();
+        if (this.layers.basemap && this.commonService.session.style.widgets['map-basemap-show']) this.moveOpenFreeMapLayer('back');
 
         //Background Layers, in order:
         if (this.layers.countries && this.commonService.session.style.widgets['map-countries-show']) this.layers.countries.bringToFront();
@@ -4853,7 +4896,7 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
 
 //MOVE CLASSES TO NEW FILE
 class MapLayers {
-    basemap!: TileLayer;
+    basemap!: L.MaplibreGL;
     satellite!: TileLayer;
     featureGroup: FeatureGroup = featureGroup();
     markerClusterGroup: MarkerClusterGroup = markerClusterGroup();

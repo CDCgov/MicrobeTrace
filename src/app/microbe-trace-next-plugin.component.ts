@@ -21,7 +21,7 @@ import { ExportService, ExportOptions } from './contactTraceCommonServices/expor
 import { GraphMLService } from './contactTraceCommonServices/graphml.service';
 import { sanitizeExportRows } from './contactTraceCommonServices/export-sanitization';
 import * as XLSX from 'xlsx';
-import { buildDate, commitHash } from "src/environments/version";
+import { buildDate, commitHash, version as appVersion } from "src/environments/version";
 import { EmbedHandoffService } from './embed/embed-handoff.service';
 import { KeyTablesComponent } from './visualizationComponents/KeyTablesComponent/key-tables.component';
 import { KEY_TABLE_NAMES, KeyTableName, KeyTablesController } from './visualizationComponents/KeyTablesComponent/key-tables.controller';
@@ -230,7 +230,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
     // messages to display in loading modal
     messages: string[] = [];
 
-    version: string = '2.2.1';
+    readonly version: string = appVersion;
     auspiceUrlVal: string|null = '';
 
     private thresholdSubscription: Subscription;
@@ -1163,18 +1163,46 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         try {
             // Retrieve export options from the service
             const options: ExportOptions = this.exportService.getExportOptions();
+            const mapLibreCanvasSnapshots = elementsForExport.flatMap((element) =>
+                Array.from(element.querySelectorAll<HTMLCanvasElement>('canvas.maplibregl-canvas')).map((canvas) => ({
+                    dataUrl: canvas.toDataURL('image/png'),
+                    width: canvas.width,
+                    height: canvas.height
+                }))
+            );
             let settings = {
                 scale: Number(options.scale) || 1,
                 useCORS: true, // Enable CORS if images are loaded from external sources,
                 allowTaint: true,
-                onclone: (clonedDoc) => {
+                onclone: async (clonedDoc: Document) => {
+                    // html2canvas does not reliably preserve a transformed WebGL canvas.
+                    // Replace MapLibre canvases in the clone with snapshots of their current
+                    // composited frames so panned/zoomed basemaps export at the visible position.
+                    const clonedMapLibreCanvases = clonedDoc.querySelectorAll<HTMLCanvasElement>('canvas.maplibregl-canvas');
+                    const mapLibreImageLoads: Promise<void>[] = [];
+                    clonedMapLibreCanvases.forEach((clonedCanvas, index) => {
+                        const snapshot = mapLibreCanvasSnapshots[index];
+                        if (!snapshot) {
+                            return;
+                        }
+
+                        const image = clonedDoc.createElement('img');
+                        image.src = snapshot.dataUrl;
+                        image.width = snapshot.width;
+                        image.height = snapshot.height;
+                        image.className = clonedCanvas.className;
+                        image.style.cssText = clonedCanvas.style.cssText;
+                        clonedCanvas.parentNode?.replaceChild(image, clonedCanvas);
+                        mapLibreImageLoads.push(image.decode());
+                    });
+
                     // Remove all transparency symbols
                     const clonedTransparencySymbols = clonedDoc.querySelectorAll('a.transparency-symbol');
                     clonedTransparencySymbols.forEach(symbol => {
                         symbol.parentNode?.removeChild(symbol);
                     })
                     // Replace color input elements with colored spans
-                    const clonedInputs = clonedDoc.querySelectorAll('input[type="color"]');
+                    const clonedInputs = clonedDoc.querySelectorAll<HTMLInputElement>('input[type="color"]');
                     clonedInputs.forEach(input => {
                         const color = input.getAttribute('value') || '#ffffff';
                         const opacity = input.style.opacity || '1'
@@ -1188,6 +1216,8 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
                         span.style.border = '1px solid #777777'; // Optional: Add border for visibility
                         input.parentNode?.replaceChild(span, input);
                     });
+
+                    await Promise.all(mapLibreImageLoads);
     
                     // Optionally, handle other elements that display hex codes
                     // For example, if you have spans or divs showing hex values:
