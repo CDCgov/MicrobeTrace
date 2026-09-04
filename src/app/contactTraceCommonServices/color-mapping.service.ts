@@ -294,7 +294,8 @@ export class ColorMappingService {
     linkColorsTableHistory: any,
     debugMode: boolean,
     variableColorScaleConfig?: VariableColorScaleConfig,
-    domainLinks: any[] = links
+    domainLinks: any[] = links,
+    linkColorAssignments: Record<string, string> = {}
   ): {
     aggregates: Record<string, number>;
     colorMap: (value: unknown) => string;
@@ -354,6 +355,7 @@ export class ColorMappingService {
     let updatedLinkColorsTableHistory = linkColorsTableHistory || {};
     let updatedLinkColors = [...linkColors];
     let updatedLinkAlphas = [...linkAlphas];
+    const explicitAssignments = linkColorAssignments || {};
 
     const hasLinkColorsTableForVariable = Array.isArray(updatedLinkColorsTable[linkColorVariable]);
 
@@ -493,14 +495,17 @@ export class ColorMappingService {
     const repairDuplicateColors = isOriginColorVariable || uniqueCandidatePalette.length < distinctValues.length;
 
     distinctValues.forEach((val) => {
-      const existingColor = colorsByKey.get(val);
+      const explicitColor = explicitAssignments[val];
+      const hasExplicitColor = Object.prototype.hasOwnProperty.call(explicitAssignments, val)
+        && typeof explicitColor === 'string';
+      const existingColor = hasExplicitColor ? explicitColor : colorsByKey.get(val);
       if (existingColor) {
-        if (resetExpandedOriginColors) {
+        if (!hasExplicitColor && resetExpandedOriginColors) {
           delete updatedLinkColorsTableHistory[val];
           return;
         }
 
-        if (repairDuplicateColors && usedColors.has(existingColor)) {
+        if (!hasExplicitColor && repairDuplicateColors && usedColors.has(existingColor)) {
           delete updatedLinkColorsTableHistory[val];
           return;
         }

@@ -20,10 +20,13 @@ import { ColorMappingService } from './color-mapping.service';
 import {
     buildContinuousGradientCss,
     ColorScaleMode,
+    ContinuousColorStop,
     createDefaultVariableColorScaleConfig,
     createVariableColorScaleState,
+    inspectContinuousValues,
     normalizeVariableColorScaleConfig,
     normalizeVariableColorScaleState,
+    parseContinuousNumber,
     ResolvedVariableColorScale,
     VariableColorScaleConfig,
     VariableColorScaleState,
@@ -44,6 +47,12 @@ import * as tn93 from 'tn93';
 interface SequencePairwiseLinkGuardrails {
     warningThreshold: number;
     hardLimit: number;
+}
+
+export interface AppliedVariableColorAssignments {
+    mode: 'categorical' | 'continuous';
+    assignments: Record<string, string>;
+    stops?: ContinuousColorStop[];
 }
 
 interface SequencePairwiseLinkGuardrailResult {
@@ -663,6 +672,7 @@ export class CommonService extends AppComponentBase implements OnInit {
                 nodeAlphas: [1],
                 nodeColors: this.thirtyColorPalette,
                 nodeColorAssignments: {},
+                linkColorAssignments: {},
                 nodeColorsTable: {},
                 nodeColorsTableHistory: {},
                 nodeColorsTableKeys: {},
@@ -828,22 +838,31 @@ export class CommonService extends AppComponentBase implements OnInit {
         return buildContinuousGradientCss(this.resolveVariableColorScale(target, field));
     }
 
-    private ensureNodeColorAssignmentState(style: any = this.session?.style): Record<string, Record<string, string>> {
+    private ensureVariableColorAssignmentState(
+        target: VariableColorTarget,
+        style: any = this.session?.style
+    ): Record<string, Record<string, string>> {
         if (!style || typeof style !== 'object') {
             return {};
         }
 
-        if (!style.nodeColorAssignments || typeof style.nodeColorAssignments !== 'object' || Array.isArray(style.nodeColorAssignments)) {
-            style.nodeColorAssignments = {};
+        const stateKey = target === 'node' ? 'nodeColorAssignments' : 'linkColorAssignments';
+        if (!style[stateKey] || typeof style[stateKey] !== 'object' || Array.isArray(style[stateKey])) {
+            style[stateKey] = {};
         }
 
-        return style.nodeColorAssignments as Record<string, Record<string, string>>;
+        return style[stateKey] as Record<string, Record<string, string>>;
     }
 
-    public applyNodeColorAssignments(field: string, assignments: Record<string, string>): Record<string, string> {
+    public applyVariableColorAssignments(
+        target: VariableColorTarget,
+        field: string,
+        assignments: Record<string, string>,
+        mode: 'categorical' | 'continuous'
+    ): AppliedVariableColorAssignments {
         const selectedField = String(field ?? '').trim();
         if (!selectedField || selectedField === 'None') {
-            throw new Error('Select a node color variable before applying color assignments.');
+            throw new Error(`Select a ${target} color variable before applying color assignments.`);
         }
 
         const incomingEntries = Object.entries(assignments || {});
@@ -854,7 +873,62 @@ export class CommonService extends AppComponentBase implements OnInit {
             throw new Error(`Invalid color assignment for value "${invalidEntry[0]}".`);
         }
 
-        const assignmentState = this.ensureNodeColorAssignmentState();
+        if (mode === 'continuous') {
+            const items = target === 'node'
+                ? this.session?.data?.nodes || []
+                : this.session?.data?.links || [];
+            const summary = inspectContinuousValues(items, selectedField);
+            if (!summary.canUseContinuous) {
+                throw new Error(`The ${target} field "${selectedField}" does not contain numeric values for a continuous color ramp.`);
+            }
+
+            const colorsByStop = new Map<number, string>();
+            incomingEntries.forEach(([value, color]) => {
+                const parsedValue = parseContinuousNumber(value);
+                if (parsedValue.kind !== 'number') {
+                    throw new Error(`Continuous color-stop value "${value}" is not a finite number.`);
+                }
+
+                const normalizedColor = String(color).toLowerCase();
+                const existingColor = colorsByStop.get(parsedValue.value);
+                if (existingColor && existingColor !== normalizedColor) {
+                    throw new Error(`Continuous color-stop value "${value}" is assigned both ${existingColor} and ${normalizedColor}.`);
+                }
+                colorsByStop.set(parsedValue.value, normalizedColor);
+            });
+
+            const stops = Array.from(colorsByStop.entries())
+                .map(([value, color]) => ({ value, color }))
+                .sort((left, right) => left.value - right.value);
+            if (stops.length < 2 || stops[0].value === stops[stops.length - 1].value) {
+                throw new Error('A continuous color ramp requires at least two distinct numeric stops.');
+            }
+
+            const currentConfig = this.getVariableColorScaleConfig(target, selectedField);
+            this.setVariableColorScaleConfig(target, selectedField, {
+                ...currentConfig,
+                mode: 'continuous',
+                domain: {
+                    kind: 'custom',
+                    min: stops[0].value,
+                    max: stops[stops.length - 1].value
+                },
+                stops
+            });
+            if (target === 'node') {
+                this.createNodeColorMap();
+            } else {
+                this.createLinkColorMap();
+            }
+
+            return {
+                mode,
+                assignments: Object.fromEntries(stops.map(stop => [String(stop.value), stop.color])),
+                stops
+            };
+        }
+
+        const assignmentState = this.ensureVariableColorAssignmentState(target);
         const mergedAssignments = Object.create(null) as Record<string, string>;
         const existingAssignments = assignmentState[selectedField];
 
@@ -871,9 +945,29 @@ export class CommonService extends AppComponentBase implements OnInit {
         });
 
         assignmentState[selectedField] = mergedAssignments;
-        this.setVariableColorScaleMode('node', selectedField, 'categorical');
-        this.createNodeColorMap();
-        return mergedAssignments;
+        this.setVariableColorScaleMode(target, selectedField, 'categorical');
+        if (target === 'node') {
+            this.createNodeColorMap();
+        } else {
+            this.createLinkColorMap();
+        }
+        return { mode, assignments: mergedAssignments };
+    }
+
+    public applyNodeColorAssignments(
+        field: string,
+        assignments: Record<string, string>,
+        mode: 'categorical' | 'continuous' = 'categorical'
+    ): Record<string, string> {
+        return this.applyVariableColorAssignments('node', field, assignments, mode).assignments;
+    }
+
+    public applyLinkColorAssignments(
+        field: string,
+        assignments: Record<string, string>,
+        mode: 'categorical' | 'continuous' = 'categorical'
+    ): Record<string, string> {
+        return this.applyVariableColorAssignments('link', field, assignments, mode).assignments;
     }
 
     public getNodeFillStyle(node: any): { color: string; alpha: number } {
@@ -2846,7 +2940,8 @@ export class CommonService extends AppComponentBase implements OnInit {
         );
         this.ensureNetworkSubsetFilterState();
         this.session.style = oldSession.style;
-        this.ensureNodeColorAssignmentState(this.session.style);
+        this.ensureVariableColorAssignmentState('node', this.session.style);
+        this.ensureVariableColorAssignmentState('link', this.session.style);
         this.ensureVariableColorScaleState(this.session.style, true);
 
         this.session.meta.startTime = Date.now();
@@ -2987,7 +3082,8 @@ export class CommonService extends AppComponentBase implements OnInit {
         if(this.debugMode) {
             console.log('---- applying style: ', style);
         }
-        this.ensureNodeColorAssignmentState(style);
+        this.ensureVariableColorAssignmentState('node', style);
+        this.ensureVariableColorAssignmentState('link', style);
         this.ensureVariableColorScaleState(style, true);
         this.session.style = style;
         this.session.style.widgets = Object.assign({},
@@ -4367,7 +4463,7 @@ align(params): Promise<any> {
         const nodeColorsTable = this.session.style.nodeColorsTable;       // e.g. { varName: [ ... ] }
         const nodeColorsTableKeys = this.session.style.nodeColorsTableKeys;
         const nodeColorsTableHistory = this.session.style.nodeColorsTableHistory;
-        const nodeColorAssignments = this.ensureNodeColorAssignmentState()[nodeColorVariable] || {};
+        const nodeColorAssignments = this.ensureVariableColorAssignmentState('node')[nodeColorVariable] || {};
         const variableColorScaleConfig = this.getVariableColorScaleConfig('node', nodeColorVariable);
     
         // 2) Call your new colorMappingService
@@ -4450,6 +4546,7 @@ align(params): Promise<any> {
         const linkColorsTable = this.session.style.linkColorsTable;
         const linkColorsTableKeys = this.session.style.linkColorsTableKeys;
         const linkColorsTableHistory = this.session.style.linkColorsTableHistory;
+        const linkColorAssignments = this.ensureVariableColorAssignmentState('link')[linkColorVariable] || {};
         
         // 2) Delegate to colorMappingService
         const result = this.colorMappingService.createLinkColorMap(
@@ -4462,7 +4559,8 @@ align(params): Promise<any> {
           linkColorsTableHistory,
           this.debugMode,
           variableColorScaleConfig,
-          this.session.data.links
+          this.session.data.links,
+          linkColorAssignments
         );
 
       

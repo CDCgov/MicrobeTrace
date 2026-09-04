@@ -113,6 +113,14 @@ export class KeyTablesComponent extends BaseComponentDirective implements OnInit
         return this.visuals.microbeTrace?.SelectedColorLinksByVariable ?? 'None';
     }
 
+    get nodeColorLegendLabel(): string {
+        return this.visuals.microbeTrace?.getColorLegendLabel('node') ?? 'Node Color Legend';
+    }
+
+    get linkColorLegendLabel(): string {
+        return this.visuals.microbeTrace?.getColorLegendLabel('link') ?? 'Link Color Legend';
+    }
+
     get selectedNodeShapeBy(): string {
         return this.visuals.microbeTrace?.SelectedNodeSymbolVariable ?? 'None';
     }

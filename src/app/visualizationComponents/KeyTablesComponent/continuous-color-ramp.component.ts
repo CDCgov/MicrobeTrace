@@ -15,6 +15,9 @@ import {
     template: `
         @if (resolved?.mode === 'continuous' && resolved?.domain) {
             <section class="continuous-ramp" [class.continuous-ramp--editable]="editable">
+                @if (label) {
+                    <h6 class="continuous-ramp__label">{{ label }}</h6>
+                }
                 <div
                     class="continuous-ramp__gradient"
                     data-testid="continuous-color-gradient"
@@ -141,6 +144,7 @@ import {
     styles: [`
         :host { display: block; min-width: 260px; width: 100%; }
         .continuous-ramp { padding: 10px 12px 14px; }
+        .continuous-ramp__label { font-size: 16px; font-weight: 700; margin: 0 0 8px; }
         .continuous-ramp__gradient { border: 1px solid #666; border-radius: 3px; height: 28px; width: 100%; }
         .continuous-ramp__ticks { height: 32px; position: relative; }
         .continuous-ramp__ticks span { font-size: 11px; position: absolute; top: 4px; transform: translateX(-50%); white-space: nowrap; }
@@ -168,6 +172,7 @@ export class ContinuousColorRampComponent {
     @Input() config: VariableColorScaleConfig;
     @Input() editable = false;
     @Input() controlId = 'continuous-color-ramp';
+    @Input() label = '';
     @Output() configChange = new EventEmitter<VariableColorScaleConfig>();
 
     validationMessage = '';

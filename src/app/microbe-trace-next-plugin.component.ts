@@ -102,7 +102,7 @@ type DialogPlacementCandidate = {
     overlapArea: number;
 };
 
-type NodeColorAssignmentStatus = {
+type ColorAssignmentStatus = {
     kind: 'success' | 'error' | 'info';
     message: string;
 };
@@ -383,7 +383,8 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
     SelectedColorVariable: string = '#ff8300';
     SelectedBackgroundColorVariable: string = '#ffffff';
     SelectedApplyStyleVariable: string = '';
-    nodeColorAssignmentStatus: NodeColorAssignmentStatus | null = null;
+    nodeColorAssignmentStatus: ColorAssignmentStatus | null = null;
+    linkColorAssignmentStatus: ColorAssignmentStatus | null = null;
 
 
     activeTabNdx = null;
@@ -1215,6 +1216,14 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
                     // As of July 2025, a change in Chrome (and other browsers) slowed down this export dramatically (2+ mins for single image), a temp change is to
                     // update html2canvas.js (line 5626) file in node_modules as described here: https://github.com/niklasvh/html2canvas/pull/3252/commits/37b75f50d2550acf7d90630acdc29d346282d0a4;
                     // this is a temp fix, if unresolved (by html2canvas) consider switching to snapdom
+                    if (input.querySelector('.continuous-ramp__gradient')) {
+                        const bounds = input.getBoundingClientRect();
+                        return html2canvas(input, {
+                            ...settings,
+                            width: Math.ceil(Math.max(bounds.width, input.scrollWidth)),
+                            height: Math.ceil(Math.max(bounds.height, input.scrollHeight))
+                        });
+                    }
                     return html2canvas(input, settings);
                 })
             );
@@ -1379,8 +1388,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
                     }
                 }
             }
-            let updatedSVGString = output.svg.replace('<g>', `<g transform="translate(${currentOffsetX}, ${currentOffsetY})" fill="none">`);
-            tableSVGStrings += updatedSVGString;
+            tableSVGStrings += `<g transform="translate(${currentOffsetX}, ${currentOffsetY})" fill="none">${output.svg}</g>`;
 
             currentOffsetY += output.height+5;
         });
@@ -1877,12 +1885,16 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
     
     }
 
-    /**
-     * Parses and applies a node color-assignment file to the field selected in
-     * Color Nodes By. Parsing is atomic; state changes only after validation
-     * and any dataset-label mismatch confirmation succeeds.
-     */
+    /** Parses and applies a color-assignment file for nodes or links. */
     public onApplyNodeColorAssignments(event: Event): void {
+        this.onApplyColorAssignments('node', event);
+    }
+
+    public onApplyLinkColorAssignments(event: Event): void {
+        this.onApplyColorAssignments('link', event);
+    }
+
+    private onApplyColorAssignments(target: VariableColorTarget, event: Event): void {
         const input = event.target as HTMLInputElement;
         const file = input.files?.[0];
 
@@ -1892,25 +1904,25 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
 
         const reader = new FileReader();
         reader.onerror = () => {
-            this.setNodeColorAssignmentStatus('error', `Unable to read "${file.name}".`);
+            this.setColorAssignmentStatus(target, 'error', `Unable to read "${file.name}".`);
             input.value = '';
         };
         reader.onload = () => {
             try {
                 const contents = String(reader.result ?? '');
                 const descriptor = this.colorAssignmentService.inspect(contents);
-                const selectedField = this.resolveNodeColorAssignmentField(descriptor.declaredField);
+                const selectedField = this.resolveColorAssignmentField(target, descriptor.declaredField);
                 const parsed = this.colorAssignmentService.parse(
                     contents,
                     selectedField,
-                    this.commonService.session.data.nodes || []
+                    target === 'node' ? this.commonService.session.data.nodes || [] : []
                 );
-                this.applyParsedNodeColorAssignments(parsed, selectedField, file.name);
+                this.applyParsedColorAssignments(target, parsed, selectedField, file.name);
             } catch (error) {
                 const message = error instanceof NodeColorAssignmentParseError || error instanceof Error
                     ? error.message
                     : 'The color assignment file could not be parsed.';
-                this.setNodeColorAssignmentStatus('error', message);
+                this.setColorAssignmentStatus(target, 'error', message);
             } finally {
                 input.value = '';
             }
@@ -1918,18 +1930,21 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         reader.readAsText(file, 'UTF-8');
     }
 
-    private resolveNodeColorAssignmentField(declaredField?: string): string {
+    private resolveColorAssignmentField(target: VariableColorTarget, declaredField?: string): string {
         const requestedField = String(declaredField ?? '').trim();
-        const currentField = String(this.SelectedColorNodesByVariable ?? '').trim();
+        const currentField = String(this.getSelectedColorField(target) ?? '').trim();
+        const targetLabel = target === 'node' ? 'node' : 'link';
 
         if (!requestedField) {
             if (currentField && currentField !== 'None') {
                 return currentField;
             }
-            throw new Error('The color assignment file does not declare a node field. Add DATASET_LABEL to an iTOL file or use the node field as the first table-column header.');
+            throw new Error(`The color assignment file does not declare a ${targetLabel} field. Add DATASET_LABEL to an iTOL node file or use the ${targetLabel} field as the first table-column header.`);
         }
 
-        const styleableFields = this.commonService.getStyleableNodeFields();
+        const styleableFields = target === 'node'
+            ? this.commonService.getStyleableNodeFields()
+            : (this.commonService.session.data.linkFields || []).filter(field => !!String(field ?? '').trim());
         const normalizeFieldName = (value: string): string => String(value ?? '')
             .trim()
             .toLocaleLowerCase()
@@ -1937,28 +1952,64 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         const requestedKey = normalizeFieldName(requestedField);
         const idAliases = new Set(['id', 'isolate', 'isolateid', 'sample', 'sampleid', 'nodeid']);
         const matchedField = styleableFields.find(field => normalizeFieldName(field) === requestedKey)
-            ?? (idAliases.has(requestedKey)
+            ?? (target === 'node' && idAliases.has(requestedKey)
                 ? styleableFields.find(field => String(field).trim().toLocaleLowerCase() === '_id')
                 : undefined);
 
         if (!matchedField) {
-            throw new Error(`The color assignment field "${requestedField}" is not available as a node color variable in the current dataset.`);
+            throw new Error(`The color assignment field "${requestedField}" is not available as a ${targetLabel} color variable in the current dataset.`);
         }
 
         return matchedField;
     }
 
-    private applyParsedNodeColorAssignments(
+    private applyParsedColorAssignments(
+        target: VariableColorTarget,
         parsed: ParsedNodeColorAssignments,
         selectedField: string,
         fileName: string
     ): void {
         try {
-            this.commonService.applyNodeColorAssignments(selectedField, parsed.assignments);
+            const currentField = this.getSelectedColorField(target);
+            const activeMode = currentField === selectedField
+                ? this.commonService.resolveVariableColorScale(target, selectedField).mode
+                : 'categorical';
+            const applied = this.commonService.applyVariableColorAssignments(
+                target,
+                selectedField,
+                parsed.assignments,
+                parsed.mode ?? activeMode
+            );
+
+            if (currentField !== selectedField) {
+                if (target === 'node') {
+                    this.SelectedColorNodesByVariable = selectedField;
+                    this.onColorNodesByChanged();
+                } else {
+                    this.SelectedColorLinksByVariable = selectedField;
+                    this.onColorLinksByChanged();
+                }
+            } else {
+                this.refreshVariableColorTarget(target);
+            }
+
+            const targetLabel = target === 'node' ? 'Nodes' : 'Links';
+            if (applied.mode === 'continuous') {
+                const stops = applied.stops || [];
+                this.setColorAssignmentStatus(
+                    target,
+                    'success',
+                    `Applied ${stops.length} continuous color ramp stop${stops.length === 1 ? '' : 's'} from "${fileName}" and set Color ${targetLabel} By to ${selectedField} with a ${stops[0].value}–${stops[stops.length - 1].value} domain.`
+                );
+                return;
+            }
 
             const currentValues = new Set<string>();
-            this.commonService.session.data.nodes.forEach(node => {
-                const rawValue = node?.[selectedField];
+            const items = target === 'node'
+                ? this.commonService.session.data.nodes || []
+                : this.commonService.session.data.links || [];
+            items.forEach(item => {
+                const rawValue = item?.[selectedField];
                 currentValues.add(String(rawValue === null ? 'null' : rawValue).trim());
             });
             const importedValues = Object.keys(parsed.assignments);
@@ -1968,33 +2019,29 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
                 .length;
             const retainedForFutureCount = importedValues.length - matchedCount;
 
-            if (this.SelectedColorNodesByVariable !== selectedField) {
-                this.SelectedColorNodesByVariable = selectedField;
-                this.onColorNodesByChanged();
-            } else {
-                if (this.GlobalSettingsNodeColorDialogSettings?.isVisible) {
-                    this.generateNodeColorTable('#node-color-table');
-                }
-                this.refreshKeyTablesView();
-                this.publishUpdateNodeColors();
-            }
-            this.setNodeColorAssignmentStatus(
+            this.setColorAssignmentStatus(
+                target,
                 'success',
-                `Applied ${parsed.uniqueAssignmentCount} color assignment${parsed.uniqueAssignmentCount === 1 ? '' : 's'} from "${fileName}" and set Color Nodes By to ${selectedField}: ` +
+                `Applied ${parsed.uniqueAssignmentCount} color assignment${parsed.uniqueAssignmentCount === 1 ? '' : 's'} from "${fileName}" and set Color ${targetLabel} By to ${selectedField}: ` +
                 `${matchedCount} matched current value${matchedCount === 1 ? '' : 's'}, ` +
                 `${unmappedCurrentCount} current value${unmappedCurrentCount === 1 ? '' : 's'} kept existing colors, and ` +
                 `${retainedForFutureCount} retained for future data.`
             );
         } catch (error) {
-            this.setNodeColorAssignmentStatus(
+            this.setColorAssignmentStatus(
+                target,
                 'error',
                 error instanceof Error ? error.message : 'The color assignments could not be applied.'
             );
         }
     }
 
-    private setNodeColorAssignmentStatus(kind: NodeColorAssignmentStatus['kind'], message: string): void {
-        this.nodeColorAssignmentStatus = { kind, message };
+    private setColorAssignmentStatus(target: VariableColorTarget, kind: ColorAssignmentStatus['kind'], message: string): void {
+        if (target === 'node') {
+            this.nodeColorAssignmentStatus = { kind, message };
+        } else {
+            this.linkColorAssignmentStatus = { kind, message };
+        }
         this.cdref.markForCheck();
     }
 
@@ -2882,6 +2929,7 @@ ${warnings.join('\n')}`,
         this.commonService.session.style.nodeSymbolsTable = {};
         this.commonService.session.style.nodeSymbolsTableKeys = {};
         this.nodeColorAssignmentStatus = null;
+        this.linkColorAssignmentStatus = null;
 
         KEY_TABLE_NAMES.forEach(table => {
             this.setKeyTableDisplayMode(table, 'Dock');
@@ -2956,6 +3004,7 @@ ${warnings.join('\n')}`,
 
 
     onColorLinksByChanged(silent: boolean = false) {
+        this.linkColorAssignmentStatus = null;
         this.commonService.GlobalSettingsModel.SelectedColorLinksByVariable = this.SelectedColorLinksByVariable;
         this.commonService.session.style.widgets['link-color-variable'] = this.SelectedColorLinksByVariable;
 
@@ -3025,6 +3074,15 @@ ${warnings.join('\n')}`,
     getColorKeyTitle(target: VariableColorTarget): string {
         const prefix = target === 'node' ? 'Node Color' : 'Link Color';
         return `${prefix} ${this.isContinuousColorScale(target) ? 'Legend' : 'Table'}`;
+    }
+
+    getColorLegendLabel(target: VariableColorTarget): string {
+        const prefix = target === 'node' ? 'Node Color' : 'Link Color';
+        const field = this.getSelectedColorField(target);
+        const options = target === 'node' ? this.FieldList : this.ToolTipFieldList;
+        const fieldLabel = options.find(option => option.value === field)?.label
+            ?? this.commonService.titleize(field);
+        return `${prefix}: ${fieldLabel}`;
     }
 
     onVariableColorModeChanged(target: VariableColorTarget, mode: ColorScaleMode): void {

@@ -24,6 +24,17 @@ const useLinkColorField = (field: string): void => {
   });
 };
 
+const closeSettingsPaneIfVisible = (title: string): void => {
+  cy.get('body').then(($body) => {
+    const visibleTitle = $body.find('.p-dialog-title:visible').filter((_index, element) =>
+      element.textContent?.trim() === title
+    );
+    if (visibleTitle.length > 0) {
+      cy.closeSettingsPane(title);
+    }
+  });
+};
+
 describe('Continuous numeric color ramps', () => {
   beforeEach(() => {
     launchSample();
@@ -46,6 +57,9 @@ describe('Continuous numeric color ramps', () => {
     });
 
     cy.get('#key-tables-node-legend', { timeout: 15000 }).should('be.visible');
+    cy.get('#key-tables-node-legend .continuous-ramp__label')
+      .should('be.visible')
+      .and('have.text', 'Node Color: Degree');
     cy.get('#key-tables-node-legend [data-testid="continuous-color-gradient"]')
       .should('have.attr', 'role', 'img')
       .and('have.attr', 'aria-label')
@@ -114,6 +128,9 @@ describe('Continuous numeric color ramps', () => {
     });
 
     cy.get('#key-tables-link-legend', { timeout: 15000 }).should('be.visible');
+    cy.get('#key-tables-link-legend .continuous-ramp__label')
+      .should('be.visible')
+      .and('have.text', 'Link Color: Distance');
     cy.get('#key-tables-link-legend [data-testid="continuous-color-gradient"]')
       .should('have.attr', 'aria-label')
       .and('contain', '0 #000000')
@@ -136,6 +153,172 @@ describe('Continuous numeric color ramps', () => {
     cy.get('#link-continuous-color-editor').scrollIntoView().should('be.visible');
     cy.focused().should('have.id', 'link-continuous-color-editor-domain-kind');
     cy.get('#global-settings-link-color-table').should('be.visible');
+  });
+
+  it('exports labeled continuous legends beside the 2D network', () => {
+    const exportFileBase = `continuous_ramp_export_${Date.now()}`;
+    const exportPath = `${Cypress.config('downloadsFolder')}/${exportFileBase}.svg`;
+
+    useNodeColorField('degree');
+    useLinkColorField('distance');
+
+    cy.get('#tool-btn-container a[title="Export Screen"]').click({ force: true });
+    cy.contains('.p-dialog-title', 'Export Network Image')
+      .should('be.visible')
+      .parents('.p-dialog')
+      .as('exportDialog');
+
+    cy.get('@exportDialog')
+      .find('#network-export-filename')
+      .invoke('val', exportFileBase)
+      .trigger('input')
+      .trigger('change');
+    cy.get('@exportDialog').find('#network-export-filetype').click({ force: true });
+    cy.contains('li[role="option"]', 'svg').click({ force: true });
+    cy.window()
+      .its('commonService.visuals.twoD.SelectedNetworkExportFileTypeListVariable')
+      .should('equal', 'svg');
+    cy.get('@exportDialog').find('#network-export').should('be.visible').click();
+    cy.contains('.p-dialog-title', 'Export Network Image', { timeout: 15000 }).should('not.exist');
+
+    cy.readFile(exportPath, 'utf8', { timeout: 30000 }).then((svgText: string) => {
+      ['Node Color: Degree', 'Link Color: Distance'].forEach((label) => {
+        const positionedLegend = new RegExp(
+          `<g transform="translate\\(([1-9]\\d*(?:\\.\\d+)?),\\s*\\d+(?:\\.\\d+)?\\)" fill="none"><g aria-label="${label}\\.`
+        );
+        expect(svgText, `${label} export position`).to.match(positionedLegend);
+        expect(svgText, `${label} visible label`).to.include(`>${label}</text>`);
+        expect(svgText, `${label} accessible title`).to.include(`<title>${label}.`);
+      });
+    });
+  });
+
+  it('imports continuous assignment files for nodes and links through Global Settings', () => {
+    cy.openGlobalSettings();
+
+    cy.get('[data-testid="node-color-assignment-file"]').selectFile({
+      contents: Cypress.Buffer.from([
+        'degree,color,mode',
+        '1,#440154,continuous',
+        '7,#21918c,continuous',
+        '13,#fde725,continuous',
+      ].join('\n')),
+      fileName: 'degree-ramp.csv',
+      mimeType: 'text/csv',
+    }, { force: true });
+    cy.get('[data-testid="node-color-assignment-status"]', { timeout: 15000 })
+      .should('contain.text', 'Applied 3 continuous color ramp stops');
+
+    cy.get('[data-testid="link-color-assignment-file"]').selectFile({
+      contents: Cypress.Buffer.from([
+        'distance,color,mode',
+        '0,#000004,continuous',
+        '20,#b5367a,continuous',
+        '80,#fcfdbf,continuous',
+      ].join('\n')),
+      fileName: 'distance-ramp.csv',
+      mimeType: 'text/csv',
+    }, { force: true });
+    cy.get('[data-testid="link-color-assignment-status"]', { timeout: 15000 })
+      .should('contain.text', 'Applied 3 continuous color ramp stops');
+
+    cy.window().should((win: any) => {
+      const app = win.commonService.visuals.microbeTrace;
+      const style = win.commonService.session.style;
+
+      expect(app.SelectedColorNodesByVariable).to.equal('degree');
+      expect(style.variableColorScales.node.degree.mode).to.equal('continuous');
+      expect(style.variableColorScales.node.degree.stops.map((stop: any) => stop.value)).to.deep.equal([1, 7, 13]);
+      expect(app.SelectedColorLinksByVariable).to.equal('distance');
+      expect(style.variableColorScales.link.distance.mode).to.equal('continuous');
+      expect(style.variableColorScales.link.distance.stops.map((stop: any) => stop.value)).to.deep.equal([0, 20, 80]);
+    });
+  });
+
+  it('uses the same continuous node and link colors in every shared visual consumer', () => {
+    useNodeColorField('degree');
+    useLinkColorField('distance');
+
+    const canonicalColor = (win: any, color: string): string => {
+      const context = win.document.createElement('canvas').getContext('2d');
+      context.fillStyle = '#000000';
+      context.fillStyle = color;
+      return context.fillStyle.toLowerCase();
+    };
+
+    cy.window().should((win: any) => {
+      const common = win.commonService;
+      const twoD = common.visuals.twoD;
+      const dataNode = common.session.data.nodes.find((node: any) => Number.isFinite(Number(node.degree)));
+      const renderedNode = twoD.cy.getElementById(dataNode._id);
+      expect(renderedNode.empty(), '2D node exists').to.equal(false);
+      expect(canonicalColor(win, renderedNode.style('background-color')), '2D node color')
+        .to.equal(canonicalColor(win, common.getNodeFillStyle(dataNode).color));
+
+      const renderedLink = twoD.cy.edges().filter((edge: any) => Number.isFinite(Number(edge.data('distance')))).first();
+      expect(renderedLink.empty(), '2D link exists').to.equal(false);
+      expect(canonicalColor(win, renderedLink.style('line-color')), '2D link color')
+        .to.equal(canonicalColor(win, common.temp.style.linkColorMap(renderedLink.data('distance'))));
+    });
+
+    cy.contains('button', 'View').click();
+    cy.contains('button[mat-menu-item]', 'Map').click();
+    cy.get('.mapStyle', { timeout: 15000 }).should('be.visible');
+    cy.get('#tool-btn-container-map a[title="Settings"]').click({ force: true });
+    cy.contains('.p-dialog-title', 'Geospatial Settings').should('be.visible');
+    cy.get('#map-field-zipcode').click();
+    cy.contains('li[role="option"]', 'Zipcode').click();
+    cy.closeSettingsPane('Geospatial Settings');
+    cy.window().should((win: any) => {
+      const common = win.commonService;
+      const map = common.visuals.gisMap;
+      const nodeLayers = [
+        ...Object.values(map.layers.featureGroup?._layers || {}),
+        ...Object.values(map.layers.markerClusterGroup?._featureGroup?._layers || {}),
+      ];
+      const nodeLayer = nodeLayers
+        .find((layer: any) => layer.data && Number.isFinite(Number(layer.data.degree))) as any;
+      const linkLayer = Object.values(map.layers.links._layers)
+        .find((layer: any) => layer.data && Number.isFinite(Number(layer.data.distance))) as any;
+      expect(nodeLayer, 'Map node layer').to.exist;
+      expect(linkLayer, 'Map link layer').to.exist;
+      expect(canonicalColor(win, nodeLayer.options.fillColor), 'Map node color')
+        .to.equal(canonicalColor(win, common.getNodeFillStyle(nodeLayer.data).color));
+      expect(canonicalColor(win, linkLayer.options.color), 'Map link color')
+        .to.equal(canonicalColor(win, common.temp.style.linkColorMap(linkLayer.data.distance)));
+    });
+
+    cy.contains('button', 'View').click();
+    cy.contains('button[mat-menu-item]', 'Bubble').click();
+    cy.get('#cyBubble', { timeout: 15000 }).should('be.visible');
+    closeSettingsPaneIfVisible('Bubble Settings');
+    cy.window().should((win: any) => {
+      const common = win.commonService;
+      const bubble = common.visuals.bubble;
+      const dataNode = common.session.data.nodes.find((node: any) => Number.isFinite(Number(node.degree)));
+      const renderedNode = bubble.cy.getElementById(dataNode._id);
+      expect(renderedNode.empty(), 'Bubble node exists').to.equal(false);
+      expect(canonicalColor(win, renderedNode.style('background-color')), 'Bubble node color')
+        .to.equal(canonicalColor(win, common.getNodeFillStyle(dataNode).color));
+    });
+
+    cy.contains('button', 'View').click();
+    cy.contains('button[mat-menu-item]', 'Phylogenetic Tree').click();
+    cy.get('#phylocanvas svg', { timeout: 15000 }).should('be.visible');
+    closeSettingsPaneIfVisible('Phylogenetic Tree Settings');
+    cy.get('#phylocanvas svg g.tidytree-node-leaf circle').should(($circles) => {
+      const win = $circles[0].ownerDocument.defaultView as any;
+      const common = win.commonService;
+      const expectedColors = new Set(common.session.data.nodes.map((node: any) =>
+        canonicalColor(win, common.getNodeFillStyle(node).color)
+      ));
+      const renderedColors = new Set(Array.from($circles).map((circle: Element) =>
+        canonicalColor(win, win.getComputedStyle(circle).fill)
+      ));
+
+      expect(renderedColors.size, 'Phylogenetic ramp colors').to.be.greaterThan(1);
+      renderedColors.forEach((color) => expect(expectedColors.has(color), `Phylogenetic color ${color}`).to.equal(true));
+    });
   });
 
   it('uses fixed equal-width continuous Node Color bins in the Epi Curve', () => {

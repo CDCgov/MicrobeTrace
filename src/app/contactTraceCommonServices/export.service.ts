@@ -341,8 +341,10 @@ export class ExportService {
 
   exportColorLegendAsSVG(legendElement: HTMLElement): { svg: string, width: number, height: number } {
     const gradientElement = legendElement.querySelector<HTMLElement>('.continuous-ramp__gradient');
+    const labelElement = legendElement.querySelector<HTMLElement>('.continuous-ramp__label');
     const ticks = Array.from(legendElement.querySelectorAll<HTMLElement>('.continuous-ramp__ticks span'));
     const missingSwatch = legendElement.querySelector<HTMLElement>('.continuous-ramp__missing-swatch');
+    const label = this.normalizeCellText(labelElement?.textContent || '') || 'Continuous Color Legend';
     const description = gradientElement?.getAttribute('aria-label') || 'Continuous color legend';
     const background = gradientElement?.style.background || '';
     const stopPattern = /(#[0-9a-f]{6}|rgba?\([^)]+\))\s+([\d.]+)%/gi;
@@ -357,8 +359,12 @@ export class ExportService {
         { color: '#fde725', offset: 100 });
     }
 
-    const width = Math.max(320, Math.ceil(legendElement.getBoundingClientRect().width || 0));
-    const height = 112;
+    const width = Math.max(
+      320,
+      Math.ceil(legendElement.getBoundingClientRect().width || 0),
+      this.measureTextWidth(label, 'bold') + 24
+    );
+    const height = 134;
     const gradientId = `continuous-gradient-${(legendElement.id || 'legend').replace(/[^a-z0-9_-]/gi, '-')}`;
     const tickMarkup = ticks.map((tick, index) => {
       const left = Number.parseFloat(tick.style.left);
@@ -366,20 +372,23 @@ export class ExportService {
         ? 12 + ((width - 24) * left / 100)
         : 12 + ((width - 24) * index / Math.max(1, ticks.length - 1));
       const anchor = index === 0 ? 'start' : index === ticks.length - 1 ? 'end' : 'middle';
-      return `<text x="${x}" y="66" text-anchor="${anchor}" font-family="Roboto, 'Helvetica Neue', sans-serif" font-size="11" fill="black">${this.escapeSVGText(tick.textContent || '')}</text>`;
+      return `<text x="${x}" y="88" text-anchor="${anchor}" font-family="Roboto, 'Helvetica Neue', sans-serif" font-size="11" fill="black">${this.escapeSVGText(tick.textContent || '')}</text>`;
     }).join('');
     const stopMarkup = gradientStops
       .map(stop => `<stop offset="${Math.min(100, Math.max(0, stop.offset))}%" stop-color="${this.escapeSVGText(stop.color)}"></stop>`)
       .join('');
     const missingColor = missingSwatch?.style.background || '#EAE553';
 
-    const svg = `<g aria-label="${this.escapeSVGText(description)}">
+    const accessibleDescription = `${label}. ${description}`;
+    const svg = `<g aria-label="${this.escapeSVGText(accessibleDescription)}">
+      <title>${this.escapeSVGText(accessibleDescription)}</title>
       <rect x="0" y="0" width="${width}" height="${height}" fill="#ffffff" stroke="black"></rect>
+      <text x="12" y="21" font-family="Roboto, 'Helvetica Neue', sans-serif" font-size="16" font-weight="bold" fill="black">${this.escapeSVGText(label)}</text>
       <defs><linearGradient id="${gradientId}" x1="0%" y1="0%" x2="100%" y2="0%">${stopMarkup}</linearGradient></defs>
-      <rect x="12" y="14" width="${width - 24}" height="28" rx="3" fill="url(#${gradientId})" stroke="#666666"></rect>
+      <rect x="12" y="36" width="${width - 24}" height="28" rx="3" fill="url(#${gradientId})" stroke="#666666"></rect>
       ${tickMarkup}
-      <rect x="12" y="82" width="24" height="16" fill="${this.escapeSVGText(missingColor)}" stroke="#666666"></rect>
-      <text x="43" y="95" font-family="Roboto, 'Helvetica Neue', sans-serif" font-size="12" fill="black">Missing / invalid</text>
+      <rect x="12" y="104" width="24" height="16" fill="${this.escapeSVGText(missingColor)}" stroke="#666666"></rect>
+      <text x="43" y="117" font-family="Roboto, 'Helvetica Neue', sans-serif" font-size="12" fill="black">Missing / invalid</text>
     </g>`;
     return { svg, width, height };
   }

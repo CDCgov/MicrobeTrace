@@ -7,6 +7,8 @@ This is a fully synthetic respiratory-outbreak investigation. It contains no rea
 - `riverbend-outbreak-nodes.csv`: 24 case records with aligned 120-base sequences, dates, coordinates, clinical metadata, categorical fields, and several numeric field shapes.
 - `riverbend-outbreak-links.csv`: 36 investigated contacts with categorical context and numeric duration, proximity, genetic-distance, probability, and confidence fields. Its conventional `distance` column duplicates `GeneticDistanceSNP` so network threshold controls work immediately.
 - `riverbend-lineage-colors.csv`: optional categorical node color-assignment file. Applying it selects `Lineage` and verifies that imported categorical colors remain independent of continuous ramps.
+- `riverbend-risk-ramp.csv`: continuous node color-assignment file for `RiskScore`. Its `mode` column switches the selected field to a custom continuous ramp using the listed numeric stops.
+- `riverbend-contact-ramp.csv`: continuous link color-assignment file for `ContactMinutes`, including endpoints outside the suggested custom walkthrough domain to demonstrate clamping.
 - `embed-launch.example.json`: a valid `launch` object for an embed v1 payload. It demonstrates custom node and link domains, arbitrary ordered stops, missing-value colors, and endpoint clamping.
 
 ## Load the dataset
@@ -32,7 +34,8 @@ The `seq` values are aligned and form three related synthetic lineages, so the s
 | Custom bounds and clamping | `RiskScore`, custom domain 10–90 | `ContactMinutes`, custom domain 15–180 | Risk scores 5 and 96 clamp to the node endpoints. Contact durations 5 and 480 clamp to the link endpoints. |
 | Arbitrary stops and reverse | `RiskScore` | `ContactMinutes` | Use the values in `embed-launch.example.json`, or recreate them in Global Styling. Add Stop, Remove, and Reverse should update both the visualization and legend. |
 | Categorical override/history | `Lineage`, `Facility`, `Outcome` | `ContactType`, `Setting` | Force numeric fields to Categorical, edit categories, switch modes, and confirm category color history is restored. |
-| Assignment import forces categorical | `Lineage` | — | Apply `riverbend-lineage-colors.csv`; Lineage becomes categorical and receives the supplied colors. |
+| Categorical assignment import | `Lineage` | — | Apply `riverbend-lineage-colors.csv`; Lineage becomes categorical and receives the supplied colors. |
+| Continuous assignment import | `RiskScore` | `ContactMinutes` | Apply `riverbend-risk-ramp.csv` and `riverbend-contact-ramp.csv`; the declared fields switch to Continuous with custom domains spanning the first and last numeric stops. |
 | Epi Curve continuous bins | `RiskScore` or `ViralLoadCt` | — | Set **Color By: Node Color**, then test 2–12 equal-width bins, missing segments, cumulative mode, and stable boundaries during filtering. |
 | Shared node consumers | `RiskScore` | — | The same resolved colors should appear in 2D Network, Map, Phylogenetic Tree, and Epi Curve. |
 | Shared link consumers | — | `ContactMinutes` | The same resolved link ramp should appear in 2D Network and Map. |
@@ -52,7 +55,12 @@ The `seq` values are aligned and form three related synthetic lineages, so the s
 9. Select the constant node and link fields to verify single-value legends.
 10. Switch a numeric field to Categorical, edit category colors, switch back and forth, and confirm the categorical appearance is restored.
 11. Apply `riverbend-lineage-colors.csv` to confirm assignment import selects categorical Lineage coloring.
-12. Save and reload a style and session, then load a fresh copy of the node/link files to check persistence and new-dataset reset behavior.
+12. Apply `riverbend-risk-ramp.csv` and `riverbend-contact-ramp.csv` to confirm assignment import selects the declared node/link fields and reconstructs their continuous ramps.
+13. Save and reload a style and session, then load a fresh copy of the node/link files to check persistence and new-dataset reset behavior.
+
+## Color-assignment table format
+
+Simple CSV and TSV assignment files use the field name as the first column header and `color` as the color column. Add an optional `mode` column with `continuous` in at least one row to declare a continuous ramp. Every first-column value must then be a finite number, and the file must contain at least two distinct stops. Empty mode cells inherit the declared mode; conflicting mode values are rejected atomically.
 
 ## Embed example
 

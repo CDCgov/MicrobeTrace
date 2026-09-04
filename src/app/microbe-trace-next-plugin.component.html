@@ -159,6 +159,7 @@
             <div id="link-color-legend">
               <continuous-color-ramp
                 controlId="link-color-legend-ramp"
+                [label]="getColorLegendLabel('link')"
                 [resolved]="getResolvedVariableColorScale('link')"
                 [config]="getVariableColorConfig('link')">
               </continuous-color-ramp>
@@ -232,6 +233,7 @@
             <div id="node-color-legend">
               <continuous-color-ramp
                 controlId="node-color-legend-ramp"
+                [label]="getColorLegendLabel('node')"
                 [resolved]="getResolvedVariableColorScale('node')"
                 [config]="getVariableColorConfig('node')">
               </continuous-color-ramp>
@@ -674,8 +676,7 @@
                     }
                   }
 
-                  @if (!isContinuousColorScale('node')) {
-                  <div id="node-color-assignment-row" class="form-group row" title="Apply reusable colors and select the node variable declared by the file.">
+                  <div id="node-color-assignment-row" class="form-group row" title="Apply reusable category colors or continuous ramp stops and select the node variable declared by the file.">
                     <div class="col-5">Apply Color Assignment File
                       <a title="Click for more information" class="btn btn-sm" style="float:right; padding-left: 0px;" href="https://github.com/CDCgov/MicrobeTrace/wiki/Color-Assignment-File" target="_blank"><i class="pi pi-info-circle"></i></a>
                     </div>
@@ -698,7 +699,6 @@
                       [attr.role]="nodeColorAssignmentStatus.kind === 'error' ? 'alert' : 'status'">
                       {{ nodeColorAssignmentStatus.message }}
                     </div>
-                  }
                   }
 
                   @if (SelectedColorNodesByVariable === 'None') {
@@ -797,6 +797,30 @@
                         (configChange)="onVariableColorConfigChanged('link', $event)">
                       </continuous-color-ramp>
                     }
+                  }
+                  <div id="link-color-assignment-row" class="form-group row" title="Apply reusable category colors or continuous ramp stops and select the link variable declared by the file.">
+                    <div class="col-5">Apply Link Color Assignment File
+                      <a title="Click for more information" class="btn btn-sm" style="float:right; padding-left: 0px;" href="https://github.com/CDCgov/MicrobeTrace/wiki/Color-Assignment-File" target="_blank"><i class="pi pi-info-circle"></i></a>
+                    </div>
+                    <div class="col-7">
+                      <input
+                        type="file"
+                        id="link-color-assignment-file"
+                        data-testid="link-color-assignment-file"
+                        class="d-none"
+                        (change)="onApplyLinkColorAssignments($event)">
+                      <label class="custom-file-label" for="link-color-assignment-file">Choose File</label>
+                    </div>
+                  </div>
+                  @if (linkColorAssignmentStatus) {
+                    <div
+                      id="link-color-assignment-status"
+                      data-testid="link-color-assignment-status"
+                      class="node-color-assignment-status"
+                      [ngClass]="'node-color-assignment-status--' + linkColorAssignmentStatus.kind"
+                      [attr.role]="linkColorAssignmentStatus.kind === 'error' ? 'alert' : 'status'">
+                      {{ linkColorAssignmentStatus.message }}
+                    </div>
                   }
                   @if (SelectedColorLinksByVariable !== 'None') {
                     <div id="link-color-table-row"  class="form-group row" title="Should MicrobeTrace display the table of colors?">

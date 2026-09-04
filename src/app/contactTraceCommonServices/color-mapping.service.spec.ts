@@ -82,4 +82,24 @@ describe('ColorMappingService node assignments', () => {
     expect(history.Other['8']).toBe('#123456');
     expect(history.MLST['8']).toBe('#cc9999');
   });
+
+  it('prefers field-specific link assignments over stored colors', () => {
+    const result = service.createLinkColorMap(
+      [{ visible: true, setting: 'household' }],
+      'setting',
+      ['#111111'],
+      [1],
+      { setting: ['#222222'] },
+      { setting: ['household'] },
+      { household: '#333333' },
+      false,
+      createDefaultVariableColorScaleConfig('categorical'),
+      [{ visible: true, setting: 'household' }],
+      { household: '#444444' }
+    );
+
+    expect(result.colorMap('household')).toBe('#444444');
+    expect(result.updatedLinkColorsTable.setting).toEqual(['#444444']);
+    expect(result.updatedLinkColorsTableHistory.household).toBe('#444444');
+  });
 });

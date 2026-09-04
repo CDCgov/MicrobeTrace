@@ -92,6 +92,7 @@
           <div id="key-tables-node-legend">
             <continuous-color-ramp
               controlId="key-tables-node-ramp"
+              [label]="nodeColorLegendLabel"
               [resolved]="nodeColorScale"
               [config]="nodeColorScaleConfig">
             </continuous-color-ramp>
@@ -202,6 +203,7 @@
           <div id="key-tables-link-legend">
             <continuous-color-ramp
               controlId="key-tables-link-ramp"
+              [label]="linkColorLegendLabel"
               [resolved]="linkColorScale"
               [config]="linkColorScaleConfig">
             </continuous-color-ramp>
