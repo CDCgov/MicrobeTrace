@@ -17,6 +17,47 @@ describe('Journey Flow - Threshold Stability Panel', () => {
   const profile = getProfile('nn-angulartesting-tn93-edgelist');
   const mixedOriginProfile = getProfile('threshold-score-genetic-policy');
 
+  it('smart launches with the highest composite-score threshold', () => {
+    visitAppAndAcceptEula();
+    cy.loadFiles(mixedOriginProfile.files);
+    applyPreLaunchFileSettings(mixedOriginProfile);
+    ensurePreLaunchProfileSynced(mixedOriginProfile);
+
+    cy.get('[data-testid="files-smart-launch-button"]')
+      .should('be.visible')
+      .and('not.be.disabled')
+      .and('contain.text', 'Smart Launch')
+      .and(($button) => {
+        expect(getComputedStyle($button[0]).backgroundImage).to.contain('linear-gradient');
+      });
+
+    cy.contains('.files-smart-launch-new', 'New!').should('be.visible');
+    cy.get('[data-testid="files-smart-launch-info"]')
+      .should('be.visible')
+      .focus();
+    cy.get('[data-testid="files-smart-launch-tooltip"]')
+      .should('be.visible')
+      .and('contain.text', 'highest Component Structure Score')
+      .and('contain.text', 'balanced cluster sizes')
+      .and('contain.text', 'epidemiologic context');
+
+    cy.get('[data-testid="files-smart-launch-button"]').click({ force: true });
+
+    waitForProcessingDialogToClear();
+    ensureTwoDNetworkView();
+
+    cy.window().then((win: any) => {
+      const commonService = win.commonService;
+      const metric = commonService.session.style.widgets['link-sort-variable'];
+      const summary = commonService.getThresholdSweepSummary(metric);
+      const recommendedThreshold = summary.thresholds[summary.recommendedIndex];
+      const selectedThreshold = Number(commonService.session.style.widgets['link-threshold']);
+
+      expect(recommendedThreshold, 'fixture recommendation').to.equal(2);
+      expect(selectedThreshold, 'Smart Launch threshold').to.equal(recommendedThreshold);
+    });
+  });
+
   it('shows the composite recommendation and applies its genetic threshold', () => {
     launchProfileToTwoD(profile);
 

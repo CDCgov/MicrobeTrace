@@ -274,6 +274,23 @@
         <span>
           <button id="launch" class="btn btn-success files-launch-action" (click)="launchClick({ resetSettings: true })" title="Please select a Network CSV or FASTA File" [disabled]="!hasLaunchableFiles">Launch</button>
         </span>
+        <span class="files-smart-launch-wrap">
+          <span class="files-smart-launch-callout">
+            <span class="files-smart-launch-new">New!</span>
+            <span class="files-smart-launch-info">
+              <button type="button" class="files-smart-launch-info__trigger" data-testid="files-smart-launch-info" aria-label="About the Smart Launch composite threshold" aria-describedby="smart-launch-tooltip">
+                <i class="pi pi-info-circle" aria-hidden="true"></i>
+              </button>
+              <span id="smart-launch-tooltip" class="files-smart-launch-info__tooltip" data-testid="files-smart-launch-tooltip" role="tooltip">
+                Smart Launch evaluates the available genetic-distance thresholds and chooses the highest Component Structure Score. The composite rewards useful fragmentation, low dominance by one cluster, balanced cluster sizes, broad participation, and equality across clusters. Review the result with epidemiologic context.
+              </span>
+            </span>
+          </span>
+          <button id="smart-launch" data-testid="files-smart-launch-button" class="btn files-launch-action files-smart-launch" (click)="launchClick({ resetSettings: true, smartThreshold: true })" title="Launch using the threshold with the highest Component Structure Score" [disabled]="!hasLaunchableFiles">
+            <span class="files-smart-launch__sparkle" aria-hidden="true">&#10022;</span>
+            Smart Launch
+          </button>
+        </span>
       } @else {
         <span>
           <button id="launch" data-testid="files-update-button" class="btn btn-success files-launch-action" (click)="launchClick()" title="Update data without resetting settings" [disabled]="!hasLaunchableFiles">Update</button>
