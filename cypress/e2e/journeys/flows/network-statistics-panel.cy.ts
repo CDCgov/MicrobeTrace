@@ -86,7 +86,6 @@ describe('Journey Flow - Network Statistics view', () => {
         l2ToL1Ratio: 0,
       });
     });
-
     cy.get('[data-testid="network-statistics-table-shell"]')
       .should('contain.text', 'Nodes')
       .and('contain.text', '6')

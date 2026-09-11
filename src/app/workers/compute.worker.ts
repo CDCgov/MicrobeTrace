@@ -6,6 +6,7 @@ import * as tn93 from 'tn93';
 
 import { computeNetworkStatistics } from '../contactTraceCommonServices/network-statistics';
 import type { ComputeWorkerRequest } from './compute-worker.types';
+import { clampNegativeBranchLengthsToZero } from './phylogenetic-tree-utils';
 
 function postBufferResponse(
   field: string,
@@ -216,6 +217,7 @@ function handleLinks(payload: any, jobId: number): void {
 function handleTree(payload: any, jobId: number): void {
   try {
     const tree = patristic.parseMatrix(payload.matrix, payload.labels);
+    clampNegativeBranchLengthsToZero(tree);
     postJsonResponse('tree', tree.toObject(), Date.now(), jobId);
   } catch {
     postJsonResponse('tree', {}, Date.now(), jobId);

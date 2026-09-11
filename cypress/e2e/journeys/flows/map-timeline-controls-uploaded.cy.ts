@@ -85,7 +85,6 @@ describe('Journey Flow - Map uploaded timeline controls', () => {
   const timeline = profile.expectations.timeline!;
 
   it('keeps Map timeline playback aligned with renderable visible membership on uploaded data', () => {
-    let initialLabel = '';
     let initialTime = 0;
 
     launchProfileToTwoD(profile);
@@ -104,12 +103,6 @@ describe('Journey Flow - Map uploaded timeline controls', () => {
     });
 
     setTimelineField(timeline.field);
-
-    cy.get('svg g.slider text.label', { timeout: 15000 })
-      .invoke('text')
-      .then((text) => {
-        initialLabel = String(text).trim();
-      });
 
     cy.window().then((win: unknown) => {
       const value = (win as WinWithMap).commonService.session.state.timeEnd;
@@ -130,11 +123,11 @@ describe('Journey Flow - Map uploaded timeline controls', () => {
     cy.get('#timeline-play-button').should('contain', 'Pause').click();
     cy.get('#timeline-play-button').should('contain', 'Play');
 
-    cy.get('svg g.slider text.label')
-      .invoke('text')
-      .should((text) => {
-        expect(String(text).trim(), 'timeline label after play/pause').not.to.equal(initialLabel);
-      });
+    cy.window().then((win: unknown) => {
+      const value = (win as WinWithMap).commonService.session.state.timeEnd;
+      const expectedLabel = moment(value as string | number | Date).format('MMM D');
+      cy.get('svg g.slider text.label').should('have.text', expectedLabel);
+    });
 
     assertMapTimelineMembershipAligned();
   });

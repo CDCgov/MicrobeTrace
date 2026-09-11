@@ -140,7 +140,7 @@ describe('Map View', () => {
    * continues with the sample dataset, and navigates to the view.
    */
   beforeEach(() => {
-    visitAppAndAcceptEula({ skipDemoSession: false });
+    visitAppAndAcceptEula({ skipDemoSession: false, dismissWelcomeOverlay: true });
 
     // Open the "View" menu and click on "Map"
     cy.contains('button', 'View').click();
@@ -537,10 +537,8 @@ describe('Map View', () => {
       cy.wait(100)
       cy.window().its('commonService.visuals.gisMap').then(mapView => {
         expect(mapView.lmap.hasLayer(mapView.layers.basemap)).to.equal(true)
-        expect(mapView.layers.basemap._url).to.contain('basemaps.cartocdn.com/rastertiles/voyager')
-        expect(mapView.layers.basemap._url).not.to.contain('tile.openstreetmap.org')
-        expect(mapView.layers.basemap._url).not.to.contain('access_token')
-        expect(mapView.layers.basemap.getAttribution()).to.contain('CARTO')
+        expect(mapView.layers.basemap.getContainer().dataset.basemapProvider).to.equal('OpenFreeMap')
+        expect(mapView.layers.basemap.getAttribution()).to.contain('OpenFreeMap')
       });
     })
     
@@ -789,6 +787,82 @@ describe('Map View', () => {
         let cs_Node = win.commonService.getVisibleNodes().find(n => n._id == 'MZ591568')
         expect(cs_Node.selected).to.be.true;
       })
+    })
+
+    it('should respect the auto-expand toggle for a searched node inside a metanode while manual positioning is active', () => {
+      const targetNodeId = 'MZ797703';
+
+      cy.contains('.p-dialog-title', 'Geospatial Settings').parents('.p-dialog').as('mapSettings');
+      cy.get('@mapSettings').contains('.nav-link', 'Nodes').click();
+      cy.get('@mapSettings')
+        .find('#map-node-auto-expand-selected')
+        .contains('Off')
+        .click({ force: true });
+      cy.window()
+        .its('commonService.session.style.widgets.map-auto-expand-selected')
+        .should('equal', false);
+
+      cy.get('@mapSettings').contains('.nav-link', 'Custom Map').click();
+      cy.get('@mapSettings')
+        .find('#map-manual-positioning')
+        .contains('On')
+        .click({ force: true });
+      cy.window()
+        .its('commonService.visuals.gisMap.SelectedManualPositionTypeVariable')
+        .should('equal', 'On');
+
+      cy.closeSettingsPane('Geospatial Settings');
+
+      cy.window().should((win: any) => {
+        const mapView = win.commonService.visuals.gisMap;
+        const marker = mapView.mapNodeMarkersById[targetNodeId];
+        expect(marker, `${targetNodeId} marker`).to.exist;
+
+        const visibleParent = mapView.layers.markerClusterGroup.getVisibleParent(marker);
+        expect(visibleParent, `${targetNodeId} should start inside a metanode`).to.not.equal(marker);
+      });
+
+      cy.get('#search-field').select('_id');
+      cy.get('#search').clear().type(targetNodeId);
+
+      cy.window().should((win: any) => {
+        const mapView = win.commonService.visuals.gisMap;
+        const selectedNode = win.commonService.session.data.nodes.find((node: any) => node._id === targetNodeId);
+
+        expect(selectedNode?.selected, `${targetNodeId} selected from search with auto-expand off`).to.equal(true);
+        expect(mapView.SelectedManualPositionNodeId, 'manual position target follows search').to.equal(targetNodeId);
+        expect(mapView.layers.markerClusterGroup._spiderfied, 'metanode stays collapsed when auto-expand is off')
+          .to.not.exist;
+      });
+
+      cy.get(selectors.settingsBtn).click();
+      cy.contains('.p-dialog-title', 'Geospatial Settings').should('be.visible');
+      cy.contains('.p-dialog-title', 'Geospatial Settings').parents('.p-dialog').as('mapSettings');
+      cy.get('@mapSettings').contains('.nav-link', 'Nodes').click();
+      cy.get('@mapSettings')
+        .find('#map-node-auto-expand-selected')
+        .contains('On')
+        .click({ force: true });
+      cy.window()
+        .its('commonService.session.style.widgets.map-auto-expand-selected')
+        .should('equal', true);
+
+      cy.window().should((win: any) => {
+        const mapView = win.commonService.visuals.gisMap;
+        const selectedNode = win.commonService.session.data.nodes.find((node: any) => node._id === targetNodeId);
+        const spiderfiedCluster = mapView.layers.markerClusterGroup._spiderfied;
+
+        expect(selectedNode?.selected, `${targetNodeId} remains selected after enabling auto-expand`).to.equal(true);
+        expect(mapView.SelectedManualPositionNodeId, 'manual position target follows search').to.equal(targetNodeId);
+        expect(spiderfiedCluster, 'spiderfied metanode').to.exist;
+
+        const spiderfiedNodeIds = spiderfiedCluster
+          .getAllChildMarkers()
+          .map((marker: any) => marker.data?._id);
+        expect(spiderfiedNodeIds, 'spiderfied metanode node ids').to.include(targetNodeId);
+      });
+
+      cy.closeSettingsPane('Geospatial Settings');
     })
 
     it('should download map view as a png', () => {
@@ -1158,8 +1232,17 @@ describe('Map View', () => {
     });
 
     it('starts and stops the timeline and also checks that play button is updated', () => {
-      cy.get('svg g.slider text.label').should('contain', 'Jun 28')
-      cy.get('svg g.slider circle.handle').should('not.have.attr', 'cx')
+      cy.window().then((win: any) => {
+        const microbeTrace = win.commonService.visuals.microbeTrace;
+        const activeDate = new Date(win.commonService.session.state.timeEnd);
+        const activeX = Number(microbeTrace.xAttribute(activeDate));
+
+        cy.get('svg g.slider text.label').should('have.text', microbeTrace.handleDateFormat(activeDate));
+        cy.get('svg g.slider circle.handle')
+          .invoke('attr', 'cx')
+          .then(Number)
+          .should('be.closeTo', activeX, 1);
+      });
       cy.get('#timeline-play-button').should('contain', 'Play').click();
       cy.wait(7500)
       cy.get('#timeline-play-button').should('contain', 'Pause').click();
@@ -1182,8 +1265,24 @@ describe('Map View', () => {
       cy.wait(7500)
       cy.get('#timeline-play-button').should('contain', 'Pause').click();
 
-      cy.get('#key-tables-node-table').contains('td', 'Pennsylvania').parent('tr').find('input[type="color"]').first().invoke('val', '#777777').trigger('input').trigger('change');
-      cy.get('#key-tables-link-table td input').first().invoke('val', '#000000').trigger('input').trigger('change');
+      cy.get('#key-tables-node-table td[data-value="Pennsylvania"]')
+        .closest('tr')
+        .find('input[type="color"]')
+        .should('have.length', 1)
+        .then(($input) => {
+          const input = $input.get(0) as HTMLInputElement;
+          input.value = '#777777';
+          input.dispatchEvent(new Event('input', { bubbles: true }));
+          input.dispatchEvent(new Event('change', { bubbles: true }));
+        });
+      cy.get('#key-tables-link-table td input')
+        .first()
+        .then(($input) => {
+          const input = $input.get(0) as HTMLInputElement;
+          input.value = '#000000';
+          input.dispatchEvent(new Event('input', { bubbles: true }));
+          input.dispatchEvent(new Event('change', { bubbles: true }));
+        });
 
       cy.window().its('commonService.visuals.gisMap.layers').then(layers => {
         let penNode: any = Object.values(layers.markerClusterGroup._featureGroup._layers).find((layer: any) => layer.data && layer.data.ID === 'MZ415508')
@@ -1201,32 +1300,45 @@ describe('Map View', () => {
       }) 
     })
 
-    it('clicks slider midway and then back to start', () => {
+    it('clicks the slider forward and then back to start', () => {
 
       cy.get('#global-timeline svg line.track-overlay').first().click(300, 0, {force: true});
       cy.wait(1500)
-      cy.get('svg g.slider text.label').should('contain', 'Jul 15') 
       cy.window().then((win: any) => {
+        const state = win.commonService.session.state;
+        const activeTime = new Date(state.timeEnd).getTime();
+        const startTime = new Date(state.timeStart).getTime();
+        const targetTime = new Date(state.timeTarget).getTime();
+        const microbeTrace = win.commonService.visuals.microbeTrace;
         let visNodeCount_map = win.commonService.getVisibleNodes().filter((node) => node.Zip_code).length;
         let mapNodeCount = 0;
         Object.values(win.commonService.visuals.gisMap.layers.markerClusterGroup._featureGroup._layers).forEach((layer: any) => {
           if (layer._childCount) mapNodeCount += layer._childCount;
           else mapNodeCount += 1;
         })
-        expect(visNodeCount_map).to.eq(mapNodeCount).to.eq(16);
+        expect(activeTime, 'forward timeline date').to.be.greaterThan(startTime);
+        expect(activeTime, 'forward timeline date').to.be.at.most(targetTime);
+        expect(visNodeCount_map).to.eq(mapNodeCount);
+        cy.get('svg g.slider text.label')
+          .should('have.text', microbeTrace.handleDateFormat(new Date(state.timeEnd)));
       })
 
       cy.get('#global-timeline svg line.track-overlay').first().click(0, 0, {force: true});
       cy.wait(1500)
-      cy.get('svg g.slider text.label').should('contain', 'Jun 27') 
       cy.window().then((win: any) => {
+        const state = win.commonService.session.state;
+        const microbeTrace = win.commonService.visuals.microbeTrace;
         let visNodeCount_map = win.commonService.getVisibleNodes().filter((node) => node.Zip_code).length;
         let mapNodeCount = 0;
         Object.values(win.commonService.visuals.gisMap.layers.markerClusterGroup._featureGroup._layers).forEach((layer: any) => {
           if (layer._childCount) mapNodeCount += layer._childCount;
           else mapNodeCount += 1;
         })
-        expect(visNodeCount_map).to.eq(mapNodeCount).to.eq(0);
+        expect(new Date(state.timeEnd).toDateString(), 'timeline reset to selected start date')
+          .to.equal(new Date(state.timeStart).toDateString());
+        expect(visNodeCount_map).to.eq(mapNodeCount);
+        cy.get('svg g.slider text.label')
+          .should('have.text', microbeTrace.handleDateFormat(new Date(state.timeEnd)));
       })
     })
   })

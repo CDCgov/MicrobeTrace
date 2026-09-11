@@ -40,6 +40,7 @@ export type OracleSnapshot = {
   nearestNeighborEnabled: boolean;
   epsilonExponent: number;
   timelineField: string | null;
+  timelineStart: string | null;
   timelineEnd: string | null;
   visibleLinkIds: string[];
   visibleNodeIds: string[];
@@ -81,6 +82,12 @@ export type OracleStep =
       id: string;
       kind: 'set-timeline-date';
       date: string;
+    }
+  | {
+      id: string;
+      kind: 'set-timeline-range';
+      start: string;
+      end: string;
     }
   | {
       id: string;

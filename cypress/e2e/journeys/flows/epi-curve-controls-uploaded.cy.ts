@@ -10,12 +10,18 @@ import {
   assertEpiCurveHasBars,
   assertEpiCurveColorPickerVisible,
   readEpiCurveBars,
+  readEpiStackOrderItems,
+  readEpiStackOrderLabels,
   readEpiCurveXAxisTickLabels,
+  reorderEpiStackGroups,
   selectEpiCurveDropdown,
+  selectEpiCurveSettingsTab,
   setEpiCurveColor,
   setEpiCurveCumulative,
   setEpiCurveLegendPosition,
   setEpiCurveRange,
+  setEpiStackGroupColor,
+  setEpiStackGroupOpacity,
   setEpiCurveTickInterval,
 } from '../../../support/epi-curve-helpers';
 
@@ -58,6 +64,17 @@ const readUniqueEpiCurveFills = (): Cypress.Chainable<string[]> =>
       .map((bar) => String(bar.fill || '').trim().toLowerCase())
       .filter(Boolean),
   )].sort());
+
+const readUniqueEpiCurveFillsInRenderOrder = (): Cypress.Chainable<string[]> =>
+  readEpiCurveBars().then((bars) => bars.reduce<string[]>((fills, bar) => {
+    const fill = String(bar.fill || '').trim().toLowerCase();
+
+    if (fill && !fills.includes(fill)) {
+      fills.push(fill);
+    }
+
+    return fills;
+  }, []));
 
 const assertLegendPosition = (position: 'Hide' | 'Left' | 'Right' | 'Bottom'): void => {
   if (position === 'Hide') {
@@ -295,10 +312,12 @@ describe('Journey Flow - Epi Curve controls on uploaded data', () => {
 
     ensureEpiSettingsDialogOpen();
     selectEpiCurveDropdown('Bin Size', 'Year');
+    selectEpiCurveSettingsTab('Legend & Labels');
     getEpiSettingsDialog().find('#epi-tick-size').should('not.be.visible');
 
     ensureEpiSettingsDialogOpen();
     selectEpiCurveDropdown('Bin Size', 'Quarter');
+    selectEpiCurveSettingsTab('Legend & Labels');
     getEpiSettingsDialog().find('#epi-tick-size').should('be.visible');
     cy.window()
       .its('commonService.visuals.epiCurve.tickInterval')
@@ -339,6 +358,84 @@ describe('Journey Flow - Epi Curve controls on uploaded data', () => {
 
     readUniqueEpiCurveFills().then((fills) => {
       expect(fills, 'updated single-date fixed fill set').to.deep.equal([secondFixedColor]);
+    });
+
+    cy.closeSettingsPane('Epi Curve Settings');
+  });
+
+  it('applies uploaded single-date stack colors, transparency, and custom ordering', () => {
+    const movedColor = '#ff00aa';
+    const secondColor = '#00cc88';
+    const movedOpacity = 0.4;
+
+    ensureEpiSettingsDialogOpen();
+    selectEpiCurveDropdown('Color By', 'Cluster');
+    selectEpiCurveDropdown('Stack Order', 'Custom');
+    setEpiCurveLegendPosition('Right');
+
+    cy.window().then((win: any) => {
+      const epiCurve = win.commonService.visuals.epiCurve;
+      const widgets = win.commonService.session.style.widgets;
+      const dateField = epiCurve.SelectedDateFieldVariable;
+      const colorField = widgets['epiCurve-stackColorBy'];
+      const nodes = win.commonService.session.data.nodes || [];
+      const renderableStackValues = new Set(
+        nodes
+          .filter((node: any) => String(node?.[dateField] ?? '').trim() !== '')
+          .map((node: any) => node?.[colorField]),
+      );
+      const stackItems = (epiCurve.customStackOrderItems || [])
+        .map((item: any, index: number) => ({ ...item, index }));
+      const renderableStackItems = stackItems
+        .filter((item: any) => [...renderableStackValues].some((value) => value == item.value));
+
+      expect(renderableStackItems.length, 'renderable stack groups').to.be.greaterThan(1);
+
+      return {
+        moved: renderableStackItems[0],
+        second: renderableStackItems[1],
+        dropIndex: stackItems.length - 1,
+      };
+    }).as('stackCase');
+
+    cy.get<any>('@stackCase').then((stackCase) => {
+      setEpiStackGroupColor(stackCase.moved.label, movedColor);
+      setEpiStackGroupColor(stackCase.second.label, secondColor);
+      setEpiStackGroupOpacity(stackCase.moved.label, movedOpacity);
+    });
+
+    readEpiCurveBars().should((bars) => {
+      expect(
+        bars.some((bar) =>
+          String(bar.fill).toLowerCase() === movedColor &&
+          Math.abs(Number(bar.opacity) - movedOpacity) < 0.001),
+        'updated stack group color and opacity in rendered bars',
+      ).to.equal(true);
+      expect(
+        bars.some((bar) => String(bar.fill).toLowerCase() === secondColor),
+        'second updated stack group color in rendered bars',
+      ).to.equal(true);
+    });
+
+    cy.get<any>('@stackCase').then((stackCase) => {
+      reorderEpiStackGroups(stackCase.moved.index, stackCase.dropIndex);
+
+      readEpiStackOrderItems().should((items) => {
+        expect(items[stackCase.dropIndex].value, 'moved group in settings order').to.equal(stackCase.moved.value);
+      });
+
+      readEpiStackOrderLabels().should((labels) => {
+        expect(labels[stackCase.dropIndex], 'moved group label in settings order').to.equal(stackCase.moved.label);
+      });
+
+      cy.window().its('commonService.session.style.widgets').should((widgets) => {
+        expect(widgets['epiCurve-stackOrder'], 'stack order mode').to.equal('Custom');
+        expect(widgets['epiCurve-customStackOrder'][0], 'internal bottom stack group').to.equal(stackCase.moved.value);
+      });
+
+      readUniqueEpiCurveFillsInRenderOrder().should((fills) => {
+        expect(fills[0], 'first rendered stack fill after custom reorder').to.equal(movedColor);
+      });
     });
 
     cy.closeSettingsPane('Epi Curve Settings');

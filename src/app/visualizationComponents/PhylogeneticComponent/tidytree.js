@@ -735,7 +735,7 @@ TidyTree.prototype.redraw = function () {
       let nodeGlyphs = update.select("circle");
       nodeGlyphs.style("fill", d => findNodeColor(d, this.colorOptions));      
 
-      let nodeLabels = update.select("text");
+      let nodeLabels = update.select("text").text(d => d.data.id);
       if (this.layout === "vertical") {
         nodeLabels
           .attr("text-anchor", "start")

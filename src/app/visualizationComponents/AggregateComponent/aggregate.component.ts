@@ -13,7 +13,6 @@ import { saveAs } from 'file-saver';
 import * as XLSX from 'xlsx';
 //import pdfMake from 'pdfmake/build/pdfmake.js';
 //import pdfFonts from 'pdfmake/build/vfs_fonts.js';
-import { GoogleTagManagerService } from 'angular-google-tag-manager';
 import { CommonStoreService } from '@app/contactTraceCommonServices/common-store.services';
 import { sanitizeExportRows } from '@app/contactTraceCommonServices/export-sanitization';
 import { Subject, takeUntil } from 'rxjs';
@@ -77,8 +76,7 @@ export class AggregateComponent extends BaseComponentDirective implements OnInit
     @Inject(BaseComponentDirective.GoldenLayoutContainerInjectionToken) private container: ComponentContainer, 
     elRef: ElementRef,
     private cdref: ChangeDetectorRef,
-    private store: CommonStoreService,
-    private gtmService: GoogleTagManagerService) {
+    private store: CommonStoreService) {
 
       super(elRef.nativeElement);
 
@@ -90,12 +88,6 @@ export class AggregateComponent extends BaseComponentDirective implements OnInit
   }
 
   ngOnInit(): void {
-
-    this.gtmService.pushTag({
-            event: "page_view",
-            page_location: "/aggregate",
-            page_title: "Aggregate View"
-        });
 
     this.SelectedDataFields.forEach((field, index) => {
       this.SelectedDataTables.push({label: '', data: [], tableColumns: []})

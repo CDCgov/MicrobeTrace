@@ -362,7 +362,19 @@ describe('Epi Curve / Timeline View', () => {
       })
     })
 
+    let selectEpiSettingsTab = (tab: 'Graph' | 'Legend & Labels' | 'Order & Color') => {
+      cy.contains('.p-dialog-title', 'Epi Curve Settings')
+        .parents('.p-dialog')
+        .within(() => {
+          cy.contains('.nav-link', tab)
+            .click({ force: true })
+            .should('have.class', 'active');
+        });
+    }
+
     let selectField = (field, value) => {
+      selectEpiSettingsTab(field == 'Color By' ? 'Order & Color' : 'Graph');
+
       cy.contains('.p-dialog-title', 'Epi Curve Settings')
       .parents('.p-dialog')
       .within(() => {
@@ -422,6 +434,8 @@ describe('Epi Curve / Timeline View', () => {
       if (fieldNumber == 1) selector += '-2'
       else if (fieldNumber == 2) selector += '-3'
 
+      selectEpiSettingsTab('Graph');
+
       cy.get(selector)
         .invoke('val', color)
         .trigger('input')
@@ -443,6 +457,8 @@ describe('Epi Curve / Timeline View', () => {
     }
 
     let updateRangeSetting = (settingLabel: 'Label Size' | 'Legend Size', size: number) => {
+      selectEpiSettingsTab('Legend & Labels');
+
       cy.contains('.p-dialog-title', 'Epi Curve Settings')
         .parents('.p-dialog')
         .within(() => {
@@ -522,6 +538,8 @@ describe('Epi Curve / Timeline View', () => {
         previousHeights = [...$rects].map((rect) => Number(rect.getAttribute('height') || 0));
       });
 
+      selectEpiSettingsTab('Graph');
+
       cy.contains('.p-dialog-title', 'Epi Curve Settings')
         .parents('.p-dialog')
         .within(() => {
@@ -558,6 +576,8 @@ describe('Epi Curve / Timeline View', () => {
     }
 
     let selectLegendPosition = (pos: 'Hide' | 'Left' | 'Right' | 'Bottom') => {
+      selectEpiSettingsTab('Legend & Labels');
+
       cy.contains('.p-dialog-title', 'Epi Curve Settings')
         .parents('.p-dialog')
         .within(() => {

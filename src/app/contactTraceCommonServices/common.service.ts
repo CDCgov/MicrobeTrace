@@ -98,7 +98,6 @@ const NETWORK_SUBSET_DERIVED_LINK_FIELDS = new Set([
     'cluster',
     'nn'
 ]);
-
 @Directive()
 @Injectable({
     providedIn: 'root',
@@ -237,6 +236,11 @@ export class CommonService extends AppComponentBase implements OnInit {
         SelectedApplyStyleVariable: '',
         SelectedRevealTypesVariable: 'Everything'
     };
+
+    // Resolve display aliases to the calculation metrics supported by the data pipeline.
+    normalizeDistanceMetric(metric: unknown): 'snps' | 'tn93' {
+        return String(metric || 'snps').toLowerCase() === 'tn93' ? 'tn93' : 'snps';
+    }
 
     // Helper functions for TN93 distance display values
     private normalizeDisplayedDistanceField(linkField: string = 'distance'): string {
@@ -381,8 +385,19 @@ export class CommonService extends AppComponentBase implements OnInit {
             nodeTableColumns: [],
             linkTableColumns: [],
             clusterTableColumns: [],
+            geoJSON: null,
+            geoJSONLayerName: '',
+            floorplanImage: null,
+            floorplanImageLayerName: '',
+            floorplanImageBounds: null,
+            floorplanImageWidth: null,
+            floorplanImageHeight: null,
+            floorplanBackgroundBaseLayerState: null as any,
+            floorplanBoundaryField: 'None',
+            floorplanBoundaries: [],
             tree: {},
             newickString: '',
+            phylogeneticBootstrap: null,
             newickSource: '',
             auspiceMapData: {
                 countries: {
@@ -512,6 +527,12 @@ export class CommonService extends AppComponentBase implements OnInit {
             'map-field-county': 'None',
             'map-field-state': 'None',
             'map-field-country': 'None',
+            'map-user-geojson-show': false,
+            'map-user-geojson-color': '#3388ff',
+            'map-user-geojson-transparency': 0.25,
+            'map-user-geojson-label-field': 'None',
+            'map-floorplan-image-show': false,
+            'map-floorplan-boundaries-show': true,
             'map-link-show': true,
             'map-link-tooltip-variable': 'None',
             'map-link-transparency': 0,
@@ -526,6 +547,8 @@ export class CommonService extends AppComponentBase implements OnInit {
             'network-friction': 0.4,
             'network-gravity': 0.05,
             'network-link-strength': 0.124,
+            'network-node-collapse-enabled': false,
+            'network-node-collapse-threshold': 0,
             'node-charge': 200,
             'node-border-width' : 2.0,
             'node-color': '#1f77b4',
@@ -585,8 +608,13 @@ export class CommonService extends AppComponentBase implements OnInit {
             'timeline-date-field': 'None',
             'timeline-noncumulative': true,
             'tree-animation-on': true,
+            'tree-bootstrap-custom-replicates': 100,
+            'tree-bootstrap-decimal-length': 1,
+            'tree-bootstrap-support-threshold': 0,
+            'tree-bootstrap-stop-when-stable': false,
             'tree-branch-distances-hide': true,
             'tree-branch-distance-size': 12,
+            'tree-branch-label-show': false,
             'tree-branch-nodes-show': false,
             'tree-horizontal-stretch': 1,
             'tree-layout-vertical': false,
@@ -650,9 +678,9 @@ export class CommonService extends AppComponentBase implements OnInit {
                 settingsLoaded: false,
             },
             state: {
-                timeStart: 0,
-                timeEnd: new Date(),
-                timeTarget: null,
+                timeStart: null as Date | number | string | null,
+                timeEnd: new Date() as Date | number | string | null,
+                timeTarget: null as Date | number | string | null,
                 networkSubsetFilter: this.createDefaultNetworkSubsetFilterState()
             },
             style: {
@@ -662,6 +690,7 @@ export class CommonService extends AppComponentBase implements OnInit {
                 keyTableColumnNames: {},
                 nodeAlphas: [1],
                 nodeColors: this.thirtyColorPalette,
+                nodeColorAssignments: {},
                 nodeColorsTable: {},
                 nodeColorsTableHistory: {},
                 nodeColorsTableKeys: {},
@@ -740,6 +769,53 @@ export class CommonService extends AppComponentBase implements OnInit {
         return Math.min(1, Math.max(0, numericValue));
     }
 
+    private ensureNodeColorAssignmentState(style: any = this.session?.style): Record<string, Record<string, string>> {
+        if (!style || typeof style !== 'object') {
+            return {};
+        }
+
+        if (!style.nodeColorAssignments || typeof style.nodeColorAssignments !== 'object' || Array.isArray(style.nodeColorAssignments)) {
+            style.nodeColorAssignments = {};
+        }
+
+        return style.nodeColorAssignments as Record<string, Record<string, string>>;
+    }
+
+    public applyNodeColorAssignments(field: string, assignments: Record<string, string>): Record<string, string> {
+        const selectedField = String(field ?? '').trim();
+        if (!selectedField || selectedField === 'None') {
+            throw new Error('Select a node color variable before applying color assignments.');
+        }
+
+        const incomingEntries = Object.entries(assignments || {});
+        const invalidEntry = incomingEntries.find(([value, color]) =>
+            !String(value).trim() || !/^#[0-9a-f]{6}$/i.test(String(color))
+        );
+        if (invalidEntry) {
+            throw new Error(`Invalid color assignment for value "${invalidEntry[0]}".`);
+        }
+
+        const assignmentState = this.ensureNodeColorAssignmentState();
+        const mergedAssignments = Object.create(null) as Record<string, string>;
+        const existingAssignments = assignmentState[selectedField];
+
+        if (existingAssignments && typeof existingAssignments === 'object' && !Array.isArray(existingAssignments)) {
+            Object.keys(existingAssignments).forEach(value => {
+                const color = existingAssignments[value];
+                if (typeof color === 'string') {
+                    mergedAssignments[value] = color;
+                }
+            });
+        }
+        incomingEntries.forEach(([value, color]) => {
+            mergedAssignments[String(value).trim()] = String(color).toLowerCase();
+        });
+
+        assignmentState[selectedField] = mergedAssignments;
+        this.createNodeColorMap();
+        return mergedAssignments;
+    }
+
     public getNodeFillStyle(node: any): { color: string; alpha: number } {
         const widgets = this.session.style.widgets;
         const variable = widgets['node-color-variable'];
@@ -753,13 +829,21 @@ export class CommonService extends AppComponentBase implements OnInit {
         }
 
         const value = node[variable];
+        const historicalColor = this.session.style.nodeColorsTableHistory?.[variable]?.[String(value)];
         let color = fallbackColor;
         let alpha = 1;
 
-        try {
-            color = this.temp.style.nodeColorMap?.(value) || fallbackColor;
-        } catch {
-            color = fallbackColor;
+        if (typeof historicalColor === 'string' && historicalColor) {
+            // Timeline color tables only contain currently visible categories. Keep
+            // hidden/newly visible nodes on their persisted category color instead
+            // of letting d3 assign a temporary color for a missing scale-domain key.
+            color = historicalColor;
+        } else {
+            try {
+                color = this.temp.style.nodeColorMap?.(value) || fallbackColor;
+            } catch {
+                color = fallbackColor;
+            }
         }
 
         try {
@@ -2165,7 +2249,6 @@ export class CommonService extends AppComponentBase implements OnInit {
 
         return endpoint === undefined || endpoint === null ? '' : String(endpoint);
     }
-
     private getNetworkSubsetLinkKey(link: any, index: number): string {
         return String(link?.id ?? link?.index ?? index);
     }
@@ -2221,7 +2304,6 @@ export class CommonService extends AppComponentBase implements OnInit {
                     if (value.trim().length === 0) {
                         return false;
                     }
-
                     const rawNumber = Number(value);
                     if (!Number.isFinite(rawNumber)) {
                         return false;
@@ -2675,9 +2757,13 @@ export class CommonService extends AppComponentBase implements OnInit {
         console.log('this.temp: ', this.temp);
         this.temp.matrix = [];
         this.session.files = oldSession.files;
-        this.session.state = oldSession.state;
+        this.session.state = Object.assign({},
+            this.sessionSkeleton().state,
+            oldSession.state || {}
+        );
         this.ensureNetworkSubsetFilterState();
         this.session.style = oldSession.style;
+        this.ensureNodeColorAssignmentState(this.session.style);
 
         this.session.meta.startTime = Date.now();
 
@@ -2713,6 +2799,9 @@ export class CommonService extends AppComponentBase implements OnInit {
         if (typeof oldSession.data?.newickString === 'string') {
             this.session.data.newickString = oldSession.data.newickString;
         }
+        if (oldSession.data?.phylogeneticBootstrap) {
+            this.session.data.phylogeneticBootstrap = oldSession.data.phylogeneticBootstrap;
+        }
         if (typeof oldSession.data?.newickSource === 'string') {
             this.session.data.newickSource = oldSession.data.newickSource;
         }
@@ -2734,10 +2823,25 @@ export class CommonService extends AppComponentBase implements OnInit {
         // Set to false to indicate that the network is not fully loaded  as new network is launching
         this.session.network.isFullyLoaded = false;
 
-         if (oldSession.data.geoJSONLayerName !== "") {
+        if (oldSession.data?.geoJSONLayerName || oldSession.data?.geoJSON) {
             this.session.data['geoJSON'] = oldSession.data.geoJSON;
-            this.session.data['geoJSONLayerName'] = oldSession.data.geoJSONLayerName;
+            this.session.data['geoJSONLayerName'] = oldSession.data.geoJSONLayerName || '';
         }
+
+        if (oldSession.data?.floorplanImageLayerName || oldSession.data?.floorplanImage) {
+            this.session.data['floorplanImage'] = oldSession.data.floorplanImage;
+            this.session.data['floorplanImageLayerName'] = oldSession.data.floorplanImageLayerName || '';
+            this.session.data['floorplanImageBounds'] = oldSession.data.floorplanImageBounds || null;
+            this.session.data['floorplanImageWidth'] = oldSession.data.floorplanImageWidth || null;
+            this.session.data['floorplanImageHeight'] = oldSession.data.floorplanImageHeight || null;
+        }
+
+        this.session.data['floorplanBackgroundBaseLayerState'] = oldSession.data?.floorplanBackgroundBaseLayerState || null;
+
+        this.session.data['floorplanBoundaryField'] = oldSession.data.floorplanBoundaryField || 'None';
+        this.session.data['floorplanBoundaries'] = Array.isArray(oldSession.data.floorplanBoundaries)
+            ? oldSession.data.floorplanBoundaries
+            : [];
 
         // Previous versions of MT could store jQuery events instead of color strings.
         // Node color history is now nested by variable, so sanitize its leaf values.
@@ -2817,6 +2921,7 @@ export class CommonService extends AppComponentBase implements OnInit {
         if(this.debugMode) {
             console.log('---- applying style: ', style);
         }
+        this.ensureNodeColorAssignmentState(style);
         this.session.style = style;
         this.session.style.widgets = Object.assign({},
             this.defaultWidgets(),
@@ -3752,25 +3857,17 @@ align(params): Promise<any> {
 
         console.log('----- finishUp -- search fields, color variable sort varialbe, distance UI');
 
-        $("#search-field")
-            .html(this.session.data.nodeFields.map(field => '<option value="' + field + '">' + this.titleize(field) + "</option>").join("\n"))
+        this.replaceSelectOptions("#search-field", this.session.data.nodeFields)
             .val(this.session.style.widgets["search-field"]);
         $("#search-form").css("display", "flex");
-        $("#link-sort-variable")
-            .html(this.session.data.linkFields.map(field => '<option value="' + field + '">' + this.titleize(field) + "</option>").join("\n"))
+        this.replaceSelectOptions("#link-sort-variable", this.session.data.linkFields)
             .val(this.session.style.widgets["link-sort-variable"]);
-        $("#node-color-variable")
-            .html(
-                "<option selected>None</option>" +
-                this.getStyleableNodeFields().map(field => '<option value="' + field + '">' + this.titleize(field) + "</option>").join("\n"))
+        this.replaceSelectOptions("#node-color-variable", this.getStyleableNodeFields(), true)
             .val(this.session.style.widgets["node-color-variable"]);
         $("#default-distance-metric")
             .val(this.session.style.widgets["default-distance-metric"]);
-        $("#link-color-variable")
-        .html(
-            "<option>None</option>" +
-            this.session.data.linkFields.map(field => '<option value="' + field + '">' + this.titleize(field) + "</option>").join("\n"))
-        .val(this.session.style.widgets["link-color-variable"]);
+        this.replaceSelectOptions("#link-color-variable", this.session.data.linkFields, true)
+            .val(this.session.style.widgets["link-color-variable"]);
         try {
             // TODO:: Refactoring asses need for this
             // this.updateThresholdHistogram();
@@ -3856,6 +3953,22 @@ align(params): Promise<any> {
         });
     };
 
+    /**
+     * Replaces a select element's options without interpreting field names as HTML.
+     */
+    private replaceSelectOptions(selector: string, fields: string[], includeNone = false) {
+        const select = $(selector).empty();
+
+        if (includeNone) {
+            select.append($("<option>").text("None"));
+        }
+
+        fields.forEach(field => {
+            select.append($("<option>").val(field).text(this.titleize(field)));
+        });
+
+        return select;
+    }
 
     updateNetworkVisuals(silent: boolean = false, forceClusterUpdate: boolean = false) {
         const updateStart = Date.now();
@@ -4035,6 +4148,36 @@ align(params): Promise<any> {
         return out;
     };
 
+    private getLinkEndpointId(endpoint: any): string {
+        if (endpoint && typeof endpoint === 'object') {
+            return String(endpoint._id ?? endpoint.id ?? '');
+        }
+
+        return String(endpoint ?? '');
+    }
+
+    /**
+     * Gets visible links for timeline-aware tables and statistics.
+     * In timeline mode, links are only counted when both endpoints are currently timeline-visible.
+     */
+    getVisibleLinksForCurrentTimeline(copy: any = false) {
+        const visibleLinks = this.getVisibleLinks(copy);
+        const timelineDateField = this.session.style.widgets["timeline-date-field"];
+
+        if (timelineDateField == 'None') {
+            return visibleLinks;
+        }
+
+        const visibleNodeIds = new Set(
+            this.getVisibleNodes().map(node => String(node._id ?? node.id ?? ''))
+        );
+
+        return visibleLinks.filter(link =>
+            visibleNodeIds.has(this.getLinkEndpointId(link.source)) &&
+            visibleNodeIds.has(this.getLinkEndpointId(link.target))
+        );
+    }
+
     /**
      * Gets links for non-target data views while preserving all non-timeline filters.
      * Link visibility is currently computed independently of the timeline node gate, so the
@@ -4103,6 +4246,7 @@ align(params): Promise<any> {
         }
         let vnodes = this.getVisibleNodes();
         let vlinks = this.getVisibleLinks();
+        const effectiveVisibleLinks = this.getVisibleLinksForCurrentTimeline();
         console.log('vLinksStats', vlinks.length);
         let linkCount = 0;
         let clusterCount = 0;
@@ -4110,26 +4254,20 @@ align(params): Promise<any> {
         const timelineDateField = this.session.style.widgets["timeline-date-field"];
         const timelineMode = timelineDateField != 'None';
         if (!timelineMode) {
-            linkCount = vlinks.length;
+            linkCount = effectiveVisibleLinks.length;
             // const minSize = this.session.style.widgets['cluster-minimum-size'];
             clusterCount = this.session.data.clusters.filter(
               cluster => cluster.visible && cluster.nodes > 1).length;
             singletons = vnodes.filter(d => d.degree == 0).length;
         } else {
             const metric = this.session.style.widgets["link-sort-variable"];
-            const visibleNodeIds = new Set(
-                vnodes.map(node => String(node._id ?? node.id ?? ''))
-            );
-            const timelineLinks = vlinks.filter(link => {
-                return visibleNodeIds.has(String(link.source)) && visibleNodeIds.has(String(link.target));
-            });
             const timelineSummary = buildVisibleClusterSummary(
                 vnodes,
-                timelineLinks.map(link => ({ ...link, visible: true })),
+                effectiveVisibleLinks.map(link => ({ ...link, visible: true })),
                 metric
             );
 
-            linkCount = timelineLinks.length;
+            linkCount = effectiveVisibleLinks.length;
             clusterCount = timelineSummary.clusterCount;
             singletons = timelineSummary.singletonCount;
         }
@@ -4174,6 +4312,7 @@ align(params): Promise<any> {
         const nodeColorsTable = this.session.style.nodeColorsTable;       // e.g. { varName: [ ... ] }
         const nodeColorsTableKeys = this.session.style.nodeColorsTableKeys;
         const nodeColorsTableHistory = this.session.style.nodeColorsTableHistory;
+        const nodeColorAssignments = this.ensureNodeColorAssignmentState()[nodeColorVariable] || {};
     
         // 2) Call your new colorMappingService
         const result = this.colorMappingService.createNodeColorMap(
@@ -4184,6 +4323,7 @@ align(params): Promise<any> {
         nodeColorsTable,
         nodeColorsTableKeys,
         nodeColorsTableHistory,
+        nodeColorAssignments,
         this.debugMode
         );
     
@@ -4219,7 +4359,7 @@ align(params): Promise<any> {
             return [];
         }
 
-        const links = this.getVisibleLinks();
+        const links = this.getVisibleLinksForCurrentTimeline();
       
         let linkColors;
         if( this.session.style.linkColorsTable && this.session.style.linkColorsTable[linkColorVariable]) {
@@ -4684,17 +4824,66 @@ align(params): Promise<any> {
      * @param {string} title 
      */
     titleize(title: string): string {
-        const small = title.toLowerCase().replace(/_/g, " ");
-        if (small == "null") return "(Empty)";
-        if (small == "id" || small == " id") return "ID";
-        if (small == "tn93") return "TN93";
-        if (small == "snps") return "SNPs";
-        if (small == "2d network") return "2D Network";
-        if (small == "3d network") return "3D Network";
-        if (small == "geo map") return "Map";
-        if (small == "nn") return "Nearest Neighbor";
-        return title;
-        return small.replace(/(?:^|\s|-)\S/g, c => c.toUpperCase());
+        const raw = `${title ?? ''}`;
+        const trimmed = raw.trim();
+        const small = trimmed.toLowerCase().replace(/[_-]+/g, ' ').replace(/\s+/g, ' ').trim();
+        const exactTitles: { [key: string]: string } = {
+            'null': '(Empty)',
+            'id': 'ID',
+            'tn93': 'TN93',
+            'snps': 'SNPs',
+            '2d network': '2D Network',
+            '3d network': '3D Network',
+            'geo map': 'Map',
+            'nn': 'Nearest Neighbor',
+            'seq': 'Sequence',
+            'hasdistance': 'Has Distance',
+            'distanceorigin': 'Distance Origin',
+            'distanceorigins': 'Distance Origins'
+        };
+
+        if (exactTitles[small]) return exactTitles[small];
+
+        // Preserve free-form labels that users already wrote with spaces/case.
+        if (!/[_-]/.test(trimmed)) {
+            return raw;
+        }
+
+        // Network import provenance fields use raw snake_case keys internally;
+        // keep those keys stable while showing readable labels in the UI.
+        const words: { [key: string]: string } = {
+            'id': 'ID',
+            'ids': 'IDs',
+            'mt': 'MicrobeTrace',
+            'nn': 'Nearest Neighbor',
+            'seq': 'Sequence',
+            'snps': 'SNPs',
+            'tn93': 'TN93',
+            'graphml': 'GraphML',
+            'graphmlgraph': 'GraphML Graph',
+            'gexf': 'GEXF',
+            'xgmml': 'XGMML',
+            'cx2': 'CX2',
+            'cyjs': 'Cytoscape JSON',
+            'cx': 'CX',
+            'dot': 'DOT',
+            'gml': 'GML',
+            'x': 'X',
+            'y': 'Y',
+            'vx': 'VX',
+            'vy': 'VY'
+        };
+        const readable = trimmed
+            .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+            .replace(/[_-]+/g, ' ')
+            .replace(/\s+/g, ' ')
+            .trim();
+
+        return readable
+            .split(' ')
+            .filter(part => part.length > 0)
+            .map(part => words[part.toLowerCase()] || part.charAt(0).toUpperCase() + part.slice(1))
+            .join(' ');
     };
 
     /** 
@@ -4766,6 +4955,10 @@ align(params): Promise<any> {
             clusters = this.session.data.clusters;
         let n = nodes.length;
         let visibleNodes = 0;
+        const hasTimelineStart = this.hasValidTimelineDateValue(this.session.state.timeStart);
+        const hasTimelineEnd = this.hasValidTimelineDateValue(this.session.state.timeEnd);
+        const timelineStart = hasTimelineStart ? moment(this.session.state.timeStart).toDate() : null;
+        const timelineEnd = hasTimelineEnd ? moment(this.session.state.timeEnd).toDate() : null;
         const resolvedSubsetFilter = this.resolveNetworkSubsetFilter();
         for (let i = 0; i < n; i++) {
             const node = nodes[i];
@@ -4785,10 +4978,12 @@ align(params): Promise<any> {
             }
             if (node.visible && dateField != "None") {
                 const rawDateValue = node[dateField];
-                if (this.hasValidTimelineDateValue(rawDateValue)) {
+                if (this.hasValidTimelineDateValue(rawDateValue) && timelineEnd) {
+                    const nodeDate = moment(rawDateValue).toDate();
                     node.visible =
                         node.visible &&
-                        moment(this.session.state.timeEnd).toDate() >= moment(rawDateValue).toDate();
+                        timelineEnd >= nodeDate &&
+                        (!timelineStart || timelineStart <= nodeDate);
                 }
             }
 

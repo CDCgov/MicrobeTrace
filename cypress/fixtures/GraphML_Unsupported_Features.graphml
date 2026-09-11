@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<graphml xmlns="http://graphml.graphdrawing.org/xmlns">
+  <key id="node_id" for="node" attr.name="_id" attr.type="string"/>
+  <key id="edge_origin" for="edge" attr.name="origin" attr.type="string"/>
+  <key id="edge_has_distance" for="edge" attr.name="hasDistance" attr.type="boolean"/>
+  <graph id="UnsupportedFeatures" edgedefault="undirected">
+    <node id="U1">
+      <data key="node_id">U1</data>
+      <port name="p0"/>
+      <graph id="NestedGraph" edgedefault="undirected">
+        <node id="NestedNode"/>
+      </graph>
+    </node>
+    <node id="U2">
+      <data key="node_id">U2</data>
+    </node>
+    <edge id="unsupported_edge" source="U1" target="U2">
+      <data key="edge_origin">["Unsupported.csv"]</data>
+      <data key="edge_has_distance">false</data>
+    </edge>
+  </graph>
+</graphml>

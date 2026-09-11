@@ -1,0 +1,21 @@
+// Static DOT import fixture
+strict digraph ContactNetwork {
+  graph [label="DOT fixture", created="2026-07-01"];
+  node [sample_type="case", active=true];
+  edge [kind="contact"];
+
+  Alpha [label="Case Alpha", viral_load=2.5];
+  Beta [sample_type="contact", active=false];
+  Gamma;
+
+  Alpha -> Beta [distance=4.5, confirmed=true, origin="Contact.csv"];
+  Beta -> Gamma [weight=7, kind="genetic"];
+  Alpha -> Beta [distance=5, note="strict replacement"];
+
+  subgraph cluster_followup {
+    Delta [sample_type="contact"];
+    Epsilon;
+  }
+
+  Beta -> { Delta Epsilon } [distance=2];
+}

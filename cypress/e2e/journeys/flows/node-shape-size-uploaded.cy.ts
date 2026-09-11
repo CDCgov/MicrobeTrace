@@ -1,5 +1,6 @@
 /// <reference types="cypress" />
 
+import { getNodeShapePreviewDataUri } from '../../../../src/app/contactTraceCommonServices/node-shapes';
 import { getProfile } from '../datasets/profile';
 import {
   assertAfterLaunchCounts,
@@ -42,6 +43,22 @@ const closeTwoDSettingsDialog = (): void => {
 
 const nodeShapeTableSelector = '#node-shape-table, #key-tables-node-shape-table, #nodeSymbolTable';
 
+const getVisibleNodeShapeTable = (): Cypress.Chainable<JQuery<HTMLElement>> =>
+  cy.get('#key-tables-node-shape-table', { timeout: 15000 })
+    .should(($table) => {
+      expect($table.length, 'docked node shape table').to.be.greaterThan(0);
+
+      const element = $table.get(0) as HTMLElement;
+      const computed = window.getComputedStyle(element);
+      const rect = element.getBoundingClientRect();
+
+      expect(computed.display, 'docked node shape table display').not.to.equal('none');
+      expect(computed.visibility, 'docked node shape table visibility').not.to.equal('hidden');
+      expect(rect.width, 'docked node shape table width').to.be.greaterThan(0);
+      expect(rect.height, 'docked node shape table height').to.be.greaterThan(0);
+    })
+    .first();
+
 const assertNodeSymbolTableVisibility = (shouldBeVisible: boolean): void => {
   if (shouldBeVisible) {
     cy.get(nodeShapeTableSelector, { timeout: 15000 }).should(($tables) => {
@@ -73,6 +90,27 @@ const assertNodeSymbolTableVisibility = (shouldBeVisible: boolean): void => {
 
     expect(visibleTables.length, 'visible node shape tables').to.equal(0);
   });
+};
+
+const getNodeShapeTableRow = (value: string): Cypress.Chainable<JQuery<HTMLTableRowElement>> =>
+  getVisibleNodeShapeTable()
+    .contains('td[data-value]', value, { timeout: 15000 })
+    .closest('tr');
+
+const assertSelectedNodeShapePreview = (value: string, shapeKey: string): void => {
+  getNodeShapeTableRow(value)
+    .scrollIntoView()
+    .find(`img.style-key-table__shape-preview[data-shape-key="${shapeKey}"]`)
+    .should('be.visible')
+    .and('have.attr', 'src', getNodeShapePreviewDataUri(shapeKey));
+};
+
+const openNodeShapeTableDropdown = (value: string): void => {
+  getNodeShapeTableRow(value)
+    .scrollIntoView()
+    .find('p-treeselect, .shapeDropdown, .p-treeselect')
+    .first()
+    .click({ force: true });
 };
 
 const getVisibleLeafNodeWidths = (): Cypress.Chainable<number[]> => {
@@ -136,6 +174,32 @@ describe('Journey Flow - Uploaded node shapes and sizes without style', () => {
     cy.window().its('commonService.session.style.widgets.node-symbol-variable').should('equal', 'Node type');
     cy.window().its('commonService.session.style.widgets.node-symbol-table-visible').should('equal', 'Dock');
     assertNodeSymbolTableVisibility(true);
+    cy.get('body').type('{esc}');
+
+    const personShapeKey = 'virus';
+    const facilityShapeKey = 'house';
+
+    cy.window().then((win: any) => {
+      const app = win.commonService.visuals.microbeTrace;
+      const personShape = app.getNodeShapeTreeSelection(personShapeKey);
+      const facilityShape = app.getNodeShapeTreeSelection(facilityShapeKey);
+
+      expect(personShape, 'custom person shape selection').to.exist;
+      expect(facilityShape, 'custom facility shape selection').to.exist;
+
+      app.onNodeShapeTableTreeChange(personShape, 'Person');
+      app.onNodeShapeTableTreeChange(facilityShape, 'Facility');
+    });
+
+    assertSelectedNodeShapePreview('Person', personShapeKey);
+    assertSelectedNodeShapePreview('Facility', facilityShapeKey);
+
+    openNodeShapeTableDropdown('Person');
+    cy.get('.shapeTreeSelectPanel:visible', { timeout: 15000 })
+      .find(`img.style-key-table__shape-preview[data-shape-key="${personShapeKey}"]`)
+      .should('be.visible')
+      .and('have.attr', 'src', getNodeShapePreviewDataUri(personShapeKey));
+    cy.get('body').type('{esc}');
 
     cy.window().then((win: any) => {
       const cyInstance = win.cytoscapeInstance;
@@ -189,6 +253,7 @@ describe('Journey Flow - Uploaded node shapes and sizes without style', () => {
 
     cy.get('@nodesTab').find('#node-radius-variable').click({ force: true });
     cy.contains('li[role="option"]', 'Degree').click({ force: true });
+    cy.get('body').type('{esc}');
 
     cy.window().its('commonService.session.style.widgets.node-radius-variable').should('equal', 'degree');
     cy.get('@nodesTab').find('#node-radius-row').should('not.be.visible');
@@ -213,6 +278,7 @@ describe('Journey Flow - Uploaded node shapes and sizes without style', () => {
 
     cy.get('@nodesTab').find('#node-radius-variable').click({ force: true });
     cy.contains('li[role="option"]', 'Zipcode').click({ force: true });
+    cy.get('body').type('{esc}');
 
     cy.window().its('commonService.session.style.widgets.node-radius-variable').should('equal', 'Zip_code');
     expectNumericFieldRendersScaledNodeWidths('Zip_code');

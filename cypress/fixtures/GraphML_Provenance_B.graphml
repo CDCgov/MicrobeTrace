@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<graphml xmlns="http://graphml.graphdrawing.org/xmlns">
+  <key id="node_id" for="node" attr.name="_id" attr.type="string"/>
+  <key id="node_origin" for="node" attr.name="origin" attr.type="string"/>
+  <key id="edge_origin" for="edge" attr.name="origin" attr.type="string"/>
+  <key id="edge_origin_all" for="edge" attr.name="_originAll" attr.type="string"/>
+  <key id="edge_distance" for="edge" attr.name="distance" attr.type="int"/>
+  <key id="edge_has_distance" for="edge" attr.name="hasDistance" attr.type="boolean"/>
+  <key id="edge_distance_origin" for="edge" attr.name="distanceOrigin" attr.type="string"/>
+  <key id="edge_distance_origins" for="edge" attr.name="distanceOrigins" attr.type="string"/>
+  <graph id="ProvenanceB" edgedefault="undirected">
+    <node id="B1">
+      <data key="node_id">B1</data>
+      <data key="node_origin">["Nodes_B.csv"]</data>
+    </node>
+    <node id="B2">
+      <data key="node_id">B2</data>
+      <data key="node_origin">["Nodes_B.csv"]</data>
+    </node>
+    <node id="B3">
+      <data key="node_id">B3</data>
+      <data key="node_origin">["Nodes_B.csv"]</data>
+    </node>
+    <edge id="b_contact" source="B1" target="B2">
+      <data key="edge_origin">["Contact.csv"]</data>
+      <data key="edge_origin_all">["Contact.csv"]</data>
+      <data key="edge_distance">0</data>
+      <data key="edge_has_distance">false</data>
+    </edge>
+    <edge id="b_distance" source="B2" target="B3">
+      <data key="edge_origin">["Distance.csv"]</data>
+      <data key="edge_origin_all">["Distance.csv"]</data>
+      <data key="edge_distance">5</data>
+      <data key="edge_has_distance">true</data>
+      <data key="edge_distance_origin">Distance.csv</data>
+      <data key="edge_distance_origins">["Distance.csv"]</data>
+    </edge>
+  </graph>
+</graphml>

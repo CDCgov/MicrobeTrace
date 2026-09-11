@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<graph id="ContactNetwork" label="XGMML fixture" directed="1" xmlns="http://www.cs.rpi.edu/XGMML">
+  <att name="description" type="string" value="Static XGMML import fixture"/>
+  <att name="created" type="string" value="2026-07-01"/>
+
+  <node id="1" label="Alpha">
+    <att name="name" type="string" value="Alpha"/>
+    <att name="sample_type" type="string" value="case"/>
+    <att name="viral_load" type="real" value="2.5"/>
+    <att name="active" type="boolean" value="1"/>
+    <graphics type="ellipse" x="150" y="75" fill="#ff0000"/>
+  </node>
+  <node id="2" label="Beta">
+    <att name="name" type="string" value="Beta"/>
+    <att name="sample_type" type="string" value="contact"/>
+    <att name="viral_load" type="real" value="3.75"/>
+    <att name="active" type="boolean" value="0"/>
+    <graphics type="rectangle" x="320" y="210" fill="#3366ff"/>
+  </node>
+  <node id="3" label="Gamma">
+    <att name="name" type="string" value="Gamma"/>
+    <att name="sample_type" type="string" value="case"/>
+    <graphics type="ellipse" x="500" y="300"/>
+  </node>
+
+  <edge id="100" source="1" target="2" label="Alpha contact Beta" directed="0" weight="4.5">
+    <att name="interaction" type="string" value="contact"/>
+    <att name="distance" type="real" value="4.5"/>
+    <att name="confirmed" type="boolean" value="1"/>
+    <att name="origin" type="string" value="Contact.csv"/>
+  </edge>
+  <edge id="101" source="2" target="3" label="Beta genetic Gamma">
+    <att name="interaction" type="string" value="genetic"/>
+    <att name="weight" type="real" value="7"/>
+    <att name="confirmed" type="boolean" value="false"/>
+  </edge>
+</graph>

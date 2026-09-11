@@ -7,6 +7,7 @@ import {
   launchProfileToTwoD,
   openGlobalStylingTab,
   openTwoDSettingsDialog,
+  setTimelineDate,
 } from '../../../support/journey-helpers';
 
 type KeyTableName = 'node-color' | 'link-color' | 'node-shape';
@@ -1019,6 +1020,7 @@ describe('Journey Flow - Docked key tables on uploaded data', () => {
       app.refreshDockedKeyTablesView?.();
     });
     cy.window().its('commonService.session.style.widgets.node-timeline-variable').should('equal', 'Collection_Date');
+    setTimelineDate('7/25/2021');
     assertTableLabel('#key-tables-node-table', 'Florida', floridaLabel);
     assertTableHeader('#key-tables-node-table', 'node-color', 'value', nodeColorHeader);
 

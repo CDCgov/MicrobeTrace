@@ -11,9 +11,11 @@ This folder contains project documentation, test planning notes, QA trackers, pr
 - `manuals/`: user-facing manual PDFs and Word documents.
 - `onboarding/`: onboarding artifacts and static reference pages.
 - `contributor/`: contributor and agent-facing project guidance.
+- `examples/`: user-facing example input files, including node color assignments.
 
 ## Entry Points
 
 - `../testing-plan.md`: active testing strategy and Cypress coverage priorities.
 - `testing/README.md`: testing documentation map.
 - `performance/README.md`: performance documentation map.
+- `examples/color-assignments/README.md`: supported node color-assignment formats and ready-to-import examples.

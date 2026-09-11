@@ -106,6 +106,9 @@
                 "input": "node_modules/leaflet/dist/leaflet.css"
               },
               {
+                "input": "node_modules/maplibre-gl/dist/maplibre-gl.css"
+              },
+              {
                 "input": "node_modules/leaflet.markercluster/dist/MarkerCluster.Default.css"
               }
             ],
@@ -145,7 +148,10 @@
               ],
               "optimization": {
                 "scripts": true,
-                "styles": true,
+                "styles": {
+                  "minify": true,
+                  "inlineCritical": false
+                },
                 "fonts": false
               },
               "outputHashing": "all",

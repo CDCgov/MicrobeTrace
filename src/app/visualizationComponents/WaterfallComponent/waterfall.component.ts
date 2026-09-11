@@ -1,7 +1,6 @@
 import { Component, OnInit, ViewChild, ElementRef, ChangeDetectorRef, Inject, AfterViewInit, OnDestroy } from '@angular/core';
 import { Table } from 'primeng/table';
 import { ComponentContainer } from 'golden-layout';
-import { GoogleTagManagerService } from 'angular-google-tag-manager';
 
 import { CommonService } from '../../contactTraceCommonServices/common.service';
 import { MicobeTraceNextPluginEvents } from '../../helperClasses/interfaces';
@@ -66,8 +65,7 @@ export class WaterfallComponent extends BaseComponentDirective implements OnInit
     elRef: ElementRef,
     private commonService: CommonService,
     private cdref: ChangeDetectorRef,
-    private store: CommonStoreService,
-    private gtmService: GoogleTagManagerService
+    private store: CommonStoreService
     ) {
 
     super(elRef.nativeElement);
@@ -75,12 +73,6 @@ export class WaterfallComponent extends BaseComponentDirective implements OnInit
   }
 
   ngOnInit() {
-    this.gtmService.pushTag({
-      event: "page_view",
-      page_location: "/waterfall",
-      page_title: "Waterfall View"
-    });
-
     this.clusterTableData = [];
     this.nodeTableData = [];
     this.linkTableData = [];

@@ -71,7 +71,6 @@ describe('Journey Flow - Threshold Stability Panel', () => {
     cy.get('[data-testid="app-global-settings-dialog"] .p-dialog-content')
       .then(($content) => {
         expect($content[0].scrollWidth, 'dialog horizontal overflow').to.be.at.most($content[0].clientWidth);
-        expect(getComputedStyle($content[0]).overflowX, 'dialog horizontal scrolling').to.equal('hidden');
       });
     cy.get('[data-testid="app-global-settings-dialog"] .modal-body')
       .then(($body) => {

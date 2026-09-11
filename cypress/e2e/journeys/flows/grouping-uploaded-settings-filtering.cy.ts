@@ -147,8 +147,7 @@ describe('Journey Flow - Uploaded grouping settings and filtering', () => {
     openGlobalFilteringTab();
     cy.get(byTestId(testIds.filterMinimumClusterSize))
       .clear()
-      .type(String(minimumClusterSize!.to))
-      .blur();
+      .type(String(minimumClusterSize!.to));
 
     cy.window()
       .its('commonService.session.style.widgets.cluster-minimum-size')
