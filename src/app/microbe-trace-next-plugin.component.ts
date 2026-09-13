@@ -56,10 +56,21 @@ import {
     resolveNodeShapeKey
 } from '@app/contactTraceCommonServices/node-shapes';
 import {
+    createGlobalSettingsDialogRequest,
     DialogRectSnapshot,
     GlobalSettingsDialogRequest,
+    GlobalSettingsStylingTarget,
     NormalizedGlobalSettingsDialogRequest
 } from './helperClasses/globalSettingsDialogRequest';
+import {
+    ColorScaleMode,
+    createDefaultVariableColorScaleConfig,
+    createVariableColorScaleState,
+    ResolvedVariableColorScale,
+    VariableColorScaleConfig,
+    VariableColorTarget
+} from './contactTraceCommonServices/variable-color-scale';
+import { validateStyleFileSchema } from './contactTraceCommonServices/style-file.schema';
 import { AnalyticsService } from './contactTraceCommonServices/analytics.service';
 
 type ThresholdSweepSnapshot = ComponentStructureMetrics & {
@@ -101,9 +112,15 @@ type DialogPlacementCandidate = {
     overlapArea: number;
 };
 
-type NodeColorAssignmentStatus = {
+type ColorAssignmentStatus = {
     kind: 'success' | 'error' | 'info';
     message: string;
+};
+
+type StyleFileStatus = {
+    kind: 'success' | 'warning' | 'error';
+    message: string;
+    details: string[];
 };
 
 interface NodeShapeOptionGroup {
@@ -358,7 +375,6 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
     SelectedNodeColorVariable: string = '#1f77b4';
     SelectedLinkColorVariable: string = '#1f77b4';
     SelectedColorLinksByVariable: string = 'origin';
-
     SelectedTimelineVariable: string = 'None';
     timelineSpeedOptions: number[] = [50, 100, 200, 300, 400, 500, 600, 700, 800, 900, 1000];
     timelineSpeed: number = 200;
@@ -389,7 +405,9 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
     SelectedColorVariable: string = '#ff8300';
     SelectedBackgroundColorVariable: string = '#ffffff';
     SelectedApplyStyleVariable: string = '';
-    nodeColorAssignmentStatus: NodeColorAssignmentStatus | null = null;
+    nodeColorAssignmentStatus: ColorAssignmentStatus | null = null;
+    linkColorAssignmentStatus: ColorAssignmentStatus | null = null;
+    styleFileStatus: StyleFileStatus | null = null;
 
 
     activeTabNdx = null;
@@ -1099,34 +1117,36 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
     /**
      * Performs the export of the visualization, including tables.
      */
-    private getGlobalTableElement(table: 'node-color' | 'link-color' | 'node-shape'): HTMLTableElement | undefined {
+    private getGlobalTableElement(table: 'node-color' | 'link-color' | 'node-shape'): HTMLElement | undefined {
+        const continuousTarget = table === 'node-color' ? 'node' : table === 'link-color' ? 'link' : null;
+        const useContinuousLegend = continuousTarget ? this.isContinuousColorScale(continuousTarget) : false;
         if (this.isKeyTableDocked(table)) {
             const dockedTableSelector = table === 'node-color'
-                ? '#key-tables-node-table'
+                ? useContinuousLegend ? '#key-tables-node-legend' : '#key-tables-node-table'
                 : table === 'link-color'
-                    ? '#key-tables-link-table'
+                    ? useContinuousLegend ? '#key-tables-link-legend' : '#key-tables-link-table'
                     : '#key-tables-node-shape-table';
-            const dockedTable = $(dockedTableSelector)[0] as HTMLTableElement | undefined;
+            const dockedTable = $(dockedTableSelector)[0] as HTMLElement | undefined;
             if (dockedTable) {
                 return dockedTable;
             }
         }
 
         const floatingTable = table === 'node-color'
-            ? document.querySelector('#node-color-table')
+            ? document.querySelector(useContinuousLegend ? '#node-color-legend' : '#node-color-table')
             : table === 'link-color'
-                ? document.querySelector('#link-color-table')
+                ? document.querySelector(useContinuousLegend ? '#link-color-legend' : '#link-color-table')
                 : document.querySelector('#node-shape-table');
 
-        return floatingTable as HTMLTableElement | undefined;
+        return floatingTable as HTMLElement | undefined;
     }
 
     private getGlobalTablesForExport(
         exportNodeTable: boolean = false,
         exportLinkTable: boolean = false,
         exportNodeShapeTable: boolean = false
-    ): HTMLTableElement[] {
-        const tablesToExport: HTMLTableElement[] = [];
+    ): HTMLElement[] {
+        const tablesToExport: HTMLElement[] = [];
 
         if (exportNodeTable
             && this.commonService.session.style.widgets['node-color-variable'] !== 'None'
@@ -1246,7 +1266,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
                 }
             }
             // if pos == 0, exporting just tables and not a view
-            let pos = elementsForExport[0] instanceof HTMLDivElement ? 1 : 0;
+            let pos = elementsForExport[0] === this.visualWrapperRef.nativeElement ? 1 : 0;
             const globalTablesForExport = this.getGlobalTablesForExport(exportNodeTable, exportLinkTable, exportNodeShapeTable);
             elementsForExport.splice(pos, 0, ...globalTablesForExport);
             if (elementsForExport.length === 0) {
@@ -1259,6 +1279,14 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
                     // As of July 2025, a change in Chrome (and other browsers) slowed down this export dramatically (2+ mins for single image), a temp change is to
                     // update html2canvas.js (line 5626) file in node_modules as described here: https://github.com/niklasvh/html2canvas/pull/3252/commits/37b75f50d2550acf7d90630acdc29d346282d0a4;
                     // this is a temp fix, if unresolved (by html2canvas) consider switching to snapdom
+                    if (input.querySelector('.continuous-ramp__gradient')) {
+                        const bounds = input.getBoundingClientRect();
+                        return html2canvas(input, {
+                            ...settings,
+                            width: Math.ceil(Math.max(bounds.width, input.scrollWidth)),
+                            height: Math.ceil(Math.max(bounds.height, input.scrollHeight))
+                        });
+                    }
                     return html2canvas(input, settings);
                 })
             );
@@ -1360,7 +1388,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
     }
 
     private async performExportSVG(
-        elementsForExport: HTMLTableElement[],
+        elementsForExport: HTMLElement[],
         mainSVGString: string,
         exportNodeTable: boolean = false,
         exportLinkTable: boolean = false,
@@ -1394,7 +1422,9 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         let currentColWidth = 0;
 
         elementsForExport.forEach((element, index) => {
-            let output = this.exportService.exportTableAsSVG(element, true);
+            const output = element instanceof HTMLTableElement
+                ? this.exportService.exportTableAsSVG(element, true)
+                : this.exportService.exportColorLegendAsSVG(element);
             
             // exact logic from exporting a png
             if (index == 0) {
@@ -1421,8 +1451,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
                     }
                 }
             }
-            let updatedSVGString = output.svg.replace('<g>', `<g transform="translate(${currentOffsetX}, ${currentOffsetY})" fill="none">`);
-            tableSVGStrings += updatedSVGString;
+            tableSVGStrings += `<g transform="translate(${currentOffsetX}, ${currentOffsetY})" fill="none">${output.svg}</g>`;
 
             currentOffsetY += output.height+5;
         });
@@ -1930,12 +1959,16 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
     
     }
 
-    /**
-     * Parses and applies a node color-assignment file to the field selected in
-     * Color Nodes By. Parsing is atomic; state changes only after validation
-     * and any dataset-label mismatch confirmation succeeds.
-     */
+    /** Parses and applies a color-assignment file for nodes or links. */
     public onApplyNodeColorAssignments(event: Event): void {
+        this.onApplyColorAssignments('node', event);
+    }
+
+    public onApplyLinkColorAssignments(event: Event): void {
+        this.onApplyColorAssignments('link', event);
+    }
+
+    private onApplyColorAssignments(target: VariableColorTarget, event: Event): void {
         const input = event.target as HTMLInputElement;
         const file = input.files?.[0];
 
@@ -1945,25 +1978,25 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
 
         const reader = new FileReader();
         reader.onerror = () => {
-            this.setNodeColorAssignmentStatus('error', `Unable to read "${file.name}".`);
+            this.setColorAssignmentStatus(target, 'error', `Unable to read "${file.name}".`);
             input.value = '';
         };
         reader.onload = () => {
             try {
                 const contents = String(reader.result ?? '');
                 const descriptor = this.colorAssignmentService.inspect(contents);
-                const selectedField = this.resolveNodeColorAssignmentField(descriptor.declaredField);
+                const selectedField = this.resolveColorAssignmentField(target, descriptor.declaredField);
                 const parsed = this.colorAssignmentService.parse(
                     contents,
                     selectedField,
-                    this.commonService.session.data.nodes || []
+                    target === 'node' ? this.commonService.session.data.nodes || [] : []
                 );
-                this.applyParsedNodeColorAssignments(parsed, selectedField, file.name);
+                this.applyParsedColorAssignments(target, parsed, selectedField, file.name);
             } catch (error) {
                 const message = error instanceof NodeColorAssignmentParseError || error instanceof Error
                     ? error.message
                     : 'The color assignment file could not be parsed.';
-                this.setNodeColorAssignmentStatus('error', message);
+                this.setColorAssignmentStatus(target, 'error', message);
             } finally {
                 input.value = '';
             }
@@ -1971,18 +2004,21 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         reader.readAsText(file, 'UTF-8');
     }
 
-    private resolveNodeColorAssignmentField(declaredField?: string): string {
+    private resolveColorAssignmentField(target: VariableColorTarget, declaredField?: string): string {
         const requestedField = String(declaredField ?? '').trim();
-        const currentField = String(this.SelectedColorNodesByVariable ?? '').trim();
+        const currentField = String(this.getSelectedColorField(target) ?? '').trim();
+        const targetLabel = target === 'node' ? 'node' : 'link';
 
         if (!requestedField) {
             if (currentField && currentField !== 'None') {
                 return currentField;
             }
-            throw new Error('The color assignment file does not declare a node field. Add DATASET_LABEL to an iTOL file or use the node field as the first table-column header.');
+            throw new Error(`The color assignment file does not declare a ${targetLabel} field. Add DATASET_LABEL to an iTOL node file or use the ${targetLabel} field as the first table-column header.`);
         }
 
-        const styleableFields = this.commonService.getStyleableNodeFields();
+        const styleableFields = target === 'node'
+            ? this.commonService.getStyleableNodeFields()
+            : (this.commonService.session.data.linkFields || []).filter(field => !!String(field ?? '').trim());
         const normalizeFieldName = (value: string): string => String(value ?? '')
             .trim()
             .toLocaleLowerCase()
@@ -1990,28 +2026,64 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         const requestedKey = normalizeFieldName(requestedField);
         const idAliases = new Set(['id', 'isolate', 'isolateid', 'sample', 'sampleid', 'nodeid']);
         const matchedField = styleableFields.find(field => normalizeFieldName(field) === requestedKey)
-            ?? (idAliases.has(requestedKey)
+            ?? (target === 'node' && idAliases.has(requestedKey)
                 ? styleableFields.find(field => String(field).trim().toLocaleLowerCase() === '_id')
                 : undefined);
 
         if (!matchedField) {
-            throw new Error(`The color assignment field "${requestedField}" is not available as a node color variable in the current dataset.`);
+            throw new Error(`The color assignment field "${requestedField}" is not available as a ${targetLabel} color variable in the current dataset.`);
         }
 
         return matchedField;
     }
 
-    private applyParsedNodeColorAssignments(
+    private applyParsedColorAssignments(
+        target: VariableColorTarget,
         parsed: ParsedNodeColorAssignments,
         selectedField: string,
         fileName: string
     ): void {
         try {
-            this.commonService.applyNodeColorAssignments(selectedField, parsed.assignments);
+            const currentField = this.getSelectedColorField(target);
+            const activeMode = currentField === selectedField
+                ? this.commonService.resolveVariableColorScale(target, selectedField).mode
+                : 'categorical';
+            const applied = this.commonService.applyVariableColorAssignments(
+                target,
+                selectedField,
+                parsed.assignments,
+                parsed.mode ?? activeMode
+            );
+
+            if (currentField !== selectedField) {
+                if (target === 'node') {
+                    this.SelectedColorNodesByVariable = selectedField;
+                    this.onColorNodesByChanged();
+                } else {
+                    this.SelectedColorLinksByVariable = selectedField;
+                    this.onColorLinksByChanged();
+                }
+            } else {
+                this.refreshVariableColorTarget(target);
+            }
+
+            const targetLabel = target === 'node' ? 'Nodes' : 'Links';
+            if (applied.mode === 'continuous') {
+                const stops = applied.stops || [];
+                this.setColorAssignmentStatus(
+                    target,
+                    'success',
+                    `Applied ${stops.length} continuous color ramp stop${stops.length === 1 ? '' : 's'} from "${fileName}" and set Color ${targetLabel} By to ${selectedField} with a ${stops[0].value}–${stops[stops.length - 1].value} domain.`
+                );
+                return;
+            }
 
             const currentValues = new Set<string>();
-            this.commonService.session.data.nodes.forEach(node => {
-                const rawValue = node?.[selectedField];
+            const items = target === 'node'
+                ? this.commonService.session.data.nodes || []
+                : this.commonService.session.data.links || [];
+            items.forEach(item => {
+                const rawValue = item?.[selectedField];
                 currentValues.add(String(rawValue === null ? 'null' : rawValue).trim());
             });
             const importedValues = Object.keys(parsed.assignments);
@@ -2021,33 +2093,29 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
                 .length;
             const retainedForFutureCount = importedValues.length - matchedCount;
 
-            if (this.SelectedColorNodesByVariable !== selectedField) {
-                this.SelectedColorNodesByVariable = selectedField;
-                this.onColorNodesByChanged();
-            } else {
-                if (this.GlobalSettingsNodeColorDialogSettings?.isVisible) {
-                    this.generateNodeColorTable('#node-color-table');
-                }
-                this.refreshKeyTablesView();
-                this.publishUpdateNodeColors();
-            }
-            this.setNodeColorAssignmentStatus(
+            this.setColorAssignmentStatus(
+                target,
                 'success',
-                `Applied ${parsed.uniqueAssignmentCount} color assignment${parsed.uniqueAssignmentCount === 1 ? '' : 's'} from "${fileName}" and set Color Nodes By to ${selectedField}: ` +
+                `Applied ${parsed.uniqueAssignmentCount} color assignment${parsed.uniqueAssignmentCount === 1 ? '' : 's'} from "${fileName}" and set Color ${targetLabel} By to ${selectedField}: ` +
                 `${matchedCount} matched current value${matchedCount === 1 ? '' : 's'}, ` +
                 `${unmappedCurrentCount} current value${unmappedCurrentCount === 1 ? '' : 's'} kept existing colors, and ` +
                 `${retainedForFutureCount} retained for future data.`
             );
         } catch (error) {
-            this.setNodeColorAssignmentStatus(
+            this.setColorAssignmentStatus(
+                target,
                 'error',
                 error instanceof Error ? error.message : 'The color assignments could not be applied.'
             );
         }
     }
 
-    private setNodeColorAssignmentStatus(kind: NodeColorAssignmentStatus['kind'], message: string): void {
-        this.nodeColorAssignmentStatus = { kind, message };
+    private setColorAssignmentStatus(target: VariableColorTarget, kind: ColorAssignmentStatus['kind'], message: string): void {
+        if (target === 'node') {
+            this.nodeColorAssignmentStatus = { kind, message };
+        } else {
+            this.linkColorAssignmentStatus = { kind, message };
+        }
         this.cdref.markForCheck();
     }
 
@@ -2055,14 +2123,69 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
      * Reads the file and applies the style to MicrobeTrace session.style
      * 
      */
-    public onApplyStyle( file: any ){
-        $('.custom-file-label').text(this.SelectedApplyStyleVariable.substring(12))
-        const reader = new FileReader();
-        reader.onload = e => {
-            this.commonService.applyStyle(JSON.parse((e as any).target.result)); 
-            this.applyStyleFileSettings();
+    public onApplyStyle(event: Event): void {
+        const input = event.target as HTMLInputElement;
+        const file = input.files?.[0];
+        if (!file) {
+            return;
         }
-        reader.readAsText(file.target.files[0]);
+
+        this.styleFileStatus = null;
+        const reader = new FileReader();
+        reader.onerror = () => {
+            this.styleFileStatus = {
+                kind: 'error',
+                message: `Unable to read "${file.name}".`,
+                details: []
+            };
+            input.value = '';
+            this.SelectedApplyStyleVariable = '';
+            this.cdref.markForCheck();
+        };
+        reader.onload = e => {
+            try {
+                const style = JSON.parse(String((e as any).target.result ?? ''));
+                const validation = validateStyleFileSchema(style);
+                if (!validation.valid) {
+                    this.styleFileStatus = {
+                        kind: 'error',
+                        message: `Could not apply "${file.name}" because it is not a valid MicrobeTrace style file.`,
+                        details: validation.errors
+                    };
+                    return;
+                }
+
+                this.commonService.applyStyle(style);
+                this.applyStyleFileSettings();
+                this.styleFileStatus = validation.warnings.length
+                    ? {
+                        kind: 'warning',
+                        message: `Applied "${file.name}" with ${validation.warnings.length} normalization warning${validation.warnings.length === 1 ? '' : 's'}.`,
+                        details: validation.warnings
+                    }
+                    : {
+                        kind: 'success',
+                        message: `Applied "${file.name}".`,
+                        details: []
+                    };
+            } catch (error) {
+                const isSyntaxError = error instanceof SyntaxError;
+                this.styleFileStatus = {
+                    kind: 'error',
+                    message: isSyntaxError
+                        ? `Could not apply "${file.name}" because it is not valid JSON.`
+                        : `Could not apply "${file.name}".`,
+                    details: isSyntaxError
+                        ? [error.message]
+                        : [error instanceof Error ? error.message : 'An unexpected error occurred while applying the style.']
+                };
+            } finally {
+                input.value = '';
+                this.SelectedApplyStyleVariable = '';
+                this.cdref.markForCheck();
+            }
+        };
+        reader.readAsText(file, 'UTF-8');
 
     }
 
@@ -2078,12 +2201,12 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         if (this.SelectedColorNodesByVariable != this.widgets['node-color-variable']){
             this.SelectedColorNodesByVariable = this.widgets['node-color-variable'];
             this.getGlobalSettingsData();
-            this.onColorNodesByChanged();
+            this.onColorNodesByChanged(true);
         }
         
         if (this.SelectedColorLinksByVariable != this.widgets['link-color-variable']){
             this.SelectedColorLinksByVariable = this.widgets['link-color-variable'];
-            this.onColorLinksByChanged();
+            this.onColorLinksByChanged(true);
         }
 
         if (this.SelectedBackgroundColorVariable != this.widgets['background-color']){
@@ -2102,6 +2225,11 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         }
 
         this.applySavedNodeShapeSettingsFromSession();
+        // Applying a different ramp to an already-selected field does not pass
+        // through either selection-change branch above. Publish once after the
+        // complete style is loaded so every open view refreshes in both cases.
+        this.publishUpdateNodeColors();
+        this.publishUpdateLinkColor();
     }
 
     onEpsilonValueChange() {
@@ -2929,9 +3057,13 @@ ${warnings.join('\n')}`,
         this.commonService.session.style.nodeColorAssignments = {};
         this.commonService.session.style.linkColorsTable = {};
         this.commonService.session.style.linkColorsTableKeys = {};
+        this.commonService.session.style.variableColorScales = createVariableColorScaleState();
+        this.commonService.temp.style.nodeColorScale = null;
+        this.commonService.temp.style.linkColorScale = null;
         this.commonService.session.style.nodeSymbolsTable = {};
         this.commonService.session.style.nodeSymbolsTableKeys = {};
         this.nodeColorAssignmentStatus = null;
+        this.linkColorAssignmentStatus = null;
 
         KEY_TABLE_NAMES.forEach(table => {
             this.setKeyTableDisplayMode(table, 'Dock');
@@ -3006,13 +3138,17 @@ ${warnings.join('\n')}`,
 
 
     onColorLinksByChanged(silent: boolean = false) {
+        this.linkColorAssignmentStatus = null;
         this.commonService.GlobalSettingsModel.SelectedColorLinksByVariable = this.SelectedColorLinksByVariable;
         this.commonService.session.style.widgets['link-color-variable'] = this.SelectedColorLinksByVariable;
 
         if (this.SelectedColorLinksByVariable === 'None') {
           this.SelectedLinkColorVariable = this.commonService.session.style.widgets["link-color"] || this.SelectedLinkColorVariable;
           this.commonService.GlobalSettingsModel.SelectedLinkColorVariable = this.SelectedLinkColorVariable;
+          this.commonService.temp.style.linkColorScale = null;
           this.cdref.detectChanges();
+        } else {
+          this.commonService.createLinkColorMap();
         }
     
         this.onLinkColorTableChanged(silent);
@@ -3027,6 +3163,104 @@ ${warnings.join('\n')}`,
         }
     
       }
+
+    getSelectedColorField(target: VariableColorTarget): string {
+        return target === 'node'
+            ? this.SelectedColorNodesByVariable
+            : this.SelectedColorLinksByVariable;
+    }
+
+    getVariableColorConfig(target: VariableColorTarget): VariableColorScaleConfig {
+        const field = this.getSelectedColorField(target);
+        if (!field || field === 'None') {
+            return createDefaultVariableColorScaleConfig('categorical');
+        }
+        return this.commonService.getVariableColorScaleConfig(target, field);
+    }
+
+    getResolvedVariableColorScale(target: VariableColorTarget): ResolvedVariableColorScale | null {
+        const field = this.getSelectedColorField(target);
+        if (!field || field === 'None') {
+            return null;
+        }
+        const cachedScale = target === 'node'
+            ? this.commonService.temp.style.nodeColorScale
+            : this.commonService.temp.style.linkColorScale;
+        if (cachedScale?.field === field) {
+            return cachedScale;
+        }
+        return this.commonService.resolveVariableColorScale(target, field);
+    }
+
+    getColorScaleModeOptions(target: VariableColorTarget): Array<{ label: string; value: ColorScaleMode; disabled?: boolean }> {
+        const resolved = this.getResolvedVariableColorScale(target);
+        return [
+            { label: `Auto (${resolved?.summary.autoUsesContinuous ? 'Continuous' : 'Categorical'})`, value: 'auto' },
+            { label: 'Categorical', value: 'categorical' },
+            { label: 'Continuous', value: 'continuous', disabled: !resolved?.summary.canUseContinuous }
+        ];
+    }
+
+    isContinuousColorScale(target: VariableColorTarget): boolean {
+        return this.getResolvedVariableColorScale(target)?.mode === 'continuous';
+    }
+
+    getColorKeyTitle(target: VariableColorTarget): string {
+        const prefix = target === 'node' ? 'Node Color' : 'Link Color';
+        return `${prefix} ${this.isContinuousColorScale(target) ? 'Legend' : 'Table'}`;
+    }
+
+    getColorLegendLabel(target: VariableColorTarget): string {
+        const prefix = target === 'node' ? 'Node Color' : 'Link Color';
+        const field = this.getSelectedColorField(target);
+        const options = target === 'node' ? this.FieldList : this.ToolTipFieldList;
+        const fieldLabel = options.find(option => option.value === field)?.label
+            ?? this.commonService.titleize(field);
+        return `${prefix}: ${fieldLabel}`;
+    }
+
+    onVariableColorModeChanged(target: VariableColorTarget, mode: ColorScaleMode): void {
+        const field = this.getSelectedColorField(target);
+        if (!field || field === 'None') {
+            return;
+        }
+        this.commonService.setVariableColorScaleMode(target, field, mode);
+        this.refreshVariableColorTarget(target);
+    }
+
+    onVariableColorConfigChanged(target: VariableColorTarget, config: VariableColorScaleConfig): void {
+        const field = this.getSelectedColorField(target);
+        if (!field || field === 'None') {
+            return;
+        }
+        this.commonService.setVariableColorScaleConfig(target, field, config);
+        this.refreshVariableColorTarget(target);
+    }
+
+    private refreshVariableColorTarget(target: VariableColorTarget): void {
+        if (target === 'node') {
+            this.commonService.createNodeColorMap();
+            if (this.isContinuousColorScale('node')) {
+                this.nodeColorRows = [];
+                this.nodeColorDomain = [];
+            } else if (this.SelectedColorNodesByVariable !== 'None') {
+                this.generateNodeColorTable('');
+            }
+            this.publishUpdateNodeColors();
+        } else {
+            this.commonService.createLinkColorMap();
+            if (this.isContinuousColorScale('link')) {
+                this.linkColorRows = [];
+                this.linkColorDomain = [];
+            } else if (this.SelectedColorLinksByVariable !== 'None') {
+                this.generateNodeLinkTable('');
+            }
+            this.publishUpdateLinkColor();
+        }
+
+        this.refreshKeyTablesView();
+        this.cdref.markForCheck();
+    }
 
 
     private getDuoLinkSwatchSegments(fallbackOrigins: string[] = []): Array<{ color: string; opacity: number }> {
@@ -3071,6 +3305,12 @@ ${warnings.join('\n')}`,
         }
 
         const aggregates = this.commonService.createLinkColorMap();
+        if (this.commonService.temp.style.linkColorScale?.mode === 'continuous') {
+            this.linkColorRows = [];
+            this.linkColorDomain = [];
+            this.cdref.markForCheck();
+            return;
+        }
         const vlinks = this.commonService.getVisibleLinks();
         const aggregateValues = Object.keys(aggregates);
         this.linkColorDomain = aggregateValues;
@@ -3893,6 +4133,7 @@ ${warnings.join('\n')}`,
 
             this.nodeColorRows = [];
             this.nodeColorDomain = [];
+            this.commonService.temp.style.nodeColorScale = null;
             this.applyKeyTableDisplayMode('node-color', silent);
             this.refreshKeyTablesView();
 
@@ -3914,6 +4155,12 @@ ${warnings.join('\n')}`,
         this.getNodeValueNameMap();
 
         const aggregates = this.commonService.createNodeColorMap();
+        if (this.commonService.temp.style.nodeColorScale?.mode === 'continuous') {
+            this.nodeColorRows = [];
+            this.nodeColorDomain = [];
+            this.cdref.markForCheck();
+            return;
+        }
         const vnodes = this.commonService.getVisibleNodes();
         const aggregateValues = Object.keys(aggregates);
         this.nodeColorDomain = aggregateValues;
@@ -4939,7 +5186,7 @@ ${warnings.join('\n')}`,
         };
         this.exportService.setExportOptions(exportOptions);
 
-        let elementsToExport: HTMLTableElement[] = [];
+        let elementsToExport: HTMLElement[] = [];
 
         if (this.exportTables['polygon-color']) {
             const polygonTable = this.getPolygonColorTableElementForExport();
@@ -5003,7 +5250,7 @@ ${warnings.join('\n')}`,
             case "Save": {
 
                 if (this.selectedSaveFileType == 'style') {
-                    const data = JSON.stringify(this.commonService.session.style);
+                    const data = this.commonService.serializeStyleFile();
                     const blob = new Blob([data], { type: "application/json;charset=utf-8" });
                     this.saveGeneratedFile(blob, this.saveFileName+'.style')
                     this.displayStashDialog = false;
@@ -5460,6 +5707,19 @@ ${warnings.join('\n')}`,
         if (dialogRequest.sourceDialogRect) {
             this.scheduleGlobalSettingsDialogPlacement(dialogRequest.sourceDialogRect);
         }
+
+        if (dialogRequest.stylingTarget) {
+            this.scheduleGlobalSettingsStylingTargetFocus(dialogRequest.stylingTarget);
+        }
+    }
+
+    openContinuousColorEditor(target: VariableColorTarget, event?: MouseEvent): void {
+        event?.stopPropagation();
+        this.DisplayGlobalSettingsDialog(createGlobalSettingsDialogRequest(
+            'Styling',
+            event,
+            target === 'node' ? 'node-color-ramp' : 'link-color-ramp'
+        ));
     }
 
     private normalizeGlobalSettingsDialogRequest(request: GlobalSettingsDialogRequest): NormalizedGlobalSettingsDialogRequest {
@@ -5469,8 +5729,32 @@ ${warnings.join('\n')}`,
 
         return {
             activeTab: request?.activeTab ?? 'Styling',
-            sourceDialogRect: request?.sourceDialogRect
+            sourceDialogRect: request?.sourceDialogRect,
+            stylingTarget: request?.stylingTarget
         };
+    }
+
+    private scheduleGlobalSettingsStylingTargetFocus(target: GlobalSettingsStylingTarget): void {
+        const editorId = target === 'node-color-ramp'
+            ? 'node-continuous-color-editor'
+            : 'link-continuous-color-editor';
+        const runNextFrame = window.requestAnimationFrame?.bind(window)
+            ?? ((callback: FrameRequestCallback) => window.setTimeout(() => callback(Date.now()), 0));
+
+        setTimeout(() => {
+            runNextFrame(() => {
+                runNextFrame(() => {
+                    const editor = document.getElementById(editorId);
+                    if (!editor) {
+                        return;
+                    }
+
+                    editor.scrollIntoView({ block: 'center', inline: 'nearest' });
+                    editor.querySelector<HTMLElement>('select:not([disabled]), input:not([disabled]), button:not([disabled])')
+                        ?.focus({ preventScroll: true });
+                });
+            });
+        }, 0);
     }
 
     private getGlobalSettingsDialogBaseStyle(): Record<string, string> {

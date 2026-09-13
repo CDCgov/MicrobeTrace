@@ -22,6 +22,7 @@ import {
     EmbedFileOptionsV1,
     EmbedFileV1,
     EmbedLaunchOptionsV1,
+    EmbedVariableColorScaleV1,
     EmbedPayloadMetadataV1,
     ImportedEmbedFile,
     StoredEmbedHandoffV1,
@@ -401,6 +402,13 @@ export class EmbedHandoffService {
             normalized[fieldName] = value.trim();
         });
 
+        (['nodeColorScale', 'linkColorScale'] as const).forEach(fieldName => {
+            const value = globalSettings[fieldName];
+            if (typeof value !== 'undefined') {
+                normalized[fieldName] = this.normalizeVariableColorScale(value, `globalSettings.${fieldName}`);
+            }
+        });
+
         if (typeof globalSettings.nodeShape !== 'undefined') {
             const nodeShape = this.requireAllowedLaunchString(
                 globalSettings.nodeShape,
@@ -421,6 +429,73 @@ export class EmbedHandoffService {
                 'globalSettings.tn93DistanceDisplayFormat'
             );
             normalized.tn93DistanceDisplayFormat = displayFormat as NonNullable<EmbedLaunchOptionsV1['globalSettings']>['tn93DistanceDisplayFormat'];
+        }
+
+        return normalized;
+    }
+
+    private normalizeVariableColorScale(value: unknown, fieldName: string): EmbedVariableColorScaleV1 {
+        if (!this.isPlainObject(value)) {
+            throw new Error(`Launch option "${fieldName}" must be an object.`);
+        }
+
+        const allowedModes = new Set(['auto', 'categorical', 'continuous']);
+        if (typeof value.mode !== 'string' || !allowedModes.has(value.mode)) {
+            throw new Error(`Launch option "${fieldName}.mode" used an unsupported value.`);
+        }
+
+        const normalized: EmbedVariableColorScaleV1 = {
+            mode: value.mode as EmbedVariableColorScaleV1['mode'],
+        };
+
+        if (typeof value.domain !== 'undefined') {
+            if (!this.isPlainObject(value.domain)) {
+                throw new Error(`Launch option "${fieldName}.domain" must contain finite min and max values.`);
+            }
+            const min = Number(value.domain.min);
+            const max = Number(value.domain.max);
+            if (!Number.isFinite(min) || !Number.isFinite(max) || min >= max) {
+                throw new Error(`Launch option "${fieldName}.domain" must have finite min less than max.`);
+            }
+            normalized.domain = { min, max };
+        }
+
+        if (typeof value.stops !== 'undefined') {
+            if (!normalized.domain) {
+                throw new Error(`Launch option "${fieldName}.stops" requires a custom domain.`);
+            }
+            if (!Array.isArray(value.stops) || value.stops.length < 2) {
+                throw new Error(`Launch option "${fieldName}.stops" must contain at least two stops.`);
+            }
+
+            normalized.stops = value.stops.map((stop, index) => {
+                if (!this.isPlainObject(stop)) {
+                    throw new Error(`Launch option "${fieldName}.stops[${index}]" must be an object.`);
+                }
+                const stopValue = Number(stop.value);
+                if (!Number.isFinite(stopValue) || typeof stop.color !== 'string' || !HEX_COLOR_PATTERN.test(stop.color.trim())) {
+                    throw new Error(`Launch option "${fieldName}.stops[${index}]" must have a finite value and 6-digit hex color.`);
+                }
+                return { value: stopValue, color: stop.color.trim() };
+            });
+
+            const domain = normalized.domain;
+            const stops = normalized.stops;
+            const strictlyIncreasing = stops.every((stop, index) => index === 0 || stop.value > stops[index - 1].value);
+            if (!strictlyIncreasing || stops[0].value !== domain.min || stops[stops.length - 1].value !== domain.max) {
+                throw new Error(`Launch option "${fieldName}.stops" must increase strictly and span the custom domain.`);
+            }
+        }
+
+        if (typeof value.missingColor !== 'undefined') {
+            if (typeof value.missingColor !== 'string' || !HEX_COLOR_PATTERN.test(value.missingColor.trim())) {
+                throw new Error(`Launch option "${fieldName}.missingColor" must be a 6-digit hex color.`);
+            }
+            normalized.missingColor = value.missingColor.trim();
+        }
+
+        if (normalized.mode === 'categorical' && (normalized.domain || normalized.stops)) {
+            throw new Error(`Launch option "${fieldName}" cannot use a domain or stops in categorical mode.`);
         }
 
         return normalized;
@@ -457,6 +532,13 @@ export class EmbedHandoffService {
         this.requireAvailableLaunchField(globalSettings.nodeColorBy, nodeFields, 'nodeColorBy');
         this.requireAvailableLaunchField(globalSettings.nodeShapeBy, nodeFields, 'nodeShapeBy');
         this.requireAvailableLaunchField(globalSettings.linkColorBy, linkFields, 'linkColorBy');
+
+        if (globalSettings.nodeColorScale && (!globalSettings.nodeColorBy || globalSettings.nodeColorBy === 'None')) {
+            throw new Error('Launch global setting "nodeColorScale" requires "nodeColorBy".');
+        }
+        if (globalSettings.linkColorScale && (!globalSettings.linkColorBy || globalSettings.linkColorBy === 'None')) {
+            throw new Error('Launch global setting "linkColorScale" requires "linkColorBy".');
+        }
     }
 
     private collectAvailableFields(files: ImportedEmbedFile[], format: EmbedFileKind, defaults: string[]): Set<string> {

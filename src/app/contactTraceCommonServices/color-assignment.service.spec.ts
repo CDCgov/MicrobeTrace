@@ -103,6 +103,30 @@ GCWGS-6 #CC9999 8`;
     expect(fieldResult.assignments['8']).toBe('#cc9999');
   });
 
+  it('parses explicitly continuous table assignments as normalized numeric ramp stops', () => {
+    const result = service.parse(
+      'RiskScore,color,mode\n5.0,#440154,continuous\n50,#21918c,\n9.6e1,#fde725,continuous',
+      'RiskScore'
+    );
+
+    expect(result.mode).toBe('continuous');
+    expect(result.uniqueAssignmentCount).toBe(3);
+    expect(result.assignments).toEqual(jasmine.objectContaining({
+      '5': '#440154',
+      '50': '#21918c',
+      '96': '#fde725'
+    }));
+  });
+
+  it('rejects invalid or underspecified continuous ramp declarations', () => {
+    expect(() => service.parse('RiskScore,color,mode\nlow,#440154,continuous\n10,#fde725,', 'RiskScore'))
+      .toThrowError(NodeColorAssignmentParseError, /finite numeric color-stop value/);
+    expect(() => service.parse('RiskScore,color,mode\n10,#440154,continuous', 'RiskScore'))
+      .toThrowError(NodeColorAssignmentParseError, /at least two distinct numeric stops/);
+    expect(() => service.parse('RiskScore,color,mode\n0,#440154,continuous\n10,#fde725,categorical', 'RiskScore'))
+      .toThrowError(NodeColorAssignmentParseError, /same mode/);
+  });
+
   it('parses the supplied ID-first table layout for the selected internal _id field', () => {
     const result = service.parse(
       'id\tMLST\tcolor\tnotes\n' +

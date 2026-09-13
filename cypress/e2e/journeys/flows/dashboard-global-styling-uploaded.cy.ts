@@ -64,21 +64,29 @@ const matchesExpectedColor = (actual: string, expectedHex: string): boolean => {
     normalizedActual === normalizeColor(hexToRgbString(expectedHex));
 };
 
+const escapeRegExp = (value: string): string => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
 const getBubbleDataNodes = (bubble: any) =>
   bubble.cy.nodes().filter((node: any) => !node.hasClass('X_axis') && !node.hasClass('Y_axis'));
 
 const selectPrimeOption = (selector: string, label: string): void => {
-  cy.get(selector).click({ force: true }).wait(100);
-  cy.get('body').then(($body) => {
-    const overlay = $body.find('.p-select-overlay:visible').last();
-
-    expect(overlay.length, `visible PrimeNG overlay for ${selector}`).to.be.greaterThan(0);
-
-    cy.wrap(overlay)
-      .contains('li[role="option"]', label, { timeout: 15000 })
+  cy.get(selector, { timeout: 15000 })
+    .scrollIntoView()
+    .should('be.visible')
+    .click({ force: true });
+  cy.get('.p-select-overlay:visible', { timeout: 15000 })
+    .last()
+    .should('be.visible')
+    .within(() => {
+      cy.contains(
+        'li[role="option"]',
+        new RegExp(`^\\s*${escapeRegExp(label)}\\s*$`),
+        { timeout: 15000 },
+      )
       .scrollIntoView()
       .click({ force: true });
-  });
+    });
+  cy.get('body').find('.p-select-overlay:visible').should('have.length', 0);
 };
 
 const changeColorTableEntry = (tableSelector: string, value: string, nextColor: string): void => {
@@ -640,6 +648,7 @@ describe('Journey Flow - Dashboard global styling propagation', () => {
       openGlobalStylingTab();
       selectPrimeOption('#link-tooltip-variable', 'Cluster');
       cy.window().its('commonService.session.style.widgets.link-color-variable').should('equal', 'cluster');
+      selectPrimeOption('#link-color-scale-mode', 'Categorical');
       cy.get('#key-tables-link-table', { timeout: 15000 }).should('be.visible');
 
       getCommonLinkClusters().then(([targetCluster, controlCluster]) => {

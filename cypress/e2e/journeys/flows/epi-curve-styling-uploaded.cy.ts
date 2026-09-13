@@ -322,6 +322,7 @@ describe('Journey Flow - Epi Curve styling on uploaded data', () => {
     cy.openGlobalSettings();
     switchGlobalSettingsTab('Styling');
     selectVisiblePrimeOption('#node-color-variable', 'Cluster');
+    selectVisiblePrimeOption('#node-color-scale-mode', 'Categorical');
 
     cy.window()
       .its('commonService.session.style.widgets.node-color-variable')

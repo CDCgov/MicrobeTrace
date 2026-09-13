@@ -83,6 +83,7 @@ import { WaterfallComponent } from './visualizationComponents/WaterfallComponent
 import { SankeyComponent } from './visualizationComponents/SankeyComponent/sankey.component';
 import { KeyTablesComponent } from './visualizationComponents/KeyTablesComponent/key-tables.component';
 import { StyleKeyTableComponent } from './visualizationComponents/KeyTablesComponent/style-key-table.component';
+import { ContinuousColorRampComponent } from './visualizationComponents/KeyTablesComponent/continuous-color-ramp.component';
 import * as PlotlyJS from 'plotly.js-dist-min';
 import { PlotlyModule } from 'angular-plotly.js';
 import { GlobalErrorHandler } from './runtime-security/global-error-handler';
@@ -130,6 +131,7 @@ export class TestedComponent {
         SankeyComponent,
         KeyTablesComponent,
         StyleKeyTableComponent,
+        ContinuousColorRampComponent,
     ],
     exports: [
         SelectButtonModule

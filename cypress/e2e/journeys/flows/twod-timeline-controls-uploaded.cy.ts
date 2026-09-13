@@ -40,13 +40,22 @@ const normalizeLogicalLinkId = (value: string): string => String(value || '').re
 const clickVisiblePrimeOption = (label: string): void => {
   cy.get('.p-select-overlay:visible', { timeout: 15000 })
     .last()
-    .find('p-selectitem')
-    .contains('li', new RegExp(`^${escapeRegExp(label)}$`))
-    .click({ force: true });
+    .should('be.visible')
+    .within(() => {
+      cy.contains(
+        'li[role="option"]',
+        new RegExp(`^\\s*${escapeRegExp(label)}\\s*$`),
+        { timeout: 15000 },
+      ).click({ force: true });
+    });
+  cy.get('body').find('.p-select-overlay:visible').should('have.length', 0);
 };
 
 const selectPrimeOption = (selector: string, label: string): void => {
-  cy.get(selector).click({ force: true });
+  cy.get(selector, { timeout: 15000 })
+    .scrollIntoView()
+    .should('be.visible')
+    .click({ force: true });
   clickVisiblePrimeOption(label);
 };
 
@@ -279,6 +288,7 @@ describe('Journey Flow - 2D uploaded timeline controls', () => {
     openGlobalStylingTab();
     selectPrimeOption('#node-color-variable', 'Cluster');
     cy.window().its('commonService.session.style.widgets.node-color-variable').should('equal', 'cluster');
+    selectPrimeOption('#node-color-scale-mode', 'Categorical');
 
     cy.window().then((win: unknown) => {
       const cyInstance = (win as WinWithCy).cytoscapeInstance;
@@ -375,6 +385,7 @@ describe('Journey Flow - 2D uploaded timeline controls', () => {
     openGlobalStylingTab();
     selectPrimeOption('#link-tooltip-variable', 'Cluster');
     cy.window().its('commonService.session.style.widgets.link-color-variable').should('equal', 'cluster');
+    selectPrimeOption('#link-color-scale-mode', 'Categorical');
 
     cy.get('#key-tables-link-table tr', { timeout: 15000 })
       .then(($rows) => {

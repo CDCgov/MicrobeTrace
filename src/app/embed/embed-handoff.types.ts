@@ -67,9 +67,26 @@ export interface EmbedPayloadMetadataV1 {
     sourceApp?: string;
 }
 
+export interface EmbedContinuousColorStopV1 {
+    value: number;
+    color: string;
+}
+
+export interface EmbedVariableColorScaleV1 {
+    mode: 'auto' | 'categorical' | 'continuous';
+    domain?: {
+        min: number;
+        max: number;
+    };
+    stops?: EmbedContinuousColorStopV1[];
+    missingColor?: string;
+}
+
 export interface EmbedLaunchGlobalSettingsV1 {
     nodeColorBy?: string;
     linkColorBy?: string;
+    nodeColorScale?: EmbedVariableColorScaleV1;
+    linkColorScale?: EmbedVariableColorScaleV1;
     nodeShapeBy?: string;
     nodeColor?: string;
     linkColor?: string;
