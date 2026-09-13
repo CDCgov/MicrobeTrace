@@ -82,6 +82,7 @@ import { HeatmapComponent } from './visualizationComponents/HeatmapComponent/hea
 import { WaterfallComponent } from './visualizationComponents/WaterfallComponent/waterfall.component';
 import { SankeyComponent } from './visualizationComponents/SankeyComponent/sankey.component';
 import { KeyTablesComponent } from './visualizationComponents/KeyTablesComponent/key-tables.component';
+import { EvolutionaryRateComponent } from './visualizationComponents/EvolutionaryRateComponent/evolutionary-rate.component';
 import { StyleKeyTableComponent } from './visualizationComponents/KeyTablesComponent/style-key-table.component';
 import * as PlotlyJS from 'plotly.js-dist-min';
 import { PlotlyModule } from 'angular-plotly.js';
@@ -129,6 +130,7 @@ export class TestedComponent {
         WaterfallComponent,
         SankeyComponent,
         KeyTablesComponent,
+        EvolutionaryRateComponent,
         StyleKeyTableComponent,
     ],
     exports: [

@@ -34,7 +34,7 @@
           (onPage)="onPage($event)"
           [filterDelay]="1000"
           (onFilter)="onFilter($event)"
-          selectionMode="{{TableType === 'node' ? 'multiple' : null}}"
+          [selectionMode]="TableType === 'node' || TableType === 'cluster' ? 'multiple' : null"
           [(selection)]="SelectedTableData.dataSelection"
           (onRowSelect)="onRowSelect($event)"
           (onRowUnselect)="onRowUnselect($event)"

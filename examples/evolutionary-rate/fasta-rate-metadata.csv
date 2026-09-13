@@ -1,0 +1,9 @@
+_id,sample_date,lineage,location
+ERF_2018,2018-01-01,A,North
+ERF_2019,2019-01-01,A,North
+ERF_2020,2020-01-01,A,North
+ERF_2021,2021-01-01,A,Central
+ERF_2022,2022-01-01,B,Central
+ERF_2023,2023-01-01,B,Central
+ERF_2024,2024-01-01,B,South
+ERF_2025,2025-01-01,B,South

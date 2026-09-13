@@ -1158,6 +1158,10 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         return tablesToExport;
     }
 
+    public getNodeKeyTablesForExport(): HTMLTableElement[] {
+        return this.getGlobalTablesForExport(true, false, true);
+    }
+
     private getPolygonColorTableElementForExport(): HTMLTableElement | undefined {
         return this.commonService.visuals.twoD?.getPolygonColorTableElementForExport?.()
             ?? (document.querySelector('#polygon-color-table') as HTMLTableElement | undefined);
@@ -5410,7 +5414,7 @@ ${warnings.join('\n')}`,
             ) {
                 instance.onLoadNewData();
             } else if (
-                viewName === 'Waterfall' &&
+                ['Waterfall', 'Evolutionary Rate'].includes(viewName) &&
                 instance.onFilterDataChange
             ) {
                 instance.onFilterDataChange();
@@ -5788,6 +5792,18 @@ ${warnings.join('\n')}`,
                 this.showSettings = true;
                 this.showExport = true;
                 this.showCenter = true;
+                this.showPinAllNodes = false;
+                this.showRefresh = false;
+                this.showButtonGroup = false;
+                this.showSorting = false;
+
+                break;
+            }
+            case "Evolutionary Rate": {
+
+                this.showSettings = true;
+                this.showExport = true;
+                this.showCenter = false;
                 this.showPinAllNodes = false;
                 this.showRefresh = false;
                 this.showButtonGroup = false;

@@ -1,0 +1,9 @@
+_id,sample_date,clade,location
+ERT_2018,2018-01-01,rootward,North
+ERT_2019,2019-01-01,rootward,North
+ERT_2020,2020-01-01,early,North
+ERT_2021,2021-01-01,early,Central
+ERT_2022,2022-01-01,middle,Central
+ERT_2023,2023-01-01,middle,Central
+ERT_2024,2024-01-01,recent,South
+ERT_2025,2025-01-01,recent,South

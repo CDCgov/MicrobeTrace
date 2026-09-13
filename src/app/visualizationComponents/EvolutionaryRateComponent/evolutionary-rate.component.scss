@@ -1,0 +1,267 @@
+:host {
+  position: absolute;
+  inset: 0;
+  display: block;
+  overflow: hidden;
+  z-index: 1 !important;
+}
+
+.evolutionary-rate-view {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  box-sizing: border-box;
+  padding-top: 70px;
+  overflow: hidden;
+}
+
+.evolutionary-rate-toolbar {
+  background: #ffffff !important;
+}
+
+.evolutionary-rate-toolbar .btn-icon {
+  margin-right: 10px;
+  background-color: #ffffff !important;
+  box-shadow: 2px 2px 2px rgba(0, 0, 0, 0.2);
+}
+
+.evolutionary-rate-toolbar .btn-icon:hover {
+  transform: scale(1.1);
+  background-color: #e6e6e6 !important;
+}
+
+.evolutionary-rate-toolbar .flaticon-settings::before,
+.evolutionary-rate-toolbar .flaticon-download::before {
+  font-weight: 800 !important;
+}
+
+.evolutionary-rate-excluded-data-button {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.evolutionary-rate-chart-wrapper {
+  position: relative;
+  flex: 1 1 auto;
+  width: 100%;
+  height: auto;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.evolutionary-rate-export-host,
+.evolutionary-rate-plot-host {
+  position: absolute;
+  inset: 0;
+}
+
+.evolutionary-rate-plot-host svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.evolutionary-rate-plot-host .axis-title {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.evolutionary-rate-empty-state {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: min(560px, calc(100% - 48px));
+  padding: 20px 24px;
+  transform: translate(-50%, -50%);
+  border: 1px solid var(--surface-border, #d8dadd);
+  border-radius: 6px;
+  background: var(--surface-card, rgba(255, 255, 255, 0.96));
+  color: var(--text-color, #303030);
+  font-size: 16px;
+  line-height: 1.45;
+  text-align: center;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.09);
+}
+
+.evolutionary-rate-statistics {
+  position: absolute;
+  bottom: 88px;
+  right: 20px;
+  max-width: min(390px, calc(100% - 40px));
+  overflow: hidden;
+  border: 1px solid var(--surface-border, #d8dadd);
+  border-radius: 6px;
+  background: #ffffff;
+  color: var(--text-color, #303030);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.12);
+  pointer-events: none;
+}
+
+.evolutionary-rate-statistics table {
+  margin: 0;
+  border-collapse: collapse;
+  background: #ffffff;
+  font-size: 13px;
+}
+
+.evolutionary-rate-statistics th,
+.evolutionary-rate-statistics td {
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--surface-border, #e4e5e6);
+  text-align: left;
+  white-space: nowrap;
+}
+
+.evolutionary-rate-statistics tr:last-child th,
+.evolutionary-rate-statistics tr:last-child td {
+  border-bottom: 0;
+}
+
+.evolutionary-rate-statistics th {
+  font-weight: 600;
+}
+
+.evolutionary-rate-counts,
+.evolutionary-rate-regression-message {
+  position: absolute;
+  bottom: 10px;
+  padding: 4px 8px;
+  border-radius: 4px;
+  background: var(--surface-card, rgba(255, 255, 255, 0.9));
+  color: var(--text-color, #303030);
+  font-size: 12px;
+  pointer-events: none;
+}
+
+.evolutionary-rate-counts {
+  left: 12px;
+}
+
+.evolutionary-rate-counts--selection-active {
+  font-size: 16px;
+}
+
+.evolutionary-rate-regression-message {
+  top: 10px;
+  bottom: auto;
+  left: 12px;
+  max-width: min(520px, calc(100% - 24px));
+  color: var(--orange-700, #9a4d00);
+}
+
+.evolutionary-rate-tooltip {
+  position: absolute;
+  z-index: 5;
+  max-width: 320px;
+  padding: 7px 9px;
+  border: 1px solid var(--surface-border, #c7c9cc);
+  border-radius: 4px;
+  background: var(--surface-overlay, rgba(255, 255, 255, 0.98));
+  color: var(--text-color, #202124);
+  font-size: 12px;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.16);
+  pointer-events: none;
+}
+
+.evolutionary-rate-tooltip-outlier {
+  display: grid;
+  gap: 3px;
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px solid var(--surface-border, #c7c9cc);
+}
+
+.evolutionary-rate-tooltip-outlier strong {
+  color: #b3261e;
+}
+
+.evolutionary-rate-settings-content {
+  padding: 18px 4px 4px;
+}
+
+.evolutionary-rate-export-body {
+  min-width: 400px;
+  height: 100%;
+}
+
+.evolutionary-rate-export-body .form-group {
+  align-items: flex-end;
+  margin-bottom: 18px;
+}
+
+#evolutionary-rate-plot-filename,
+#evolutionary-rate-statistics-filename,
+#evolutionary-rate-outlier-report-filename {
+  height: 42px;
+}
+
+.evolutionary-rate-outlier-report-note {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px;
+  border: 1px solid var(--surface-border, #d8dadd);
+  border-radius: 4px;
+  background: var(--surface-ground, #f4f5f6);
+  color: var(--text-color, #303030);
+  line-height: 1.4;
+}
+
+.evolutionary-rate-outlier-report-note span {
+  color: var(--text-color-secondary, #6c757d);
+}
+
+.evolutionary-rate-export-advanced {
+  padding-top: 8px;
+}
+
+.evolutionary-rate-export-resolution {
+  font-variant-numeric: tabular-nums;
+}
+
+.evolutionary-rate-settings-content .form-group {
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.detected-field {
+  padding: 7px 10px;
+  border: 1px solid var(--surface-border, #ced4da);
+  border-radius: 4px;
+  background: var(--surface-ground, #f4f5f6);
+}
+
+.detected-field span {
+  color: var(--text-color-secondary, #6c757d);
+}
+
+.evolutionary-rate-exclusions-table {
+  margin: 12px 0 0;
+}
+
+.evolutionary-rate-exclusions-table th,
+.evolutionary-rate-exclusions-table td {
+  vertical-align: top;
+}
+
+.evolutionary-rate-exclusions-table td:last-child {
+  min-width: 220px;
+}
+
+@media (max-width: 700px) {
+  .evolutionary-rate-statistics {
+    bottom: 80px;
+    right: 8px;
+  }
+
+  .evolutionary-rate-statistics th,
+  .evolutionary-rate-statistics td {
+    padding: 4px 6px;
+    font-size: 11px;
+  }
+}

@@ -30,6 +30,7 @@ Developed By ([some folks](https://github.com/CDCgov/MicrobeTrace/blob/master/hu
 * [Deploy Your Own Instance of MicrobeTrace](https://github.com/CDCgov/MicrobeTrace/wiki/z-Deployment)
 * [Help us Develop MicrobeTrace](https://github.com/CDCgov/MicrobeTrace/wiki/z-Development)
 * [Integrate the Partner Embed Button](docs/integrations/partner-embed-integration.md)
+* [Test the Evolutionary Rate view with synthetic FASTA and Newick examples](examples/evolutionary-rate/README.md)
 
 ## Public Domain
 This project constitutes a work of the United States Government and is not

@@ -106,6 +106,7 @@ const dashboardPaneSelectors: Record<string, string> = {
   Aggregate: '#tablesContainer',
   Crosstab: '.crosstab-wrapper',
   Waterfall: '#waterfall-view',
+  'Evolutionary Rate': '#evolutionary-rate-view',
 };
 
 const toErrorMessage = (error: unknown): string => {
@@ -471,6 +472,14 @@ export function assertDashboardViewReady(viewName: string): void {
         }
       });
       assertWaterfallReady();
+      break;
+    case 'Evolutionary Rate':
+      cy.get('#evolutionary-rate-view', { timeout: 30000 }).should('be.visible');
+      cy.window({ timeout: 30000 }).should((win: any) => {
+        const evolutionaryRate = win.commonService?.visuals?.evolutionaryRate;
+        expect(evolutionaryRate, 'Evolutionary Rate component instance').to.exist;
+        evolutionaryRate?.goldenLayoutComponentResize?.();
+      });
       break;
     default:
       throw new Error(`Unsupported dashboard view readiness assertion: ${normalizedViewName}`);

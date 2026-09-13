@@ -1,0 +1,602 @@
+<div id="evolutionary-rate-view" class="evolutionary-rate-view">
+  <div id="tool-btn-container-evolutionary-rate" class="m-portlet tool-btn-container evolutionary-rate-toolbar">
+    <span style="overflow: visible; position: relative; width: 110px;">
+      <a
+        title="Settings"
+        data-testid="evolutionary-rate-settings-button"
+        class="btn btn-sm btn-clean btn-icon btn-icon-md"
+        style="float:left"
+        (click)="openSettings()">
+        <i class="flaticon-settings primary"></i>
+      </a>
+    </span>
+    <span style="overflow: visible; position: relative; width: 110px;">
+      <a
+        title="Export Screen"
+        data-testid="evolutionary-rate-export-button"
+        class="btn btn-sm btn-clean btn-icon btn-icon-md"
+        style="float:left"
+        (click)="openExport()">
+        <i class="flaticon-download primary"></i>
+      </a>
+    </span>
+    <span style="overflow: visible; position: relative; width: 110px;">
+      <a
+        title="Excluded Data Points"
+        data-testid="evolutionary-rate-excluded-data-button"
+        class="btn btn-sm btn-clean btn-icon btn-icon-md evolutionary-rate-excluded-data-button"
+        style="float:left"
+        aria-haspopup="dialog"
+        [attr.aria-label]="excludedDataPoints.length + ' excluded data points'"
+        [ngStyle]="{ color: excludedDataPoints.length === 0 ? '#005DAA' : 'red' }"
+        (click)="openExcludedDataPoints()">
+        {{ excludedDataPoints.length }}
+      </a>
+    </span>
+  </div>
+
+  <div class="evolutionary-rate-chart-wrapper">
+    <div #plotExportHost class="evolutionary-rate-export-host">
+      <div #plotHost class="evolutionary-rate-plot-host"></div>
+
+      @if (tableVisible && analysis.points.length > 0) {
+        <aside class="evolutionary-rate-statistics" data-testid="evolutionary-rate-statistics">
+          <table>
+            <tbody>
+              <tr>
+                <th>Date range</th>
+                <td data-testid="evolutionary-rate-date-range">{{ formatDateRange() }}</td>
+              </tr>
+              <tr>
+                <th>Slope (rate)</th>
+                <td data-testid="evolutionary-rate-slope">{{ formatSlope() }}</td>
+              </tr>
+              <tr>
+                <th>X-intercept (TMRCA)</th>
+                <td data-testid="evolutionary-rate-tmrca">{{ formatTmrca() }}</td>
+              </tr>
+              <tr>
+                <th>Correlation Coefficient</th>
+                <td data-testid="evolutionary-rate-correlation">{{ formatCorrelation() }}</td>
+              </tr>
+              <tr>
+                <th>R<sup>2</sup></th>
+                <td data-testid="evolutionary-rate-r-squared">{{ formatRSquared() }}</td>
+              </tr>
+              <tr>
+                <th>Residual Mean Squared</th>
+                <td data-testid="evolutionary-rate-residual-mean-squared">{{ formatResidualMeanSquared() }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </aside>
+      }
+    </div>
+    <div #plotTooltip class="evolutionary-rate-tooltip" hidden></div>
+
+    @if (emptyStateMessage) {
+      <div
+        class="evolutionary-rate-empty-state"
+        data-testid="evolutionary-rate-empty-state"
+        [attr.aria-live]="isLoading ? 'polite' : null">
+        {{ emptyStateMessage }}
+      </div>
+    }
+
+    @if (selectedDateField !== 'None' && !isLoading) {
+      <div
+        class="evolutionary-rate-counts"
+        [class.evolutionary-rate-counts--selection-active]="selectionActive"
+        data-testid="evolutionary-rate-counts">
+        @if (selectionActive) {
+          @if (selectedClusterLabel) {
+            <strong data-testid="evolutionary-rate-selected-cluster">{{ selectedClusterLabel }}</strong> &middot;
+          }
+          Selected subset: {{ selectedNodeCount }} nodes &middot;
+        }
+        {{ includedCount }} included &middot; {{ excludedCount }} excluded
+      </div>
+    }
+
+    @if (regressionMessage) {
+      <div class="evolutionary-rate-regression-message" data-testid="evolutionary-rate-regression-message">
+        {{ regressionMessage }}
+      </div>
+    }
+  </div>
+
+  @if (viewActive) {
+    <p-dialog
+      id="evolutionary-rate-settings-pane"
+      data-testid="evolutionary-rate-settings-dialog"
+      [(visible)]="settingsDialog.isVisible"
+      header="Evolutionary Rate Settings"
+      appendTo="body"
+      [style]="{width: '500px'}">
+      <tabset class="tab-container tabbable-line">
+        <tab heading="Data" [active]="true" customClass="m-tabs__item">
+          <div class="evolutionary-rate-settings-content">
+            <div class="form-group row" title="Select the node field containing the sample collection date.">
+              <div class="col-5">
+                <label for="evolutionary-rate-date-field">Sample Collection Date</label>
+              </div>
+              <div class="col-7">
+                <p-select
+                  id="evolutionary-rate-date-field"
+                  data-testid="evolutionary-rate-date-field"
+                  [options]="fieldOptions"
+                  appendTo="body"
+                  class="width-percent-100"
+                  [(ngModel)]="selectedDateField"
+                  (ngModelChange)="onDateFieldChange($event)">
+                </p-select>
+              </div>
+            </div>
+
+            <div class="form-group row" title="The distance source follows the active global genetic metric, or root-to-tip patristic distance for a phylogenetic tree.">
+              <div class="col-5">Genetic Distance</div>
+              <div class="col-7">
+                <div class="detected-field" data-testid="evolutionary-rate-detected-field">
+                  {{ distanceSourceLabel }}
+                </div>
+              </div>
+            </div>
+
+            @if (distanceSourceKind === 'patristic') {
+              <div
+                class="form-group row"
+                title="Best fit searches along every tree branch and chooses the root position that minimizes the sum of squared residuals from the evolutionary-rate regression line.">
+                <div class="col-5">
+                  <label for="evolutionary-rate-root-method">Root Position</label>
+                </div>
+                <div class="col-7">
+                  <p-selectButton
+                    id="evolutionary-rate-root-method"
+                    data-testid="evolutionary-rate-root-method"
+                    [options]="treeRootMethodOptions"
+                    [allowEmpty]="false"
+                    fluid
+                    [(ngModel)]="selectedTreeRootMethod"
+                    (ngModelChange)="onTreeRootMethodChange($event)">
+                  </p-selectButton>
+                </div>
+              </div>
+            }
+          </div>
+        </tab>
+
+        <tab heading="Appearance" customClass="m-tabs__item">
+          <div class="evolutionary-rate-settings-content">
+            <div class="form-group row" title="Show or hide the statistics table over the plot.">
+              <div class="col-4">Table</div>
+              <div class="col-8">
+                <p-selectButton
+                  id="evolutionary-rate-table-visible"
+                  data-testid="evolutionary-rate-table-visible"
+                  [options]="tableVisibilityOptions"
+                  [allowEmpty]="false"
+                  fluid
+                  [(ngModel)]="selectedTableVisibility"
+                  (ngModelChange)="onTableVisibilityChange($event)">
+                </p-selectButton>
+              </div>
+            </div>
+
+            <p-accordion [value]="null" [multiple]="true">
+              <p-accordion-panel value="evolutionary-rate-node-labels">
+                <p-accordion-header>Labels and Tooltips</p-accordion-header>
+                <p-accordion-content>
+                  <div class="form-group row" title="What field should be displayed as a label for each node?">
+                    <div class="col-4"><label for="evolutionary-rate-node-label-variable">Label</label></div>
+                    <div class="col-8">
+                      <p-select
+                        id="evolutionary-rate-node-label-variable"
+                        [options]="fieldOptions"
+                        appendTo="body"
+                        class="width-percent-100"
+                        [(ngModel)]="selectedNodeLabelVariable"
+                        (ngModelChange)="onNodeLabelVariableChange($event)">
+                      </p-select>
+                    </div>
+                  </div>
+                  <div class="form-group row" title="How large should node labels be?">
+                    <div class="col-4"><label for="evolutionary-rate-node-label-size">Label Size</label></div>
+                    <div class="col-8">
+                      <input
+                        type="range"
+                        class="custom-range"
+                        id="evolutionary-rate-node-label-size"
+                        min="6"
+                        max="72"
+                        [(ngModel)]="selectedNodeLabelSize"
+                        (change)="onNodeLabelSizeChange($event)">
+                    </div>
+                  </div>
+                  <div class="form-group row" title="Where should labels appear relative to each node?">
+                    <div class="col-4"><label for="evolutionary-rate-node-label-orientation">Orientation</label></div>
+                    <div class="col-8">
+                      <p-select
+                        id="evolutionary-rate-node-label-orientation"
+                        [options]="orientationOptions"
+                        appendTo="body"
+                        class="width-percent-100"
+                        [(ngModel)]="selectedNodeLabelOrientation"
+                        (ngModelChange)="onNodeLabelOrientationChange($event)">
+                      </p-select>
+                    </div>
+                  </div>
+                  <div class="form-group row" title="What node data should be displayed when hovering over a point?">
+                    <div class="col-4">Tooltip</div>
+                    <div class="col-8">
+                      <p-multiSelect
+                        id="evolutionary-rate-node-tooltip-variable"
+                        [options]="tooltipFieldOptions"
+                        appendTo="body"
+                        [showToggleAll]="false"
+                        [showHeader]="false"
+                        class="width-percent-100"
+                        [(ngModel)]="selectedNodeTooltipVariables"
+                        (onChange)="onNodeTooltipVariableChange($event.value)">
+                      </p-multiSelect>
+                    </div>
+                  </div>
+                </p-accordion-content>
+              </p-accordion-panel>
+
+              <p-accordion-panel value="evolutionary-rate-node-shapes">
+                <p-accordion-header>Shapes and Sizes</p-accordion-header>
+                <p-accordion-content>
+                  <div class="form-group row" title="Open global styling settings to configure node shapes.">
+                    <div class="col-4">Shape</div>
+                    <div class="col-8">
+                      <button
+                        pButton
+                        type="button"
+                        id="evolutionary-rate-open-global-shape-settings"
+                        label="Show Shapes"
+                        class="ui-button-raised width-percent-100"
+                        (click)="showGlobalSettings()"
+                        [style]="{'background-color': '#2196f3', 'border': '1px solid #2196f3'}">
+                      </button>
+                    </div>
+                  </div>
+                  <div class="form-group row" title="Which node variable should determine point size?">
+                    <div class="col-4"><label for="evolutionary-rate-node-radius-variable">Size By</label></div>
+                    <div class="col-8">
+                      <p-select
+                        id="evolutionary-rate-node-radius-variable"
+                        [options]="fieldOptions"
+                        appendTo="body"
+                        class="width-percent-100"
+                        [(ngModel)]="selectedNodeRadiusVariable"
+                        (ngModelChange)="onNodeRadiusVariableChange($event)">
+                      </p-select>
+                    </div>
+                  </div>
+                  @if (selectedNodeRadiusVariable !== 'None') {
+                    <div class="form-group row">
+                      <div class="col-4"><label for="evolutionary-rate-node-radius-max">Max Size</label></div>
+                      <div class="col-8">
+                        <input
+                          type="range"
+                          class="custom-range"
+                          id="evolutionary-rate-node-radius-max"
+                          min="20"
+                          max="100"
+                          [(ngModel)]="selectedNodeRadiusMax"
+                          (ngModelChange)="onNodeRadiusMaxChange($event)">
+                      </div>
+                    </div>
+                    <div class="form-group row">
+                      <div class="col-4"><label for="evolutionary-rate-node-radius-min">Min Size</label></div>
+                      <div class="col-8">
+                        <input
+                          type="range"
+                          class="custom-range"
+                          id="evolutionary-rate-node-radius-min"
+                          min="5"
+                          max="55"
+                          [(ngModel)]="selectedNodeRadiusMin"
+                          (ngModelChange)="onNodeRadiusMinChange($event)">
+                      </div>
+                    </div>
+                  } @else {
+                    <div class="form-group row">
+                      <div class="col-4"><label for="evolutionary-rate-node-radius">Size</label></div>
+                      <div class="col-8">
+                        <input
+                          type="range"
+                          class="custom-range"
+                          id="evolutionary-rate-node-radius"
+                          min="5"
+                          max="100"
+                          [(ngModel)]="selectedNodeRadius"
+                          (ngModelChange)="onNodeRadiusChange($event)">
+                      </div>
+                    </div>
+                  }
+                  <div class="form-group row" title="What should the width of each node border be?">
+                    <div class="col-4"><label for="evolutionary-rate-node-border-width">Border Width</label></div>
+                    <div class="col-8">
+                      <input
+                        type="number"
+                        class="form-control form-control-sm"
+                        id="evolutionary-rate-node-border-width"
+                        min="0"
+                        step="0.1"
+                        [(ngModel)]="selectedNodeBorderWidth"
+                        (ngModelChange)="onNodeBorderWidthChange($event)">
+                    </div>
+                  </div>
+                </p-accordion-content>
+              </p-accordion-panel>
+
+              <p-accordion-panel value="evolutionary-rate-node-colors">
+                <p-accordion-header>Colors</p-accordion-header>
+                <p-accordion-content>
+                  <button
+                    pButton
+                    type="button"
+                    id="evolutionary-rate-open-global-color-settings"
+                    label="Show Colors"
+                    class="ui-button-raised"
+                    (click)="showGlobalSettings()"
+                    [style]="{'background-color': '#2196f3', 'border': '1px solid #2196f3'}">
+                  </button>
+                </p-accordion-content>
+              </p-accordion-panel>
+            </p-accordion>
+          </div>
+        </tab>
+      </tabset>
+    </p-dialog>
+
+    <p-dialog
+      id="evolutionary-rate-export-pane"
+      data-testid="evolutionary-rate-export-dialog"
+      [(visible)]="showExportDialog"
+      header="Export Evolutionary Rate"
+      appendTo="body">
+      <tabset class="tab-container tabbable-line">
+        <tab heading="Regression Plot Image" [active]="true" customClass="m-tabs__item">
+          <div class="modal-dialog" role="document">
+            <div class="modal-content">
+              <div class="modal-body evolutionary-rate-export-body">
+                <div class="form-group row">
+                  <div class="col-8">
+                    <label for="evolutionary-rate-plot-filename">Filename</label>
+                    <input
+                      id="evolutionary-rate-plot-filename"
+                      data-testid="evolutionary-rate-plot-filename"
+                      type="text"
+                      class="form-control form-control-sm"
+                      placeholder="Filename"
+                      [(ngModel)]="plotExportFilename">
+                  </div>
+                  <div class="col-4">
+                    <label for="evolutionary-rate-plot-filetype">File Type</label>
+                    <p-select
+                      id="evolutionary-rate-plot-filetype"
+                      data-testid="evolutionary-rate-plot-filetype"
+                      [options]="plotExportFileTypeOptions"
+                      appendTo="body"
+                      class="width-percent-100"
+                      [(ngModel)]="plotExportFileType"
+                      (ngModelChange)="onPlotExportFileTypeChange($event)">
+                    </p-select>
+                  </div>
+                </div>
+
+                <div [hidden]="plotExportFileType === 'svg'">
+                  <p-accordion [value]="null" [multiple]="true">
+                    <p-accordion-panel value="evolutionary-rate-export-advanced" style="color:#495057">
+                      <p-accordion-header>Advanced</p-accordion-header>
+                      <p-accordion-content>
+                        <div class="evolutionary-rate-export-advanced">
+                          <div class="form-group row">
+                            <div class="col-3">
+                              <label for="evolutionary-rate-plot-scale">Scale</label>
+                            </div>
+                            <div class="col-9">
+                              <input
+                                id="evolutionary-rate-plot-scale"
+                                data-testid="evolutionary-rate-plot-scale"
+                                type="number"
+                                class="form-control form-control-sm"
+                                min="0.1"
+                                max="2"
+                                step="0.1"
+                                [(ngModel)]="plotExportScale"
+                                (ngModelChange)="updateCalculatedPlotExportResolution()">
+                            </div>
+                          </div>
+                          <div class="form-group row">
+                            <div class="col-3">Resolution</div>
+                            <div
+                              id="evolutionary-rate-plot-resolution"
+                              data-testid="evolutionary-rate-plot-resolution"
+                              class="col-9 text-right evolutionary-rate-export-resolution">
+                              {{ calculatedPlotExportResolution }}
+                            </div>
+                          </div>
+                          <div
+                            class="form-group row"
+                            [hidden]="plotExportFileType !== 'jpeg' && plotExportFileType !== 'webp'">
+                            <div class="col-3">
+                              <label for="evolutionary-rate-plot-quality">Quality</label>
+                            </div>
+                            <div class="col-9">
+                              <input
+                                id="evolutionary-rate-plot-quality"
+                                data-testid="evolutionary-rate-plot-quality"
+                                type="range"
+                                class="custom-range"
+                                min="0"
+                                max="1"
+                                step="0.01"
+                                [(ngModel)]="plotExportQuality">
+                              <span>{{ plotExportQuality }}</span>
+                            </div>
+                          </div>
+                        </div>
+                      </p-accordion-content>
+                    </p-accordion-panel>
+                  </p-accordion>
+                </div>
+              </div>
+              <div class="modal-footer">
+                <button type="button" class="btn btn-error" (click)="showExportDialog = false">Cancel</button>
+                <button
+                  type="button"
+                  class="btn btn-primary"
+                  data-testid="evolutionary-rate-download-plot"
+                  [disabled]="analysis.points.length === 0"
+                  (click)="downloadRegressionPlot()">
+                  Export
+                </button>
+              </div>
+            </div>
+          </div>
+        </tab>
+
+        <tab heading="Statistics Table" customClass="m-tabs__item">
+          <div class="modal-dialog" role="document">
+            <div class="modal-content">
+              <div class="modal-body evolutionary-rate-export-body">
+                <div class="form-group row">
+                  <div class="col-12">
+                    <label for="evolutionary-rate-statistics-filename">Filename</label>
+                    <input
+                      id="evolutionary-rate-statistics-filename"
+                      data-testid="evolutionary-rate-statistics-filename"
+                      type="text"
+                      class="form-control form-control-sm"
+                      placeholder="Filename"
+                      [(ngModel)]="statisticsExportFilename">
+                  </div>
+                </div>
+              </div>
+              <div class="modal-footer">
+                <button type="button" class="btn btn-error" (click)="showExportDialog = false">Cancel</button>
+                <button
+                  type="button"
+                  class="btn btn-primary"
+                  data-testid="evolutionary-rate-download-table"
+                  [disabled]="analysis.points.length === 0"
+                  (click)="downloadStatisticsTable()">
+                  Export
+                </button>
+              </div>
+            </div>
+          </div>
+        </tab>
+
+        <tab heading="Outlier Report" customClass="m-tabs__item">
+          <div class="modal-dialog" role="document">
+            <div class="modal-content">
+              <div class="modal-body evolutionary-rate-export-body">
+                <div class="form-group row">
+                  <div class="col-8">
+                    <label for="evolutionary-rate-outlier-report-filename">Filename</label>
+                    <input
+                      id="evolutionary-rate-outlier-report-filename"
+                      data-testid="evolutionary-rate-outlier-report-filename"
+                      type="text"
+                      class="form-control form-control-sm"
+                      placeholder="Filename"
+                      [(ngModel)]="outlierReportFilename">
+                  </div>
+                  <div class="col-4">
+                    <label for="evolutionary-rate-outlier-report-filetype">File Type</label>
+                    <p-select
+                      id="evolutionary-rate-outlier-report-filetype"
+                      data-testid="evolutionary-rate-outlier-report-filetype"
+                      [options]="outlierReportFileTypeOptions"
+                      appendTo="body"
+                      class="width-percent-100"
+                      [(ngModel)]="outlierReportFileType">
+                    </p-select>
+                  </div>
+                </div>
+
+                <div
+                  class="evolutionary-rate-outlier-report-note"
+                  data-testid="evolutionary-rate-outlier-report-summary"
+                  aria-live="polite">
+                  @if (canExportOutlierReport) {
+                    @if (analysis.points.length < 3) {
+                      <strong>At least 3 analyzable points are required to classify potential outliers.</strong>
+                    } @else if (analysis.outlierThreshold === null) {
+                      <strong>No potential outliers were classified because residual variation is zero or negligible.</strong>
+                    } @else {
+                      <strong>
+                        {{ outlierCandidateCount }} potential outlier{{ outlierCandidateCount === 1 ? '' : 's' }}
+                      </strong>
+                    }
+                    <span>
+                      Potential outliers have an absolute regression residual at least 2 times the residual RMSE.
+                      The report treats these as diagnostic flags and includes suggested follow-up checks.
+                    </span>
+                  } @else {
+                    <strong>A valid regression is required.</strong>
+                    <span>Choose a valid collection-date field and include at least two distinct dates.</span>
+                  }
+                </div>
+              </div>
+              <div class="modal-footer">
+                <button type="button" class="btn btn-error" (click)="showExportDialog = false">Cancel</button>
+                <button
+                  type="button"
+                  class="btn btn-primary"
+                  data-testid="evolutionary-rate-download-outlier-report"
+                  [disabled]="!canExportOutlierReport"
+                  (click)="downloadOutlierReport()">
+                  Export
+                </button>
+              </div>
+            </div>
+          </div>
+        </tab>
+      </tabset>
+    </p-dialog>
+
+    <p-dialog
+      id="evolutionary-rate-excluded-data-pane"
+      data-testid="evolutionary-rate-excluded-data-dialog"
+      [(visible)]="showExcludedDataPointsDialog"
+      header="Excluded Data Points"
+      appendTo="body"
+      [style]="{width: '42rem', 'max-width': 'calc(100vw - 2rem)'}"
+      [contentStyle]="{'max-height': '60vh', 'overflow': 'auto'}">
+      @if (excludedDataPoints.length === 0) {
+        <span class="text-surface-500 dark:text-surface-400 block mb-8">
+          All {{ selectionActive ? 'selected' : 'currently visible' }} nodes are included in the Evolutionary Rate analysis.
+        </span>
+      } @else {
+        <p class="text-surface-500 dark:text-surface-400">
+          The following {{ selectionActive ? 'selected' : 'currently visible' }} nodes were omitted from the Evolutionary Rate analysis:
+        </p>
+        <table class="table table-sm evolutionary-rate-exclusions-table">
+          <thead>
+            <tr>
+              <th scope="col">Index</th>
+              <th scope="col">ID</th>
+              <th scope="col">{{ selectedDateField === 'None' ? 'Collection date' : selectedDateField }}</th>
+              <th scope="col">Reason</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (point of excludedDataPoints; track point.id) {
+              <tr data-testid="evolutionary-rate-excluded-data-row">
+                <td>{{ point.index }}</td>
+                <td>{{ point.id }}</td>
+                <td>{{ point.dateValue }}</td>
+                <td>{{ point.reason }}</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      }
+    </p-dialog>
+  }
+</div>

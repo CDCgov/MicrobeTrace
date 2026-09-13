@@ -10,6 +10,8 @@ import type {
   PatristicNearestNeighborBatchResponse,
   PatristicProgressResponse,
   PatristicErrorResponse,
+  PatristicRootDistancesResponse,
+  PatristicBestFitRootResponse,
 } from '../workers/patristic-engine.types';
 import {
   BOOTSTRAP_DEFAULT_STABILITY_TOLERANCE_PERCENT,
@@ -1148,6 +1150,84 @@ export class WorkerComputeService {
         type: 'INIT_TREE',
         jobId,
         newickString,
+      } as PatristicWorkerRequest);
+    });
+  }
+
+  /**
+   * Return cumulative root-to-leaf branch lengths for the active Newick tree.
+   * The same cached worker tree used for pairwise patristic links is reused.
+   */
+  public async getPatristicRootDistances(newickString: string): Promise<PatristicRootDistancesResponse> {
+    if (newickString !== this.patristicNewickString || this.patristicLeafNames.length === 0) {
+      await this.initPatristicTree(newickString);
+    }
+
+    return new Promise((resolve, reject) => {
+      const worker = this.computer.getPatristicWorker();
+      const jobId = ++this.patristicJobId;
+
+      const handler = (event: MessageEvent<PatristicWorkerResponse>) => {
+        const msg = event.data;
+        if (msg.jobId !== jobId) return;
+
+        if (msg.type === 'ROOT_DISTANCES') {
+          worker.removeEventListener('message', handler);
+          resolve(msg);
+        } else if (msg.type === 'ERROR') {
+          worker.removeEventListener('message', handler);
+          reject(new Error(msg.message));
+        }
+      };
+
+      worker.addEventListener('message', handler);
+      worker.postMessage({
+        type: 'GET_ROOT_DISTANCES',
+        jobId,
+      } as PatristicWorkerRequest);
+    });
+  }
+
+  /**
+   * Return root-to-tip distances after locating the point on the active tree
+   * that minimizes the dated-tip regression residual sum of squares.
+   */
+  public async getPatristicBestFitRootDistances(
+    newickString: string,
+    decimalYearsByLeaf: ReadonlyMap<string, number>,
+    normalizeLeafName: (leafName: string) => string = leafName => leafName
+  ): Promise<PatristicBestFitRootResponse> {
+    if (newickString !== this.patristicNewickString || this.patristicLeafNames.length === 0) {
+      await this.initPatristicTree(newickString);
+    }
+
+    const decimalYears = this.patristicLeafNames.map(leafName => {
+      const value = decimalYearsByLeaf.get(normalizeLeafName(leafName));
+      return Number.isFinite(value) ? Number(value) : Number.NaN;
+    });
+
+    return new Promise((resolve, reject) => {
+      const worker = this.computer.getPatristicWorker();
+      const jobId = ++this.patristicJobId;
+
+      const handler = (event: MessageEvent<PatristicWorkerResponse>) => {
+        const msg = event.data;
+        if (msg.jobId !== jobId) return;
+
+        if (msg.type === 'BEST_FIT_ROOT_DISTANCES') {
+          worker.removeEventListener('message', handler);
+          resolve(msg);
+        } else if (msg.type === 'ERROR') {
+          worker.removeEventListener('message', handler);
+          reject(new Error(msg.message));
+        }
+      };
+
+      worker.addEventListener('message', handler);
+      worker.postMessage({
+        type: 'GET_BEST_FIT_ROOT_DISTANCES',
+        jobId,
+        decimalYears,
       } as PatristicWorkerRequest);
     });
   }

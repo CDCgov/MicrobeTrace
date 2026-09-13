@@ -1,0 +1,65 @@
+{
+  "version": 1,
+  "id": "evolutionary-rate-500",
+  "generator": "scripts/generate-performance-fixtures.js",
+  "deterministic": true,
+  "seed": "0x45523530",
+  "purpose": "Large dated fixture for Evolutionary Rate SNP and phylogenetic root-to-tip testing.",
+  "outputs": {
+    "fasta": "performance/evolutionary-rate/evolutionary-rate-500.fasta",
+    "newick": "performance/evolutionary-rate/evolutionary-rate-500.nwk",
+    "nodeMetadata": "performance/evolutionary-rate/evolutionary-rate-500-nodes.csv",
+    "summary": "performance/evolutionary-rate/evolutionary-rate-500-summary.json"
+  },
+  "counts": {
+    "nodes": 500,
+    "sequences": 500,
+    "leaves": 500,
+    "sequenceLength": 2400,
+    "totalPairs": 124750
+  },
+  "sampling": {
+    "dateField": "sample_date",
+    "earliestDate": "2015-01-01",
+    "latestDate": "2024-07-25",
+    "intervalDays": 7
+  },
+  "distances": {
+    "snp": {
+      "referenceId": "ER500_0001",
+      "targetRatePerYear": 12,
+      "observedRange": [
+        0,
+        117
+      ],
+      "regression": {
+        "slope": 12.008792078578,
+        "intercept": -24197.647022944748,
+        "tmrca": "2014-12-29",
+        "correlation": 0.997546078444,
+        "rSquared": 0.995098178618,
+        "residualMeanSquared": 5.435932937165
+      }
+    },
+    "patristic": {
+      "targetRatePerYear": 0.0012,
+      "observedRange": [
+        0.001998,
+        0.01359843
+      ],
+      "regression": {
+        "slope": 0.001199572842,
+        "intercept": -2.415134556799,
+        "tmrca": "2013-05-01",
+        "correlation": 0.999648215307,
+        "rSquared": 0.999296554366,
+        "residualMeanSquared": 7.751e-9
+      }
+    }
+  },
+  "knownLimitations": [
+    "Sequences use deterministic nested SNP accumulation rather than a probabilistic substitution model.",
+    "The Newick tree is a star phylogeny so its root-to-tip distances are easy to validate exactly.",
+    "The data are synthetic engineering fixtures and have no epidemiological interpretation."
+  ]
+}

@@ -4,6 +4,7 @@ const fs = require('fs');
 const path = require('path');
 
 const outDir = path.join(__dirname, '..', 'cypress', 'fixtures', 'performance');
+const outputEol = process.platform === 'win32' ? '\r\n' : '\n';
 
 function ensureDir(dir) {
   fs.mkdirSync(dir, { recursive: true });
@@ -23,8 +24,8 @@ function csvEscape(value) {
 }
 
 function writeCsv(fileName, rows) {
-  const body = rows.map((row) => row.map(csvEscape).join(',')).join('\n');
-  fs.writeFileSync(path.join(outDir, fileName), `${body}\n`, 'utf8');
+  const body = rows.map((row) => row.map(csvEscape).join(',')).join(outputEol);
+  fs.writeFileSync(path.join(outDir, fileName), `${body}${outputEol}`, 'utf8');
 }
 
 function wrapSequence(sequence, width = 80) {
@@ -32,7 +33,7 @@ function wrapSequence(sequence, width = 80) {
   for (let index = 0; index < sequence.length; index += width) {
     chunks.push(sequence.slice(index, index + width));
   }
-  return chunks.join('\n');
+  return chunks.join(outputEol);
 }
 
 function buildGraphFixture({
@@ -161,6 +162,222 @@ function countSnps(sequenceA, sequenceB) {
   return count + Math.abs(sequenceA.length - sequenceB.length);
 }
 
+const MILLISECONDS_PER_DAY = 24 * 60 * 60 * 1000;
+
+function addUtcDays(date, days) {
+  return new Date(date.getTime() + (days * MILLISECONDS_PER_DAY));
+}
+
+function formatIsoDate(date) {
+  return date.toISOString().slice(0, 10);
+}
+
+function calendarDateToDecimalYear(date) {
+  const year = date.getUTCFullYear();
+  const start = Date.UTC(year, 0, 1);
+  const end = Date.UTC(year + 1, 0, 1);
+  return year + ((date.getTime() - start) / (end - start));
+}
+
+function decimalYearToIsoDate(value) {
+  if (!Number.isFinite(value)) return null;
+  const year = Math.floor(value);
+  const start = Date.UTC(year, 0, 1);
+  const end = Date.UTC(year + 1, 0, 1);
+  const timestamp = start + ((value - year) * (end - start));
+  return formatIsoDate(new Date(timestamp));
+}
+
+function roundNumber(value, digits = 12) {
+  if (!Number.isFinite(value)) return null;
+  return Number(value.toFixed(digits));
+}
+
+function calculateRegression(points) {
+  const meanX = points.reduce((sum, point) => sum + point.x, 0) / points.length;
+  const meanY = points.reduce((sum, point) => sum + point.y, 0) / points.length;
+  let sumXX = 0;
+  let sumYY = 0;
+  let sumXY = 0;
+
+  points.forEach((point) => {
+    const deltaX = point.x - meanX;
+    const deltaY = point.y - meanY;
+    sumXX += deltaX * deltaX;
+    sumYY += deltaY * deltaY;
+    sumXY += deltaX * deltaY;
+  });
+
+  const slope = sumXY / sumXX;
+  const intercept = meanY - (slope * meanX);
+  const correlation = sumXY / Math.sqrt(sumXX * sumYY);
+  const residualMeanSquared = points.reduce((sum, point) => {
+    const residual = point.y - ((slope * point.x) + intercept);
+    return sum + (residual * residual);
+  }, 0) / points.length;
+
+  return {
+    slope: roundNumber(slope),
+    intercept: roundNumber(intercept),
+    tmrca: decimalYearToIsoDate(-intercept / slope),
+    correlation: roundNumber(correlation),
+    rSquared: roundNumber(correlation * correlation),
+    residualMeanSquared: roundNumber(residualMeanSquared),
+  };
+}
+
+function buildEvolutionaryRateFixture() {
+  const fixtureDirectory = 'evolutionary-rate';
+  const fixtureDir = path.join(outDir, fixtureDirectory);
+  const sampleCount = 500;
+  const sequenceLength = 2400;
+  const samplingIntervalDays = 7;
+  const seed = 0x45523530;
+  const random = makeRandom(seed);
+  const startDate = new Date(Date.UTC(2015, 0, 1));
+  const reference = Array.from(
+    { length: sequenceLength },
+    () => DNA_ALPHABET[Math.floor(random() * DNA_ALPHABET.length)]
+  );
+  const mutationPositions = choosePositions(random, 256, sequenceLength, new Set());
+  const fastaLines = [];
+  const metadataRows = [[
+    '_id',
+    'sample_date',
+    'region',
+    'lineage',
+    'expected_snp_distance',
+    'expected_patristic_distance',
+  ]];
+  const newickLeaves = [];
+  const records = [];
+  const snpRegressionPoints = [];
+  const patristicRegressionPoints = [];
+
+  ensureDir(fixtureDir);
+
+  for (let index = 0; index < sampleCount; index++) {
+    const id = `ER500_${String(index + 1).padStart(4, '0')}`;
+    const date = addUtcDays(startDate, index * samplingIntervalDays);
+    const decimalYear = calendarDateToDecimalYear(date);
+    const elapsedYears = decimalYear - calendarDateToDecimalYear(startDate);
+    const snpNoise = index === 0 ? 0 : Math.round((random() - 0.5) * 8);
+    const snpDistance = Math.max(0, Math.round((12 * elapsedYears) + snpNoise));
+    const patristicNoise = (random() - 0.5) * 0.0003;
+    const patristicDistance = Number((0.002 + (0.0012 * elapsedYears) + patristicNoise).toFixed(8));
+    const sequence = reference.slice();
+
+    if (snpDistance > mutationPositions.length) {
+      throw new Error(`Evolutionary Rate fixture needs ${snpDistance} mutation positions but only ${mutationPositions.length} were reserved.`);
+    }
+
+    mutationPositions.slice(0, snpDistance).forEach((position) => {
+      sequence[position] = nextBase(reference[position], 1 + (position % 3));
+    });
+
+    const sequenceText = sequence.join('');
+    const region = ['North', 'Central', 'South', 'West'][index % 4];
+    const lineage = `Lineage ${String(Math.floor(index / 100) + 1)}`;
+    records.push({ id, sequence: sequenceText, snpDistance });
+    fastaLines.push(`>${id}`);
+    fastaLines.push(wrapSequence(sequenceText));
+    metadataRows.push([
+      id,
+      formatIsoDate(date),
+      region,
+      lineage,
+      snpDistance,
+      patristicDistance.toFixed(8),
+    ]);
+    newickLeaves.push(`${id}:${patristicDistance.toFixed(8)}`);
+    snpRegressionPoints.push({ x: decimalYear, y: snpDistance });
+    patristicRegressionPoints.push({ x: decimalYear, y: patristicDistance });
+  }
+
+  const referenceSequence = records[0].sequence;
+  const uniqueIds = new Set(records.map((record) => record.id));
+  if (
+    records.length !== sampleCount ||
+    metadataRows.length !== sampleCount + 1 ||
+    newickLeaves.length !== sampleCount ||
+    uniqueIds.size !== sampleCount
+  ) {
+    throw new Error('Evolutionary Rate fixture did not generate 500 unique, matched FASTA, metadata, and Newick records.');
+  }
+  records.forEach((record) => {
+    const actualDistance = countSnps(referenceSequence, record.sequence);
+    if (actualDistance !== record.snpDistance) {
+      throw new Error(`${record.id} expected ${record.snpDistance} reference SNPs but generated ${actualDistance}.`);
+    }
+    if (record.sequence.length !== sequenceLength) {
+      throw new Error(`${record.id} expected sequence length ${sequenceLength} but generated ${record.sequence.length}.`);
+    }
+  });
+
+  const fastaFile = `${fixtureDirectory}/evolutionary-rate-500.fasta`;
+  const metadataFile = `${fixtureDirectory}/evolutionary-rate-500-nodes.csv`;
+  const newickFile = `${fixtureDirectory}/evolutionary-rate-500.nwk`;
+  const summaryFile = `${fixtureDirectory}/evolutionary-rate-500-summary.json`;
+  const lastDate = addUtcDays(startDate, (sampleCount - 1) * samplingIntervalDays);
+  const summary = {
+    version: 1,
+    id: 'evolutionary-rate-500',
+    generator: 'scripts/generate-performance-fixtures.js',
+    deterministic: true,
+    seed: `0x${seed.toString(16)}`,
+    purpose: 'Large dated fixture for Evolutionary Rate SNP and phylogenetic root-to-tip testing.',
+    outputs: {
+      fasta: `performance/${fastaFile}`,
+      newick: `performance/${newickFile}`,
+      nodeMetadata: `performance/${metadataFile}`,
+      summary: `performance/${summaryFile}`,
+    },
+    counts: {
+      nodes: sampleCount,
+      sequences: sampleCount,
+      leaves: sampleCount,
+      sequenceLength,
+      totalPairs: (sampleCount * (sampleCount - 1)) / 2,
+    },
+    sampling: {
+      dateField: 'sample_date',
+      earliestDate: formatIsoDate(startDate),
+      latestDate: formatIsoDate(lastDate),
+      intervalDays: samplingIntervalDays,
+    },
+    distances: {
+      snp: {
+        referenceId: records[0].id,
+        targetRatePerYear: 12,
+        observedRange: [
+          Math.min(...records.map((record) => record.snpDistance)),
+          Math.max(...records.map((record) => record.snpDistance)),
+        ],
+        regression: calculateRegression(snpRegressionPoints),
+      },
+      patristic: {
+        targetRatePerYear: 0.0012,
+        observedRange: [
+          roundNumber(Math.min(...patristicRegressionPoints.map((point) => point.y))),
+          roundNumber(Math.max(...patristicRegressionPoints.map((point) => point.y))),
+        ],
+        regression: calculateRegression(patristicRegressionPoints),
+      },
+    },
+    knownLimitations: [
+      'Sequences use deterministic nested SNP accumulation rather than a probabilistic substitution model.',
+      'The Newick tree is a star phylogeny so its root-to-tip distances are easy to validate exactly.',
+      'The data are synthetic engineering fixtures and have no epidemiological interpretation.',
+    ],
+  };
+
+  fs.writeFileSync(path.join(outDir, fastaFile), `${fastaLines.join(outputEol)}${outputEol}`, 'utf8');
+  writeCsv(metadataFile, metadataRows);
+  fs.writeFileSync(path.join(outDir, newickFile), `(${newickLeaves.join(',')});${outputEol}`, 'utf8');
+  const summaryText = JSON.stringify(summary, null, 2).replace(/\n/g, outputEol);
+  fs.writeFileSync(path.join(outDir, summaryFile), `${summaryText}${outputEol}`, 'utf8');
+}
+
 function validateClusteredSequenceFixture({
   fileName,
   records,
@@ -283,7 +500,7 @@ function buildSequenceFixture({
     expectedVisibleLinks,
   });
 
-  fs.writeFileSync(path.join(outDir, fileName), `${lines.join('\n')}\n`, 'utf8');
+  fs.writeFileSync(path.join(outDir, fileName), `${lines.join(outputEol)}${outputEol}`, 'utf8');
 }
 
 function buildSequenceFixtures() {
@@ -366,7 +583,7 @@ function buildNewickFixture({
     clusters.push(`(${leaves.join(',')}):0.0500`);
   }
 
-  fs.writeFileSync(path.join(outDir, fileName), `(${clusters.join(',')});\n`, 'utf8');
+  fs.writeFileSync(path.join(outDir, fileName), `(${clusters.join(',')});${outputEol}`, 'utf8');
 }
 
 function buildNewickFixtures() {
@@ -396,5 +613,6 @@ ensureDir(outDir);
 buildGraphFixtures();
 buildSequenceFixtures();
 buildNewickFixtures();
+buildEvolutionaryRateFixture();
 
 console.log(`Generated performance fixtures in ${path.relative(process.cwd(), outDir)}`);

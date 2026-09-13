@@ -25,6 +25,10 @@
   import { Subject, takeUntil } from 'rxjs';
 import { CommonStoreService } from '@app/contactTraceCommonServices/common-store.services';
 import { sanitizeExportCell } from '@app/contactTraceCommonServices/export-sanitization';
+import {
+  applyTableRowSelectionToNodes,
+  getFullySelectedClusterIds
+} from './table-selection';
   
   /**
    * @title Complex Example
@@ -413,21 +417,21 @@ import { sanitizeExportCell } from '@app/contactTraceCommonServices/export-sanit
     }
   
     /**
-     * Called when a node is selected/unselected by clicking on a row. This function updates
-     * commonService.session.data.nodes/nodeFilteredValues to be selected for the row/node and also emits a 'node-selected' event
+     * Called when a node or cluster is selected/unselected by clicking on a row.
+     * This updates the shared node selection state and emits a node-selected
+     * event so every relevant visualization can update its highlights.
      */
     nodeSelect(event: any, isSelect: boolean) {
       if (event.data === undefined) return;
-  
-      if (this.visuals.tableComp.TableType === 'node') {
-        this.visuals.tableComp.commonService.session.data.nodes
-          .filter((x) => x.index === event.data.index)
-          .forEach((x) => (x.selected = isSelect));
+
+      applyTableRowSelectionToNodes(
+        this.visuals.tableComp.TableType,
+        event.data,
+        isSelect,
+        this.visuals.tableComp.commonService.session.data.nodes,
         this.visuals.tableComp.commonService.session.data.nodeFilteredValues
-          .filter((x) => x.index === event.data.index)
-          .forEach((x) => (x.selected = isSelect));
-      }
-  
+      );
+
       $(document).trigger('node-selected');
     }
   
@@ -629,14 +633,31 @@ import { sanitizeExportCell } from '@app/contactTraceCommonServices/export-sanit
     }
   
     /**
-     * If this.TableType == 'node' update the node TableData.dataSelection to the nodes that are selected
-     * in commonService.session.data.nodes AND reorder rows so that selected nodes rise to the top.
+     * Synchronizes table row selection with the shared node selection state.
+     *
+     * In the cluster table, a row is selected when every node in that cluster
+     * is selected. In the node table, selected nodes also rise to the top.
      *
      * The original visual order is always preserved via a hidden `_original_index` key added
      * once when the table is first built. As nodes are deselected, their rows drop back into
      * their exact original positions without disturbing user‑applied column sorting.
      */
     setSelectedNodes() {
+      if (this.visuals.tableComp.TableType === 'cluster') {
+        const foundTableData = this.TableDatas.find((x) => x.tableType === 'cluster');
+        if (!foundTableData) return;
+
+        const selectedClusterIds = getFullySelectedClusterIds(
+          this.visuals.tableComp.commonService.session.data.nodes
+        );
+
+        foundTableData.dataSelection = foundTableData.data.filter(row =>
+          selectedClusterIds.has(String(row.id))
+        );
+        this.cdref.detectChanges();
+        return;
+      }
+
       if (this.visuals.tableComp.TableType !== 'node') return;
   
       const foundTableData = this.TableDatas.find((x) => x.tableType === 'node');

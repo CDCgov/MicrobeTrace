@@ -103,6 +103,18 @@ export interface PatristicExportMatrixRequest {
   jobId: number;
 }
 
+export interface PatristicRootDistancesRequest {
+  type: 'GET_ROOT_DISTANCES';
+  jobId: number;
+}
+
+export interface PatristicBestFitRootRequest {
+  type: 'GET_BEST_FIT_ROOT_DISTANCES';
+  jobId: number;
+  /** Decimal collection year for each leaf, or NaN when that leaf is excluded. */
+  decimalYears: number[];
+}
+
 export interface PatristicCancelRequest {
   type: 'CANCEL';
   jobId: number;
@@ -113,6 +125,8 @@ export type PatristicWorkerRequest =
   | PatristicBuildEdgesRequest
   | PatristicBuildNearestNeighborRequest
   | PatristicExportMatrixRequest
+  | PatristicRootDistancesRequest
+  | PatristicBestFitRootRequest
   | PatristicCancelRequest;
 
 // ─── Worker response messages ────────────────────────────────────────────────
@@ -162,6 +176,31 @@ export interface PatristicMatrixChunkResponse {
   done: boolean;
 }
 
+export interface PatristicRootDistancesResponse {
+  type: 'ROOT_DISTANCES';
+  jobId: number;
+  /** Leaf labels in the same order as distances. */
+  leafNames: string[];
+  /** Cumulative branch length from the Newick root to each leaf. */
+  distances: Float64Array;
+}
+
+export interface PatristicBestFitRootResponse {
+  type: 'BEST_FIT_ROOT_DISTANCES';
+  jobId: number;
+  /** Leaf labels in the same order as distances. */
+  leafNames: string[];
+  /** Root-to-tip distances from the residual-minimizing point on the tree. */
+  distances: Float64Array;
+  optimized: boolean;
+  includedTipCount: number;
+  residualSumSquares: number | null;
+  parentNodeIndex: number;
+  childNodeIndex: number;
+  distanceFromParent: number;
+  branchLength: number;
+}
+
 export interface PatristicNearestNeighborBatchResponse {
   type: 'NN_EDGE_BATCH';
   jobId: number;
@@ -190,5 +229,7 @@ export type PatristicWorkerResponse =
   | PatristicProgressResponse
   | PatristicEdgeBatchResponse
   | PatristicMatrixChunkResponse
+  | PatristicRootDistancesResponse
+  | PatristicBestFitRootResponse
   | PatristicNearestNeighborBatchResponse
   | PatristicErrorResponse;

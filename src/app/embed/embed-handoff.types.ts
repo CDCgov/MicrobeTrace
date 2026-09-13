@@ -19,6 +19,7 @@ export const EMBED_HANDOFF_ALLOWED_DEFAULT_VIEWS = [
     'Alignment View',
     'Heatmap',
     'Waterfall',
+    'Evolutionary Rate',
 ] as const;
 export const EMBED_HANDOFF_ALLOWED_DISTANCE_METRICS = ['snps', 'tn93'] as const;
 export const EMBED_HANDOFF_ALLOWED_AMBIGUITY_STRATEGIES = ['AVERAGE', 'RESOLVE', 'SKIP', 'GAPMM', 'HIVTRACE-G'] as const;

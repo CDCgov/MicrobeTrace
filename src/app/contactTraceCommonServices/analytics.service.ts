@@ -35,7 +35,8 @@ const VIRTUAL_PAGES: Record<string, VirtualPageDefinition> = {
     'Heatmap': { path: 'heatmap', title: 'Heatmap View' },
     'Bubble': { path: 'bubble', title: 'Bubble View' },
     'Sankey': { path: 'sankey', title: 'Sankey View' },
-    'Waterfall': { path: 'waterfall', title: 'Waterfall View' }
+    'Waterfall': { path: 'waterfall', title: 'Waterfall View' },
+    'Evolutionary Rate': { path: 'evolutionary_rate', title: 'Evolutionary Rate View' }
 };
 
 @Injectable({ providedIn: 'root' })

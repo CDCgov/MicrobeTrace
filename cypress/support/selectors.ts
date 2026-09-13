@@ -14,6 +14,7 @@ export const testIds = {
   appViewMenuAggregate: 'app-view-menu-aggregate',
   appViewMenuCrosstab: 'app-view-menu-crosstab',
   appViewMenuWaterfall: 'app-view-menu-waterfall',
+  appViewMenuEvolutionaryRate: 'app-view-menu-evolutionary-rate',
   appSampleDatasetButton: 'app-sample-dataset-button',
   filesSettingsButton: 'files-settings-button',
   filesSettingsDialog: 'files-settings-dialog',
@@ -78,6 +79,13 @@ export const testIds = {
   waterfallClusterExpansion: 'waterfall-cluster-expansion',
   waterfallNodeExpansion: 'waterfall-node-expansion',
   waterfallLinkExpansion: 'waterfall-link-expansion',
+  evolutionaryRateSettingsButton: 'evolutionary-rate-settings-button',
+  evolutionaryRateSettingsDialog: 'evolutionary-rate-settings-dialog',
+  evolutionaryRateDateField: 'evolutionary-rate-date-field',
+  evolutionaryRateStatistics: 'evolutionary-rate-statistics',
+  evolutionaryRateCounts: 'evolutionary-rate-counts',
+  evolutionaryRateExcludedDataButton: 'evolutionary-rate-excluded-data-button',
+  evolutionaryRateExcludedDataDialog: 'evolutionary-rate-excluded-data-dialog',
 } as const;
 
 export const byTestId = (value: string): string => `[data-testid="${value}"]`;

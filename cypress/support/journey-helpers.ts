@@ -175,7 +175,7 @@ export function installSaveAsCaptureHook(): void {
     w.__mtCapturedDownloads = [];
     w.__mtTestSaveAs = (content: Blob | string, fileName: string) => {
       const persistBlob = (blob: Blob) => {
-        const reader = new FileReader();
+        const reader = new w.FileReader();
         reader.onloadend = () => {
           w.__mtCapturedDownloads?.push({
             dataUrl: String(reader.result || ''),
@@ -185,12 +185,12 @@ export function installSaveAsCaptureHook(): void {
         reader.readAsDataURL(blob);
       };
 
-      if (content instanceof Blob) {
+      if (content instanceof w.Blob) {
         persistBlob(content);
         return;
       }
 
-      persistBlob(new Blob([content], { type: 'application/octet-stream' }));
+      persistBlob(new w.Blob([content], { type: 'application/octet-stream' }));
     };
   });
 }
@@ -781,6 +781,13 @@ export function assertWaterfallReady(timeout = 30000): void {
     .should('exist');
 }
 
+export function assertEvolutionaryRateReady(timeout = 30000): void {
+  cy.get('#evolutionary-rate-view', { timeout }).should('be.visible');
+  cy.window({ timeout })
+    .its('commonService.visuals.evolutionaryRate')
+    .should('exist');
+}
+
 export function assertHeatmapReady(timeout = 30000): void {
   cy.get('#heatmap', { timeout }).should('be.visible');
   cy.get('#heatmap svg.main-svg', { timeout }).should('exist');
@@ -864,6 +871,13 @@ export function goToWaterfallView(): void {
   cy.contains('button[mat-menu-item]', 'Waterfall', { timeout: 15000 }).click({ force: true });
 
   assertWaterfallReady();
+}
+
+export function goToEvolutionaryRateView(): void {
+  cy.get(byTestId(testIds.appViewMenuButton), { timeout: 15000 }).click({ force: true });
+  cy.get(byTestId(testIds.appViewMenuEvolutionaryRate), { timeout: 15000 }).click({ force: true });
+
+  assertEvolutionaryRateReady();
 }
 
 export function goToHeatmapView(): void {

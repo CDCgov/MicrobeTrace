@@ -151,35 +151,47 @@ export class ExportService {
     return this.getShapeExportData(cellValue) !== null;
   }
 
-  private measureTextWidth(text: string, fontWeight: 'normal' | 'bold' = 'normal'): number {
+  private measureTextWidth(
+    text: string,
+    fontWeight: 'normal' | 'bold' = 'normal',
+    fontSize: number = 16
+  ): number {
     const context = this.getTextMeasureContext();
     if (!context) {
-      return text.length * (fontWeight === 'bold' ? 10 : 9);
+      return text.length * fontSize * (fontWeight === 'bold' ? 0.625 : 0.5625);
     }
 
-    context.font = `${fontWeight === 'bold' ? '700' : '400'} 16px Roboto, "Helvetica Neue", sans-serif`;
+    context.font = `${fontWeight === 'bold' ? '700' : '400'} ${fontSize}px Roboto, "Helvetica Neue", sans-serif`;
     return Math.ceil(context.measureText(text).width);
   }
 
-  private getEstimatedCellWidth(cellValue: string, isHeaderCell: boolean): number {
+  private getEstimatedCellWidth(cellValue: string, isHeaderCell: boolean, fontSize: number): number {
     if (this.isColorCellValue(cellValue)) {
       return 40;
     }
 
     if (this.isShapeExportCellValue(cellValue)) {
-      return this.measureTextWidth(this.getShapeExportLabel(cellValue)) + 40;
+      return this.measureTextWidth(this.getShapeExportLabel(cellValue), 'normal', fontSize) + 40;
     }
 
-    return this.measureTextWidth(cellValue, isHeaderCell ? 'bold' : 'normal') + 16;
+    return this.measureTextWidth(cellValue, isHeaderCell ? 'bold' : 'normal', fontSize) + 16;
   }
 
-  private getCellDimensions(cell: HTMLTableCellElement, cellValue: string, isHeaderCell: boolean): { width: number, height: number } {
+  private getCellDimensions(
+    cell: HTMLTableCellElement,
+    cellValue: string,
+    isHeaderCell: boolean,
+    fontSize: number
+  ): { width: number, height: number } {
     const rect = cell.getBoundingClientRect();
     const computedStyle = window.getComputedStyle(cell);
     const paddingTop = parseFloat(computedStyle.paddingTop || '0');
     const paddingBottom = parseFloat(computedStyle.paddingBottom || '0');
-    const estimatedWidth = this.getEstimatedCellWidth(cellValue, isHeaderCell);
-    const estimatedHeight = Math.ceil(Math.max(isHeaderCell ? 24 : 22, 16 + paddingTop + paddingBottom));
+    const estimatedWidth = this.getEstimatedCellWidth(cellValue, isHeaderCell, fontSize);
+    const estimatedHeight = Math.ceil(Math.max(
+      isHeaderCell ? fontSize * 1.5 : this.isShapeExportCellValue(cellValue) ? fontSize + 14 : fontSize + 6,
+      fontSize + paddingTop + paddingBottom
+    ));
 
     return {
       width: Math.ceil(Math.max(rect.width, cell.offsetWidth, cell.scrollWidth, estimatedWidth)),
@@ -252,7 +264,13 @@ export class ExportService {
     return this.normalizeCellText(cell.innerText);
   }
 
-  private buildShapeSVG(cellValue: string, x: number, baselineY: number): string {
+  private buildShapeSVG(
+    cellValue: string,
+    x: number,
+    baselineY: number,
+    renderNodeShapeImages: boolean,
+    fontSize: number
+  ): string {
     const shapeData = this.getShapeExportData(cellValue);
     if (!shapeData) {
       return '';
@@ -260,20 +278,68 @@ export class ExportService {
 
     const label = this.escapeSVGText(shapeData.label);
     const iconTop = baselineY - 16;
-    const previewUri = this.escapeSVGText(getNodeShapePreviewDataUri(shapeData.shapeKey));
+    const escapedShapeKey = this.escapeSVGText(shapeData.shapeKey);
+    const previewDataUri = getNodeShapePreviewDataUri(shapeData.shapeKey);
 
-    return `<g font-family="Roboto, 'Helvetica Neue', sans-serif" font-size="16" fill="black">
+    if (renderNodeShapeImages) {
+      const markerSvg = this.parseNodeShapeDataUri(previewDataUri);
+      const viewBox = String(markerSvg?.documentElement.getAttribute('viewBox') || '')
+        .trim()
+        .split(/\s+/)
+        .map(Number);
+      if (markerSvg && viewBox.length === 4 && viewBox.every(Number.isFinite) && viewBox[2] > 0 && viewBox[3] > 0) {
+        const iconSize = 22;
+        const scale = Math.min(iconSize / viewBox[2], iconSize / viewBox[3]);
+        const translateX = x + ((iconSize - (viewBox[2] * scale)) / 2) - (viewBox[0] * scale);
+        const translateY = iconTop + ((iconSize - (viewBox[3] * scale)) / 2) - (viewBox[1] * scale);
+        const markerContents = Array.from(markerSvg.documentElement.childNodes)
+          .map(child => new XMLSerializer().serializeToString(child))
+          .join('');
+        return `<g data-node-shape-key="${escapedShapeKey}" font-family="Roboto, 'Helvetica Neue', sans-serif" font-size="${fontSize}" fill="black">
+          <g transform="translate(${translateX},${translateY}) scale(${scale})">${markerContents}</g>
+          <text x="${x + 30}" y="${baselineY}">${label}</text>
+        </g>`;
+      }
+    }
+
+    const previewUri = this.escapeSVGText(previewDataUri);
+
+    return `<g data-node-shape-key="${escapedShapeKey}" font-family="Roboto, 'Helvetica Neue', sans-serif" font-size="${fontSize}" fill="black">
       <image href="${previewUri}" x="${x}" y="${iconTop}" width="16" height="16" preserveAspectRatio="xMidYMid meet"></image>
       <text x="${x + 22}" y="${baselineY}">${label}</text>
     </g>`;
   }
 
+  private parseNodeShapeDataUri(dataUri: string): XMLDocument | null {
+    const commaIndex = dataUri.indexOf(',');
+    if (commaIndex < 0) {
+      return null;
+    }
+
+    try {
+      const payload = dataUri.slice(commaIndex + 1);
+      const parsed = new DOMParser().parseFromString(decodeURIComponent(payload), 'image/svg+xml');
+      return parsed.getElementsByTagName('parsererror').length === 0 ? parsed : null;
+    } catch {
+      return null;
+    }
+  }
+
   /**
    * Converts an HTMLTableElement into an SVG representation.
    * @param tableElement The HTMLTableElement (for example, a Node Color Table).
+   * @param hasHeaderRow Whether the first row should use bold header styling.
+   * @param renderNodeShapeImages Whether node-shape previews should be rendered as vectors.
+   * @param fontSize Font size used to measure and render table text.
    * @returns An object containing the SVG string (<g>...</g>), width, and height.
    */
-  exportTableAsSVG(tableElement: HTMLTableElement, hasHeaderRow: boolean = false): { svg: string, width: number, height: number } {
+  exportTableAsSVG(
+    tableElement: HTMLTableElement,
+    hasHeaderRow: boolean = false,
+    renderNodeShapeImages: boolean = false,
+    fontSize: number = 16
+  ): { svg: string, width: number, height: number } {
+    const exportFontSize = Number.isFinite(fontSize) && fontSize > 0 ? fontSize : 16;
     const rows = tableElement.rows;
     const tableData: string[][] = [];
     const columnWidths: number[] = [];
@@ -294,7 +360,12 @@ export class ExportService {
         const cellValue = this.getCellExportValue(cells[j]);
         rowData.push(cellValue);
 
-        const dimensions = this.getCellDimensions(cells[j], cellValue, hasHeaderRow && i === 0);
+        const dimensions = this.getCellDimensions(
+          cells[j],
+          cellValue,
+          hasHeaderRow && i === 0,
+          exportFontSize
+        );
         columnWidths[visibleColumnIndex] = Math.max(columnWidths[visibleColumnIndex] || 0, dimensions.width);
         rowHeight = Math.max(rowHeight, dimensions.height);
         visibleColumnIndex++;
@@ -311,7 +382,7 @@ export class ExportService {
       widthOffsets.push(widthOffsets[index] + columnWidth + 15);
     });
 
-    const heightOffsets: number[] = [15];
+    const heightOffsets: number[] = [Math.max(15, exportFontSize)];
     rowHeights.forEach((rowHeight, index) => {
       heightOffsets.push(heightOffsets[index] + rowHeight);
     });
@@ -326,11 +397,17 @@ export class ExportService {
           const data = cell.split(':');
           out += `<rect x="${widthOffsets[colIndex]}" y="${heightOffsets[rowIndex] - 12}" width="20" height="20" fill="${data[0]}" fill-opacity="${data[1]}"></rect>`;
         } else if (this.isShapeExportCellValue(cell)) {
-          out += this.buildShapeSVG(cell, widthOffsets[colIndex], heightOffsets[rowIndex]);
+          out += this.buildShapeSVG(
+            cell,
+            widthOffsets[colIndex],
+            heightOffsets[rowIndex],
+            renderNodeShapeImages,
+            exportFontSize
+          );
         } else if (hasHeaderRow && rowIndex === 0) {
-          out += `<text x="${widthOffsets[colIndex]}" y="${heightOffsets[rowIndex]}" font-family="Roboto, 'Helvetica Neue', sans-serif" font-size="16" fill="black" font-weight="bold">${this.escapeSVGText(cell)}</text>`;
+          out += `<text x="${widthOffsets[colIndex]}" y="${heightOffsets[rowIndex]}" font-family="Roboto, 'Helvetica Neue', sans-serif" font-size="${exportFontSize}" fill="black" font-weight="bold">${this.escapeSVGText(cell)}</text>`;
         } else {
-          out += `<text x="${widthOffsets[colIndex]}" y="${heightOffsets[rowIndex]}" font-family="Roboto, 'Helvetica Neue', sans-serif" font-size="16" fill="black">${this.escapeSVGText(cell)}</text>`;
+          out += `<text x="${widthOffsets[colIndex]}" y="${heightOffsets[rowIndex]}" font-family="Roboto, 'Helvetica Neue', sans-serif" font-size="${exportFontSize}" fill="black">${this.escapeSVGText(cell)}</text>`;
         }
       });
     });

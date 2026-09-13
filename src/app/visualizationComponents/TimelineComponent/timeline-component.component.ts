@@ -725,7 +725,7 @@ private getBinDateRange(bin): string {
   if (end.isBefore(start)) {
     end = moment(bin.x1);
   }
-  if (this.widgets['epiCurve-binSize'] == 'Day') { 
+  if (this.widgets['epiCurve-binSize'] == 'Day') {
     return `Date: ${start.format("MMM D, YYYY")}`
   } else {
     return `Date range: ${start.format("MMM D, YYYY")} - ${end.format("MMM D, YYYY")}`;
