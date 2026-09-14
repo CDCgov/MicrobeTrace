@@ -135,7 +135,7 @@
     "rxjs": "^7.8.1",
     "sass-loader": "^13.2.2",
     "save-svg-as-png": "^1.4.17",
-    "sharp": "^0.35.3",
+    "sharp": "^0.35.4",
     "tabulator-tables": "^5.4.4",
     "zone.js": "^0.15.1"
   },
