@@ -1,0 +1,1601 @@
+_id,subtype,Diag date,Case ID,Specimen ID,Entity Type,Exposure,QC Status,QC Severity,QC Reason,Uncertainty,Latitude,Longitude
+P0001,A,1/1/2024,CASE-01,SPEC-01-01,sequence,Food|Travel,Pass,none,,0.00,33.6860,-84.4320
+P0002,B,1/2/2024,CASE-01,SPEC-01-01,sequence,Healthcare,Review,warning,Mixed specimen signal,0.07,33.7040,-84.4320
+P0003,C,1/3/2024,CASE-01,SPEC-01-01,sequence,Community|Healthcare|Travel,Failed,error,Low coverage,0.14,33.7220,-84.4320
+P0004,D,1/4/2024,CASE-01,SPEC-01-01,sequence,Travel,Pending,info,Awaiting replicate,0.21,33.7400,-84.4320
+P0005,E,1/5/2024,CASE-01,SPEC-01-01,sequence,Food|Travel,Pass,none,,0.28,33.7580,-84.4320
+P0006,F,1/6/2024,CASE-01,SPEC-01-01,sequence,Healthcare,Pass,none,,0.35,33.7760,-84.4320
+P0007,G,1/7/2024,CASE-01,SPEC-01-01,sequence,Community|Healthcare|Travel,Review,warning,Mixed specimen signal,0.42,33.7940,-84.4320
+P0008,H,1/8/2024,CASE-01,SPEC-01-01,sequence,Travel,Failed,error,Low coverage,0.49,33.8120,-84.4320
+P0009,A,1/9/2024,CASE-01,SPEC-01-01,sequence,Food|Travel,Pending,info,Awaiting replicate,0.56,33.6860,-84.4100
+P0010,B,1/10/2024,CASE-01,SPEC-01-01,sequence,Healthcare,Pass,none,,0.63,33.7040,-84.4100
+P0011,C,1/11/2024,CASE-01,SPEC-01-02,sequence,Community|Healthcare|Travel,Pass,none,,0.70,33.7220,-84.4100
+P0012,D,1/12/2024,CASE-01,SPEC-01-02,sequence,Travel,Review,warning,Mixed specimen signal,0.77,33.7400,-84.4100
+P0013,E,1/13/2024,CASE-01,SPEC-01-02,sequence,Food|Travel,Failed,error,Low coverage,0.84,33.7580,-84.4100
+P0014,F,1/14/2024,CASE-01,SPEC-01-02,sequence,Healthcare,Pending,info,Awaiting replicate,0.91,33.7760,-84.4100
+P0015,G,1/15/2024,CASE-01,SPEC-01-02,sequence,Community|Healthcare|Travel,Pass,none,,0.98,33.7940,-84.4100
+P0016,H,1/16/2024,CASE-01,SPEC-01-02,sequence,Travel,Pass,none,,0.05,33.8120,-84.4100
+P0017,A,1/17/2024,CASE-01,SPEC-01-02,sequence,Food|Travel,Review,warning,Mixed specimen signal,0.12,33.6860,-84.3880
+P0018,B,1/18/2024,CASE-01,SPEC-01-02,sequence,Healthcare,Failed,error,Low coverage,0.19,33.7040,-84.3880
+P0019,C,1/19/2024,CASE-01,SPEC-01-02,sequence,Community|Healthcare|Travel,Pending,info,Awaiting replicate,0.26,33.7220,-84.3880
+P0020,D,1/20/2024,CASE-01,SPEC-01-02,sequence,Travel,Pass,none,,0.33,33.7400,-84.3880
+P0021,E,1/21/2024,CASE-01,SPEC-01-03,sequence,Food|Travel,Pass,none,,0.40,33.7580,-84.3880
+P0022,F,1/22/2024,CASE-01,SPEC-01-03,sequence,Healthcare,Review,warning,Mixed specimen signal,0.47,33.7760,-84.3880
+P0023,G,1/23/2024,CASE-01,SPEC-01-03,sequence,Community|Healthcare|Travel,Failed,error,Low coverage,0.54,33.7940,-84.3880
+P0024,H,1/24/2024,CASE-01,SPEC-01-03,sequence,Travel,Pending,info,Awaiting replicate,0.61,33.8120,-84.3880
+P0025,A,1/25/2024,CASE-01,SPEC-01-03,sequence,Food|Travel,Pass,none,,0.68,33.6860,-84.3660
+P0026,B,1/26/2024,CASE-01,SPEC-01-03,sequence,Healthcare,Pass,none,,0.75,33.7040,-84.3660
+P0027,C,1/27/2024,CASE-01,SPEC-01-03,sequence,Community|Healthcare|Travel,Review,warning,Mixed specimen signal,0.82,33.7220,-84.3660
+P0028,D,1/28/2024,CASE-01,SPEC-01-03,sequence,Travel,Failed,error,Low coverage,0.89,33.7400,-84.3660
+P0029,E,2/1/2024,CASE-01,SPEC-01-03,sequence,Food|Travel,Pending,info,Awaiting replicate,0.96,33.7580,-84.3660
+P0030,F,2/2/2024,CASE-01,SPEC-01-03,sequence,Healthcare,Pass,none,,0.03,33.7760,-84.3660
+P0031,G,2/3/2024,CASE-01,SPEC-01-04,sequence,Community|Healthcare|Travel,Pass,none,,0.10,33.7940,-84.3660
+P0032,H,2/4/2024,CASE-01,SPEC-01-04,sequence,Travel,Review,warning,Mixed specimen signal,0.17,33.8120,-84.3660
+P0033,A,2/5/2024,CASE-01,SPEC-01-04,sequence,Food|Travel,Failed,error,Low coverage,0.24,33.6860,-84.3440
+P0034,B,2/6/2024,CASE-01,SPEC-01-04,sequence,Healthcare,Pending,info,Awaiting replicate,0.31,33.7040,-84.3440
+P0035,C,2/7/2024,CASE-01,SPEC-01-04,sequence,Community|Healthcare|Travel,Pass,none,,0.38,33.7220,-84.3440
+P0036,D,2/8/2024,CASE-01,SPEC-01-04,sequence,Travel,Pass,none,,0.45,33.7400,-84.3440
+P0037,E,2/9/2024,CASE-01,SPEC-01-04,sequence,Food|Travel,Review,warning,Mixed specimen signal,0.52,33.7580,-84.3440
+P0038,F,2/10/2024,CASE-01,SPEC-01-04,sequence,Healthcare,Failed,error,Low coverage,0.59,33.7760,-84.3440
+P0039,G,2/11/2024,CASE-01,SPEC-01-04,sequence,Community|Healthcare|Travel,Pending,info,Awaiting replicate,0.66,33.7940,-84.3440
+P0040,H,2/12/2024,CASE-01,SPEC-01-04,sequence,Travel,Pass,none,,0.73,33.8120,-84.3440
+P0041,A,2/13/2024,CASE-02,SPEC-02-01,sequence,Food|Travel,Pass,none,,0.80,40.6498,-74.0500
+P0042,B,2/14/2024,CASE-02,SPEC-02-01,sequence,Healthcare,Review,warning,Mixed specimen signal,0.87,40.6678,-74.0500
+P0043,C,2/15/2024,CASE-02,SPEC-02-01,sequence,Community|Healthcare|Travel,Failed,error,Low coverage,0.94,40.6858,-74.0500
+P0044,D,2/16/2024,CASE-02,SPEC-02-01,sequence,Travel,Pending,info,Awaiting replicate,0.01,40.7038,-74.0500
+P0045,E,2/17/2024,CASE-02,SPEC-02-01,sequence,Food|Travel,Pass,none,,0.08,40.7218,-74.0500
+P0046,F,2/18/2024,CASE-02,SPEC-02-01,sequence,Healthcare,Pass,none,,0.15,40.7398,-74.0500
+P0047,G,2/19/2024,CASE-02,SPEC-02-01,sequence,Community|Healthcare|Travel,Review,warning,Mixed specimen signal,0.22,40.7578,-74.0500
+P0048,H,2/20/2024,CASE-02,SPEC-02-01,sequence,Travel,Failed,error,Low coverage,0.29,40.7758,-74.0500
+P0049,A,2/21/2024,CASE-02,SPEC-02-01,sequence,Food|Travel,Pending,info,Awaiting replicate,0.36,40.6498,-74.0280
+P0050,B,2/22/2024,CASE-02,SPEC-02-01,sequence,Healthcare,Pass,none,,0.43,40.6678,-74.0280
+P0051,C,2/23/2024,CASE-02,SPEC-02-02,sequence,Community|Healthcare|Travel,Pass,none,,0.50,40.6858,-74.0280
+P0052,D,2/24/2024,CASE-02,SPEC-02-02,sequence,Travel,Review,warning,Mixed specimen signal,0.57,40.7038,-74.0280
+P0053,E,2/25/2024,CASE-02,SPEC-02-02,sequence,Food|Travel,Failed,error,Low coverage,0.64,40.7218,-74.0280
+P0054,F,2/26/2024,CASE-02,SPEC-02-02,sequence,Healthcare,Pending,info,Awaiting replicate,0.71,40.7398,-74.0280
+P0055,G,2/27/2024,CASE-02,SPEC-02-02,sequence,Community|Healthcare|Travel,Pass,none,,0.78,40.7578,-74.0280
+P0056,H,2/28/2024,CASE-02,SPEC-02-02,sequence,Travel,Pass,none,,0.85,40.7758,-74.0280
+P0057,A,3/1/2024,CASE-02,SPEC-02-02,sequence,Food|Travel,Review,warning,Mixed specimen signal,0.92,40.6498,-74.0060
+P0058,B,3/2/2024,CASE-02,SPEC-02-02,sequence,Healthcare,Failed,error,Low coverage,0.99,40.6678,-74.0060
+P0059,C,3/3/2024,CASE-02,SPEC-02-02,sequence,Community|Healthcare|Travel,Pending,info,Awaiting replicate,0.06,40.6858,-74.0060
+P0060,D,3/4/2024,CASE-02,SPEC-02-02,sequence,Travel,Pass,none,,0.13,40.7038,-74.0060
+P0061,E,3/5/2024,CASE-02,SPEC-02-03,sequence,Food|Travel,Pass,none,,0.20,40.7218,-74.0060
+P0062,F,3/6/2024,CASE-02,SPEC-02-03,sequence,Healthcare,Review,warning,Mixed specimen signal,0.27,40.7398,-74.0060
+P0063,G,3/7/2024,CASE-02,SPEC-02-03,sequence,Community|Healthcare|Travel,Failed,error,Low coverage,0.34,40.7578,-74.0060
+P0064,H,3/8/2024,CASE-02,SPEC-02-03,sequence,Travel,Pending,info,Awaiting replicate,0.41,40.7758,-74.0060
+P0065,A,3/9/2024,CASE-02,SPEC-02-03,sequence,Food|Travel,Pass,none,,0.48,40.6498,-73.9840
+P0066,B,3/10/2024,CASE-02,SPEC-02-03,sequence,Healthcare,Pass,none,,0.55,40.6678,-73.9840
+P0067,C,3/11/2024,CASE-02,SPEC-02-03,sequence,Community|Healthcare|Travel,Review,warning,Mixed specimen signal,0.62,40.6858,-73.9840
+P0068,D,3/12/2024,CASE-02,SPEC-02-03,sequence,Travel,Failed,error,Low coverage,0.69,40.7038,-73.9840
+P0069,E,3/13/2024,CASE-02,SPEC-02-03,sequence,Food|Travel,Pending,info,Awaiting replicate,0.76,40.7218,-73.9840
+P0070,F,3/14/2024,CASE-02,SPEC-02-03,sequence,Healthcare,Pass,none,,0.83,40.7398,-73.9840
+P0071,G,3/15/2024,CASE-02,SPEC-02-04,sequence,Community|Healthcare|Travel,Pass,none,,0.90,40.7578,-73.9840
+P0072,H,3/16/2024,CASE-02,SPEC-02-04,sequence,Travel,Review,warning,Mixed specimen signal,0.97,40.7758,-73.9840
+P0073,A,3/17/2024,CASE-02,SPEC-02-04,sequence,Food|Travel,Failed,error,Low coverage,0.04,40.6498,-73.9620
+P0074,B,3/18/2024,CASE-02,SPEC-02-04,sequence,Healthcare,Pending,info,Awaiting replicate,0.11,40.6678,-73.9620
+P0075,C,3/19/2024,CASE-02,SPEC-02-04,sequence,Community|Healthcare|Travel,Pass,none,,0.18,40.6858,-73.9620
+P0076,D,3/20/2024,CASE-02,SPEC-02-04,sequence,Travel,Pass,none,,0.25,40.7038,-73.9620
+P0077,E,3/21/2024,CASE-02,SPEC-02-04,sequence,Food|Travel,Review,warning,Mixed specimen signal,0.32,40.7218,-73.9620
+P0078,F,3/22/2024,CASE-02,SPEC-02-04,sequence,Healthcare,Failed,error,Low coverage,0.39,40.7398,-73.9620
+P0079,G,3/23/2024,CASE-02,SPEC-02-04,sequence,Community|Healthcare|Travel,Pending,info,Awaiting replicate,0.46,40.7578,-73.9620
+P0080,H,3/24/2024,CASE-02,SPEC-02-04,sequence,Travel,Pass,none,,0.53,40.7758,-73.9620
+P0081,A,3/25/2024,CASE-03,SPEC-03-01,sequence,Food|Travel,Pass,none,,0.60,47.5432,-122.3761
+P0082,B,3/26/2024,CASE-03,SPEC-03-01,sequence,Healthcare,Review,warning,Mixed specimen signal,0.67,47.5612,-122.3761
+P0083,C,3/27/2024,CASE-03,SPEC-03-01,sequence,Community|Healthcare|Travel,Failed,error,Low coverage,0.74,47.5792,-122.3761
+P0084,D,3/28/2024,CASE-03,SPEC-03-01,sequence,Travel,Pending,info,Awaiting replicate,0.81,47.5972,-122.3761
+P0085,E,4/1/2024,CASE-03,SPEC-03-01,sequence,Food|Travel,Pass,none,,0.88,47.6152,-122.3761
+P0086,F,4/2/2024,CASE-03,SPEC-03-01,sequence,Healthcare,Pass,none,,0.95,47.6332,-122.3761
+P0087,G,4/3/2024,CASE-03,SPEC-03-01,sequence,Community|Healthcare|Travel,Review,warning,Mixed specimen signal,0.02,47.6512,-122.3761
+P0088,H,4/4/2024,CASE-03,SPEC-03-01,sequence,Travel,Failed,error,Low coverage,0.09,47.6692,-122.3761
+P0089,A,4/5/2024,CASE-03,SPEC-03-01,sequence,Food|Travel,Pending,info,Awaiting replicate,0.16,47.5432,-122.3541
+P0090,B,4/6/2024,CASE-03,SPEC-03-01,sequence,Healthcare,Pass,none,,0.23,47.5612,-122.3541
+P0091,C,4/7/2024,CASE-03,SPEC-03-02,sequence,Community|Healthcare|Travel,Pass,none,,0.30,47.5792,-122.3541
+P0092,D,4/8/2024,CASE-03,SPEC-03-02,sequence,Travel,Review,warning,Mixed specimen signal,0.37,47.5972,-122.3541
+P0093,E,4/9/2024,CASE-03,SPEC-03-02,sequence,Food|Travel,Failed,error,Low coverage,0.44,47.6152,-122.3541
+P0094,F,4/10/2024,CASE-03,SPEC-03-02,sequence,Healthcare,Pending,info,Awaiting replicate,0.51,47.6332,-122.3541
+P0095,G,4/11/2024,CASE-03,SPEC-03-02,sequence,Community|Healthcare|Travel,Pass,none,,0.58,47.6512,-122.3541
+P0096,H,4/12/2024,CASE-03,SPEC-03-02,sequence,Travel,Pass,none,,0.65,47.6692,-122.3541
+P0097,A,4/13/2024,CASE-03,SPEC-03-02,sequence,Food|Travel,Review,warning,Mixed specimen signal,0.72,47.5432,-122.3321
+P0098,B,4/14/2024,CASE-03,SPEC-03-02,sequence,Healthcare,Failed,error,Low coverage,0.79,47.5612,-122.3321
+P0099,C,4/15/2024,CASE-03,SPEC-03-02,sequence,Community|Healthcare|Travel,Pending,info,Awaiting replicate,0.86,47.5792,-122.3321
+P0100,D,4/16/2024,CASE-03,SPEC-03-02,sequence,Travel,Pass,none,,0.93,47.5972,-122.3321
+P0101,E,4/17/2024,CASE-03,SPEC-03-03,sequence,Food|Travel,Pass,none,,0.00,47.6152,-122.3321
+P0102,F,4/18/2024,CASE-03,SPEC-03-03,sequence,Healthcare,Review,warning,Mixed specimen signal,0.07,47.6332,-122.3321
+P0103,G,4/19/2024,CASE-03,SPEC-03-03,sequence,Community|Healthcare|Travel,Failed,error,Low coverage,0.14,47.6512,-122.3321
+P0104,H,4/20/2024,CASE-03,SPEC-03-03,sequence,Travel,Pending,info,Awaiting replicate,0.21,47.6692,-122.3321
+P0105,A,4/21/2024,CASE-03,SPEC-03-03,sequence,Food|Travel,Pass,none,,0.28,47.5432,-122.3101
+P0106,B,4/22/2024,CASE-03,SPEC-03-03,sequence,Healthcare,Pass,none,,0.35,47.5612,-122.3101
+P0107,C,4/23/2024,CASE-03,SPEC-03-03,sequence,Community|Healthcare|Travel,Review,warning,Mixed specimen signal,0.42,47.5792,-122.3101
+P0108,D,4/24/2024,CASE-03,SPEC-03-03,sequence,Travel,Failed,error,Low coverage,0.49,47.5972,-122.3101
+P0109,E,4/25/2024,CASE-03,SPEC-03-03,sequence,Food|Travel,Pending,info,Awaiting replicate,0.56,47.6152,-122.3101
+P0110,F,4/26/2024,CASE-03,SPEC-03-03,sequence,Healthcare,Pass,none,,0.63,47.6332,-122.3101
+P0111,G,4/27/2024,CASE-03,SPEC-03-04,sequence,Community|Healthcare|Travel,Pass,none,,0.70,47.6512,-122.3101
+P0112,H,4/28/2024,CASE-03,SPEC-03-04,sequence,Travel,Review,warning,Mixed specimen signal,0.77,47.6692,-122.3101
+P0113,A,5/1/2024,CASE-03,SPEC-03-04,sequence,Food|Travel,Failed,error,Low coverage,0.84,47.5432,-122.2881
+P0114,B,5/2/2024,CASE-03,SPEC-03-04,sequence,Healthcare,Pending,info,Awaiting replicate,0.91,47.5612,-122.2881
+P0115,C,5/3/2024,CASE-03,SPEC-03-04,sequence,Community|Healthcare|Travel,Pass,none,,0.98,47.5792,-122.2881
+P0116,D,5/4/2024,CASE-03,SPEC-03-04,sequence,Travel,Pass,none,,0.05,47.5972,-122.2881
+P0117,E,5/5/2024,CASE-03,SPEC-03-04,sequence,Food|Travel,Review,warning,Mixed specimen signal,0.12,47.6152,-122.2881
+P0118,F,5/6/2024,CASE-03,SPEC-03-04,sequence,Healthcare,Failed,error,Low coverage,0.19,47.6332,-122.2881
+P0119,G,5/7/2024,CASE-03,SPEC-03-04,sequence,Community|Healthcare|Travel,Pending,info,Awaiting replicate,0.26,47.6512,-122.2881
+P0120,H,5/8/2024,CASE-03,SPEC-03-04,sequence,Travel,Pass,none,,0.33,47.6692,-122.2881
+P0121,A,5/9/2024,CASE-04,SPEC-04-01,sequence,Food|Travel,Pass,none,,0.40,33.9892,-118.2877
+P0122,B,5/10/2024,CASE-04,SPEC-04-01,sequence,Healthcare,Review,warning,Mixed specimen signal,0.47,34.0072,-118.2877
+P0123,C,5/11/2024,CASE-04,SPEC-04-01,sequence,Community|Healthcare|Travel,Failed,error,Low coverage,0.54,34.0252,-118.2877
+P0124,D,5/12/2024,CASE-04,SPEC-04-01,sequence,Travel,Pending,info,Awaiting replicate,0.61,34.0432,-118.2877
+P0125,E,5/13/2024,CASE-04,SPEC-04-01,sequence,Food|Travel,Pass,none,,0.68,34.0612,-118.2877
+P0126,F,5/14/2024,CASE-04,SPEC-04-01,sequence,Healthcare,Pass,none,,0.75,34.0792,-118.2877
+P0127,G,5/15/2024,CASE-04,SPEC-04-01,sequence,Community|Healthcare|Travel,Review,warning,Mixed specimen signal,0.82,34.0972,-118.2877
+P0128,H,5/16/2024,CASE-04,SPEC-04-01,sequence,Travel,Failed,error,Low coverage,0.89,34.1152,-118.2877
+P0129,A,5/17/2024,CASE-04,SPEC-04-01,sequence,Food|Travel,Pending,info,Awaiting replicate,0.96,33.9892,-118.2657
+P0130,B,5/18/2024,CASE-04,SPEC-04-01,sequence,Healthcare,Pass,none,,0.03,34.0072,-118.2657
+P0131,C,5/19/2024,CASE-04,SPEC-04-02,sequence,Community|Healthcare|Travel,Pass,none,,0.10,34.0252,-118.2657
+P0132,D,5/20/2024,CASE-04,SPEC-04-02,sequence,Travel,Review,warning,Mixed specimen signal,0.17,34.0432,-118.2657
+P0133,E,5/21/2024,CASE-04,SPEC-04-02,sequence,Food|Travel,Failed,error,Low coverage,0.24,34.0612,-118.2657
+P0134,F,5/22/2024,CASE-04,SPEC-04-02,sequence,Healthcare,Pending,info,Awaiting replicate,0.31,34.0792,-118.2657
+P0135,G,5/23/2024,CASE-04,SPEC-04-02,sequence,Community|Healthcare|Travel,Pass,none,,0.38,34.0972,-118.2657
+P0136,H,5/24/2024,CASE-04,SPEC-04-02,sequence,Travel,Pass,none,,0.45,34.1152,-118.2657
+P0137,A,5/25/2024,CASE-04,SPEC-04-02,sequence,Food|Travel,Review,warning,Mixed specimen signal,0.52,33.9892,-118.2437
+P0138,B,5/26/2024,CASE-04,SPEC-04-02,sequence,Healthcare,Failed,error,Low coverage,0.59,34.0072,-118.2437
+P0139,C,5/27/2024,CASE-04,SPEC-04-02,sequence,Community|Healthcare|Travel,Pending,info,Awaiting replicate,0.66,34.0252,-118.2437
+P0140,D,5/28/2024,CASE-04,SPEC-04-02,sequence,Travel,Pass,none,,0.73,34.0432,-118.2437
+P0141,E,6/1/2024,CASE-04,SPEC-04-03,sequence,Food|Travel,Pass,none,,0.80,34.0612,-118.2437
+P0142,F,6/2/2024,CASE-04,SPEC-04-03,sequence,Healthcare,Review,warning,Mixed specimen signal,0.87,34.0792,-118.2437
+P0143,G,6/3/2024,CASE-04,SPEC-04-03,sequence,Community|Healthcare|Travel,Failed,error,Low coverage,0.94,34.0972,-118.2437
+P0144,H,6/4/2024,CASE-04,SPEC-04-03,sequence,Travel,Pending,info,Awaiting replicate,0.01,34.1152,-118.2437
+P0145,A,6/5/2024,CASE-04,SPEC-04-03,sequence,Food|Travel,Pass,none,,0.08,33.9892,-118.2217
+P0146,B,6/6/2024,CASE-04,SPEC-04-03,sequence,Healthcare,Pass,none,,0.15,34.0072,-118.2217
+P0147,C,6/7/2024,CASE-04,SPEC-04-03,sequence,Community|Healthcare|Travel,Review,warning,Mixed specimen signal,0.22,34.0252,-118.2217
+P0148,D,6/8/2024,CASE-04,SPEC-04-03,sequence,Travel,Failed,error,Low coverage,0.29,34.0432,-118.2217
+P0149,E,6/9/2024,CASE-04,SPEC-04-03,sequence,Food|Travel,Pending,info,Awaiting replicate,0.36,34.0612,-118.2217
+P0150,F,6/10/2024,CASE-04,SPEC-04-03,sequence,Healthcare,Pass,none,,0.43,34.0792,-118.2217
+P0151,G,6/11/2024,CASE-04,SPEC-04-04,sequence,Community|Healthcare|Travel,Pass,none,,0.50,34.0972,-118.2217
+P0152,H,6/12/2024,CASE-04,SPEC-04-04,sequence,Travel,Review,warning,Mixed specimen signal,0.57,34.1152,-118.2217
+P0153,A,6/13/2024,CASE-04,SPEC-04-04,sequence,Food|Travel,Failed,error,Low coverage,0.64,33.9892,-118.1997
+P0154,B,6/14/2024,CASE-04,SPEC-04-04,sequence,Healthcare,Pending,info,Awaiting replicate,0.71,34.0072,-118.1997
+P0155,C,6/15/2024,CASE-04,SPEC-04-04,sequence,Community|Healthcare|Travel,Pass,none,,0.78,34.0252,-118.1997
+P0156,D,6/16/2024,CASE-04,SPEC-04-04,sequence,Travel,Pass,none,,0.85,34.0432,-118.1997
+P0157,E,6/17/2024,CASE-04,SPEC-04-04,sequence,Food|Travel,Review,warning,Mixed specimen signal,0.92,34.0612,-118.1997
+P0158,F,6/18/2024,CASE-04,SPEC-04-04,sequence,Healthcare,Failed,error,Low coverage,0.99,34.0792,-118.1997
+P0159,G,6/19/2024,CASE-04,SPEC-04-04,sequence,Community|Healthcare|Travel,Pending,info,Awaiting replicate,0.06,34.0972,-118.1997
+P0160,H,6/20/2024,CASE-04,SPEC-04-04,sequence,Travel,Pass,none,,0.13,34.1152,-118.1997
+P0161,A,6/21/2024,CASE-05,SPEC-05-01,sequence,Food|Travel,Pass,none,,0.20,33.6870,-84.4310
+P0162,B,6/22/2024,CASE-05,SPEC-05-01,sequence,Healthcare,Review,warning,Mixed specimen signal,0.27,33.7050,-84.4310
+P0163,C,6/23/2024,CASE-05,SPEC-05-01,sequence,Community|Healthcare|Travel,Failed,error,Low coverage,0.34,33.7230,-84.4310
+P0164,D,6/24/2024,CASE-05,SPEC-05-01,sequence,Travel,Pending,info,Awaiting replicate,0.41,33.7410,-84.4310
+P0165,E,6/25/2024,CASE-05,SPEC-05-01,sequence,Food|Travel,Pass,none,,0.48,33.7590,-84.4310
+P0166,F,6/26/2024,CASE-05,SPEC-05-01,sequence,Healthcare,Pass,none,,0.55,33.7770,-84.4310
+P0167,G,6/27/2024,CASE-05,SPEC-05-01,sequence,Community|Healthcare|Travel,Review,warning,Mixed specimen signal,0.62,33.7950,-84.4310
+P0168,H,6/28/2024,CASE-05,SPEC-05-01,sequence,Travel,Failed,error,Low coverage,0.69,33.8130,-84.4310
+P0169,A,7/1/2024,CASE-05,SPEC-05-01,sequence,Food|Travel,Pending,info,Awaiting replicate,0.76,33.6870,-84.4090
+P0170,B,7/2/2024,CASE-05,SPEC-05-01,sequence,Healthcare,Pass,none,,0.83,33.7050,-84.4090
+P0171,C,7/3/2024,CASE-05,SPEC-05-02,sequence,Community|Healthcare|Travel,Pass,none,,0.90,33.7230,-84.4090
+P0172,D,7/4/2024,CASE-05,SPEC-05-02,sequence,Travel,Review,warning,Mixed specimen signal,0.97,33.7410,-84.4090
+P0173,E,7/5/2024,CASE-05,SPEC-05-02,sequence,Food|Travel,Failed,error,Low coverage,0.04,33.7590,-84.4090
+P0174,F,7/6/2024,CASE-05,SPEC-05-02,sequence,Healthcare,Pending,info,Awaiting replicate,0.11,33.7770,-84.4090
+P0175,G,7/7/2024,CASE-05,SPEC-05-02,sequence,Community|Healthcare|Travel,Pass,none,,0.18,33.7950,-84.4090
+P0176,H,7/8/2024,CASE-05,SPEC-05-02,sequence,Travel,Pass,none,,0.25,33.8130,-84.4090
+P0177,A,7/9/2024,CASE-05,SPEC-05-02,sequence,Food|Travel,Review,warning,Mixed specimen signal,0.32,33.6870,-84.3870
+P0178,B,7/10/2024,CASE-05,SPEC-05-02,sequence,Healthcare,Failed,error,Low coverage,0.39,33.7050,-84.3870
+P0179,C,7/11/2024,CASE-05,SPEC-05-02,sequence,Community|Healthcare|Travel,Pending,info,Awaiting replicate,0.46,33.7230,-84.3870
+P0180,D,7/12/2024,CASE-05,SPEC-05-02,sequence,Travel,Pass,none,,0.53,33.7410,-84.3870
+P0181,E,7/13/2024,CASE-05,SPEC-05-03,sequence,Food|Travel,Pass,none,,0.60,33.7590,-84.3870
+P0182,F,7/14/2024,CASE-05,SPEC-05-03,sequence,Healthcare,Review,warning,Mixed specimen signal,0.67,33.7770,-84.3870
+P0183,G,7/15/2024,CASE-05,SPEC-05-03,sequence,Community|Healthcare|Travel,Failed,error,Low coverage,0.74,33.7950,-84.3870
+P0184,H,7/16/2024,CASE-05,SPEC-05-03,sequence,Travel,Pending,info,Awaiting replicate,0.81,33.8130,-84.3870
+P0185,A,7/17/2024,CASE-05,SPEC-05-03,sequence,Food|Travel,Pass,none,,0.88,33.6870,-84.3650
+P0186,B,7/18/2024,CASE-05,SPEC-05-03,sequence,Healthcare,Pass,none,,0.95,33.7050,-84.3650
+P0187,C,7/19/2024,CASE-05,SPEC-05-03,sequence,Community|Healthcare|Travel,Review,warning,Mixed specimen signal,0.02,33.7230,-84.3650
+P0188,D,7/20/2024,CASE-05,SPEC-05-03,sequence,Travel,Failed,error,Low coverage,0.09,33.7410,-84.3650
+P0189,E,7/21/2024,CASE-05,SPEC-05-03,sequence,Food|Travel,Pending,info,Awaiting replicate,0.16,33.7590,-84.3650
+P0190,F,7/22/2024,CASE-05,SPEC-05-03,sequence,Healthcare,Pass,none,,0.23,33.7770,-84.3650
+P0191,G,7/23/2024,CASE-05,SPEC-05-04,sequence,Community|Healthcare|Travel,Pass,none,,0.30,33.7950,-84.3650
+P0192,H,7/24/2024,CASE-05,SPEC-05-04,sequence,Travel,Review,warning,Mixed specimen signal,0.37,33.8130,-84.3650
+P0193,A,7/25/2024,CASE-05,SPEC-05-04,sequence,Food|Travel,Failed,error,Low coverage,0.44,33.6870,-84.3430
+P0194,B,7/26/2024,CASE-05,SPEC-05-04,sequence,Healthcare,Pending,info,Awaiting replicate,0.51,33.7050,-84.3430
+P0195,C,7/27/2024,CASE-05,SPEC-05-04,sequence,Community|Healthcare|Travel,Pass,none,,0.58,33.7230,-84.3430
+P0196,D,7/28/2024,CASE-05,SPEC-05-04,sequence,Travel,Pass,none,,0.65,33.7410,-84.3430
+P0197,E,8/1/2024,CASE-05,SPEC-05-04,sequence,Food|Travel,Review,warning,Mixed specimen signal,0.72,33.7590,-84.3430
+P0198,F,8/2/2024,CASE-05,SPEC-05-04,sequence,Healthcare,Failed,error,Low coverage,0.79,33.7770,-84.3430
+P0199,G,8/3/2024,CASE-05,SPEC-05-04,sequence,Community|Healthcare|Travel,Pending,info,Awaiting replicate,0.86,33.7950,-84.3430
+P0200,H,8/4/2024,CASE-05,SPEC-05-04,sequence,Travel,Pass,none,,0.93,33.8130,-84.3430
+P0201,A,8/5/2024,CASE-06,SPEC-06-01,sequence,Food|Travel,Pass,none,,0.00,40.6508,-74.0490
+P0202,B,8/6/2024,CASE-06,SPEC-06-01,sequence,Healthcare,Review,warning,Mixed specimen signal,0.07,40.6688,-74.0490
+P0203,C,8/7/2024,CASE-06,SPEC-06-01,sequence,Community|Healthcare|Travel,Failed,error,Low coverage,0.14,40.6868,-74.0490
+P0204,D,8/8/2024,CASE-06,SPEC-06-01,sequence,Travel,Pending,info,Awaiting replicate,0.21,40.7048,-74.0490
+P0205,E,8/9/2024,CASE-06,SPEC-06-01,sequence,Food|Travel,Pass,none,,0.28,40.7228,-74.0490
+P0206,F,8/10/2024,CASE-06,SPEC-06-01,sequence,Healthcare,Pass,none,,0.35,40.7408,-74.0490
+P0207,G,8/11/2024,CASE-06,SPEC-06-01,sequence,Community|Healthcare|Travel,Review,warning,Mixed specimen signal,0.42,40.7588,-74.0490
+P0208,H,8/12/2024,CASE-06,SPEC-06-01,sequence,Travel,Failed,error,Low coverage,0.49,40.7768,-74.0490
+P0209,A,8/13/2024,CASE-06,SPEC-06-01,sequence,Food|Travel,Pending,info,Awaiting replicate,0.56,40.6508,-74.0270
+P0210,B,8/14/2024,CASE-06,SPEC-06-01,sequence,Healthcare,Pass,none,,0.63,40.6688,-74.0270
+P0211,C,8/15/2024,CASE-06,SPEC-06-02,sequence,Community|Healthcare|Travel,Pass,none,,0.70,40.6868,-74.0270
+P0212,D,8/16/2024,CASE-06,SPEC-06-02,sequence,Travel,Review,warning,Mixed specimen signal,0.77,40.7048,-74.0270
+P0213,E,8/17/2024,CASE-06,SPEC-06-02,sequence,Food|Travel,Failed,error,Low coverage,0.84,40.7228,-74.0270
+P0214,F,8/18/2024,CASE-06,SPEC-06-02,sequence,Healthcare,Pending,info,Awaiting replicate,0.91,40.7408,-74.0270
+P0215,G,8/19/2024,CASE-06,SPEC-06-02,sequence,Community|Healthcare|Travel,Pass,none,,0.98,40.7588,-74.0270
+P0216,H,8/20/2024,CASE-06,SPEC-06-02,sequence,Travel,Pass,none,,0.05,40.7768,-74.0270
+P0217,A,8/21/2024,CASE-06,SPEC-06-02,sequence,Food|Travel,Review,warning,Mixed specimen signal,0.12,40.6508,-74.0050
+P0218,B,8/22/2024,CASE-06,SPEC-06-02,sequence,Healthcare,Failed,error,Low coverage,0.19,40.6688,-74.0050
+P0219,C,8/23/2024,CASE-06,SPEC-06-02,sequence,Community|Healthcare|Travel,Pending,info,Awaiting replicate,0.26,40.6868,-74.0050
+P0220,D,8/24/2024,CASE-06,SPEC-06-02,sequence,Travel,Pass,none,,0.33,40.7048,-74.0050
+P0221,E,8/25/2024,CASE-06,SPEC-06-03,sequence,Food|Travel,Pass,none,,0.40,40.7228,-74.0050
+P0222,F,8/26/2024,CASE-06,SPEC-06-03,sequence,Healthcare,Review,warning,Mixed specimen signal,0.47,40.7408,-74.0050
+P0223,G,8/27/2024,CASE-06,SPEC-06-03,sequence,Community|Healthcare|Travel,Failed,error,Low coverage,0.54,40.7588,-74.0050
+P0224,H,8/28/2024,CASE-06,SPEC-06-03,sequence,Travel,Pending,info,Awaiting replicate,0.61,40.7768,-74.0050
+P0225,A,9/1/2024,CASE-06,SPEC-06-03,sequence,Food|Travel,Pass,none,,0.68,40.6508,-73.9830
+P0226,B,9/2/2024,CASE-06,SPEC-06-03,sequence,Healthcare,Pass,none,,0.75,40.6688,-73.9830
+P0227,C,9/3/2024,CASE-06,SPEC-06-03,sequence,Community|Healthcare|Travel,Review,warning,Mixed specimen signal,0.82,40.6868,-73.9830
+P0228,D,9/4/2024,CASE-06,SPEC-06-03,sequence,Travel,Failed,error,Low coverage,0.89,40.7048,-73.9830
+P0229,E,9/5/2024,CASE-06,SPEC-06-03,sequence,Food|Travel,Pending,info,Awaiting replicate,0.96,40.7228,-73.9830
+P0230,F,9/6/2024,CASE-06,SPEC-06-03,sequence,Healthcare,Pass,none,,0.03,40.7408,-73.9830
+P0231,G,9/7/2024,CASE-06,SPEC-06-04,sequence,Community|Healthcare|Travel,Pass,none,,0.10,40.7588,-73.9830
+P0232,H,9/8/2024,CASE-06,SPEC-06-04,sequence,Travel,Review,warning,Mixed specimen signal,0.17,40.7768,-73.9830
+P0233,A,9/9/2024,CASE-06,SPEC-06-04,sequence,Food|Travel,Failed,error,Low coverage,0.24,40.6508,-73.9610
+P0234,B,9/10/2024,CASE-06,SPEC-06-04,sequence,Healthcare,Pending,info,Awaiting replicate,0.31,40.6688,-73.9610
+P0235,C,9/11/2024,CASE-06,SPEC-06-04,sequence,Community|Healthcare|Travel,Pass,none,,0.38,40.6868,-73.9610
+P0236,D,9/12/2024,CASE-06,SPEC-06-04,sequence,Travel,Pass,none,,0.45,40.7048,-73.9610
+P0237,E,9/13/2024,CASE-06,SPEC-06-04,sequence,Food|Travel,Review,warning,Mixed specimen signal,0.52,40.7228,-73.9610
+P0238,F,9/14/2024,CASE-06,SPEC-06-04,sequence,Healthcare,Failed,error,Low coverage,0.59,40.7408,-73.9610
+P0239,G,9/15/2024,CASE-06,SPEC-06-04,sequence,Community|Healthcare|Travel,Pending,info,Awaiting replicate,0.66,40.7588,-73.9610
+P0240,H,9/16/2024,CASE-06,SPEC-06-04,sequence,Travel,Pass,none,,0.73,40.7768,-73.9610
+P0241,A,9/17/2024,CASE-07,SPEC-07-01,sequence,Food|Travel,Pass,none,,0.80,47.5442,-122.3751
+P0242,B,9/18/2024,CASE-07,SPEC-07-01,sequence,Healthcare,Review,warning,Mixed specimen signal,0.87,47.5622,-122.3751
+P0243,C,9/19/2024,CASE-07,SPEC-07-01,sequence,Community|Healthcare|Travel,Failed,error,Low coverage,0.94,47.5802,-122.3751
+P0244,D,9/20/2024,CASE-07,SPEC-07-01,sequence,Travel,Pending,info,Awaiting replicate,0.01,47.5982,-122.3751
+P0245,E,9/21/2024,CASE-07,SPEC-07-01,sequence,Food|Travel,Pass,none,,0.08,47.6162,-122.3751
+P0246,F,9/22/2024,CASE-07,SPEC-07-01,sequence,Healthcare,Pass,none,,0.15,47.6342,-122.3751
+P0247,G,9/23/2024,CASE-07,SPEC-07-01,sequence,Community|Healthcare|Travel,Review,warning,Mixed specimen signal,0.22,47.6522,-122.3751
+P0248,H,9/24/2024,CASE-07,SPEC-07-01,sequence,Travel,Failed,error,Low coverage,0.29,47.6702,-122.3751
+P0249,A,9/25/2024,CASE-07,SPEC-07-01,sequence,Food|Travel,Pending,info,Awaiting replicate,0.36,47.5442,-122.3531
+P0250,B,9/26/2024,CASE-07,SPEC-07-01,sequence,Healthcare,Pass,none,,0.43,47.5622,-122.3531
+P0251,C,9/27/2024,CASE-07,SPEC-07-02,sequence,Community|Healthcare|Travel,Pass,none,,0.50,47.5802,-122.3531
+P0252,D,9/28/2024,CASE-07,SPEC-07-02,sequence,Travel,Review,warning,Mixed specimen signal,0.57,47.5982,-122.3531
+P0253,E,10/1/2024,CASE-07,SPEC-07-02,sequence,Food|Travel,Failed,error,Low coverage,0.64,47.6162,-122.3531
+P0254,F,10/2/2024,CASE-07,SPEC-07-02,sequence,Healthcare,Pending,info,Awaiting replicate,0.71,47.6342,-122.3531
+P0255,G,10/3/2024,CASE-07,SPEC-07-02,sequence,Community|Healthcare|Travel,Pass,none,,0.78,47.6522,-122.3531
+P0256,H,10/4/2024,CASE-07,SPEC-07-02,sequence,Travel,Pass,none,,0.85,47.6702,-122.3531
+P0257,A,10/5/2024,CASE-07,SPEC-07-02,sequence,Food|Travel,Review,warning,Mixed specimen signal,0.92,47.5442,-122.3311
+P0258,B,10/6/2024,CASE-07,SPEC-07-02,sequence,Healthcare,Failed,error,Low coverage,0.99,47.5622,-122.3311
+P0259,C,10/7/2024,CASE-07,SPEC-07-02,sequence,Community|Healthcare|Travel,Pending,info,Awaiting replicate,0.06,47.5802,-122.3311
+P0260,D,10/8/2024,CASE-07,SPEC-07-02,sequence,Travel,Pass,none,,0.13,47.5982,-122.3311
+P0261,E,10/9/2024,CASE-07,SPEC-07-03,sequence,Food|Travel,Pass,none,,0.20,47.6162,-122.3311
+P0262,F,10/10/2024,CASE-07,SPEC-07-03,sequence,Healthcare,Review,warning,Mixed specimen signal,0.27,47.6342,-122.3311
+P0263,G,10/11/2024,CASE-07,SPEC-07-03,sequence,Community|Healthcare|Travel,Failed,error,Low coverage,0.34,47.6522,-122.3311
+P0264,H,10/12/2024,CASE-07,SPEC-07-03,sequence,Travel,Pending,info,Awaiting replicate,0.41,47.6702,-122.3311
+P0265,A,10/13/2024,CASE-07,SPEC-07-03,sequence,Food|Travel,Pass,none,,0.48,47.5442,-122.3091
+P0266,B,10/14/2024,CASE-07,SPEC-07-03,sequence,Healthcare,Pass,none,,0.55,47.5622,-122.3091
+P0267,C,10/15/2024,CASE-07,SPEC-07-03,sequence,Community|Healthcare|Travel,Review,warning,Mixed specimen signal,0.62,47.5802,-122.3091
+P0268,D,10/16/2024,CASE-07,SPEC-07-03,sequence,Travel,Failed,error,Low coverage,0.69,47.5982,-122.3091
+P0269,E,10/17/2024,CASE-07,SPEC-07-03,sequence,Food|Travel,Pending,info,Awaiting replicate,0.76,47.6162,-122.3091
+P0270,F,10/18/2024,CASE-07,SPEC-07-03,sequence,Healthcare,Pass,none,,0.83,47.6342,-122.3091
+P0271,G,10/19/2024,CASE-07,SPEC-07-04,sequence,Community|Healthcare|Travel,Pass,none,,0.90,47.6522,-122.3091
+P0272,H,10/20/2024,CASE-07,SPEC-07-04,sequence,Travel,Review,warning,Mixed specimen signal,0.97,47.6702,-122.3091
+P0273,A,10/21/2024,CASE-07,SPEC-07-04,sequence,Food|Travel,Failed,error,Low coverage,0.04,47.5442,-122.2871
+P0274,B,10/22/2024,CASE-07,SPEC-07-04,sequence,Healthcare,Pending,info,Awaiting replicate,0.11,47.5622,-122.2871
+P0275,C,10/23/2024,CASE-07,SPEC-07-04,sequence,Community|Healthcare|Travel,Pass,none,,0.18,47.5802,-122.2871
+P0276,D,10/24/2024,CASE-07,SPEC-07-04,sequence,Travel,Pass,none,,0.25,47.5982,-122.2871
+P0277,E,10/25/2024,CASE-07,SPEC-07-04,sequence,Food|Travel,Review,warning,Mixed specimen signal,0.32,47.6162,-122.2871
+P0278,F,10/26/2024,CASE-07,SPEC-07-04,sequence,Healthcare,Failed,error,Low coverage,0.39,47.6342,-122.2871
+P0279,G,10/27/2024,CASE-07,SPEC-07-04,sequence,Community|Healthcare|Travel,Pending,info,Awaiting replicate,0.46,47.6522,-122.2871
+P0280,H,10/28/2024,CASE-07,SPEC-07-04,sequence,Travel,Pass,none,,0.53,47.6702,-122.2871
+P0281,A,11/1/2024,CASE-08,SPEC-08-01,sequence,Food|Travel,Pass,none,,0.60,33.9902,-118.2867
+P0282,B,11/2/2024,CASE-08,SPEC-08-01,sequence,Healthcare,Review,warning,Mixed specimen signal,0.67,34.0082,-118.2867
+P0283,C,11/3/2024,CASE-08,SPEC-08-01,sequence,Community|Healthcare|Travel,Failed,error,Low coverage,0.74,34.0262,-118.2867
+P0284,D,11/4/2024,CASE-08,SPEC-08-01,sequence,Travel,Pending,info,Awaiting replicate,0.81,34.0442,-118.2867
+P0285,E,11/5/2024,CASE-08,SPEC-08-01,sequence,Food|Travel,Pass,none,,0.88,34.0622,-118.2867
+P0286,F,11/6/2024,CASE-08,SPEC-08-01,sequence,Healthcare,Pass,none,,0.95,34.0802,-118.2867
+P0287,G,11/7/2024,CASE-08,SPEC-08-01,sequence,Community|Healthcare|Travel,Review,warning,Mixed specimen signal,0.02,34.0982,-118.2867
+P0288,H,11/8/2024,CASE-08,SPEC-08-01,sequence,Travel,Failed,error,Low coverage,0.09,34.1162,-118.2867
+P0289,A,11/9/2024,CASE-08,SPEC-08-01,sequence,Food|Travel,Pending,info,Awaiting replicate,0.16,33.9902,-118.2647
+P0290,B,11/10/2024,CASE-08,SPEC-08-01,sequence,Healthcare,Pass,none,,0.23,34.0082,-118.2647
+P0291,C,11/11/2024,CASE-08,SPEC-08-02,sequence,Community|Healthcare|Travel,Pass,none,,0.30,34.0262,-118.2647
+P0292,D,11/12/2024,CASE-08,SPEC-08-02,sequence,Travel,Review,warning,Mixed specimen signal,0.37,34.0442,-118.2647
+P0293,E,11/13/2024,CASE-08,SPEC-08-02,sequence,Food|Travel,Failed,error,Low coverage,0.44,34.0622,-118.2647
+P0294,F,11/14/2024,CASE-08,SPEC-08-02,sequence,Healthcare,Pending,info,Awaiting replicate,0.51,34.0802,-118.2647
+P0295,G,11/15/2024,CASE-08,SPEC-08-02,sequence,Community|Healthcare|Travel,Pass,none,,0.58,34.0982,-118.2647
+P0296,H,11/16/2024,CASE-08,SPEC-08-02,sequence,Travel,Pass,none,,0.65,34.1162,-118.2647
+P0297,A,11/17/2024,CASE-08,SPEC-08-02,sequence,Food|Travel,Review,warning,Mixed specimen signal,0.72,33.9902,-118.2427
+P0298,B,11/18/2024,CASE-08,SPEC-08-02,sequence,Healthcare,Failed,error,Low coverage,0.79,34.0082,-118.2427
+P0299,C,11/19/2024,CASE-08,SPEC-08-02,sequence,Community|Healthcare|Travel,Pending,info,Awaiting replicate,0.86,34.0262,-118.2427
+P0300,D,11/20/2024,CASE-08,SPEC-08-02,sequence,Travel,Pass,none,,0.93,34.0442,-118.2427
+P0301,E,11/21/2024,CASE-08,SPEC-08-03,sequence,Food|Travel,Pass,none,,0.00,34.0622,-118.2427
+P0302,F,11/22/2024,CASE-08,SPEC-08-03,sequence,Healthcare,Review,warning,Mixed specimen signal,0.07,34.0802,-118.2427
+P0303,G,11/23/2024,CASE-08,SPEC-08-03,sequence,Community|Healthcare|Travel,Failed,error,Low coverage,0.14,34.0982,-118.2427
+P0304,H,11/24/2024,CASE-08,SPEC-08-03,sequence,Travel,Pending,info,Awaiting replicate,0.21,34.1162,-118.2427
+P0305,A,11/25/2024,CASE-08,SPEC-08-03,sequence,Food|Travel,Pass,none,,0.28,33.9902,-118.2207
+P0306,B,11/26/2024,CASE-08,SPEC-08-03,sequence,Healthcare,Pass,none,,0.35,34.0082,-118.2207
+P0307,C,11/27/2024,CASE-08,SPEC-08-03,sequence,Community|Healthcare|Travel,Review,warning,Mixed specimen signal,0.42,34.0262,-118.2207
+P0308,D,11/28/2024,CASE-08,SPEC-08-03,sequence,Travel,Failed,error,Low coverage,0.49,34.0442,-118.2207
+P0309,E,12/1/2024,CASE-08,SPEC-08-03,sequence,Food|Travel,Pending,info,Awaiting replicate,0.56,34.0622,-118.2207
+P0310,F,12/2/2024,CASE-08,SPEC-08-03,sequence,Healthcare,Pass,none,,0.63,34.0802,-118.2207
+P0311,G,12/3/2024,CASE-08,SPEC-08-04,sequence,Community|Healthcare|Travel,Pass,none,,0.70,34.0982,-118.2207
+P0312,H,12/4/2024,CASE-08,SPEC-08-04,sequence,Travel,Review,warning,Mixed specimen signal,0.77,34.1162,-118.2207
+P0313,A,12/5/2024,CASE-08,SPEC-08-04,sequence,Food|Travel,Failed,error,Low coverage,0.84,33.9902,-118.1987
+P0314,B,12/6/2024,CASE-08,SPEC-08-04,sequence,Healthcare,Pending,info,Awaiting replicate,0.91,34.0082,-118.1987
+P0315,C,12/7/2024,CASE-08,SPEC-08-04,sequence,Community|Healthcare|Travel,Pass,none,,0.98,34.0262,-118.1987
+P0316,D,12/8/2024,CASE-08,SPEC-08-04,sequence,Travel,Pass,none,,0.05,34.0442,-118.1987
+P0317,E,12/9/2024,CASE-08,SPEC-08-04,sequence,Food|Travel,Review,warning,Mixed specimen signal,0.12,34.0622,-118.1987
+P0318,F,12/10/2024,CASE-08,SPEC-08-04,sequence,Healthcare,Failed,error,Low coverage,0.19,34.0802,-118.1987
+P0319,G,12/11/2024,CASE-08,SPEC-08-04,sequence,Community|Healthcare|Travel,Pending,info,Awaiting replicate,0.26,34.0982,-118.1987
+P0320,H,12/12/2024,CASE-08,SPEC-08-04,sequence,Travel,Pass,none,,0.33,34.1162,-118.1987
+P0321,A,12/13/2024,CASE-09,SPEC-09-01,sequence,Food|Travel,Pass,none,,0.40,33.6880,-84.4300
+P0322,B,12/14/2024,CASE-09,SPEC-09-01,sequence,Healthcare,Review,warning,Mixed specimen signal,0.47,33.7060,-84.4300
+P0323,C,12/15/2024,CASE-09,SPEC-09-01,sequence,Community|Healthcare|Travel,Failed,error,Low coverage,0.54,33.7240,-84.4300
+P0324,D,12/16/2024,CASE-09,SPEC-09-01,sequence,Travel,Pending,info,Awaiting replicate,0.61,33.7420,-84.4300
+P0325,E,12/17/2024,CASE-09,SPEC-09-01,sequence,Food|Travel,Pass,none,,0.68,33.7600,-84.4300
+P0326,F,12/18/2024,CASE-09,SPEC-09-01,sequence,Healthcare,Pass,none,,0.75,33.7780,-84.4300
+P0327,G,12/19/2024,CASE-09,SPEC-09-01,sequence,Community|Healthcare|Travel,Review,warning,Mixed specimen signal,0.82,33.7960,-84.4300
+P0328,H,12/20/2024,CASE-09,SPEC-09-01,sequence,Travel,Failed,error,Low coverage,0.89,33.8140,-84.4300
+P0329,A,12/21/2024,CASE-09,SPEC-09-01,sequence,Food|Travel,Pending,info,Awaiting replicate,0.96,33.6880,-84.4080
+P0330,B,12/22/2024,CASE-09,SPEC-09-01,sequence,Healthcare,Pass,none,,0.03,33.7060,-84.4080
+P0331,C,12/23/2024,CASE-09,SPEC-09-02,sequence,Community|Healthcare|Travel,Pass,none,,0.10,33.7240,-84.4080
+P0332,D,12/24/2024,CASE-09,SPEC-09-02,sequence,Travel,Review,warning,Mixed specimen signal,0.17,33.7420,-84.4080
+P0333,E,12/25/2024,CASE-09,SPEC-09-02,sequence,Food|Travel,Failed,error,Low coverage,0.24,33.7600,-84.4080
+P0334,F,12/26/2024,CASE-09,SPEC-09-02,sequence,Healthcare,Pending,info,Awaiting replicate,0.31,33.7780,-84.4080
+P0335,G,12/27/2024,CASE-09,SPEC-09-02,sequence,Community|Healthcare|Travel,Pass,none,,0.38,33.7960,-84.4080
+P0336,H,12/28/2024,CASE-09,SPEC-09-02,sequence,Travel,Pass,none,,0.45,33.8140,-84.4080
+P0337,A,1/1/2024,CASE-09,SPEC-09-02,sequence,Food|Travel,Review,warning,Mixed specimen signal,0.52,33.6880,-84.3860
+P0338,B,1/2/2024,CASE-09,SPEC-09-02,sequence,Healthcare,Failed,error,Low coverage,0.59,33.7060,-84.3860
+P0339,C,1/3/2024,CASE-09,SPEC-09-02,sequence,Community|Healthcare|Travel,Pending,info,Awaiting replicate,0.66,33.7240,-84.3860
+P0340,D,1/4/2024,CASE-09,SPEC-09-02,sequence,Travel,Pass,none,,0.73,33.7420,-84.3860
+P0341,E,1/5/2024,CASE-09,SPEC-09-03,sequence,Food|Travel,Pass,none,,0.80,33.7600,-84.3860
+P0342,F,1/6/2024,CASE-09,SPEC-09-03,sequence,Healthcare,Review,warning,Mixed specimen signal,0.87,33.7780,-84.3860
+P0343,G,1/7/2024,CASE-09,SPEC-09-03,sequence,Community|Healthcare|Travel,Failed,error,Low coverage,0.94,33.7960,-84.3860
+P0344,H,1/8/2024,CASE-09,SPEC-09-03,sequence,Travel,Pending,info,Awaiting replicate,0.01,33.8140,-84.3860
+P0345,A,1/9/2024,CASE-09,SPEC-09-03,sequence,Food|Travel,Pass,none,,0.08,33.6880,-84.3640
+P0346,B,1/10/2024,CASE-09,SPEC-09-03,sequence,Healthcare,Pass,none,,0.15,33.7060,-84.3640
+P0347,C,1/11/2024,CASE-09,SPEC-09-03,sequence,Community|Healthcare|Travel,Review,warning,Mixed specimen signal,0.22,33.7240,-84.3640
+P0348,D,1/12/2024,CASE-09,SPEC-09-03,sequence,Travel,Failed,error,Low coverage,0.29,33.7420,-84.3640
+P0349,E,1/13/2024,CASE-09,SPEC-09-03,sequence,Food|Travel,Pending,info,Awaiting replicate,0.36,33.7600,-84.3640
+P0350,F,1/14/2024,CASE-09,SPEC-09-03,sequence,Healthcare,Pass,none,,0.43,33.7780,-84.3640
+P0351,G,1/15/2024,CASE-09,SPEC-09-04,sequence,Community|Healthcare|Travel,Pass,none,,0.50,33.7960,-84.3640
+P0352,H,1/16/2024,CASE-09,SPEC-09-04,sequence,Travel,Review,warning,Mixed specimen signal,0.57,33.8140,-84.3640
+P0353,A,1/17/2024,CASE-09,SPEC-09-04,sequence,Food|Travel,Failed,error,Low coverage,0.64,33.6880,-84.3420
+P0354,B,1/18/2024,CASE-09,SPEC-09-04,sequence,Healthcare,Pending,info,Awaiting replicate,0.71,33.7060,-84.3420
+P0355,C,1/19/2024,CASE-09,SPEC-09-04,sequence,Community|Healthcare|Travel,Pass,none,,0.78,33.7240,-84.3420
+P0356,D,1/20/2024,CASE-09,SPEC-09-04,sequence,Travel,Pass,none,,0.85,33.7420,-84.3420
+P0357,E,1/21/2024,CASE-09,SPEC-09-04,sequence,Food|Travel,Review,warning,Mixed specimen signal,0.92,33.7600,-84.3420
+P0358,F,1/22/2024,CASE-09,SPEC-09-04,sequence,Healthcare,Failed,error,Low coverage,0.99,33.7780,-84.3420
+P0359,G,1/23/2024,CASE-09,SPEC-09-04,sequence,Community|Healthcare|Travel,Pending,info,Awaiting replicate,0.06,33.7960,-84.3420
+P0360,H,1/24/2024,CASE-09,SPEC-09-04,sequence,Travel,Pass,none,,0.13,33.8140,-84.3420
+P0361,A,1/25/2024,CASE-10,SPEC-10-01,sequence,Food|Travel,Pass,none,,0.20,40.6518,-74.0480
+P0362,B,1/26/2024,CASE-10,SPEC-10-01,sequence,Healthcare,Review,warning,Mixed specimen signal,0.27,40.6698,-74.0480
+P0363,C,1/27/2024,CASE-10,SPEC-10-01,sequence,Community|Healthcare|Travel,Failed,error,Low coverage,0.34,40.6878,-74.0480
+P0364,D,1/28/2024,CASE-10,SPEC-10-01,sequence,Travel,Pending,info,Awaiting replicate,0.41,40.7058,-74.0480
+P0365,E,2/1/2024,CASE-10,SPEC-10-01,sequence,Food|Travel,Pass,none,,0.48,40.7238,-74.0480
+P0366,F,2/2/2024,CASE-10,SPEC-10-01,sequence,Healthcare,Pass,none,,0.55,40.7418,-74.0480
+P0367,G,2/3/2024,CASE-10,SPEC-10-01,sequence,Community|Healthcare|Travel,Review,warning,Mixed specimen signal,0.62,40.7598,-74.0480
+P0368,H,2/4/2024,CASE-10,SPEC-10-01,sequence,Travel,Failed,error,Low coverage,0.69,40.7778,-74.0480
+P0369,A,2/5/2024,CASE-10,SPEC-10-01,sequence,Food|Travel,Pending,info,Awaiting replicate,0.76,40.6518,-74.0260
+P0370,B,2/6/2024,CASE-10,SPEC-10-01,sequence,Healthcare,Pass,none,,0.83,40.6698,-74.0260
+P0371,C,2/7/2024,CASE-10,SPEC-10-02,sequence,Community|Healthcare|Travel,Pass,none,,0.90,40.6878,-74.0260
+P0372,D,2/8/2024,CASE-10,SPEC-10-02,sequence,Travel,Review,warning,Mixed specimen signal,0.97,40.7058,-74.0260
+P0373,E,2/9/2024,CASE-10,SPEC-10-02,sequence,Food|Travel,Failed,error,Low coverage,0.04,40.7238,-74.0260
+P0374,F,2/10/2024,CASE-10,SPEC-10-02,sequence,Healthcare,Pending,info,Awaiting replicate,0.11,40.7418,-74.0260
+P0375,G,2/11/2024,CASE-10,SPEC-10-02,sequence,Community|Healthcare|Travel,Pass,none,,0.18,40.7598,-74.0260
+P0376,H,2/12/2024,CASE-10,SPEC-10-02,sequence,Travel,Pass,none,,0.25,40.7778,-74.0260
+P0377,A,2/13/2024,CASE-10,SPEC-10-02,sequence,Food|Travel,Review,warning,Mixed specimen signal,0.32,40.6518,-74.0040
+P0378,B,2/14/2024,CASE-10,SPEC-10-02,sequence,Healthcare,Failed,error,Low coverage,0.39,40.6698,-74.0040
+P0379,C,2/15/2024,CASE-10,SPEC-10-02,sequence,Community|Healthcare|Travel,Pending,info,Awaiting replicate,0.46,40.6878,-74.0040
+P0380,D,2/16/2024,CASE-10,SPEC-10-02,sequence,Travel,Pass,none,,0.53,40.7058,-74.0040
+P0381,E,2/17/2024,CASE-10,SPEC-10-03,sequence,Food|Travel,Pass,none,,0.60,40.7238,-74.0040
+P0382,F,2/18/2024,CASE-10,SPEC-10-03,sequence,Healthcare,Review,warning,Mixed specimen signal,0.67,40.7418,-74.0040
+P0383,G,2/19/2024,CASE-10,SPEC-10-03,sequence,Community|Healthcare|Travel,Failed,error,Low coverage,0.74,40.7598,-74.0040
+P0384,H,2/20/2024,CASE-10,SPEC-10-03,sequence,Travel,Pending,info,Awaiting replicate,0.81,40.7778,-74.0040
+P0385,A,2/21/2024,CASE-10,SPEC-10-03,sequence,Food|Travel,Pass,none,,0.88,40.6518,-73.9820
+P0386,B,2/22/2024,CASE-10,SPEC-10-03,sequence,Healthcare,Pass,none,,0.95,40.6698,-73.9820
+P0387,C,2/23/2024,CASE-10,SPEC-10-03,sequence,Community|Healthcare|Travel,Review,warning,Mixed specimen signal,0.02,40.6878,-73.9820
+P0388,D,2/24/2024,CASE-10,SPEC-10-03,sequence,Travel,Failed,error,Low coverage,0.09,40.7058,-73.9820
+P0389,E,2/25/2024,CASE-10,SPEC-10-03,sequence,Food|Travel,Pending,info,Awaiting replicate,0.16,40.7238,-73.9820
+P0390,F,2/26/2024,CASE-10,SPEC-10-03,sequence,Healthcare,Pass,none,,0.23,40.7418,-73.9820
+P0391,G,2/27/2024,CASE-10,SPEC-10-04,sequence,Community|Healthcare|Travel,Pass,none,,0.30,40.7598,-73.9820
+P0392,H,2/28/2024,CASE-10,SPEC-10-04,sequence,Travel,Review,warning,Mixed specimen signal,0.37,40.7778,-73.9820
+P0393,A,3/1/2024,CASE-10,SPEC-10-04,sequence,Food|Travel,Failed,error,Low coverage,0.44,40.6518,-73.9600
+P0394,B,3/2/2024,CASE-10,SPEC-10-04,sequence,Healthcare,Pending,info,Awaiting replicate,0.51,40.6698,-73.9600
+P0395,C,3/3/2024,CASE-10,SPEC-10-04,sequence,Community|Healthcare|Travel,Pass,none,,0.58,40.6878,-73.9600
+P0396,D,3/4/2024,CASE-10,SPEC-10-04,sequence,Travel,Pass,none,,0.65,40.7058,-73.9600
+P0397,E,3/5/2024,CASE-10,SPEC-10-04,sequence,Food|Travel,Review,warning,Mixed specimen signal,0.72,40.7238,-73.9600
+P0398,F,3/6/2024,CASE-10,SPEC-10-04,sequence,Healthcare,Failed,error,Low coverage,0.79,40.7418,-73.9600
+P0399,G,3/7/2024,CASE-10,SPEC-10-04,sequence,Community|Healthcare|Travel,Pending,info,Awaiting replicate,0.86,40.7598,-73.9600
+P0400,H,3/8/2024,CASE-10,SPEC-10-04,sequence,Travel,Pass,none,,0.93,40.7778,-73.9600
+P0401,A,3/9/2024,CASE-11,SPEC-11-01,sequence,Food|Travel,Pass,none,,0.00,47.5452,-122.3741
+P0402,B,3/10/2024,CASE-11,SPEC-11-01,sequence,Healthcare,Review,warning,Mixed specimen signal,0.07,47.5632,-122.3741
+P0403,C,3/11/2024,CASE-11,SPEC-11-01,sequence,Community|Healthcare|Travel,Failed,error,Low coverage,0.14,47.5812,-122.3741
+P0404,D,3/12/2024,CASE-11,SPEC-11-01,sequence,Travel,Pending,info,Awaiting replicate,0.21,47.5992,-122.3741
+P0405,E,3/13/2024,CASE-11,SPEC-11-01,sequence,Food|Travel,Pass,none,,0.28,47.6172,-122.3741
+P0406,F,3/14/2024,CASE-11,SPEC-11-01,sequence,Healthcare,Pass,none,,0.35,47.6352,-122.3741
+P0407,G,3/15/2024,CASE-11,SPEC-11-01,sequence,Community|Healthcare|Travel,Review,warning,Mixed specimen signal,0.42,47.6532,-122.3741
+P0408,H,3/16/2024,CASE-11,SPEC-11-01,sequence,Travel,Failed,error,Low coverage,0.49,47.6712,-122.3741
+P0409,A,3/17/2024,CASE-11,SPEC-11-01,sequence,Food|Travel,Pending,info,Awaiting replicate,0.56,47.5452,-122.3521
+P0410,B,3/18/2024,CASE-11,SPEC-11-01,sequence,Healthcare,Pass,none,,0.63,47.5632,-122.3521
+P0411,C,3/19/2024,CASE-11,SPEC-11-02,sequence,Community|Healthcare|Travel,Pass,none,,0.70,47.5812,-122.3521
+P0412,D,3/20/2024,CASE-11,SPEC-11-02,sequence,Travel,Review,warning,Mixed specimen signal,0.77,47.5992,-122.3521
+P0413,E,3/21/2024,CASE-11,SPEC-11-02,sequence,Food|Travel,Failed,error,Low coverage,0.84,47.6172,-122.3521
+P0414,F,3/22/2024,CASE-11,SPEC-11-02,sequence,Healthcare,Pending,info,Awaiting replicate,0.91,47.6352,-122.3521
+P0415,G,3/23/2024,CASE-11,SPEC-11-02,sequence,Community|Healthcare|Travel,Pass,none,,0.98,47.6532,-122.3521
+P0416,H,3/24/2024,CASE-11,SPEC-11-02,sequence,Travel,Pass,none,,0.05,47.6712,-122.3521
+P0417,A,3/25/2024,CASE-11,SPEC-11-02,sequence,Food|Travel,Review,warning,Mixed specimen signal,0.12,47.5452,-122.3301
+P0418,B,3/26/2024,CASE-11,SPEC-11-02,sequence,Healthcare,Failed,error,Low coverage,0.19,47.5632,-122.3301
+P0419,C,3/27/2024,CASE-11,SPEC-11-02,sequence,Community|Healthcare|Travel,Pending,info,Awaiting replicate,0.26,47.5812,-122.3301
+P0420,D,3/28/2024,CASE-11,SPEC-11-02,sequence,Travel,Pass,none,,0.33,47.5992,-122.3301
+P0421,E,4/1/2024,CASE-11,SPEC-11-03,sequence,Food|Travel,Pass,none,,0.40,47.6172,-122.3301
+P0422,F,4/2/2024,CASE-11,SPEC-11-03,sequence,Healthcare,Review,warning,Mixed specimen signal,0.47,47.6352,-122.3301
+P0423,G,4/3/2024,CASE-11,SPEC-11-03,sequence,Community|Healthcare|Travel,Failed,error,Low coverage,0.54,47.6532,-122.3301
+P0424,H,4/4/2024,CASE-11,SPEC-11-03,sequence,Travel,Pending,info,Awaiting replicate,0.61,47.6712,-122.3301
+P0425,A,4/5/2024,CASE-11,SPEC-11-03,sequence,Food|Travel,Pass,none,,0.68,47.5452,-122.3081
+P0426,B,4/6/2024,CASE-11,SPEC-11-03,sequence,Healthcare,Pass,none,,0.75,47.5632,-122.3081
+P0427,C,4/7/2024,CASE-11,SPEC-11-03,sequence,Community|Healthcare|Travel,Review,warning,Mixed specimen signal,0.82,47.5812,-122.3081
+P0428,D,4/8/2024,CASE-11,SPEC-11-03,sequence,Travel,Failed,error,Low coverage,0.89,47.5992,-122.3081
+P0429,E,4/9/2024,CASE-11,SPEC-11-03,sequence,Food|Travel,Pending,info,Awaiting replicate,0.96,47.6172,-122.3081
+P0430,F,4/10/2024,CASE-11,SPEC-11-03,sequence,Healthcare,Pass,none,,0.03,47.6352,-122.3081
+P0431,G,4/11/2024,CASE-11,SPEC-11-04,sequence,Community|Healthcare|Travel,Pass,none,,0.10,47.6532,-122.3081
+P0432,H,4/12/2024,CASE-11,SPEC-11-04,sequence,Travel,Review,warning,Mixed specimen signal,0.17,47.6712,-122.3081
+P0433,A,4/13/2024,CASE-11,SPEC-11-04,sequence,Food|Travel,Failed,error,Low coverage,0.24,47.5452,-122.2861
+P0434,B,4/14/2024,CASE-11,SPEC-11-04,sequence,Healthcare,Pending,info,Awaiting replicate,0.31,47.5632,-122.2861
+P0435,C,4/15/2024,CASE-11,SPEC-11-04,sequence,Community|Healthcare|Travel,Pass,none,,0.38,47.5812,-122.2861
+P0436,D,4/16/2024,CASE-11,SPEC-11-04,sequence,Travel,Pass,none,,0.45,47.5992,-122.2861
+P0437,E,4/17/2024,CASE-11,SPEC-11-04,sequence,Food|Travel,Review,warning,Mixed specimen signal,0.52,47.6172,-122.2861
+P0438,F,4/18/2024,CASE-11,SPEC-11-04,sequence,Healthcare,Failed,error,Low coverage,0.59,47.6352,-122.2861
+P0439,G,4/19/2024,CASE-11,SPEC-11-04,sequence,Community|Healthcare|Travel,Pending,info,Awaiting replicate,0.66,47.6532,-122.2861
+P0440,H,4/20/2024,CASE-11,SPEC-11-04,sequence,Travel,Pass,none,,0.73,47.6712,-122.2861
+P0441,A,4/21/2024,CASE-12,SPEC-12-01,sequence,Food|Travel,Pass,none,,0.80,33.9912,-118.2857
+P0442,B,4/22/2024,CASE-12,SPEC-12-01,sequence,Healthcare,Review,warning,Mixed specimen signal,0.87,34.0092,-118.2857
+P0443,C,4/23/2024,CASE-12,SPEC-12-01,sequence,Community|Healthcare|Travel,Failed,error,Low coverage,0.94,34.0272,-118.2857
+P0444,D,4/24/2024,CASE-12,SPEC-12-01,sequence,Travel,Pending,info,Awaiting replicate,0.01,34.0452,-118.2857
+P0445,E,4/25/2024,CASE-12,SPEC-12-01,sequence,Food|Travel,Pass,none,,0.08,34.0632,-118.2857
+P0446,F,4/26/2024,CASE-12,SPEC-12-01,sequence,Healthcare,Pass,none,,0.15,34.0812,-118.2857
+P0447,G,4/27/2024,CASE-12,SPEC-12-01,sequence,Community|Healthcare|Travel,Review,warning,Mixed specimen signal,0.22,34.0992,-118.2857
+P0448,H,4/28/2024,CASE-12,SPEC-12-01,sequence,Travel,Failed,error,Low coverage,0.29,34.1172,-118.2857
+P0449,A,5/1/2024,CASE-12,SPEC-12-01,sequence,Food|Travel,Pending,info,Awaiting replicate,0.36,33.9912,-118.2637
+P0450,B,5/2/2024,CASE-12,SPEC-12-01,sequence,Healthcare,Pass,none,,0.43,34.0092,-118.2637
+P0451,C,5/3/2024,CASE-12,SPEC-12-02,sequence,Community|Healthcare|Travel,Pass,none,,0.50,34.0272,-118.2637
+P0452,D,5/4/2024,CASE-12,SPEC-12-02,sequence,Travel,Review,warning,Mixed specimen signal,0.57,34.0452,-118.2637
+P0453,E,5/5/2024,CASE-12,SPEC-12-02,sequence,Food|Travel,Failed,error,Low coverage,0.64,34.0632,-118.2637
+P0454,F,5/6/2024,CASE-12,SPEC-12-02,sequence,Healthcare,Pending,info,Awaiting replicate,0.71,34.0812,-118.2637
+P0455,G,5/7/2024,CASE-12,SPEC-12-02,sequence,Community|Healthcare|Travel,Pass,none,,0.78,34.0992,-118.2637
+P0456,H,5/8/2024,CASE-12,SPEC-12-02,sequence,Travel,Pass,none,,0.85,34.1172,-118.2637
+P0457,A,5/9/2024,CASE-12,SPEC-12-02,sequence,Food|Travel,Review,warning,Mixed specimen signal,0.92,33.9912,-118.2417
+P0458,B,5/10/2024,CASE-12,SPEC-12-02,sequence,Healthcare,Failed,error,Low coverage,0.99,34.0092,-118.2417
+P0459,C,5/11/2024,CASE-12,SPEC-12-02,sequence,Community|Healthcare|Travel,Pending,info,Awaiting replicate,0.06,34.0272,-118.2417
+P0460,D,5/12/2024,CASE-12,SPEC-12-02,sequence,Travel,Pass,none,,0.13,34.0452,-118.2417
+P0461,E,5/13/2024,CASE-12,SPEC-12-03,sequence,Food|Travel,Pass,none,,0.20,34.0632,-118.2417
+P0462,F,5/14/2024,CASE-12,SPEC-12-03,sequence,Healthcare,Review,warning,Mixed specimen signal,0.27,34.0812,-118.2417
+P0463,G,5/15/2024,CASE-12,SPEC-12-03,sequence,Community|Healthcare|Travel,Failed,error,Low coverage,0.34,34.0992,-118.2417
+P0464,H,5/16/2024,CASE-12,SPEC-12-03,sequence,Travel,Pending,info,Awaiting replicate,0.41,34.1172,-118.2417
+P0465,A,5/17/2024,CASE-12,SPEC-12-03,sequence,Food|Travel,Pass,none,,0.48,33.9912,-118.2197
+P0466,B,5/18/2024,CASE-12,SPEC-12-03,sequence,Healthcare,Pass,none,,0.55,34.0092,-118.2197
+P0467,C,5/19/2024,CASE-12,SPEC-12-03,sequence,Community|Healthcare|Travel,Review,warning,Mixed specimen signal,0.62,34.0272,-118.2197
+P0468,D,5/20/2024,CASE-12,SPEC-12-03,sequence,Travel,Failed,error,Low coverage,0.69,34.0452,-118.2197
+P0469,E,5/21/2024,CASE-12,SPEC-12-03,sequence,Food|Travel,Pending,info,Awaiting replicate,0.76,34.0632,-118.2197
+P0470,F,5/22/2024,CASE-12,SPEC-12-03,sequence,Healthcare,Pass,none,,0.83,34.0812,-118.2197
+P0471,G,5/23/2024,CASE-12,SPEC-12-04,sequence,Community|Healthcare|Travel,Pass,none,,0.90,34.0992,-118.2197
+P0472,H,5/24/2024,CASE-12,SPEC-12-04,sequence,Travel,Review,warning,Mixed specimen signal,0.97,34.1172,-118.2197
+P0473,A,5/25/2024,CASE-12,SPEC-12-04,sequence,Food|Travel,Failed,error,Low coverage,0.04,33.9912,-118.1977
+P0474,B,5/26/2024,CASE-12,SPEC-12-04,sequence,Healthcare,Pending,info,Awaiting replicate,0.11,34.0092,-118.1977
+P0475,C,5/27/2024,CASE-12,SPEC-12-04,sequence,Community|Healthcare|Travel,Pass,none,,0.18,34.0272,-118.1977
+P0476,D,5/28/2024,CASE-12,SPEC-12-04,sequence,Travel,Pass,none,,0.25,34.0452,-118.1977
+P0477,E,6/1/2024,CASE-12,SPEC-12-04,sequence,Food|Travel,Review,warning,Mixed specimen signal,0.32,34.0632,-118.1977
+P0478,F,6/2/2024,CASE-12,SPEC-12-04,sequence,Healthcare,Failed,error,Low coverage,0.39,34.0812,-118.1977
+P0479,G,6/3/2024,CASE-12,SPEC-12-04,sequence,Community|Healthcare|Travel,Pending,info,Awaiting replicate,0.46,34.0992,-118.1977
+P0480,H,6/4/2024,CASE-12,SPEC-12-04,sequence,Travel,Pass,none,,0.53,34.1172,-118.1977
+P0481,A,6/5/2024,CASE-13,SPEC-13-01,sequence,Food|Travel,Pass,none,,0.60,33.6890,-84.4290
+P0482,B,6/6/2024,CASE-13,SPEC-13-01,sequence,Healthcare,Review,warning,Mixed specimen signal,0.67,33.7070,-84.4290
+P0483,C,6/7/2024,CASE-13,SPEC-13-01,sequence,Community|Healthcare|Travel,Failed,error,Low coverage,0.74,33.7250,-84.4290
+P0484,D,6/8/2024,CASE-13,SPEC-13-01,sequence,Travel,Pending,info,Awaiting replicate,0.81,33.7430,-84.4290
+P0485,E,6/9/2024,CASE-13,SPEC-13-01,sequence,Food|Travel,Pass,none,,0.88,33.7610,-84.4290
+P0486,F,6/10/2024,CASE-13,SPEC-13-01,sequence,Healthcare,Pass,none,,0.95,33.7790,-84.4290
+P0487,G,6/11/2024,CASE-13,SPEC-13-01,sequence,Community|Healthcare|Travel,Review,warning,Mixed specimen signal,0.02,33.7970,-84.4290
+P0488,H,6/12/2024,CASE-13,SPEC-13-01,sequence,Travel,Failed,error,Low coverage,0.09,33.8150,-84.4290
+P0489,A,6/13/2024,CASE-13,SPEC-13-01,sequence,Food|Travel,Pending,info,Awaiting replicate,0.16,33.6890,-84.4070
+P0490,B,6/14/2024,CASE-13,SPEC-13-01,sequence,Healthcare,Pass,none,,0.23,33.7070,-84.4070
+P0491,C,6/15/2024,CASE-13,SPEC-13-02,sequence,Community|Healthcare|Travel,Pass,none,,0.30,33.7250,-84.4070
+P0492,D,6/16/2024,CASE-13,SPEC-13-02,sequence,Travel,Review,warning,Mixed specimen signal,0.37,33.7430,-84.4070
+P0493,E,6/17/2024,CASE-13,SPEC-13-02,sequence,Food|Travel,Failed,error,Low coverage,0.44,33.7610,-84.4070
+P0494,F,6/18/2024,CASE-13,SPEC-13-02,sequence,Healthcare,Pending,info,Awaiting replicate,0.51,33.7790,-84.4070
+P0495,G,6/19/2024,CASE-13,SPEC-13-02,sequence,Community|Healthcare|Travel,Pass,none,,0.58,33.7970,-84.4070
+P0496,H,6/20/2024,CASE-13,SPEC-13-02,sequence,Travel,Pass,none,,0.65,33.8150,-84.4070
+P0497,A,6/21/2024,CASE-13,SPEC-13-02,sequence,Food|Travel,Review,warning,Mixed specimen signal,0.72,33.6890,-84.3850
+P0498,B,6/22/2024,CASE-13,SPEC-13-02,sequence,Healthcare,Failed,error,Low coverage,0.79,33.7070,-84.3850
+P0499,C,6/23/2024,CASE-13,SPEC-13-02,sequence,Community|Healthcare|Travel,Pending,info,Awaiting replicate,0.86,33.7250,-84.3850
+P0500,D,6/24/2024,CASE-13,SPEC-13-02,sequence,Travel,Pass,none,,0.93,33.7430,-84.3850
+P0501,E,6/25/2024,CASE-13,SPEC-13-03,sequence,Food|Travel,Pass,none,,0.00,33.7610,-84.3850
+P0502,F,6/26/2024,CASE-13,SPEC-13-03,sequence,Healthcare,Review,warning,Mixed specimen signal,0.07,33.7790,-84.3850
+P0503,G,6/27/2024,CASE-13,SPEC-13-03,sequence,Community|Healthcare|Travel,Failed,error,Low coverage,0.14,33.7970,-84.3850
+P0504,H,6/28/2024,CASE-13,SPEC-13-03,sequence,Travel,Pending,info,Awaiting replicate,0.21,33.8150,-84.3850
+P0505,A,7/1/2024,CASE-13,SPEC-13-03,sequence,Food|Travel,Pass,none,,0.28,33.6890,-84.3630
+P0506,B,7/2/2024,CASE-13,SPEC-13-03,sequence,Healthcare,Pass,none,,0.35,33.7070,-84.3630
+P0507,C,7/3/2024,CASE-13,SPEC-13-03,sequence,Community|Healthcare|Travel,Review,warning,Mixed specimen signal,0.42,33.7250,-84.3630
+P0508,D,7/4/2024,CASE-13,SPEC-13-03,sequence,Travel,Failed,error,Low coverage,0.49,33.7430,-84.3630
+P0509,E,7/5/2024,CASE-13,SPEC-13-03,sequence,Food|Travel,Pending,info,Awaiting replicate,0.56,33.7610,-84.3630
+P0510,F,7/6/2024,CASE-13,SPEC-13-03,sequence,Healthcare,Pass,none,,0.63,33.7790,-84.3630
+P0511,G,7/7/2024,CASE-13,SPEC-13-04,sequence,Community|Healthcare|Travel,Pass,none,,0.70,33.7970,-84.3630
+P0512,H,7/8/2024,CASE-13,SPEC-13-04,sequence,Travel,Review,warning,Mixed specimen signal,0.77,33.8150,-84.3630
+P0513,A,7/9/2024,CASE-13,SPEC-13-04,sequence,Food|Travel,Failed,error,Low coverage,0.84,33.6890,-84.3410
+P0514,B,7/10/2024,CASE-13,SPEC-13-04,sequence,Healthcare,Pending,info,Awaiting replicate,0.91,33.7070,-84.3410
+P0515,C,7/11/2024,CASE-13,SPEC-13-04,sequence,Community|Healthcare|Travel,Pass,none,,0.98,33.7250,-84.3410
+P0516,D,7/12/2024,CASE-13,SPEC-13-04,sequence,Travel,Pass,none,,0.05,33.7430,-84.3410
+P0517,E,7/13/2024,CASE-13,SPEC-13-04,sequence,Food|Travel,Review,warning,Mixed specimen signal,0.12,33.7610,-84.3410
+P0518,F,7/14/2024,CASE-13,SPEC-13-04,sequence,Healthcare,Failed,error,Low coverage,0.19,33.7790,-84.3410
+P0519,G,7/15/2024,CASE-13,SPEC-13-04,sequence,Community|Healthcare|Travel,Pending,info,Awaiting replicate,0.26,33.7970,-84.3410
+P0520,H,7/16/2024,CASE-13,SPEC-13-04,sequence,Travel,Pass,none,,0.33,33.8150,-84.3410
+P0521,A,7/17/2024,CASE-14,SPEC-14-01,sequence,Food|Travel,Pass,none,,0.40,40.6528,-74.0470
+P0522,B,7/18/2024,CASE-14,SPEC-14-01,sequence,Healthcare,Review,warning,Mixed specimen signal,0.47,40.6708,-74.0470
+P0523,C,7/19/2024,CASE-14,SPEC-14-01,sequence,Community|Healthcare|Travel,Failed,error,Low coverage,0.54,40.6888,-74.0470
+P0524,D,7/20/2024,CASE-14,SPEC-14-01,sequence,Travel,Pending,info,Awaiting replicate,0.61,40.7068,-74.0470
+P0525,E,7/21/2024,CASE-14,SPEC-14-01,sequence,Food|Travel,Pass,none,,0.68,40.7248,-74.0470
+P0526,F,7/22/2024,CASE-14,SPEC-14-01,sequence,Healthcare,Pass,none,,0.75,40.7428,-74.0470
+P0527,G,7/23/2024,CASE-14,SPEC-14-01,sequence,Community|Healthcare|Travel,Review,warning,Mixed specimen signal,0.82,40.7608,-74.0470
+P0528,H,7/24/2024,CASE-14,SPEC-14-01,sequence,Travel,Failed,error,Low coverage,0.89,40.7788,-74.0470
+P0529,A,7/25/2024,CASE-14,SPEC-14-01,sequence,Food|Travel,Pending,info,Awaiting replicate,0.96,40.6528,-74.0250
+P0530,B,7/26/2024,CASE-14,SPEC-14-01,sequence,Healthcare,Pass,none,,0.03,40.6708,-74.0250
+P0531,C,7/27/2024,CASE-14,SPEC-14-02,sequence,Community|Healthcare|Travel,Pass,none,,0.10,40.6888,-74.0250
+P0532,D,7/28/2024,CASE-14,SPEC-14-02,sequence,Travel,Review,warning,Mixed specimen signal,0.17,40.7068,-74.0250
+P0533,E,8/1/2024,CASE-14,SPEC-14-02,sequence,Food|Travel,Failed,error,Low coverage,0.24,40.7248,-74.0250
+P0534,F,8/2/2024,CASE-14,SPEC-14-02,sequence,Healthcare,Pending,info,Awaiting replicate,0.31,40.7428,-74.0250
+P0535,G,8/3/2024,CASE-14,SPEC-14-02,sequence,Community|Healthcare|Travel,Pass,none,,0.38,40.7608,-74.0250
+P0536,H,8/4/2024,CASE-14,SPEC-14-02,sequence,Travel,Pass,none,,0.45,40.7788,-74.0250
+P0537,A,8/5/2024,CASE-14,SPEC-14-02,sequence,Food|Travel,Review,warning,Mixed specimen signal,0.52,40.6528,-74.0030
+P0538,B,8/6/2024,CASE-14,SPEC-14-02,sequence,Healthcare,Failed,error,Low coverage,0.59,40.6708,-74.0030
+P0539,C,8/7/2024,CASE-14,SPEC-14-02,sequence,Community|Healthcare|Travel,Pending,info,Awaiting replicate,0.66,40.6888,-74.0030
+P0540,D,8/8/2024,CASE-14,SPEC-14-02,sequence,Travel,Pass,none,,0.73,40.7068,-74.0030
+P0541,E,8/9/2024,CASE-14,SPEC-14-03,sequence,Food|Travel,Pass,none,,0.80,40.7248,-74.0030
+P0542,F,8/10/2024,CASE-14,SPEC-14-03,sequence,Healthcare,Review,warning,Mixed specimen signal,0.87,40.7428,-74.0030
+P0543,G,8/11/2024,CASE-14,SPEC-14-03,sequence,Community|Healthcare|Travel,Failed,error,Low coverage,0.94,40.7608,-74.0030
+P0544,H,8/12/2024,CASE-14,SPEC-14-03,sequence,Travel,Pending,info,Awaiting replicate,0.01,40.7788,-74.0030
+P0545,A,8/13/2024,CASE-14,SPEC-14-03,sequence,Food|Travel,Pass,none,,0.08,40.6528,-73.9810
+P0546,B,8/14/2024,CASE-14,SPEC-14-03,sequence,Healthcare,Pass,none,,0.15,40.6708,-73.9810
+P0547,C,8/15/2024,CASE-14,SPEC-14-03,sequence,Community|Healthcare|Travel,Review,warning,Mixed specimen signal,0.22,40.6888,-73.9810
+P0548,D,8/16/2024,CASE-14,SPEC-14-03,sequence,Travel,Failed,error,Low coverage,0.29,40.7068,-73.9810
+P0549,E,8/17/2024,CASE-14,SPEC-14-03,sequence,Food|Travel,Pending,info,Awaiting replicate,0.36,40.7248,-73.9810
+P0550,F,8/18/2024,CASE-14,SPEC-14-03,sequence,Healthcare,Pass,none,,0.43,40.7428,-73.9810
+P0551,G,8/19/2024,CASE-14,SPEC-14-04,sequence,Community|Healthcare|Travel,Pass,none,,0.50,40.7608,-73.9810
+P0552,H,8/20/2024,CASE-14,SPEC-14-04,sequence,Travel,Review,warning,Mixed specimen signal,0.57,40.7788,-73.9810
+P0553,A,8/21/2024,CASE-14,SPEC-14-04,sequence,Food|Travel,Failed,error,Low coverage,0.64,40.6528,-73.9590
+P0554,B,8/22/2024,CASE-14,SPEC-14-04,sequence,Healthcare,Pending,info,Awaiting replicate,0.71,40.6708,-73.9590
+P0555,C,8/23/2024,CASE-14,SPEC-14-04,sequence,Community|Healthcare|Travel,Pass,none,,0.78,40.6888,-73.9590
+P0556,D,8/24/2024,CASE-14,SPEC-14-04,sequence,Travel,Pass,none,,0.85,40.7068,-73.9590
+P0557,E,8/25/2024,CASE-14,SPEC-14-04,sequence,Food|Travel,Review,warning,Mixed specimen signal,0.92,40.7248,-73.9590
+P0558,F,8/26/2024,CASE-14,SPEC-14-04,sequence,Healthcare,Failed,error,Low coverage,0.99,40.7428,-73.9590
+P0559,G,8/27/2024,CASE-14,SPEC-14-04,sequence,Community|Healthcare|Travel,Pending,info,Awaiting replicate,0.06,40.7608,-73.9590
+P0560,H,8/28/2024,CASE-14,SPEC-14-04,sequence,Travel,Pass,none,,0.13,40.7788,-73.9590
+P0561,A,9/1/2024,CASE-15,SPEC-15-01,sequence,Food|Travel,Pass,none,,0.20,47.5462,-122.3731
+P0562,B,9/2/2024,CASE-15,SPEC-15-01,sequence,Healthcare,Review,warning,Mixed specimen signal,0.27,47.5642,-122.3731
+P0563,C,9/3/2024,CASE-15,SPEC-15-01,sequence,Community|Healthcare|Travel,Failed,error,Low coverage,0.34,47.5822,-122.3731
+P0564,D,9/4/2024,CASE-15,SPEC-15-01,sequence,Travel,Pending,info,Awaiting replicate,0.41,47.6002,-122.3731
+P0565,E,9/5/2024,CASE-15,SPEC-15-01,sequence,Food|Travel,Pass,none,,0.48,47.6182,-122.3731
+P0566,F,9/6/2024,CASE-15,SPEC-15-01,sequence,Healthcare,Pass,none,,0.55,47.6362,-122.3731
+P0567,G,9/7/2024,CASE-15,SPEC-15-01,sequence,Community|Healthcare|Travel,Review,warning,Mixed specimen signal,0.62,47.6542,-122.3731
+P0568,H,9/8/2024,CASE-15,SPEC-15-01,sequence,Travel,Failed,error,Low coverage,0.69,47.6722,-122.3731
+P0569,A,9/9/2024,CASE-15,SPEC-15-01,sequence,Food|Travel,Pending,info,Awaiting replicate,0.76,47.5462,-122.3511
+P0570,B,9/10/2024,CASE-15,SPEC-15-01,sequence,Healthcare,Pass,none,,0.83,47.5642,-122.3511
+P0571,C,9/11/2024,CASE-15,SPEC-15-02,sequence,Community|Healthcare|Travel,Pass,none,,0.90,47.5822,-122.3511
+P0572,D,9/12/2024,CASE-15,SPEC-15-02,sequence,Travel,Review,warning,Mixed specimen signal,0.97,47.6002,-122.3511
+P0573,E,9/13/2024,CASE-15,SPEC-15-02,sequence,Food|Travel,Failed,error,Low coverage,0.04,47.6182,-122.3511
+P0574,F,9/14/2024,CASE-15,SPEC-15-02,sequence,Healthcare,Pending,info,Awaiting replicate,0.11,47.6362,-122.3511
+P0575,G,9/15/2024,CASE-15,SPEC-15-02,sequence,Community|Healthcare|Travel,Pass,none,,0.18,47.6542,-122.3511
+P0576,H,9/16/2024,CASE-15,SPEC-15-02,sequence,Travel,Pass,none,,0.25,47.6722,-122.3511
+P0577,A,9/17/2024,CASE-15,SPEC-15-02,sequence,Food|Travel,Review,warning,Mixed specimen signal,0.32,47.5462,-122.3291
+P0578,B,9/18/2024,CASE-15,SPEC-15-02,sequence,Healthcare,Failed,error,Low coverage,0.39,47.5642,-122.3291
+P0579,C,9/19/2024,CASE-15,SPEC-15-02,sequence,Community|Healthcare|Travel,Pending,info,Awaiting replicate,0.46,47.5822,-122.3291
+P0580,D,9/20/2024,CASE-15,SPEC-15-02,sequence,Travel,Pass,none,,0.53,47.6002,-122.3291
+P0581,E,9/21/2024,CASE-15,SPEC-15-03,sequence,Food|Travel,Pass,none,,0.60,47.6182,-122.3291
+P0582,F,9/22/2024,CASE-15,SPEC-15-03,sequence,Healthcare,Review,warning,Mixed specimen signal,0.67,47.6362,-122.3291
+P0583,G,9/23/2024,CASE-15,SPEC-15-03,sequence,Community|Healthcare|Travel,Failed,error,Low coverage,0.74,47.6542,-122.3291
+P0584,H,9/24/2024,CASE-15,SPEC-15-03,sequence,Travel,Pending,info,Awaiting replicate,0.81,47.6722,-122.3291
+P0585,A,9/25/2024,CASE-15,SPEC-15-03,sequence,Food|Travel,Pass,none,,0.88,47.5462,-122.3071
+P0586,B,9/26/2024,CASE-15,SPEC-15-03,sequence,Healthcare,Pass,none,,0.95,47.5642,-122.3071
+P0587,C,9/27/2024,CASE-15,SPEC-15-03,sequence,Community|Healthcare|Travel,Review,warning,Mixed specimen signal,0.02,47.5822,-122.3071
+P0588,D,9/28/2024,CASE-15,SPEC-15-03,sequence,Travel,Failed,error,Low coverage,0.09,47.6002,-122.3071
+P0589,E,10/1/2024,CASE-15,SPEC-15-03,sequence,Food|Travel,Pending,info,Awaiting replicate,0.16,47.6182,-122.3071
+P0590,F,10/2/2024,CASE-15,SPEC-15-03,sequence,Healthcare,Pass,none,,0.23,47.6362,-122.3071
+P0591,G,10/3/2024,CASE-15,SPEC-15-04,sequence,Community|Healthcare|Travel,Pass,none,,0.30,47.6542,-122.3071
+P0592,H,10/4/2024,CASE-15,SPEC-15-04,sequence,Travel,Review,warning,Mixed specimen signal,0.37,47.6722,-122.3071
+P0593,A,10/5/2024,CASE-15,SPEC-15-04,sequence,Food|Travel,Failed,error,Low coverage,0.44,47.5462,-122.2851
+P0594,B,10/6/2024,CASE-15,SPEC-15-04,sequence,Healthcare,Pending,info,Awaiting replicate,0.51,47.5642,-122.2851
+P0595,C,10/7/2024,CASE-15,SPEC-15-04,sequence,Community|Healthcare|Travel,Pass,none,,0.58,47.5822,-122.2851
+P0596,D,10/8/2024,CASE-15,SPEC-15-04,sequence,Travel,Pass,none,,0.65,47.6002,-122.2851
+P0597,E,10/9/2024,CASE-15,SPEC-15-04,sequence,Food|Travel,Review,warning,Mixed specimen signal,0.72,47.6182,-122.2851
+P0598,F,10/10/2024,CASE-15,SPEC-15-04,sequence,Healthcare,Failed,error,Low coverage,0.79,47.6362,-122.2851
+P0599,G,10/11/2024,CASE-15,SPEC-15-04,sequence,Community|Healthcare|Travel,Pending,info,Awaiting replicate,0.86,47.6542,-122.2851
+P0600,H,10/12/2024,CASE-15,SPEC-15-04,sequence,Travel,Pass,none,,0.93,47.6722,-122.2851
+P0601,A,10/13/2024,CASE-16,SPEC-16-01,sequence,Food|Travel,Pass,none,,0.00,33.9922,-118.2847
+P0602,B,10/14/2024,CASE-16,SPEC-16-01,sequence,Healthcare,Review,warning,Mixed specimen signal,0.07,34.0102,-118.2847
+P0603,C,10/15/2024,CASE-16,SPEC-16-01,sequence,Community|Healthcare|Travel,Failed,error,Low coverage,0.14,34.0282,-118.2847
+P0604,D,10/16/2024,CASE-16,SPEC-16-01,sequence,Travel,Pending,info,Awaiting replicate,0.21,34.0462,-118.2847
+P0605,E,10/17/2024,CASE-16,SPEC-16-01,sequence,Food|Travel,Pass,none,,0.28,34.0642,-118.2847
+P0606,F,10/18/2024,CASE-16,SPEC-16-01,sequence,Healthcare,Pass,none,,0.35,34.0822,-118.2847
+P0607,G,10/19/2024,CASE-16,SPEC-16-01,sequence,Community|Healthcare|Travel,Review,warning,Mixed specimen signal,0.42,34.1002,-118.2847
+P0608,H,10/20/2024,CASE-16,SPEC-16-01,sequence,Travel,Failed,error,Low coverage,0.49,34.1182,-118.2847
+P0609,A,10/21/2024,CASE-16,SPEC-16-01,sequence,Food|Travel,Pending,info,Awaiting replicate,0.56,33.9922,-118.2627
+P0610,B,10/22/2024,CASE-16,SPEC-16-01,sequence,Healthcare,Pass,none,,0.63,34.0102,-118.2627
+P0611,C,10/23/2024,CASE-16,SPEC-16-02,sequence,Community|Healthcare|Travel,Pass,none,,0.70,34.0282,-118.2627
+P0612,D,10/24/2024,CASE-16,SPEC-16-02,sequence,Travel,Review,warning,Mixed specimen signal,0.77,34.0462,-118.2627
+P0613,E,10/25/2024,CASE-16,SPEC-16-02,sequence,Food|Travel,Failed,error,Low coverage,0.84,34.0642,-118.2627
+P0614,F,10/26/2024,CASE-16,SPEC-16-02,sequence,Healthcare,Pending,info,Awaiting replicate,0.91,34.0822,-118.2627
+P0615,G,10/27/2024,CASE-16,SPEC-16-02,sequence,Community|Healthcare|Travel,Pass,none,,0.98,34.1002,-118.2627
+P0616,H,10/28/2024,CASE-16,SPEC-16-02,sequence,Travel,Pass,none,,0.05,34.1182,-118.2627
+P0617,A,11/1/2024,CASE-16,SPEC-16-02,sequence,Food|Travel,Review,warning,Mixed specimen signal,0.12,33.9922,-118.2407
+P0618,B,11/2/2024,CASE-16,SPEC-16-02,sequence,Healthcare,Failed,error,Low coverage,0.19,34.0102,-118.2407
+P0619,C,11/3/2024,CASE-16,SPEC-16-02,sequence,Community|Healthcare|Travel,Pending,info,Awaiting replicate,0.26,34.0282,-118.2407
+P0620,D,11/4/2024,CASE-16,SPEC-16-02,sequence,Travel,Pass,none,,0.33,34.0462,-118.2407
+P0621,E,11/5/2024,CASE-16,SPEC-16-03,sequence,Food|Travel,Pass,none,,0.40,34.0642,-118.2407
+P0622,F,11/6/2024,CASE-16,SPEC-16-03,sequence,Healthcare,Review,warning,Mixed specimen signal,0.47,34.0822,-118.2407
+P0623,G,11/7/2024,CASE-16,SPEC-16-03,sequence,Community|Healthcare|Travel,Failed,error,Low coverage,0.54,34.1002,-118.2407
+P0624,H,11/8/2024,CASE-16,SPEC-16-03,sequence,Travel,Pending,info,Awaiting replicate,0.61,34.1182,-118.2407
+P0625,A,11/9/2024,CASE-16,SPEC-16-03,sequence,Food|Travel,Pass,none,,0.68,33.9922,-118.2187
+P0626,B,11/10/2024,CASE-16,SPEC-16-03,sequence,Healthcare,Pass,none,,0.75,34.0102,-118.2187
+P0627,C,11/11/2024,CASE-16,SPEC-16-03,sequence,Community|Healthcare|Travel,Review,warning,Mixed specimen signal,0.82,34.0282,-118.2187
+P0628,D,11/12/2024,CASE-16,SPEC-16-03,sequence,Travel,Failed,error,Low coverage,0.89,34.0462,-118.2187
+P0629,E,11/13/2024,CASE-16,SPEC-16-03,sequence,Food|Travel,Pending,info,Awaiting replicate,0.96,34.0642,-118.2187
+P0630,F,11/14/2024,CASE-16,SPEC-16-03,sequence,Healthcare,Pass,none,,0.03,34.0822,-118.2187
+P0631,G,11/15/2024,CASE-16,SPEC-16-04,sequence,Community|Healthcare|Travel,Pass,none,,0.10,34.1002,-118.2187
+P0632,H,11/16/2024,CASE-16,SPEC-16-04,sequence,Travel,Review,warning,Mixed specimen signal,0.17,34.1182,-118.2187
+P0633,A,11/17/2024,CASE-16,SPEC-16-04,sequence,Food|Travel,Failed,error,Low coverage,0.24,33.9922,-118.1967
+P0634,B,11/18/2024,CASE-16,SPEC-16-04,sequence,Healthcare,Pending,info,Awaiting replicate,0.31,34.0102,-118.1967
+P0635,C,11/19/2024,CASE-16,SPEC-16-04,sequence,Community|Healthcare|Travel,Pass,none,,0.38,34.0282,-118.1967
+P0636,D,11/20/2024,CASE-16,SPEC-16-04,sequence,Travel,Pass,none,,0.45,34.0462,-118.1967
+P0637,E,11/21/2024,CASE-16,SPEC-16-04,sequence,Food|Travel,Review,warning,Mixed specimen signal,0.52,34.0642,-118.1967
+P0638,F,11/22/2024,CASE-16,SPEC-16-04,sequence,Healthcare,Failed,error,Low coverage,0.59,34.0822,-118.1967
+P0639,G,11/23/2024,CASE-16,SPEC-16-04,sequence,Community|Healthcare|Travel,Pending,info,Awaiting replicate,0.66,34.1002,-118.1967
+P0640,H,11/24/2024,CASE-16,SPEC-16-04,sequence,Travel,Pass,none,,0.73,34.1182,-118.1967
+P0641,A,11/25/2024,CASE-17,SPEC-17-01,sequence,Food|Travel,Pass,none,,0.80,33.6900,-84.4280
+P0642,B,11/26/2024,CASE-17,SPEC-17-01,sequence,Healthcare,Review,warning,Mixed specimen signal,0.87,33.7080,-84.4280
+P0643,C,11/27/2024,CASE-17,SPEC-17-01,sequence,Community|Healthcare|Travel,Failed,error,Low coverage,0.94,33.7260,-84.4280
+P0644,D,11/28/2024,CASE-17,SPEC-17-01,sequence,Travel,Pending,info,Awaiting replicate,0.01,33.7440,-84.4280
+P0645,E,12/1/2024,CASE-17,SPEC-17-01,sequence,Food|Travel,Pass,none,,0.08,33.7620,-84.4280
+P0646,F,12/2/2024,CASE-17,SPEC-17-01,sequence,Healthcare,Pass,none,,0.15,33.7800,-84.4280
+P0647,G,12/3/2024,CASE-17,SPEC-17-01,sequence,Community|Healthcare|Travel,Review,warning,Mixed specimen signal,0.22,33.7980,-84.4280
+P0648,H,12/4/2024,CASE-17,SPEC-17-01,sequence,Travel,Failed,error,Low coverage,0.29,33.8160,-84.4280
+P0649,A,12/5/2024,CASE-17,SPEC-17-01,sequence,Food|Travel,Pending,info,Awaiting replicate,0.36,33.6900,-84.4060
+P0650,B,12/6/2024,CASE-17,SPEC-17-01,sequence,Healthcare,Pass,none,,0.43,33.7080,-84.4060
+P0651,C,12/7/2024,CASE-17,SPEC-17-02,sequence,Community|Healthcare|Travel,Pass,none,,0.50,33.7260,-84.4060
+P0652,D,12/8/2024,CASE-17,SPEC-17-02,sequence,Travel,Review,warning,Mixed specimen signal,0.57,33.7440,-84.4060
+P0653,E,12/9/2024,CASE-17,SPEC-17-02,sequence,Food|Travel,Failed,error,Low coverage,0.64,33.7620,-84.4060
+P0654,F,12/10/2024,CASE-17,SPEC-17-02,sequence,Healthcare,Pending,info,Awaiting replicate,0.71,33.7800,-84.4060
+P0655,G,12/11/2024,CASE-17,SPEC-17-02,sequence,Community|Healthcare|Travel,Pass,none,,0.78,33.7980,-84.4060
+P0656,H,12/12/2024,CASE-17,SPEC-17-02,sequence,Travel,Pass,none,,0.85,33.8160,-84.4060
+P0657,A,12/13/2024,CASE-17,SPEC-17-02,sequence,Food|Travel,Review,warning,Mixed specimen signal,0.92,33.6900,-84.3840
+P0658,B,12/14/2024,CASE-17,SPEC-17-02,sequence,Healthcare,Failed,error,Low coverage,0.99,33.7080,-84.3840
+P0659,C,12/15/2024,CASE-17,SPEC-17-02,sequence,Community|Healthcare|Travel,Pending,info,Awaiting replicate,0.06,33.7260,-84.3840
+P0660,D,12/16/2024,CASE-17,SPEC-17-02,sequence,Travel,Pass,none,,0.13,33.7440,-84.3840
+P0661,E,12/17/2024,CASE-17,SPEC-17-03,sequence,Food|Travel,Pass,none,,0.20,33.7620,-84.3840
+P0662,F,12/18/2024,CASE-17,SPEC-17-03,sequence,Healthcare,Review,warning,Mixed specimen signal,0.27,33.7800,-84.3840
+P0663,G,12/19/2024,CASE-17,SPEC-17-03,sequence,Community|Healthcare|Travel,Failed,error,Low coverage,0.34,33.7980,-84.3840
+P0664,H,12/20/2024,CASE-17,SPEC-17-03,sequence,Travel,Pending,info,Awaiting replicate,0.41,33.8160,-84.3840
+P0665,A,12/21/2024,CASE-17,SPEC-17-03,sequence,Food|Travel,Pass,none,,0.48,33.6900,-84.3620
+P0666,B,12/22/2024,CASE-17,SPEC-17-03,sequence,Healthcare,Pass,none,,0.55,33.7080,-84.3620
+P0667,C,12/23/2024,CASE-17,SPEC-17-03,sequence,Community|Healthcare|Travel,Review,warning,Mixed specimen signal,0.62,33.7260,-84.3620
+P0668,D,12/24/2024,CASE-17,SPEC-17-03,sequence,Travel,Failed,error,Low coverage,0.69,33.7440,-84.3620
+P0669,E,12/25/2024,CASE-17,SPEC-17-03,sequence,Food|Travel,Pending,info,Awaiting replicate,0.76,33.7620,-84.3620
+P0670,F,12/26/2024,CASE-17,SPEC-17-03,sequence,Healthcare,Pass,none,,0.83,33.7800,-84.3620
+P0671,G,12/27/2024,CASE-17,SPEC-17-04,sequence,Community|Healthcare|Travel,Pass,none,,0.90,33.7980,-84.3620
+P0672,H,12/28/2024,CASE-17,SPEC-17-04,sequence,Travel,Review,warning,Mixed specimen signal,0.97,33.8160,-84.3620
+P0673,A,1/1/2024,CASE-17,SPEC-17-04,sequence,Food|Travel,Failed,error,Low coverage,0.04,33.6900,-84.3400
+P0674,B,1/2/2024,CASE-17,SPEC-17-04,sequence,Healthcare,Pending,info,Awaiting replicate,0.11,33.7080,-84.3400
+P0675,C,1/3/2024,CASE-17,SPEC-17-04,sequence,Community|Healthcare|Travel,Pass,none,,0.18,33.7260,-84.3400
+P0676,D,1/4/2024,CASE-17,SPEC-17-04,sequence,Travel,Pass,none,,0.25,33.7440,-84.3400
+P0677,E,1/5/2024,CASE-17,SPEC-17-04,sequence,Food|Travel,Review,warning,Mixed specimen signal,0.32,33.7620,-84.3400
+P0678,F,1/6/2024,CASE-17,SPEC-17-04,sequence,Healthcare,Failed,error,Low coverage,0.39,33.7800,-84.3400
+P0679,G,1/7/2024,CASE-17,SPEC-17-04,sequence,Community|Healthcare|Travel,Pending,info,Awaiting replicate,0.46,33.7980,-84.3400
+P0680,H,1/8/2024,CASE-17,SPEC-17-04,sequence,Travel,Pass,none,,0.53,33.8160,-84.3400
+P0681,A,1/9/2024,CASE-18,SPEC-18-01,sequence,Food|Travel,Pass,none,,0.60,40.6538,-74.0460
+P0682,B,1/10/2024,CASE-18,SPEC-18-01,sequence,Healthcare,Review,warning,Mixed specimen signal,0.67,40.6718,-74.0460
+P0683,C,1/11/2024,CASE-18,SPEC-18-01,sequence,Community|Healthcare|Travel,Failed,error,Low coverage,0.74,40.6898,-74.0460
+P0684,D,1/12/2024,CASE-18,SPEC-18-01,sequence,Travel,Pending,info,Awaiting replicate,0.81,40.7078,-74.0460
+P0685,E,1/13/2024,CASE-18,SPEC-18-01,sequence,Food|Travel,Pass,none,,0.88,40.7258,-74.0460
+P0686,F,1/14/2024,CASE-18,SPEC-18-01,sequence,Healthcare,Pass,none,,0.95,40.7438,-74.0460
+P0687,G,1/15/2024,CASE-18,SPEC-18-01,sequence,Community|Healthcare|Travel,Review,warning,Mixed specimen signal,0.02,40.7618,-74.0460
+P0688,H,1/16/2024,CASE-18,SPEC-18-01,sequence,Travel,Failed,error,Low coverage,0.09,40.7798,-74.0460
+P0689,A,1/17/2024,CASE-18,SPEC-18-01,sequence,Food|Travel,Pending,info,Awaiting replicate,0.16,40.6538,-74.0240
+P0690,B,1/18/2024,CASE-18,SPEC-18-01,sequence,Healthcare,Pass,none,,0.23,40.6718,-74.0240
+P0691,C,1/19/2024,CASE-18,SPEC-18-02,sequence,Community|Healthcare|Travel,Pass,none,,0.30,40.6898,-74.0240
+P0692,D,1/20/2024,CASE-18,SPEC-18-02,sequence,Travel,Review,warning,Mixed specimen signal,0.37,40.7078,-74.0240
+P0693,E,1/21/2024,CASE-18,SPEC-18-02,sequence,Food|Travel,Failed,error,Low coverage,0.44,40.7258,-74.0240
+P0694,F,1/22/2024,CASE-18,SPEC-18-02,sequence,Healthcare,Pending,info,Awaiting replicate,0.51,40.7438,-74.0240
+P0695,G,1/23/2024,CASE-18,SPEC-18-02,sequence,Community|Healthcare|Travel,Pass,none,,0.58,40.7618,-74.0240
+P0696,H,1/24/2024,CASE-18,SPEC-18-02,sequence,Travel,Pass,none,,0.65,40.7798,-74.0240
+P0697,A,1/25/2024,CASE-18,SPEC-18-02,sequence,Food|Travel,Review,warning,Mixed specimen signal,0.72,40.6538,-74.0020
+P0698,B,1/26/2024,CASE-18,SPEC-18-02,sequence,Healthcare,Failed,error,Low coverage,0.79,40.6718,-74.0020
+P0699,C,1/27/2024,CASE-18,SPEC-18-02,sequence,Community|Healthcare|Travel,Pending,info,Awaiting replicate,0.86,40.6898,-74.0020
+P0700,D,1/28/2024,CASE-18,SPEC-18-02,sequence,Travel,Pass,none,,0.93,40.7078,-74.0020
+P0701,E,2/1/2024,CASE-18,SPEC-18-03,sequence,Food|Travel,Pass,none,,0.00,40.7258,-74.0020
+P0702,F,2/2/2024,CASE-18,SPEC-18-03,sequence,Healthcare,Review,warning,Mixed specimen signal,0.07,40.7438,-74.0020
+P0703,G,2/3/2024,CASE-18,SPEC-18-03,sequence,Community|Healthcare|Travel,Failed,error,Low coverage,0.14,40.7618,-74.0020
+P0704,H,2/4/2024,CASE-18,SPEC-18-03,sequence,Travel,Pending,info,Awaiting replicate,0.21,40.7798,-74.0020
+P0705,A,2/5/2024,CASE-18,SPEC-18-03,sequence,Food|Travel,Pass,none,,0.28,40.6538,-73.9800
+P0706,B,2/6/2024,CASE-18,SPEC-18-03,sequence,Healthcare,Pass,none,,0.35,40.6718,-73.9800
+P0707,C,2/7/2024,CASE-18,SPEC-18-03,sequence,Community|Healthcare|Travel,Review,warning,Mixed specimen signal,0.42,40.6898,-73.9800
+P0708,D,2/8/2024,CASE-18,SPEC-18-03,sequence,Travel,Failed,error,Low coverage,0.49,40.7078,-73.9800
+P0709,E,2/9/2024,CASE-18,SPEC-18-03,sequence,Food|Travel,Pending,info,Awaiting replicate,0.56,40.7258,-73.9800
+P0710,F,2/10/2024,CASE-18,SPEC-18-03,sequence,Healthcare,Pass,none,,0.63,40.7438,-73.9800
+P0711,G,2/11/2024,CASE-18,SPEC-18-04,sequence,Community|Healthcare|Travel,Pass,none,,0.70,40.7618,-73.9800
+P0712,H,2/12/2024,CASE-18,SPEC-18-04,sequence,Travel,Review,warning,Mixed specimen signal,0.77,40.7798,-73.9800
+P0713,A,2/13/2024,CASE-18,SPEC-18-04,sequence,Food|Travel,Failed,error,Low coverage,0.84,40.6538,-73.9580
+P0714,B,2/14/2024,CASE-18,SPEC-18-04,sequence,Healthcare,Pending,info,Awaiting replicate,0.91,40.6718,-73.9580
+P0715,C,2/15/2024,CASE-18,SPEC-18-04,sequence,Community|Healthcare|Travel,Pass,none,,0.98,40.6898,-73.9580
+P0716,D,2/16/2024,CASE-18,SPEC-18-04,sequence,Travel,Pass,none,,0.05,40.7078,-73.9580
+P0717,E,2/17/2024,CASE-18,SPEC-18-04,sequence,Food|Travel,Review,warning,Mixed specimen signal,0.12,40.7258,-73.9580
+P0718,F,2/18/2024,CASE-18,SPEC-18-04,sequence,Healthcare,Failed,error,Low coverage,0.19,40.7438,-73.9580
+P0719,G,2/19/2024,CASE-18,SPEC-18-04,sequence,Community|Healthcare|Travel,Pending,info,Awaiting replicate,0.26,40.7618,-73.9580
+P0720,H,2/20/2024,CASE-18,SPEC-18-04,sequence,Travel,Pass,none,,0.33,40.7798,-73.9580
+P0721,A,2/21/2024,CASE-19,SPEC-19-01,sequence,Food|Travel,Pass,none,,0.40,47.5472,-122.3721
+P0722,B,2/22/2024,CASE-19,SPEC-19-01,sequence,Healthcare,Review,warning,Mixed specimen signal,0.47,47.5652,-122.3721
+P0723,C,2/23/2024,CASE-19,SPEC-19-01,sequence,Community|Healthcare|Travel,Failed,error,Low coverage,0.54,47.5832,-122.3721
+P0724,D,2/24/2024,CASE-19,SPEC-19-01,sequence,Travel,Pending,info,Awaiting replicate,0.61,47.6012,-122.3721
+P0725,E,2/25/2024,CASE-19,SPEC-19-01,sequence,Food|Travel,Pass,none,,0.68,47.6192,-122.3721
+P0726,F,2/26/2024,CASE-19,SPEC-19-01,sequence,Healthcare,Pass,none,,0.75,47.6372,-122.3721
+P0727,G,2/27/2024,CASE-19,SPEC-19-01,sequence,Community|Healthcare|Travel,Review,warning,Mixed specimen signal,0.82,47.6552,-122.3721
+P0728,H,2/28/2024,CASE-19,SPEC-19-01,sequence,Travel,Failed,error,Low coverage,0.89,47.6732,-122.3721
+P0729,A,3/1/2024,CASE-19,SPEC-19-01,sequence,Food|Travel,Pending,info,Awaiting replicate,0.96,47.5472,-122.3501
+P0730,B,3/2/2024,CASE-19,SPEC-19-01,sequence,Healthcare,Pass,none,,0.03,47.5652,-122.3501
+P0731,C,3/3/2024,CASE-19,SPEC-19-02,sequence,Community|Healthcare|Travel,Pass,none,,0.10,47.5832,-122.3501
+P0732,D,3/4/2024,CASE-19,SPEC-19-02,sequence,Travel,Review,warning,Mixed specimen signal,0.17,47.6012,-122.3501
+P0733,E,3/5/2024,CASE-19,SPEC-19-02,sequence,Food|Travel,Failed,error,Low coverage,0.24,47.6192,-122.3501
+P0734,F,3/6/2024,CASE-19,SPEC-19-02,sequence,Healthcare,Pending,info,Awaiting replicate,0.31,47.6372,-122.3501
+P0735,G,3/7/2024,CASE-19,SPEC-19-02,sequence,Community|Healthcare|Travel,Pass,none,,0.38,47.6552,-122.3501
+P0736,H,3/8/2024,CASE-19,SPEC-19-02,sequence,Travel,Pass,none,,0.45,47.6732,-122.3501
+P0737,A,3/9/2024,CASE-19,SPEC-19-02,sequence,Food|Travel,Review,warning,Mixed specimen signal,0.52,47.5472,-122.3281
+P0738,B,3/10/2024,CASE-19,SPEC-19-02,sequence,Healthcare,Failed,error,Low coverage,0.59,47.5652,-122.3281
+P0739,C,3/11/2024,CASE-19,SPEC-19-02,sequence,Community|Healthcare|Travel,Pending,info,Awaiting replicate,0.66,47.5832,-122.3281
+P0740,D,3/12/2024,CASE-19,SPEC-19-02,sequence,Travel,Pass,none,,0.73,47.6012,-122.3281
+P0741,E,3/13/2024,CASE-19,SPEC-19-03,sequence,Food|Travel,Pass,none,,0.80,47.6192,-122.3281
+P0742,F,3/14/2024,CASE-19,SPEC-19-03,sequence,Healthcare,Review,warning,Mixed specimen signal,0.87,47.6372,-122.3281
+P0743,G,3/15/2024,CASE-19,SPEC-19-03,sequence,Community|Healthcare|Travel,Failed,error,Low coverage,0.94,47.6552,-122.3281
+P0744,H,3/16/2024,CASE-19,SPEC-19-03,sequence,Travel,Pending,info,Awaiting replicate,0.01,47.6732,-122.3281
+P0745,A,3/17/2024,CASE-19,SPEC-19-03,sequence,Food|Travel,Pass,none,,0.08,47.5472,-122.3061
+P0746,B,3/18/2024,CASE-19,SPEC-19-03,sequence,Healthcare,Pass,none,,0.15,47.5652,-122.3061
+P0747,C,3/19/2024,CASE-19,SPEC-19-03,sequence,Community|Healthcare|Travel,Review,warning,Mixed specimen signal,0.22,47.5832,-122.3061
+P0748,D,3/20/2024,CASE-19,SPEC-19-03,sequence,Travel,Failed,error,Low coverage,0.29,47.6012,-122.3061
+P0749,E,3/21/2024,CASE-19,SPEC-19-03,sequence,Food|Travel,Pending,info,Awaiting replicate,0.36,47.6192,-122.3061
+P0750,F,3/22/2024,CASE-19,SPEC-19-03,sequence,Healthcare,Pass,none,,0.43,47.6372,-122.3061
+P0751,G,3/23/2024,CASE-19,SPEC-19-04,sequence,Community|Healthcare|Travel,Pass,none,,0.50,47.6552,-122.3061
+P0752,H,3/24/2024,CASE-19,SPEC-19-04,sequence,Travel,Review,warning,Mixed specimen signal,0.57,47.6732,-122.3061
+P0753,A,3/25/2024,CASE-19,SPEC-19-04,sequence,Food|Travel,Failed,error,Low coverage,0.64,47.5472,-122.2841
+P0754,B,3/26/2024,CASE-19,SPEC-19-04,sequence,Healthcare,Pending,info,Awaiting replicate,0.71,47.5652,-122.2841
+P0755,C,3/27/2024,CASE-19,SPEC-19-04,sequence,Community|Healthcare|Travel,Pass,none,,0.78,47.5832,-122.2841
+P0756,D,3/28/2024,CASE-19,SPEC-19-04,sequence,Travel,Pass,none,,0.85,47.6012,-122.2841
+P0757,E,4/1/2024,CASE-19,SPEC-19-04,sequence,Food|Travel,Review,warning,Mixed specimen signal,0.92,47.6192,-122.2841
+P0758,F,4/2/2024,CASE-19,SPEC-19-04,sequence,Healthcare,Failed,error,Low coverage,0.99,47.6372,-122.2841
+P0759,G,4/3/2024,CASE-19,SPEC-19-04,sequence,Community|Healthcare|Travel,Pending,info,Awaiting replicate,0.06,47.6552,-122.2841
+P0760,H,4/4/2024,CASE-19,SPEC-19-04,sequence,Travel,Pass,none,,0.13,47.6732,-122.2841
+P0761,A,4/5/2024,CASE-20,SPEC-20-01,sequence,Food|Travel,Pass,none,,0.20,33.9932,-118.2837
+P0762,B,4/6/2024,CASE-20,SPEC-20-01,sequence,Healthcare,Review,warning,Mixed specimen signal,0.27,34.0112,-118.2837
+P0763,C,4/7/2024,CASE-20,SPEC-20-01,sequence,Community|Healthcare|Travel,Failed,error,Low coverage,0.34,34.0292,-118.2837
+P0764,D,4/8/2024,CASE-20,SPEC-20-01,sequence,Travel,Pending,info,Awaiting replicate,0.41,34.0472,-118.2837
+P0765,E,4/9/2024,CASE-20,SPEC-20-01,sequence,Food|Travel,Pass,none,,0.48,34.0652,-118.2837
+P0766,F,4/10/2024,CASE-20,SPEC-20-01,sequence,Healthcare,Pass,none,,0.55,34.0832,-118.2837
+P0767,G,4/11/2024,CASE-20,SPEC-20-01,sequence,Community|Healthcare|Travel,Review,warning,Mixed specimen signal,0.62,34.1012,-118.2837
+P0768,H,4/12/2024,CASE-20,SPEC-20-01,sequence,Travel,Failed,error,Low coverage,0.69,34.1192,-118.2837
+P0769,A,4/13/2024,CASE-20,SPEC-20-01,sequence,Food|Travel,Pending,info,Awaiting replicate,0.76,33.9932,-118.2617
+P0770,B,4/14/2024,CASE-20,SPEC-20-01,sequence,Healthcare,Pass,none,,0.83,34.0112,-118.2617
+P0771,C,4/15/2024,CASE-20,SPEC-20-02,sequence,Community|Healthcare|Travel,Pass,none,,0.90,34.0292,-118.2617
+P0772,D,4/16/2024,CASE-20,SPEC-20-02,sequence,Travel,Review,warning,Mixed specimen signal,0.97,34.0472,-118.2617
+P0773,E,4/17/2024,CASE-20,SPEC-20-02,sequence,Food|Travel,Failed,error,Low coverage,0.04,34.0652,-118.2617
+P0774,F,4/18/2024,CASE-20,SPEC-20-02,sequence,Healthcare,Pending,info,Awaiting replicate,0.11,34.0832,-118.2617
+P0775,G,4/19/2024,CASE-20,SPEC-20-02,sequence,Community|Healthcare|Travel,Pass,none,,0.18,34.1012,-118.2617
+P0776,H,4/20/2024,CASE-20,SPEC-20-02,sequence,Travel,Pass,none,,0.25,34.1192,-118.2617
+P0777,A,4/21/2024,CASE-20,SPEC-20-02,sequence,Food|Travel,Review,warning,Mixed specimen signal,0.32,33.9932,-118.2397
+P0778,B,4/22/2024,CASE-20,SPEC-20-02,sequence,Healthcare,Failed,error,Low coverage,0.39,34.0112,-118.2397
+P0779,C,4/23/2024,CASE-20,SPEC-20-02,sequence,Community|Healthcare|Travel,Pending,info,Awaiting replicate,0.46,34.0292,-118.2397
+P0780,D,4/24/2024,CASE-20,SPEC-20-02,sequence,Travel,Pass,none,,0.53,34.0472,-118.2397
+P0781,E,4/25/2024,CASE-20,SPEC-20-03,sequence,Food|Travel,Pass,none,,0.60,34.0652,-118.2397
+P0782,F,4/26/2024,CASE-20,SPEC-20-03,sequence,Healthcare,Review,warning,Mixed specimen signal,0.67,34.0832,-118.2397
+P0783,G,4/27/2024,CASE-20,SPEC-20-03,sequence,Community|Healthcare|Travel,Failed,error,Low coverage,0.74,34.1012,-118.2397
+P0784,H,4/28/2024,CASE-20,SPEC-20-03,sequence,Travel,Pending,info,Awaiting replicate,0.81,34.1192,-118.2397
+P0785,A,5/1/2024,CASE-20,SPEC-20-03,sequence,Food|Travel,Pass,none,,0.88,33.9932,-118.2177
+P0786,B,5/2/2024,CASE-20,SPEC-20-03,sequence,Healthcare,Pass,none,,0.95,34.0112,-118.2177
+P0787,C,5/3/2024,CASE-20,SPEC-20-03,sequence,Community|Healthcare|Travel,Review,warning,Mixed specimen signal,0.02,34.0292,-118.2177
+P0788,D,5/4/2024,CASE-20,SPEC-20-03,sequence,Travel,Failed,error,Low coverage,0.09,34.0472,-118.2177
+P0789,E,5/5/2024,CASE-20,SPEC-20-03,sequence,Food|Travel,Pending,info,Awaiting replicate,0.16,34.0652,-118.2177
+P0790,F,5/6/2024,CASE-20,SPEC-20-03,sequence,Healthcare,Pass,none,,0.23,34.0832,-118.2177
+P0791,G,5/7/2024,CASE-20,SPEC-20-04,sequence,Community|Healthcare|Travel,Pass,none,,0.30,34.1012,-118.2177
+P0792,H,5/8/2024,CASE-20,SPEC-20-04,sequence,Travel,Review,warning,Mixed specimen signal,0.37,34.1192,-118.2177
+P0793,A,5/9/2024,CASE-20,SPEC-20-04,sequence,Food|Travel,Failed,error,Low coverage,0.44,33.9932,-118.1957
+P0794,B,5/10/2024,CASE-20,SPEC-20-04,sequence,Healthcare,Pending,info,Awaiting replicate,0.51,34.0112,-118.1957
+P0795,C,5/11/2024,CASE-20,SPEC-20-04,sequence,Community|Healthcare|Travel,Pass,none,,0.58,34.0292,-118.1957
+P0796,D,5/12/2024,CASE-20,SPEC-20-04,sequence,Travel,Pass,none,,0.65,34.0472,-118.1957
+P0797,E,5/13/2024,CASE-20,SPEC-20-04,sequence,Food|Travel,Review,warning,Mixed specimen signal,0.72,34.0652,-118.1957
+P0798,F,5/14/2024,CASE-20,SPEC-20-04,sequence,Healthcare,Failed,error,Low coverage,0.79,34.0832,-118.1957
+P0799,G,5/15/2024,CASE-20,SPEC-20-04,sequence,Community|Healthcare|Travel,Pending,info,Awaiting replicate,0.86,34.1012,-118.1957
+P0800,H,5/16/2024,CASE-20,SPEC-20-04,sequence,Travel,Pass,none,,0.93,34.1192,-118.1957
+P0801,A,5/17/2024,CASE-21,SPEC-21-01,sequence,Food|Travel,Pass,none,,0.00,33.6910,-84.4270
+P0802,B,5/18/2024,CASE-21,SPEC-21-01,sequence,Healthcare,Review,warning,Mixed specimen signal,0.07,33.7090,-84.4270
+P0803,C,5/19/2024,CASE-21,SPEC-21-01,sequence,Community|Healthcare|Travel,Failed,error,Low coverage,0.14,33.7270,-84.4270
+P0804,D,5/20/2024,CASE-21,SPEC-21-01,sequence,Travel,Pending,info,Awaiting replicate,0.21,33.7450,-84.4270
+P0805,E,5/21/2024,CASE-21,SPEC-21-01,sequence,Food|Travel,Pass,none,,0.28,33.7630,-84.4270
+P0806,F,5/22/2024,CASE-21,SPEC-21-01,sequence,Healthcare,Pass,none,,0.35,33.7810,-84.4270
+P0807,G,5/23/2024,CASE-21,SPEC-21-01,sequence,Community|Healthcare|Travel,Review,warning,Mixed specimen signal,0.42,33.7990,-84.4270
+P0808,H,5/24/2024,CASE-21,SPEC-21-01,sequence,Travel,Failed,error,Low coverage,0.49,33.8170,-84.4270
+P0809,A,5/25/2024,CASE-21,SPEC-21-01,sequence,Food|Travel,Pending,info,Awaiting replicate,0.56,33.6910,-84.4050
+P0810,B,5/26/2024,CASE-21,SPEC-21-01,sequence,Healthcare,Pass,none,,0.63,33.7090,-84.4050
+P0811,C,5/27/2024,CASE-21,SPEC-21-02,sequence,Community|Healthcare|Travel,Pass,none,,0.70,33.7270,-84.4050
+P0812,D,5/28/2024,CASE-21,SPEC-21-02,sequence,Travel,Review,warning,Mixed specimen signal,0.77,33.7450,-84.4050
+P0813,E,6/1/2024,CASE-21,SPEC-21-02,sequence,Food|Travel,Failed,error,Low coverage,0.84,33.7630,-84.4050
+P0814,F,6/2/2024,CASE-21,SPEC-21-02,sequence,Healthcare,Pending,info,Awaiting replicate,0.91,33.7810,-84.4050
+P0815,G,6/3/2024,CASE-21,SPEC-21-02,sequence,Community|Healthcare|Travel,Pass,none,,0.98,33.7990,-84.4050
+P0816,H,6/4/2024,CASE-21,SPEC-21-02,sequence,Travel,Pass,none,,0.05,33.8170,-84.4050
+P0817,A,6/5/2024,CASE-21,SPEC-21-02,sequence,Food|Travel,Review,warning,Mixed specimen signal,0.12,33.6910,-84.3830
+P0818,B,6/6/2024,CASE-21,SPEC-21-02,sequence,Healthcare,Failed,error,Low coverage,0.19,33.7090,-84.3830
+P0819,C,6/7/2024,CASE-21,SPEC-21-02,sequence,Community|Healthcare|Travel,Pending,info,Awaiting replicate,0.26,33.7270,-84.3830
+P0820,D,6/8/2024,CASE-21,SPEC-21-02,sequence,Travel,Pass,none,,0.33,33.7450,-84.3830
+P0821,E,6/9/2024,CASE-21,SPEC-21-03,sequence,Food|Travel,Pass,none,,0.40,33.7630,-84.3830
+P0822,F,6/10/2024,CASE-21,SPEC-21-03,sequence,Healthcare,Review,warning,Mixed specimen signal,0.47,33.7810,-84.3830
+P0823,G,6/11/2024,CASE-21,SPEC-21-03,sequence,Community|Healthcare|Travel,Failed,error,Low coverage,0.54,33.7990,-84.3830
+P0824,H,6/12/2024,CASE-21,SPEC-21-03,sequence,Travel,Pending,info,Awaiting replicate,0.61,33.8170,-84.3830
+P0825,A,6/13/2024,CASE-21,SPEC-21-03,sequence,Food|Travel,Pass,none,,0.68,33.6910,-84.3610
+P0826,B,6/14/2024,CASE-21,SPEC-21-03,sequence,Healthcare,Pass,none,,0.75,33.7090,-84.3610
+P0827,C,6/15/2024,CASE-21,SPEC-21-03,sequence,Community|Healthcare|Travel,Review,warning,Mixed specimen signal,0.82,33.7270,-84.3610
+P0828,D,6/16/2024,CASE-21,SPEC-21-03,sequence,Travel,Failed,error,Low coverage,0.89,33.7450,-84.3610
+P0829,E,6/17/2024,CASE-21,SPEC-21-03,sequence,Food|Travel,Pending,info,Awaiting replicate,0.96,33.7630,-84.3610
+P0830,F,6/18/2024,CASE-21,SPEC-21-03,sequence,Healthcare,Pass,none,,0.03,33.7810,-84.3610
+P0831,G,6/19/2024,CASE-21,SPEC-21-04,sequence,Community|Healthcare|Travel,Pass,none,,0.10,33.7990,-84.3610
+P0832,H,6/20/2024,CASE-21,SPEC-21-04,sequence,Travel,Review,warning,Mixed specimen signal,0.17,33.8170,-84.3610
+P0833,A,6/21/2024,CASE-21,SPEC-21-04,sequence,Food|Travel,Failed,error,Low coverage,0.24,33.6910,-84.3390
+P0834,B,6/22/2024,CASE-21,SPEC-21-04,sequence,Healthcare,Pending,info,Awaiting replicate,0.31,33.7090,-84.3390
+P0835,C,6/23/2024,CASE-21,SPEC-21-04,sequence,Community|Healthcare|Travel,Pass,none,,0.38,33.7270,-84.3390
+P0836,D,6/24/2024,CASE-21,SPEC-21-04,sequence,Travel,Pass,none,,0.45,33.7450,-84.3390
+P0837,E,6/25/2024,CASE-21,SPEC-21-04,sequence,Food|Travel,Review,warning,Mixed specimen signal,0.52,33.7630,-84.3390
+P0838,F,6/26/2024,CASE-21,SPEC-21-04,sequence,Healthcare,Failed,error,Low coverage,0.59,33.7810,-84.3390
+P0839,G,6/27/2024,CASE-21,SPEC-21-04,sequence,Community|Healthcare|Travel,Pending,info,Awaiting replicate,0.66,33.7990,-84.3390
+P0840,H,6/28/2024,CASE-21,SPEC-21-04,sequence,Travel,Pass,none,,0.73,33.8170,-84.3390
+P0841,A,7/1/2024,CASE-22,SPEC-22-01,sequence,Food|Travel,Pass,none,,0.80,40.6548,-74.0450
+P0842,B,7/2/2024,CASE-22,SPEC-22-01,sequence,Healthcare,Review,warning,Mixed specimen signal,0.87,40.6728,-74.0450
+P0843,C,7/3/2024,CASE-22,SPEC-22-01,sequence,Community|Healthcare|Travel,Failed,error,Low coverage,0.94,40.6908,-74.0450
+P0844,D,7/4/2024,CASE-22,SPEC-22-01,sequence,Travel,Pending,info,Awaiting replicate,0.01,40.7088,-74.0450
+P0845,E,7/5/2024,CASE-22,SPEC-22-01,sequence,Food|Travel,Pass,none,,0.08,40.7268,-74.0450
+P0846,F,7/6/2024,CASE-22,SPEC-22-01,sequence,Healthcare,Pass,none,,0.15,40.7448,-74.0450
+P0847,G,7/7/2024,CASE-22,SPEC-22-01,sequence,Community|Healthcare|Travel,Review,warning,Mixed specimen signal,0.22,40.7628,-74.0450
+P0848,H,7/8/2024,CASE-22,SPEC-22-01,sequence,Travel,Failed,error,Low coverage,0.29,40.7808,-74.0450
+P0849,A,7/9/2024,CASE-22,SPEC-22-01,sequence,Food|Travel,Pending,info,Awaiting replicate,0.36,40.6548,-74.0230
+P0850,B,7/10/2024,CASE-22,SPEC-22-01,sequence,Healthcare,Pass,none,,0.43,40.6728,-74.0230
+P0851,C,7/11/2024,CASE-22,SPEC-22-02,sequence,Community|Healthcare|Travel,Pass,none,,0.50,40.6908,-74.0230
+P0852,D,7/12/2024,CASE-22,SPEC-22-02,sequence,Travel,Review,warning,Mixed specimen signal,0.57,40.7088,-74.0230
+P0853,E,7/13/2024,CASE-22,SPEC-22-02,sequence,Food|Travel,Failed,error,Low coverage,0.64,40.7268,-74.0230
+P0854,F,7/14/2024,CASE-22,SPEC-22-02,sequence,Healthcare,Pending,info,Awaiting replicate,0.71,40.7448,-74.0230
+P0855,G,7/15/2024,CASE-22,SPEC-22-02,sequence,Community|Healthcare|Travel,Pass,none,,0.78,40.7628,-74.0230
+P0856,H,7/16/2024,CASE-22,SPEC-22-02,sequence,Travel,Pass,none,,0.85,40.7808,-74.0230
+P0857,A,7/17/2024,CASE-22,SPEC-22-02,sequence,Food|Travel,Review,warning,Mixed specimen signal,0.92,40.6548,-74.0010
+P0858,B,7/18/2024,CASE-22,SPEC-22-02,sequence,Healthcare,Failed,error,Low coverage,0.99,40.6728,-74.0010
+P0859,C,7/19/2024,CASE-22,SPEC-22-02,sequence,Community|Healthcare|Travel,Pending,info,Awaiting replicate,0.06,40.6908,-74.0010
+P0860,D,7/20/2024,CASE-22,SPEC-22-02,sequence,Travel,Pass,none,,0.13,40.7088,-74.0010
+P0861,E,7/21/2024,CASE-22,SPEC-22-03,sequence,Food|Travel,Pass,none,,0.20,40.7268,-74.0010
+P0862,F,7/22/2024,CASE-22,SPEC-22-03,sequence,Healthcare,Review,warning,Mixed specimen signal,0.27,40.7448,-74.0010
+P0863,G,7/23/2024,CASE-22,SPEC-22-03,sequence,Community|Healthcare|Travel,Failed,error,Low coverage,0.34,40.7628,-74.0010
+P0864,H,7/24/2024,CASE-22,SPEC-22-03,sequence,Travel,Pending,info,Awaiting replicate,0.41,40.7808,-74.0010
+P0865,A,7/25/2024,CASE-22,SPEC-22-03,sequence,Food|Travel,Pass,none,,0.48,40.6548,-73.9790
+P0866,B,7/26/2024,CASE-22,SPEC-22-03,sequence,Healthcare,Pass,none,,0.55,40.6728,-73.9790
+P0867,C,7/27/2024,CASE-22,SPEC-22-03,sequence,Community|Healthcare|Travel,Review,warning,Mixed specimen signal,0.62,40.6908,-73.9790
+P0868,D,7/28/2024,CASE-22,SPEC-22-03,sequence,Travel,Failed,error,Low coverage,0.69,40.7088,-73.9790
+P0869,E,8/1/2024,CASE-22,SPEC-22-03,sequence,Food|Travel,Pending,info,Awaiting replicate,0.76,40.7268,-73.9790
+P0870,F,8/2/2024,CASE-22,SPEC-22-03,sequence,Healthcare,Pass,none,,0.83,40.7448,-73.9790
+P0871,G,8/3/2024,CASE-22,SPEC-22-04,sequence,Community|Healthcare|Travel,Pass,none,,0.90,40.7628,-73.9790
+P0872,H,8/4/2024,CASE-22,SPEC-22-04,sequence,Travel,Review,warning,Mixed specimen signal,0.97,40.7808,-73.9790
+P0873,A,8/5/2024,CASE-22,SPEC-22-04,sequence,Food|Travel,Failed,error,Low coverage,0.04,40.6548,-73.9570
+P0874,B,8/6/2024,CASE-22,SPEC-22-04,sequence,Healthcare,Pending,info,Awaiting replicate,0.11,40.6728,-73.9570
+P0875,C,8/7/2024,CASE-22,SPEC-22-04,sequence,Community|Healthcare|Travel,Pass,none,,0.18,40.6908,-73.9570
+P0876,D,8/8/2024,CASE-22,SPEC-22-04,sequence,Travel,Pass,none,,0.25,40.7088,-73.9570
+P0877,E,8/9/2024,CASE-22,SPEC-22-04,sequence,Food|Travel,Review,warning,Mixed specimen signal,0.32,40.7268,-73.9570
+P0878,F,8/10/2024,CASE-22,SPEC-22-04,sequence,Healthcare,Failed,error,Low coverage,0.39,40.7448,-73.9570
+P0879,G,8/11/2024,CASE-22,SPEC-22-04,sequence,Community|Healthcare|Travel,Pending,info,Awaiting replicate,0.46,40.7628,-73.9570
+P0880,H,8/12/2024,CASE-22,SPEC-22-04,sequence,Travel,Pass,none,,0.53,40.7808,-73.9570
+P0881,A,8/13/2024,CASE-23,SPEC-23-01,sequence,Food|Travel,Pass,none,,0.60,47.5482,-122.3711
+P0882,B,8/14/2024,CASE-23,SPEC-23-01,sequence,Healthcare,Review,warning,Mixed specimen signal,0.67,47.5662,-122.3711
+P0883,C,8/15/2024,CASE-23,SPEC-23-01,sequence,Community|Healthcare|Travel,Failed,error,Low coverage,0.74,47.5842,-122.3711
+P0884,D,8/16/2024,CASE-23,SPEC-23-01,sequence,Travel,Pending,info,Awaiting replicate,0.81,47.6022,-122.3711
+P0885,E,8/17/2024,CASE-23,SPEC-23-01,sequence,Food|Travel,Pass,none,,0.88,47.6202,-122.3711
+P0886,F,8/18/2024,CASE-23,SPEC-23-01,sequence,Healthcare,Pass,none,,0.95,47.6382,-122.3711
+P0887,G,8/19/2024,CASE-23,SPEC-23-01,sequence,Community|Healthcare|Travel,Review,warning,Mixed specimen signal,0.02,47.6562,-122.3711
+P0888,H,8/20/2024,CASE-23,SPEC-23-01,sequence,Travel,Failed,error,Low coverage,0.09,47.6742,-122.3711
+P0889,A,8/21/2024,CASE-23,SPEC-23-01,sequence,Food|Travel,Pending,info,Awaiting replicate,0.16,47.5482,-122.3491
+P0890,B,8/22/2024,CASE-23,SPEC-23-01,sequence,Healthcare,Pass,none,,0.23,47.5662,-122.3491
+P0891,C,8/23/2024,CASE-23,SPEC-23-02,sequence,Community|Healthcare|Travel,Pass,none,,0.30,47.5842,-122.3491
+P0892,D,8/24/2024,CASE-23,SPEC-23-02,sequence,Travel,Review,warning,Mixed specimen signal,0.37,47.6022,-122.3491
+P0893,E,8/25/2024,CASE-23,SPEC-23-02,sequence,Food|Travel,Failed,error,Low coverage,0.44,47.6202,-122.3491
+P0894,F,8/26/2024,CASE-23,SPEC-23-02,sequence,Healthcare,Pending,info,Awaiting replicate,0.51,47.6382,-122.3491
+P0895,G,8/27/2024,CASE-23,SPEC-23-02,sequence,Community|Healthcare|Travel,Pass,none,,0.58,47.6562,-122.3491
+P0896,H,8/28/2024,CASE-23,SPEC-23-02,sequence,Travel,Pass,none,,0.65,47.6742,-122.3491
+P0897,A,9/1/2024,CASE-23,SPEC-23-02,sequence,Food|Travel,Review,warning,Mixed specimen signal,0.72,47.5482,-122.3271
+P0898,B,9/2/2024,CASE-23,SPEC-23-02,sequence,Healthcare,Failed,error,Low coverage,0.79,47.5662,-122.3271
+P0899,C,9/3/2024,CASE-23,SPEC-23-02,sequence,Community|Healthcare|Travel,Pending,info,Awaiting replicate,0.86,47.5842,-122.3271
+P0900,D,9/4/2024,CASE-23,SPEC-23-02,sequence,Travel,Pass,none,,0.93,47.6022,-122.3271
+P0901,E,9/5/2024,CASE-23,SPEC-23-03,sequence,Food|Travel,Pass,none,,0.00,47.6202,-122.3271
+P0902,F,9/6/2024,CASE-23,SPEC-23-03,sequence,Healthcare,Review,warning,Mixed specimen signal,0.07,47.6382,-122.3271
+P0903,G,9/7/2024,CASE-23,SPEC-23-03,sequence,Community|Healthcare|Travel,Failed,error,Low coverage,0.14,47.6562,-122.3271
+P0904,H,9/8/2024,CASE-23,SPEC-23-03,sequence,Travel,Pending,info,Awaiting replicate,0.21,47.6742,-122.3271
+P0905,A,9/9/2024,CASE-23,SPEC-23-03,sequence,Food|Travel,Pass,none,,0.28,47.5482,-122.3051
+P0906,B,9/10/2024,CASE-23,SPEC-23-03,sequence,Healthcare,Pass,none,,0.35,47.5662,-122.3051
+P0907,C,9/11/2024,CASE-23,SPEC-23-03,sequence,Community|Healthcare|Travel,Review,warning,Mixed specimen signal,0.42,47.5842,-122.3051
+P0908,D,9/12/2024,CASE-23,SPEC-23-03,sequence,Travel,Failed,error,Low coverage,0.49,47.6022,-122.3051
+P0909,E,9/13/2024,CASE-23,SPEC-23-03,sequence,Food|Travel,Pending,info,Awaiting replicate,0.56,47.6202,-122.3051
+P0910,F,9/14/2024,CASE-23,SPEC-23-03,sequence,Healthcare,Pass,none,,0.63,47.6382,-122.3051
+P0911,G,9/15/2024,CASE-23,SPEC-23-04,sequence,Community|Healthcare|Travel,Pass,none,,0.70,47.6562,-122.3051
+P0912,H,9/16/2024,CASE-23,SPEC-23-04,sequence,Travel,Review,warning,Mixed specimen signal,0.77,47.6742,-122.3051
+P0913,A,9/17/2024,CASE-23,SPEC-23-04,sequence,Food|Travel,Failed,error,Low coverage,0.84,47.5482,-122.2831
+P0914,B,9/18/2024,CASE-23,SPEC-23-04,sequence,Healthcare,Pending,info,Awaiting replicate,0.91,47.5662,-122.2831
+P0915,C,9/19/2024,CASE-23,SPEC-23-04,sequence,Community|Healthcare|Travel,Pass,none,,0.98,47.5842,-122.2831
+P0916,D,9/20/2024,CASE-23,SPEC-23-04,sequence,Travel,Pass,none,,0.05,47.6022,-122.2831
+P0917,E,9/21/2024,CASE-23,SPEC-23-04,sequence,Food|Travel,Review,warning,Mixed specimen signal,0.12,47.6202,-122.2831
+P0918,F,9/22/2024,CASE-23,SPEC-23-04,sequence,Healthcare,Failed,error,Low coverage,0.19,47.6382,-122.2831
+P0919,G,9/23/2024,CASE-23,SPEC-23-04,sequence,Community|Healthcare|Travel,Pending,info,Awaiting replicate,0.26,47.6562,-122.2831
+P0920,H,9/24/2024,CASE-23,SPEC-23-04,sequence,Travel,Pass,none,,0.33,47.6742,-122.2831
+P0921,A,9/25/2024,CASE-24,SPEC-24-01,sequence,Food|Travel,Pass,none,,0.40,33.9942,-118.2827
+P0922,B,9/26/2024,CASE-24,SPEC-24-01,sequence,Healthcare,Review,warning,Mixed specimen signal,0.47,34.0122,-118.2827
+P0923,C,9/27/2024,CASE-24,SPEC-24-01,sequence,Community|Healthcare|Travel,Failed,error,Low coverage,0.54,34.0302,-118.2827
+P0924,D,9/28/2024,CASE-24,SPEC-24-01,sequence,Travel,Pending,info,Awaiting replicate,0.61,34.0482,-118.2827
+P0925,E,10/1/2024,CASE-24,SPEC-24-01,sequence,Food|Travel,Pass,none,,0.68,34.0662,-118.2827
+P0926,F,10/2/2024,CASE-24,SPEC-24-01,sequence,Healthcare,Pass,none,,0.75,34.0842,-118.2827
+P0927,G,10/3/2024,CASE-24,SPEC-24-01,sequence,Community|Healthcare|Travel,Review,warning,Mixed specimen signal,0.82,34.1022,-118.2827
+P0928,H,10/4/2024,CASE-24,SPEC-24-01,sequence,Travel,Failed,error,Low coverage,0.89,34.1202,-118.2827
+P0929,A,10/5/2024,CASE-24,SPEC-24-01,sequence,Food|Travel,Pending,info,Awaiting replicate,0.96,33.9942,-118.2607
+P0930,B,10/6/2024,CASE-24,SPEC-24-01,sequence,Healthcare,Pass,none,,0.03,34.0122,-118.2607
+P0931,C,10/7/2024,CASE-24,SPEC-24-02,sequence,Community|Healthcare|Travel,Pass,none,,0.10,34.0302,-118.2607
+P0932,D,10/8/2024,CASE-24,SPEC-24-02,sequence,Travel,Review,warning,Mixed specimen signal,0.17,34.0482,-118.2607
+P0933,E,10/9/2024,CASE-24,SPEC-24-02,sequence,Food|Travel,Failed,error,Low coverage,0.24,34.0662,-118.2607
+P0934,F,10/10/2024,CASE-24,SPEC-24-02,sequence,Healthcare,Pending,info,Awaiting replicate,0.31,34.0842,-118.2607
+P0935,G,10/11/2024,CASE-24,SPEC-24-02,sequence,Community|Healthcare|Travel,Pass,none,,0.38,34.1022,-118.2607
+P0936,H,10/12/2024,CASE-24,SPEC-24-02,sequence,Travel,Pass,none,,0.45,34.1202,-118.2607
+P0937,A,10/13/2024,CASE-24,SPEC-24-02,sequence,Food|Travel,Review,warning,Mixed specimen signal,0.52,33.9942,-118.2387
+P0938,B,10/14/2024,CASE-24,SPEC-24-02,sequence,Healthcare,Failed,error,Low coverage,0.59,34.0122,-118.2387
+P0939,C,10/15/2024,CASE-24,SPEC-24-02,sequence,Community|Healthcare|Travel,Pending,info,Awaiting replicate,0.66,34.0302,-118.2387
+P0940,D,10/16/2024,CASE-24,SPEC-24-02,sequence,Travel,Pass,none,,0.73,34.0482,-118.2387
+P0941,E,10/17/2024,CASE-24,SPEC-24-03,sequence,Food|Travel,Pass,none,,0.80,34.0662,-118.2387
+P0942,F,10/18/2024,CASE-24,SPEC-24-03,sequence,Healthcare,Review,warning,Mixed specimen signal,0.87,34.0842,-118.2387
+P0943,G,10/19/2024,CASE-24,SPEC-24-03,sequence,Community|Healthcare|Travel,Failed,error,Low coverage,0.94,34.1022,-118.2387
+P0944,H,10/20/2024,CASE-24,SPEC-24-03,sequence,Travel,Pending,info,Awaiting replicate,0.01,34.1202,-118.2387
+P0945,A,10/21/2024,CASE-24,SPEC-24-03,sequence,Food|Travel,Pass,none,,0.08,33.9942,-118.2167
+P0946,B,10/22/2024,CASE-24,SPEC-24-03,sequence,Healthcare,Pass,none,,0.15,34.0122,-118.2167
+P0947,C,10/23/2024,CASE-24,SPEC-24-03,sequence,Community|Healthcare|Travel,Review,warning,Mixed specimen signal,0.22,34.0302,-118.2167
+P0948,D,10/24/2024,CASE-24,SPEC-24-03,sequence,Travel,Failed,error,Low coverage,0.29,34.0482,-118.2167
+P0949,E,10/25/2024,CASE-24,SPEC-24-03,sequence,Food|Travel,Pending,info,Awaiting replicate,0.36,34.0662,-118.2167
+P0950,F,10/26/2024,CASE-24,SPEC-24-03,sequence,Healthcare,Pass,none,,0.43,34.0842,-118.2167
+P0951,G,10/27/2024,CASE-24,SPEC-24-04,sequence,Community|Healthcare|Travel,Pass,none,,0.50,34.1022,-118.2167
+P0952,H,10/28/2024,CASE-24,SPEC-24-04,sequence,Travel,Review,warning,Mixed specimen signal,0.57,34.1202,-118.2167
+P0953,A,11/1/2024,CASE-24,SPEC-24-04,sequence,Food|Travel,Failed,error,Low coverage,0.64,33.9942,-118.1947
+P0954,B,11/2/2024,CASE-24,SPEC-24-04,sequence,Healthcare,Pending,info,Awaiting replicate,0.71,34.0122,-118.1947
+P0955,C,11/3/2024,CASE-24,SPEC-24-04,sequence,Community|Healthcare|Travel,Pass,none,,0.78,34.0302,-118.1947
+P0956,D,11/4/2024,CASE-24,SPEC-24-04,sequence,Travel,Pass,none,,0.85,34.0482,-118.1947
+P0957,E,11/5/2024,CASE-24,SPEC-24-04,sequence,Food|Travel,Review,warning,Mixed specimen signal,0.92,34.0662,-118.1947
+P0958,F,11/6/2024,CASE-24,SPEC-24-04,sequence,Healthcare,Failed,error,Low coverage,0.99,34.0842,-118.1947
+P0959,G,11/7/2024,CASE-24,SPEC-24-04,sequence,Community|Healthcare|Travel,Pending,info,Awaiting replicate,0.06,34.1022,-118.1947
+P0960,H,11/8/2024,CASE-24,SPEC-24-04,sequence,Travel,Pass,none,,0.13,34.1202,-118.1947
+P0961,A,11/9/2024,CASE-25,SPEC-25-01,sequence,Food|Travel,Pass,none,,0.20,33.6920,-84.4260
+P0962,B,11/10/2024,CASE-25,SPEC-25-01,sequence,Healthcare,Review,warning,Mixed specimen signal,0.27,33.7100,-84.4260
+P0963,C,11/11/2024,CASE-25,SPEC-25-01,sequence,Community|Healthcare|Travel,Failed,error,Low coverage,0.34,33.7280,-84.4260
+P0964,D,11/12/2024,CASE-25,SPEC-25-01,sequence,Travel,Pending,info,Awaiting replicate,0.41,33.7460,-84.4260
+P0965,E,11/13/2024,CASE-25,SPEC-25-01,sequence,Food|Travel,Pass,none,,0.48,33.7640,-84.4260
+P0966,F,11/14/2024,CASE-25,SPEC-25-01,sequence,Healthcare,Pass,none,,0.55,33.7820,-84.4260
+P0967,G,11/15/2024,CASE-25,SPEC-25-01,sequence,Community|Healthcare|Travel,Review,warning,Mixed specimen signal,0.62,33.8000,-84.4260
+P0968,H,11/16/2024,CASE-25,SPEC-25-01,sequence,Travel,Failed,error,Low coverage,0.69,33.8180,-84.4260
+P0969,A,11/17/2024,CASE-25,SPEC-25-01,sequence,Food|Travel,Pending,info,Awaiting replicate,0.76,33.6920,-84.4040
+P0970,B,11/18/2024,CASE-25,SPEC-25-01,sequence,Healthcare,Pass,none,,0.83,33.7100,-84.4040
+P0971,C,11/19/2024,CASE-25,SPEC-25-02,sequence,Community|Healthcare|Travel,Pass,none,,0.90,33.7280,-84.4040
+P0972,D,11/20/2024,CASE-25,SPEC-25-02,sequence,Travel,Review,warning,Mixed specimen signal,0.97,33.7460,-84.4040
+P0973,E,11/21/2024,CASE-25,SPEC-25-02,sequence,Food|Travel,Failed,error,Low coverage,0.04,33.7640,-84.4040
+P0974,F,11/22/2024,CASE-25,SPEC-25-02,sequence,Healthcare,Pending,info,Awaiting replicate,0.11,33.7820,-84.4040
+P0975,G,11/23/2024,CASE-25,SPEC-25-02,sequence,Community|Healthcare|Travel,Pass,none,,0.18,33.8000,-84.4040
+P0976,H,11/24/2024,CASE-25,SPEC-25-02,sequence,Travel,Pass,none,,0.25,33.8180,-84.4040
+P0977,A,11/25/2024,CASE-25,SPEC-25-02,sequence,Food|Travel,Review,warning,Mixed specimen signal,0.32,33.6920,-84.3820
+P0978,B,11/26/2024,CASE-25,SPEC-25-02,sequence,Healthcare,Failed,error,Low coverage,0.39,33.7100,-84.3820
+P0979,C,11/27/2024,CASE-25,SPEC-25-02,sequence,Community|Healthcare|Travel,Pending,info,Awaiting replicate,0.46,33.7280,-84.3820
+P0980,D,11/28/2024,CASE-25,SPEC-25-02,sequence,Travel,Pass,none,,0.53,33.7460,-84.3820
+P0981,E,12/1/2024,CASE-25,SPEC-25-03,sequence,Food|Travel,Pass,none,,0.60,33.7640,-84.3820
+P0982,F,12/2/2024,CASE-25,SPEC-25-03,sequence,Healthcare,Review,warning,Mixed specimen signal,0.67,33.7820,-84.3820
+P0983,G,12/3/2024,CASE-25,SPEC-25-03,sequence,Community|Healthcare|Travel,Failed,error,Low coverage,0.74,33.8000,-84.3820
+P0984,H,12/4/2024,CASE-25,SPEC-25-03,sequence,Travel,Pending,info,Awaiting replicate,0.81,33.8180,-84.3820
+P0985,A,12/5/2024,CASE-25,SPEC-25-03,sequence,Food|Travel,Pass,none,,0.88,33.6920,-84.3600
+P0986,B,12/6/2024,CASE-25,SPEC-25-03,sequence,Healthcare,Pass,none,,0.95,33.7100,-84.3600
+P0987,C,12/7/2024,CASE-25,SPEC-25-03,sequence,Community|Healthcare|Travel,Review,warning,Mixed specimen signal,0.02,33.7280,-84.3600
+P0988,D,12/8/2024,CASE-25,SPEC-25-03,sequence,Travel,Failed,error,Low coverage,0.09,33.7460,-84.3600
+P0989,E,12/9/2024,CASE-25,SPEC-25-03,sequence,Food|Travel,Pending,info,Awaiting replicate,0.16,33.7640,-84.3600
+P0990,F,12/10/2024,CASE-25,SPEC-25-03,sequence,Healthcare,Pass,none,,0.23,33.7820,-84.3600
+P0991,G,12/11/2024,CASE-25,SPEC-25-04,sequence,Community|Healthcare|Travel,Pass,none,,0.30,33.8000,-84.3600
+P0992,H,12/12/2024,CASE-25,SPEC-25-04,sequence,Travel,Review,warning,Mixed specimen signal,0.37,33.8180,-84.3600
+P0993,A,12/13/2024,CASE-25,SPEC-25-04,sequence,Food|Travel,Failed,error,Low coverage,0.44,33.6920,-84.3380
+P0994,B,12/14/2024,CASE-25,SPEC-25-04,sequence,Healthcare,Pending,info,Awaiting replicate,0.51,33.7100,-84.3380
+P0995,C,12/15/2024,CASE-25,SPEC-25-04,sequence,Community|Healthcare|Travel,Pass,none,,0.58,33.7280,-84.3380
+P0996,D,12/16/2024,CASE-25,SPEC-25-04,sequence,Travel,Pass,none,,0.65,33.7460,-84.3380
+P0997,E,12/17/2024,CASE-25,SPEC-25-04,sequence,Food|Travel,Review,warning,Mixed specimen signal,0.72,33.7640,-84.3380
+P0998,F,12/18/2024,CASE-25,SPEC-25-04,sequence,Healthcare,Failed,error,Low coverage,0.79,33.7820,-84.3380
+P0999,G,12/19/2024,CASE-25,SPEC-25-04,sequence,Community|Healthcare|Travel,Pending,info,Awaiting replicate,0.86,33.8000,-84.3380
+P1000,H,12/20/2024,CASE-25,SPEC-25-04,sequence,Travel,Pass,none,,0.93,33.8180,-84.3380
+P1001,A,12/21/2024,CASE-26,SPEC-26-01,sequence,Food|Travel,Pass,none,,0.00,40.6558,-74.0440
+P1002,B,12/22/2024,CASE-26,SPEC-26-01,sequence,Healthcare,Review,warning,Mixed specimen signal,0.07,40.6738,-74.0440
+P1003,C,12/23/2024,CASE-26,SPEC-26-01,sequence,Community|Healthcare|Travel,Failed,error,Low coverage,0.14,40.6918,-74.0440
+P1004,D,12/24/2024,CASE-26,SPEC-26-01,sequence,Travel,Pending,info,Awaiting replicate,0.21,40.7098,-74.0440
+P1005,E,12/25/2024,CASE-26,SPEC-26-01,sequence,Food|Travel,Pass,none,,0.28,40.7278,-74.0440
+P1006,F,12/26/2024,CASE-26,SPEC-26-01,sequence,Healthcare,Pass,none,,0.35,40.7458,-74.0440
+P1007,G,12/27/2024,CASE-26,SPEC-26-01,sequence,Community|Healthcare|Travel,Review,warning,Mixed specimen signal,0.42,40.7638,-74.0440
+P1008,H,12/28/2024,CASE-26,SPEC-26-01,sequence,Travel,Failed,error,Low coverage,0.49,40.7818,-74.0440
+P1009,A,1/1/2024,CASE-26,SPEC-26-01,sequence,Food|Travel,Pending,info,Awaiting replicate,0.56,40.6558,-74.0220
+P1010,B,1/2/2024,CASE-26,SPEC-26-01,sequence,Healthcare,Pass,none,,0.63,40.6738,-74.0220
+P1011,C,1/3/2024,CASE-26,SPEC-26-02,sequence,Community|Healthcare|Travel,Pass,none,,0.70,40.6918,-74.0220
+P1012,D,1/4/2024,CASE-26,SPEC-26-02,sequence,Travel,Review,warning,Mixed specimen signal,0.77,40.7098,-74.0220
+P1013,E,1/5/2024,CASE-26,SPEC-26-02,sequence,Food|Travel,Failed,error,Low coverage,0.84,40.7278,-74.0220
+P1014,F,1/6/2024,CASE-26,SPEC-26-02,sequence,Healthcare,Pending,info,Awaiting replicate,0.91,40.7458,-74.0220
+P1015,G,1/7/2024,CASE-26,SPEC-26-02,sequence,Community|Healthcare|Travel,Pass,none,,0.98,40.7638,-74.0220
+P1016,H,1/8/2024,CASE-26,SPEC-26-02,sequence,Travel,Pass,none,,0.05,40.7818,-74.0220
+P1017,A,1/9/2024,CASE-26,SPEC-26-02,sequence,Food|Travel,Review,warning,Mixed specimen signal,0.12,40.6558,-74.0000
+P1018,B,1/10/2024,CASE-26,SPEC-26-02,sequence,Healthcare,Failed,error,Low coverage,0.19,40.6738,-74.0000
+P1019,C,1/11/2024,CASE-26,SPEC-26-02,sequence,Community|Healthcare|Travel,Pending,info,Awaiting replicate,0.26,40.6918,-74.0000
+P1020,D,1/12/2024,CASE-26,SPEC-26-02,sequence,Travel,Pass,none,,0.33,40.7098,-74.0000
+P1021,E,1/13/2024,CASE-26,SPEC-26-03,sequence,Food|Travel,Pass,none,,0.40,40.7278,-74.0000
+P1022,F,1/14/2024,CASE-26,SPEC-26-03,sequence,Healthcare,Review,warning,Mixed specimen signal,0.47,40.7458,-74.0000
+P1023,G,1/15/2024,CASE-26,SPEC-26-03,sequence,Community|Healthcare|Travel,Failed,error,Low coverage,0.54,40.7638,-74.0000
+P1024,H,1/16/2024,CASE-26,SPEC-26-03,sequence,Travel,Pending,info,Awaiting replicate,0.61,40.7818,-74.0000
+P1025,A,1/17/2024,CASE-26,SPEC-26-03,sequence,Food|Travel,Pass,none,,0.68,40.6558,-73.9780
+P1026,B,1/18/2024,CASE-26,SPEC-26-03,sequence,Healthcare,Pass,none,,0.75,40.6738,-73.9780
+P1027,C,1/19/2024,CASE-26,SPEC-26-03,sequence,Community|Healthcare|Travel,Review,warning,Mixed specimen signal,0.82,40.6918,-73.9780
+P1028,D,1/20/2024,CASE-26,SPEC-26-03,sequence,Travel,Failed,error,Low coverage,0.89,40.7098,-73.9780
+P1029,E,1/21/2024,CASE-26,SPEC-26-03,sequence,Food|Travel,Pending,info,Awaiting replicate,0.96,40.7278,-73.9780
+P1030,F,1/22/2024,CASE-26,SPEC-26-03,sequence,Healthcare,Pass,none,,0.03,40.7458,-73.9780
+P1031,G,1/23/2024,CASE-26,SPEC-26-04,sequence,Community|Healthcare|Travel,Pass,none,,0.10,40.7638,-73.9780
+P1032,H,1/24/2024,CASE-26,SPEC-26-04,sequence,Travel,Review,warning,Mixed specimen signal,0.17,40.7818,-73.9780
+P1033,A,1/25/2024,CASE-26,SPEC-26-04,sequence,Food|Travel,Failed,error,Low coverage,0.24,40.6558,-73.9560
+P1034,B,1/26/2024,CASE-26,SPEC-26-04,sequence,Healthcare,Pending,info,Awaiting replicate,0.31,40.6738,-73.9560
+P1035,C,1/27/2024,CASE-26,SPEC-26-04,sequence,Community|Healthcare|Travel,Pass,none,,0.38,40.6918,-73.9560
+P1036,D,1/28/2024,CASE-26,SPEC-26-04,sequence,Travel,Pass,none,,0.45,40.7098,-73.9560
+P1037,E,2/1/2024,CASE-26,SPEC-26-04,sequence,Food|Travel,Review,warning,Mixed specimen signal,0.52,40.7278,-73.9560
+P1038,F,2/2/2024,CASE-26,SPEC-26-04,sequence,Healthcare,Failed,error,Low coverage,0.59,40.7458,-73.9560
+P1039,G,2/3/2024,CASE-26,SPEC-26-04,sequence,Community|Healthcare|Travel,Pending,info,Awaiting replicate,0.66,40.7638,-73.9560
+P1040,H,2/4/2024,CASE-26,SPEC-26-04,sequence,Travel,Pass,none,,0.73,40.7818,-73.9560
+P1041,A,2/5/2024,CASE-27,SPEC-27-01,sequence,Food|Travel,Pass,none,,0.80,47.5492,-122.3701
+P1042,B,2/6/2024,CASE-27,SPEC-27-01,sequence,Healthcare,Review,warning,Mixed specimen signal,0.87,47.5672,-122.3701
+P1043,C,2/7/2024,CASE-27,SPEC-27-01,sequence,Community|Healthcare|Travel,Failed,error,Low coverage,0.94,47.5852,-122.3701
+P1044,D,2/8/2024,CASE-27,SPEC-27-01,sequence,Travel,Pending,info,Awaiting replicate,0.01,47.6032,-122.3701
+P1045,E,2/9/2024,CASE-27,SPEC-27-01,sequence,Food|Travel,Pass,none,,0.08,47.6212,-122.3701
+P1046,F,2/10/2024,CASE-27,SPEC-27-01,sequence,Healthcare,Pass,none,,0.15,47.6392,-122.3701
+P1047,G,2/11/2024,CASE-27,SPEC-27-01,sequence,Community|Healthcare|Travel,Review,warning,Mixed specimen signal,0.22,47.6572,-122.3701
+P1048,H,2/12/2024,CASE-27,SPEC-27-01,sequence,Travel,Failed,error,Low coverage,0.29,47.6752,-122.3701
+P1049,A,2/13/2024,CASE-27,SPEC-27-01,sequence,Food|Travel,Pending,info,Awaiting replicate,0.36,47.5492,-122.3481
+P1050,B,2/14/2024,CASE-27,SPEC-27-01,sequence,Healthcare,Pass,none,,0.43,47.5672,-122.3481
+P1051,C,2/15/2024,CASE-27,SPEC-27-02,sequence,Community|Healthcare|Travel,Pass,none,,0.50,47.5852,-122.3481
+P1052,D,2/16/2024,CASE-27,SPEC-27-02,sequence,Travel,Review,warning,Mixed specimen signal,0.57,47.6032,-122.3481
+P1053,E,2/17/2024,CASE-27,SPEC-27-02,sequence,Food|Travel,Failed,error,Low coverage,0.64,47.6212,-122.3481
+P1054,F,2/18/2024,CASE-27,SPEC-27-02,sequence,Healthcare,Pending,info,Awaiting replicate,0.71,47.6392,-122.3481
+P1055,G,2/19/2024,CASE-27,SPEC-27-02,sequence,Community|Healthcare|Travel,Pass,none,,0.78,47.6572,-122.3481
+P1056,H,2/20/2024,CASE-27,SPEC-27-02,sequence,Travel,Pass,none,,0.85,47.6752,-122.3481
+P1057,A,2/21/2024,CASE-27,SPEC-27-02,sequence,Food|Travel,Review,warning,Mixed specimen signal,0.92,47.5492,-122.3261
+P1058,B,2/22/2024,CASE-27,SPEC-27-02,sequence,Healthcare,Failed,error,Low coverage,0.99,47.5672,-122.3261
+P1059,C,2/23/2024,CASE-27,SPEC-27-02,sequence,Community|Healthcare|Travel,Pending,info,Awaiting replicate,0.06,47.5852,-122.3261
+P1060,D,2/24/2024,CASE-27,SPEC-27-02,sequence,Travel,Pass,none,,0.13,47.6032,-122.3261
+P1061,E,2/25/2024,CASE-27,SPEC-27-03,sequence,Food|Travel,Pass,none,,0.20,47.6212,-122.3261
+P1062,F,2/26/2024,CASE-27,SPEC-27-03,sequence,Healthcare,Review,warning,Mixed specimen signal,0.27,47.6392,-122.3261
+P1063,G,2/27/2024,CASE-27,SPEC-27-03,sequence,Community|Healthcare|Travel,Failed,error,Low coverage,0.34,47.6572,-122.3261
+P1064,H,2/28/2024,CASE-27,SPEC-27-03,sequence,Travel,Pending,info,Awaiting replicate,0.41,47.6752,-122.3261
+P1065,A,3/1/2024,CASE-27,SPEC-27-03,sequence,Food|Travel,Pass,none,,0.48,47.5492,-122.3041
+P1066,B,3/2/2024,CASE-27,SPEC-27-03,sequence,Healthcare,Pass,none,,0.55,47.5672,-122.3041
+P1067,C,3/3/2024,CASE-27,SPEC-27-03,sequence,Community|Healthcare|Travel,Review,warning,Mixed specimen signal,0.62,47.5852,-122.3041
+P1068,D,3/4/2024,CASE-27,SPEC-27-03,sequence,Travel,Failed,error,Low coverage,0.69,47.6032,-122.3041
+P1069,E,3/5/2024,CASE-27,SPEC-27-03,sequence,Food|Travel,Pending,info,Awaiting replicate,0.76,47.6212,-122.3041
+P1070,F,3/6/2024,CASE-27,SPEC-27-03,sequence,Healthcare,Pass,none,,0.83,47.6392,-122.3041
+P1071,G,3/7/2024,CASE-27,SPEC-27-04,sequence,Community|Healthcare|Travel,Pass,none,,0.90,47.6572,-122.3041
+P1072,H,3/8/2024,CASE-27,SPEC-27-04,sequence,Travel,Review,warning,Mixed specimen signal,0.97,47.6752,-122.3041
+P1073,A,3/9/2024,CASE-27,SPEC-27-04,sequence,Food|Travel,Failed,error,Low coverage,0.04,47.5492,-122.2821
+P1074,B,3/10/2024,CASE-27,SPEC-27-04,sequence,Healthcare,Pending,info,Awaiting replicate,0.11,47.5672,-122.2821
+P1075,C,3/11/2024,CASE-27,SPEC-27-04,sequence,Community|Healthcare|Travel,Pass,none,,0.18,47.5852,-122.2821
+P1076,D,3/12/2024,CASE-27,SPEC-27-04,sequence,Travel,Pass,none,,0.25,47.6032,-122.2821
+P1077,E,3/13/2024,CASE-27,SPEC-27-04,sequence,Food|Travel,Review,warning,Mixed specimen signal,0.32,47.6212,-122.2821
+P1078,F,3/14/2024,CASE-27,SPEC-27-04,sequence,Healthcare,Failed,error,Low coverage,0.39,47.6392,-122.2821
+P1079,G,3/15/2024,CASE-27,SPEC-27-04,sequence,Community|Healthcare|Travel,Pending,info,Awaiting replicate,0.46,47.6572,-122.2821
+P1080,H,3/16/2024,CASE-27,SPEC-27-04,sequence,Travel,Pass,none,,0.53,47.6752,-122.2821
+P1081,A,3/17/2024,CASE-28,SPEC-28-01,sequence,Food|Travel,Pass,none,,0.60,33.9952,-118.2817
+P1082,B,3/18/2024,CASE-28,SPEC-28-01,sequence,Healthcare,Review,warning,Mixed specimen signal,0.67,34.0132,-118.2817
+P1083,C,3/19/2024,CASE-28,SPEC-28-01,sequence,Community|Healthcare|Travel,Failed,error,Low coverage,0.74,34.0312,-118.2817
+P1084,D,3/20/2024,CASE-28,SPEC-28-01,sequence,Travel,Pending,info,Awaiting replicate,0.81,34.0492,-118.2817
+P1085,E,3/21/2024,CASE-28,SPEC-28-01,sequence,Food|Travel,Pass,none,,0.88,34.0672,-118.2817
+P1086,F,3/22/2024,CASE-28,SPEC-28-01,sequence,Healthcare,Pass,none,,0.95,34.0852,-118.2817
+P1087,G,3/23/2024,CASE-28,SPEC-28-01,sequence,Community|Healthcare|Travel,Review,warning,Mixed specimen signal,0.02,34.1032,-118.2817
+P1088,H,3/24/2024,CASE-28,SPEC-28-01,sequence,Travel,Failed,error,Low coverage,0.09,34.1212,-118.2817
+P1089,A,3/25/2024,CASE-28,SPEC-28-01,sequence,Food|Travel,Pending,info,Awaiting replicate,0.16,33.9952,-118.2597
+P1090,B,3/26/2024,CASE-28,SPEC-28-01,sequence,Healthcare,Pass,none,,0.23,34.0132,-118.2597
+P1091,C,3/27/2024,CASE-28,SPEC-28-02,sequence,Community|Healthcare|Travel,Pass,none,,0.30,34.0312,-118.2597
+P1092,D,3/28/2024,CASE-28,SPEC-28-02,sequence,Travel,Review,warning,Mixed specimen signal,0.37,34.0492,-118.2597
+P1093,E,4/1/2024,CASE-28,SPEC-28-02,sequence,Food|Travel,Failed,error,Low coverage,0.44,34.0672,-118.2597
+P1094,F,4/2/2024,CASE-28,SPEC-28-02,sequence,Healthcare,Pending,info,Awaiting replicate,0.51,34.0852,-118.2597
+P1095,G,4/3/2024,CASE-28,SPEC-28-02,sequence,Community|Healthcare|Travel,Pass,none,,0.58,34.1032,-118.2597
+P1096,H,4/4/2024,CASE-28,SPEC-28-02,sequence,Travel,Pass,none,,0.65,34.1212,-118.2597
+P1097,A,4/5/2024,CASE-28,SPEC-28-02,sequence,Food|Travel,Review,warning,Mixed specimen signal,0.72,33.9952,-118.2377
+P1098,B,4/6/2024,CASE-28,SPEC-28-02,sequence,Healthcare,Failed,error,Low coverage,0.79,34.0132,-118.2377
+P1099,C,4/7/2024,CASE-28,SPEC-28-02,sequence,Community|Healthcare|Travel,Pending,info,Awaiting replicate,0.86,34.0312,-118.2377
+P1100,D,4/8/2024,CASE-28,SPEC-28-02,sequence,Travel,Pass,none,,0.93,34.0492,-118.2377
+P1101,E,4/9/2024,CASE-28,SPEC-28-03,sequence,Food|Travel,Pass,none,,0.00,34.0672,-118.2377
+P1102,F,4/10/2024,CASE-28,SPEC-28-03,sequence,Healthcare,Review,warning,Mixed specimen signal,0.07,34.0852,-118.2377
+P1103,G,4/11/2024,CASE-28,SPEC-28-03,sequence,Community|Healthcare|Travel,Failed,error,Low coverage,0.14,34.1032,-118.2377
+P1104,H,4/12/2024,CASE-28,SPEC-28-03,sequence,Travel,Pending,info,Awaiting replicate,0.21,34.1212,-118.2377
+P1105,A,4/13/2024,CASE-28,SPEC-28-03,sequence,Food|Travel,Pass,none,,0.28,33.9952,-118.2157
+P1106,B,4/14/2024,CASE-28,SPEC-28-03,sequence,Healthcare,Pass,none,,0.35,34.0132,-118.2157
+P1107,C,4/15/2024,CASE-28,SPEC-28-03,sequence,Community|Healthcare|Travel,Review,warning,Mixed specimen signal,0.42,34.0312,-118.2157
+P1108,D,4/16/2024,CASE-28,SPEC-28-03,sequence,Travel,Failed,error,Low coverage,0.49,34.0492,-118.2157
+P1109,E,4/17/2024,CASE-28,SPEC-28-03,sequence,Food|Travel,Pending,info,Awaiting replicate,0.56,34.0672,-118.2157
+P1110,F,4/18/2024,CASE-28,SPEC-28-03,sequence,Healthcare,Pass,none,,0.63,34.0852,-118.2157
+P1111,G,4/19/2024,CASE-28,SPEC-28-04,sequence,Community|Healthcare|Travel,Pass,none,,0.70,34.1032,-118.2157
+P1112,H,4/20/2024,CASE-28,SPEC-28-04,sequence,Travel,Review,warning,Mixed specimen signal,0.77,34.1212,-118.2157
+P1113,A,4/21/2024,CASE-28,SPEC-28-04,sequence,Food|Travel,Failed,error,Low coverage,0.84,33.9952,-118.1937
+P1114,B,4/22/2024,CASE-28,SPEC-28-04,sequence,Healthcare,Pending,info,Awaiting replicate,0.91,34.0132,-118.1937
+P1115,C,4/23/2024,CASE-28,SPEC-28-04,sequence,Community|Healthcare|Travel,Pass,none,,0.98,34.0312,-118.1937
+P1116,D,4/24/2024,CASE-28,SPEC-28-04,sequence,Travel,Pass,none,,0.05,34.0492,-118.1937
+P1117,E,4/25/2024,CASE-28,SPEC-28-04,sequence,Food|Travel,Review,warning,Mixed specimen signal,0.12,34.0672,-118.1937
+P1118,F,4/26/2024,CASE-28,SPEC-28-04,sequence,Healthcare,Failed,error,Low coverage,0.19,34.0852,-118.1937
+P1119,G,4/27/2024,CASE-28,SPEC-28-04,sequence,Community|Healthcare|Travel,Pending,info,Awaiting replicate,0.26,34.1032,-118.1937
+P1120,H,4/28/2024,CASE-28,SPEC-28-04,sequence,Travel,Pass,none,,0.33,34.1212,-118.1937
+P1121,A,5/1/2024,CASE-29,SPEC-29-01,sequence,Food|Travel,Pass,none,,0.40,33.6930,-84.4250
+P1122,B,5/2/2024,CASE-29,SPEC-29-01,sequence,Healthcare,Review,warning,Mixed specimen signal,0.47,33.7110,-84.4250
+P1123,C,5/3/2024,CASE-29,SPEC-29-01,sequence,Community|Healthcare|Travel,Failed,error,Low coverage,0.54,33.7290,-84.4250
+P1124,D,5/4/2024,CASE-29,SPEC-29-01,sequence,Travel,Pending,info,Awaiting replicate,0.61,33.7470,-84.4250
+P1125,E,5/5/2024,CASE-29,SPEC-29-01,sequence,Food|Travel,Pass,none,,0.68,33.7650,-84.4250
+P1126,F,5/6/2024,CASE-29,SPEC-29-01,sequence,Healthcare,Pass,none,,0.75,33.7830,-84.4250
+P1127,G,5/7/2024,CASE-29,SPEC-29-01,sequence,Community|Healthcare|Travel,Review,warning,Mixed specimen signal,0.82,33.8010,-84.4250
+P1128,H,5/8/2024,CASE-29,SPEC-29-01,sequence,Travel,Failed,error,Low coverage,0.89,33.8190,-84.4250
+P1129,A,5/9/2024,CASE-29,SPEC-29-01,sequence,Food|Travel,Pending,info,Awaiting replicate,0.96,33.6930,-84.4030
+P1130,B,5/10/2024,CASE-29,SPEC-29-01,sequence,Healthcare,Pass,none,,0.03,33.7110,-84.4030
+P1131,C,5/11/2024,CASE-29,SPEC-29-02,sequence,Community|Healthcare|Travel,Pass,none,,0.10,33.7290,-84.4030
+P1132,D,5/12/2024,CASE-29,SPEC-29-02,sequence,Travel,Review,warning,Mixed specimen signal,0.17,33.7470,-84.4030
+P1133,E,5/13/2024,CASE-29,SPEC-29-02,sequence,Food|Travel,Failed,error,Low coverage,0.24,33.7650,-84.4030
+P1134,F,5/14/2024,CASE-29,SPEC-29-02,sequence,Healthcare,Pending,info,Awaiting replicate,0.31,33.7830,-84.4030
+P1135,G,5/15/2024,CASE-29,SPEC-29-02,sequence,Community|Healthcare|Travel,Pass,none,,0.38,33.8010,-84.4030
+P1136,H,5/16/2024,CASE-29,SPEC-29-02,sequence,Travel,Pass,none,,0.45,33.8190,-84.4030
+P1137,A,5/17/2024,CASE-29,SPEC-29-02,sequence,Food|Travel,Review,warning,Mixed specimen signal,0.52,33.6930,-84.3810
+P1138,B,5/18/2024,CASE-29,SPEC-29-02,sequence,Healthcare,Failed,error,Low coverage,0.59,33.7110,-84.3810
+P1139,C,5/19/2024,CASE-29,SPEC-29-02,sequence,Community|Healthcare|Travel,Pending,info,Awaiting replicate,0.66,33.7290,-84.3810
+P1140,D,5/20/2024,CASE-29,SPEC-29-02,sequence,Travel,Pass,none,,0.73,33.7470,-84.3810
+P1141,E,5/21/2024,CASE-29,SPEC-29-03,sequence,Food|Travel,Pass,none,,0.80,33.7650,-84.3810
+P1142,F,5/22/2024,CASE-29,SPEC-29-03,sequence,Healthcare,Review,warning,Mixed specimen signal,0.87,33.7830,-84.3810
+P1143,G,5/23/2024,CASE-29,SPEC-29-03,sequence,Community|Healthcare|Travel,Failed,error,Low coverage,0.94,33.8010,-84.3810
+P1144,H,5/24/2024,CASE-29,SPEC-29-03,sequence,Travel,Pending,info,Awaiting replicate,0.01,33.8190,-84.3810
+P1145,A,5/25/2024,CASE-29,SPEC-29-03,sequence,Food|Travel,Pass,none,,0.08,33.6930,-84.3590
+P1146,B,5/26/2024,CASE-29,SPEC-29-03,sequence,Healthcare,Pass,none,,0.15,33.7110,-84.3590
+P1147,C,5/27/2024,CASE-29,SPEC-29-03,sequence,Community|Healthcare|Travel,Review,warning,Mixed specimen signal,0.22,33.7290,-84.3590
+P1148,D,5/28/2024,CASE-29,SPEC-29-03,sequence,Travel,Failed,error,Low coverage,0.29,33.7470,-84.3590
+P1149,E,6/1/2024,CASE-29,SPEC-29-03,sequence,Food|Travel,Pending,info,Awaiting replicate,0.36,33.7650,-84.3590
+P1150,F,6/2/2024,CASE-29,SPEC-29-03,sequence,Healthcare,Pass,none,,0.43,33.7830,-84.3590
+P1151,G,6/3/2024,CASE-29,SPEC-29-04,sequence,Community|Healthcare|Travel,Pass,none,,0.50,33.8010,-84.3590
+P1152,H,6/4/2024,CASE-29,SPEC-29-04,sequence,Travel,Review,warning,Mixed specimen signal,0.57,33.8190,-84.3590
+P1153,A,6/5/2024,CASE-29,SPEC-29-04,sequence,Food|Travel,Failed,error,Low coverage,0.64,33.6930,-84.3370
+P1154,B,6/6/2024,CASE-29,SPEC-29-04,sequence,Healthcare,Pending,info,Awaiting replicate,0.71,33.7110,-84.3370
+P1155,C,6/7/2024,CASE-29,SPEC-29-04,sequence,Community|Healthcare|Travel,Pass,none,,0.78,33.7290,-84.3370
+P1156,D,6/8/2024,CASE-29,SPEC-29-04,sequence,Travel,Pass,none,,0.85,33.7470,-84.3370
+P1157,E,6/9/2024,CASE-29,SPEC-29-04,sequence,Food|Travel,Review,warning,Mixed specimen signal,0.92,33.7650,-84.3370
+P1158,F,6/10/2024,CASE-29,SPEC-29-04,sequence,Healthcare,Failed,error,Low coverage,0.99,33.7830,-84.3370
+P1159,G,6/11/2024,CASE-29,SPEC-29-04,sequence,Community|Healthcare|Travel,Pending,info,Awaiting replicate,0.06,33.8010,-84.3370
+P1160,H,6/12/2024,CASE-29,SPEC-29-04,sequence,Travel,Pass,none,,0.13,33.8190,-84.3370
+P1161,A,6/13/2024,CASE-30,SPEC-30-01,sequence,Food|Travel,Pass,none,,0.20,40.6568,-74.0430
+P1162,B,6/14/2024,CASE-30,SPEC-30-01,sequence,Healthcare,Review,warning,Mixed specimen signal,0.27,40.6748,-74.0430
+P1163,C,6/15/2024,CASE-30,SPEC-30-01,sequence,Community|Healthcare|Travel,Failed,error,Low coverage,0.34,40.6928,-74.0430
+P1164,D,6/16/2024,CASE-30,SPEC-30-01,sequence,Travel,Pending,info,Awaiting replicate,0.41,40.7108,-74.0430
+P1165,E,6/17/2024,CASE-30,SPEC-30-01,sequence,Food|Travel,Pass,none,,0.48,40.7288,-74.0430
+P1166,F,6/18/2024,CASE-30,SPEC-30-01,sequence,Healthcare,Pass,none,,0.55,40.7468,-74.0430
+P1167,G,6/19/2024,CASE-30,SPEC-30-01,sequence,Community|Healthcare|Travel,Review,warning,Mixed specimen signal,0.62,40.7648,-74.0430
+P1168,H,6/20/2024,CASE-30,SPEC-30-01,sequence,Travel,Failed,error,Low coverage,0.69,40.7828,-74.0430
+P1169,A,6/21/2024,CASE-30,SPEC-30-01,sequence,Food|Travel,Pending,info,Awaiting replicate,0.76,40.6568,-74.0210
+P1170,B,6/22/2024,CASE-30,SPEC-30-01,sequence,Healthcare,Pass,none,,0.83,40.6748,-74.0210
+P1171,C,6/23/2024,CASE-30,SPEC-30-02,sequence,Community|Healthcare|Travel,Pass,none,,0.90,40.6928,-74.0210
+P1172,D,6/24/2024,CASE-30,SPEC-30-02,sequence,Travel,Review,warning,Mixed specimen signal,0.97,40.7108,-74.0210
+P1173,E,6/25/2024,CASE-30,SPEC-30-02,sequence,Food|Travel,Failed,error,Low coverage,0.04,40.7288,-74.0210
+P1174,F,6/26/2024,CASE-30,SPEC-30-02,sequence,Healthcare,Pending,info,Awaiting replicate,0.11,40.7468,-74.0210
+P1175,G,6/27/2024,CASE-30,SPEC-30-02,sequence,Community|Healthcare|Travel,Pass,none,,0.18,40.7648,-74.0210
+P1176,H,6/28/2024,CASE-30,SPEC-30-02,sequence,Travel,Pass,none,,0.25,40.7828,-74.0210
+P1177,A,7/1/2024,CASE-30,SPEC-30-02,sequence,Food|Travel,Review,warning,Mixed specimen signal,0.32,40.6568,-73.9990
+P1178,B,7/2/2024,CASE-30,SPEC-30-02,sequence,Healthcare,Failed,error,Low coverage,0.39,40.6748,-73.9990
+P1179,C,7/3/2024,CASE-30,SPEC-30-02,sequence,Community|Healthcare|Travel,Pending,info,Awaiting replicate,0.46,40.6928,-73.9990
+P1180,D,7/4/2024,CASE-30,SPEC-30-02,sequence,Travel,Pass,none,,0.53,40.7108,-73.9990
+P1181,E,7/5/2024,CASE-30,SPEC-30-03,sequence,Food|Travel,Pass,none,,0.60,40.7288,-73.9990
+P1182,F,7/6/2024,CASE-30,SPEC-30-03,sequence,Healthcare,Review,warning,Mixed specimen signal,0.67,40.7468,-73.9990
+P1183,G,7/7/2024,CASE-30,SPEC-30-03,sequence,Community|Healthcare|Travel,Failed,error,Low coverage,0.74,40.7648,-73.9990
+P1184,H,7/8/2024,CASE-30,SPEC-30-03,sequence,Travel,Pending,info,Awaiting replicate,0.81,40.7828,-73.9990
+P1185,A,7/9/2024,CASE-30,SPEC-30-03,sequence,Food|Travel,Pass,none,,0.88,40.6568,-73.9770
+P1186,B,7/10/2024,CASE-30,SPEC-30-03,sequence,Healthcare,Pass,none,,0.95,40.6748,-73.9770
+P1187,C,7/11/2024,CASE-30,SPEC-30-03,sequence,Community|Healthcare|Travel,Review,warning,Mixed specimen signal,0.02,40.6928,-73.9770
+P1188,D,7/12/2024,CASE-30,SPEC-30-03,sequence,Travel,Failed,error,Low coverage,0.09,40.7108,-73.9770
+P1189,E,7/13/2024,CASE-30,SPEC-30-03,sequence,Food|Travel,Pending,info,Awaiting replicate,0.16,40.7288,-73.9770
+P1190,F,7/14/2024,CASE-30,SPEC-30-03,sequence,Healthcare,Pass,none,,0.23,40.7468,-73.9770
+P1191,G,7/15/2024,CASE-30,SPEC-30-04,sequence,Community|Healthcare|Travel,Pass,none,,0.30,40.7648,-73.9770
+P1192,H,7/16/2024,CASE-30,SPEC-30-04,sequence,Travel,Review,warning,Mixed specimen signal,0.37,40.7828,-73.9770
+P1193,A,7/17/2024,CASE-30,SPEC-30-04,sequence,Food|Travel,Failed,error,Low coverage,0.44,40.6568,-73.9550
+P1194,B,7/18/2024,CASE-30,SPEC-30-04,sequence,Healthcare,Pending,info,Awaiting replicate,0.51,40.6748,-73.9550
+P1195,C,7/19/2024,CASE-30,SPEC-30-04,sequence,Community|Healthcare|Travel,Pass,none,,0.58,40.6928,-73.9550
+P1196,D,7/20/2024,CASE-30,SPEC-30-04,sequence,Travel,Pass,none,,0.65,40.7108,-73.9550
+P1197,E,7/21/2024,CASE-30,SPEC-30-04,sequence,Food|Travel,Review,warning,Mixed specimen signal,0.72,40.7288,-73.9550
+P1198,F,7/22/2024,CASE-30,SPEC-30-04,sequence,Healthcare,Failed,error,Low coverage,0.79,40.7468,-73.9550
+P1199,G,7/23/2024,CASE-30,SPEC-30-04,sequence,Community|Healthcare|Travel,Pending,info,Awaiting replicate,0.86,40.7648,-73.9550
+P1200,H,7/24/2024,CASE-30,SPEC-30-04,sequence,Travel,Pass,none,,0.93,40.7828,-73.9550
+P1201,A,7/25/2024,CASE-31,SPEC-31-01,sequence,Food|Travel,Pass,none,,0.00,47.5502,-122.3691
+P1202,B,7/26/2024,CASE-31,SPEC-31-01,sequence,Healthcare,Review,warning,Mixed specimen signal,0.07,47.5682,-122.3691
+P1203,C,7/27/2024,CASE-31,SPEC-31-01,sequence,Community|Healthcare|Travel,Failed,error,Low coverage,0.14,47.5862,-122.3691
+P1204,D,7/28/2024,CASE-31,SPEC-31-01,sequence,Travel,Pending,info,Awaiting replicate,0.21,47.6042,-122.3691
+P1205,E,8/1/2024,CASE-31,SPEC-31-01,sequence,Food|Travel,Pass,none,,0.28,47.6222,-122.3691
+P1206,F,8/2/2024,CASE-31,SPEC-31-01,sequence,Healthcare,Pass,none,,0.35,47.6402,-122.3691
+P1207,G,8/3/2024,CASE-31,SPEC-31-01,sequence,Community|Healthcare|Travel,Review,warning,Mixed specimen signal,0.42,47.6582,-122.3691
+P1208,H,8/4/2024,CASE-31,SPEC-31-01,sequence,Travel,Failed,error,Low coverage,0.49,47.6762,-122.3691
+P1209,A,8/5/2024,CASE-31,SPEC-31-01,sequence,Food|Travel,Pending,info,Awaiting replicate,0.56,47.5502,-122.3471
+P1210,B,8/6/2024,CASE-31,SPEC-31-01,sequence,Healthcare,Pass,none,,0.63,47.5682,-122.3471
+P1211,C,8/7/2024,CASE-31,SPEC-31-02,sequence,Community|Healthcare|Travel,Pass,none,,0.70,47.5862,-122.3471
+P1212,D,8/8/2024,CASE-31,SPEC-31-02,sequence,Travel,Review,warning,Mixed specimen signal,0.77,47.6042,-122.3471
+P1213,E,8/9/2024,CASE-31,SPEC-31-02,sequence,Food|Travel,Failed,error,Low coverage,0.84,47.6222,-122.3471
+P1214,F,8/10/2024,CASE-31,SPEC-31-02,sequence,Healthcare,Pending,info,Awaiting replicate,0.91,47.6402,-122.3471
+P1215,G,8/11/2024,CASE-31,SPEC-31-02,sequence,Community|Healthcare|Travel,Pass,none,,0.98,47.6582,-122.3471
+P1216,H,8/12/2024,CASE-31,SPEC-31-02,sequence,Travel,Pass,none,,0.05,47.6762,-122.3471
+P1217,A,8/13/2024,CASE-31,SPEC-31-02,sequence,Food|Travel,Review,warning,Mixed specimen signal,0.12,47.5502,-122.3251
+P1218,B,8/14/2024,CASE-31,SPEC-31-02,sequence,Healthcare,Failed,error,Low coverage,0.19,47.5682,-122.3251
+P1219,C,8/15/2024,CASE-31,SPEC-31-02,sequence,Community|Healthcare|Travel,Pending,info,Awaiting replicate,0.26,47.5862,-122.3251
+P1220,D,8/16/2024,CASE-31,SPEC-31-02,sequence,Travel,Pass,none,,0.33,47.6042,-122.3251
+P1221,E,8/17/2024,CASE-31,SPEC-31-03,sequence,Food|Travel,Pass,none,,0.40,47.6222,-122.3251
+P1222,F,8/18/2024,CASE-31,SPEC-31-03,sequence,Healthcare,Review,warning,Mixed specimen signal,0.47,47.6402,-122.3251
+P1223,G,8/19/2024,CASE-31,SPEC-31-03,sequence,Community|Healthcare|Travel,Failed,error,Low coverage,0.54,47.6582,-122.3251
+P1224,H,8/20/2024,CASE-31,SPEC-31-03,sequence,Travel,Pending,info,Awaiting replicate,0.61,47.6762,-122.3251
+P1225,A,8/21/2024,CASE-31,SPEC-31-03,sequence,Food|Travel,Pass,none,,0.68,47.5502,-122.3031
+P1226,B,8/22/2024,CASE-31,SPEC-31-03,sequence,Healthcare,Pass,none,,0.75,47.5682,-122.3031
+P1227,C,8/23/2024,CASE-31,SPEC-31-03,sequence,Community|Healthcare|Travel,Review,warning,Mixed specimen signal,0.82,47.5862,-122.3031
+P1228,D,8/24/2024,CASE-31,SPEC-31-03,sequence,Travel,Failed,error,Low coverage,0.89,47.6042,-122.3031
+P1229,E,8/25/2024,CASE-31,SPEC-31-03,sequence,Food|Travel,Pending,info,Awaiting replicate,0.96,47.6222,-122.3031
+P1230,F,8/26/2024,CASE-31,SPEC-31-03,sequence,Healthcare,Pass,none,,0.03,47.6402,-122.3031
+P1231,G,8/27/2024,CASE-31,SPEC-31-04,sequence,Community|Healthcare|Travel,Pass,none,,0.10,47.6582,-122.3031
+P1232,H,8/28/2024,CASE-31,SPEC-31-04,sequence,Travel,Review,warning,Mixed specimen signal,0.17,47.6762,-122.3031
+P1233,A,9/1/2024,CASE-31,SPEC-31-04,sequence,Food|Travel,Failed,error,Low coverage,0.24,47.5502,-122.2811
+P1234,B,9/2/2024,CASE-31,SPEC-31-04,sequence,Healthcare,Pending,info,Awaiting replicate,0.31,47.5682,-122.2811
+P1235,C,9/3/2024,CASE-31,SPEC-31-04,sequence,Community|Healthcare|Travel,Pass,none,,0.38,47.5862,-122.2811
+P1236,D,9/4/2024,CASE-31,SPEC-31-04,sequence,Travel,Pass,none,,0.45,47.6042,-122.2811
+P1237,E,9/5/2024,CASE-31,SPEC-31-04,sequence,Food|Travel,Review,warning,Mixed specimen signal,0.52,47.6222,-122.2811
+P1238,F,9/6/2024,CASE-31,SPEC-31-04,sequence,Healthcare,Failed,error,Low coverage,0.59,47.6402,-122.2811
+P1239,G,9/7/2024,CASE-31,SPEC-31-04,sequence,Community|Healthcare|Travel,Pending,info,Awaiting replicate,0.66,47.6582,-122.2811
+P1240,H,9/8/2024,CASE-31,SPEC-31-04,sequence,Travel,Pass,none,,0.73,47.6762,-122.2811
+P1241,A,9/9/2024,CASE-32,SPEC-32-01,sequence,Food|Travel,Pass,none,,0.80,33.9962,-118.2807
+P1242,B,9/10/2024,CASE-32,SPEC-32-01,sequence,Healthcare,Review,warning,Mixed specimen signal,0.87,34.0142,-118.2807
+P1243,C,9/11/2024,CASE-32,SPEC-32-01,sequence,Community|Healthcare|Travel,Failed,error,Low coverage,0.94,34.0322,-118.2807
+P1244,D,9/12/2024,CASE-32,SPEC-32-01,sequence,Travel,Pending,info,Awaiting replicate,0.01,34.0502,-118.2807
+P1245,E,9/13/2024,CASE-32,SPEC-32-01,sequence,Food|Travel,Pass,none,,0.08,34.0682,-118.2807
+P1246,F,9/14/2024,CASE-32,SPEC-32-01,sequence,Healthcare,Pass,none,,0.15,34.0862,-118.2807
+P1247,G,9/15/2024,CASE-32,SPEC-32-01,sequence,Community|Healthcare|Travel,Review,warning,Mixed specimen signal,0.22,34.1042,-118.2807
+P1248,H,9/16/2024,CASE-32,SPEC-32-01,sequence,Travel,Failed,error,Low coverage,0.29,34.1222,-118.2807
+P1249,A,9/17/2024,CASE-32,SPEC-32-01,sequence,Food|Travel,Pending,info,Awaiting replicate,0.36,33.9962,-118.2587
+P1250,B,9/18/2024,CASE-32,SPEC-32-01,sequence,Healthcare,Pass,none,,0.43,34.0142,-118.2587
+P1251,C,9/19/2024,CASE-32,SPEC-32-02,sequence,Community|Healthcare|Travel,Pass,none,,0.50,34.0322,-118.2587
+P1252,D,9/20/2024,CASE-32,SPEC-32-02,sequence,Travel,Review,warning,Mixed specimen signal,0.57,34.0502,-118.2587
+P1253,E,9/21/2024,CASE-32,SPEC-32-02,sequence,Food|Travel,Failed,error,Low coverage,0.64,34.0682,-118.2587
+P1254,F,9/22/2024,CASE-32,SPEC-32-02,sequence,Healthcare,Pending,info,Awaiting replicate,0.71,34.0862,-118.2587
+P1255,G,9/23/2024,CASE-32,SPEC-32-02,sequence,Community|Healthcare|Travel,Pass,none,,0.78,34.1042,-118.2587
+P1256,H,9/24/2024,CASE-32,SPEC-32-02,sequence,Travel,Pass,none,,0.85,34.1222,-118.2587
+P1257,A,9/25/2024,CASE-32,SPEC-32-02,sequence,Food|Travel,Review,warning,Mixed specimen signal,0.92,33.9962,-118.2367
+P1258,B,9/26/2024,CASE-32,SPEC-32-02,sequence,Healthcare,Failed,error,Low coverage,0.99,34.0142,-118.2367
+P1259,C,9/27/2024,CASE-32,SPEC-32-02,sequence,Community|Healthcare|Travel,Pending,info,Awaiting replicate,0.06,34.0322,-118.2367
+P1260,D,9/28/2024,CASE-32,SPEC-32-02,sequence,Travel,Pass,none,,0.13,34.0502,-118.2367
+P1261,E,10/1/2024,CASE-32,SPEC-32-03,sequence,Food|Travel,Pass,none,,0.20,34.0682,-118.2367
+P1262,F,10/2/2024,CASE-32,SPEC-32-03,sequence,Healthcare,Review,warning,Mixed specimen signal,0.27,34.0862,-118.2367
+P1263,G,10/3/2024,CASE-32,SPEC-32-03,sequence,Community|Healthcare|Travel,Failed,error,Low coverage,0.34,34.1042,-118.2367
+P1264,H,10/4/2024,CASE-32,SPEC-32-03,sequence,Travel,Pending,info,Awaiting replicate,0.41,34.1222,-118.2367
+P1265,A,10/5/2024,CASE-32,SPEC-32-03,sequence,Food|Travel,Pass,none,,0.48,33.9962,-118.2147
+P1266,B,10/6/2024,CASE-32,SPEC-32-03,sequence,Healthcare,Pass,none,,0.55,34.0142,-118.2147
+P1267,C,10/7/2024,CASE-32,SPEC-32-03,sequence,Community|Healthcare|Travel,Review,warning,Mixed specimen signal,0.62,34.0322,-118.2147
+P1268,D,10/8/2024,CASE-32,SPEC-32-03,sequence,Travel,Failed,error,Low coverage,0.69,34.0502,-118.2147
+P1269,E,10/9/2024,CASE-32,SPEC-32-03,sequence,Food|Travel,Pending,info,Awaiting replicate,0.76,34.0682,-118.2147
+P1270,F,10/10/2024,CASE-32,SPEC-32-03,sequence,Healthcare,Pass,none,,0.83,34.0862,-118.2147
+P1271,G,10/11/2024,CASE-32,SPEC-32-04,sequence,Community|Healthcare|Travel,Pass,none,,0.90,34.1042,-118.2147
+P1272,H,10/12/2024,CASE-32,SPEC-32-04,sequence,Travel,Review,warning,Mixed specimen signal,0.97,34.1222,-118.2147
+P1273,A,10/13/2024,CASE-32,SPEC-32-04,sequence,Food|Travel,Failed,error,Low coverage,0.04,33.9962,-118.1927
+P1274,B,10/14/2024,CASE-32,SPEC-32-04,sequence,Healthcare,Pending,info,Awaiting replicate,0.11,34.0142,-118.1927
+P1275,C,10/15/2024,CASE-32,SPEC-32-04,sequence,Community|Healthcare|Travel,Pass,none,,0.18,34.0322,-118.1927
+P1276,D,10/16/2024,CASE-32,SPEC-32-04,sequence,Travel,Pass,none,,0.25,34.0502,-118.1927
+P1277,E,10/17/2024,CASE-32,SPEC-32-04,sequence,Food|Travel,Review,warning,Mixed specimen signal,0.32,34.0682,-118.1927
+P1278,F,10/18/2024,CASE-32,SPEC-32-04,sequence,Healthcare,Failed,error,Low coverage,0.39,34.0862,-118.1927
+P1279,G,10/19/2024,CASE-32,SPEC-32-04,sequence,Community|Healthcare|Travel,Pending,info,Awaiting replicate,0.46,34.1042,-118.1927
+P1280,H,10/20/2024,CASE-32,SPEC-32-04,sequence,Travel,Pass,none,,0.53,34.1222,-118.1927
+P1281,A,10/21/2024,CASE-33,SPEC-33-01,sequence,Food|Travel,Pass,none,,0.60,33.6940,-84.4240
+P1282,B,10/22/2024,CASE-33,SPEC-33-01,sequence,Healthcare,Review,warning,Mixed specimen signal,0.67,33.7120,-84.4240
+P1283,C,10/23/2024,CASE-33,SPEC-33-01,sequence,Community|Healthcare|Travel,Failed,error,Low coverage,0.74,33.7300,-84.4240
+P1284,D,10/24/2024,CASE-33,SPEC-33-01,sequence,Travel,Pending,info,Awaiting replicate,0.81,33.7480,-84.4240
+P1285,E,10/25/2024,CASE-33,SPEC-33-01,sequence,Food|Travel,Pass,none,,0.88,33.7660,-84.4240
+P1286,F,10/26/2024,CASE-33,SPEC-33-01,sequence,Healthcare,Pass,none,,0.95,33.7840,-84.4240
+P1287,G,10/27/2024,CASE-33,SPEC-33-01,sequence,Community|Healthcare|Travel,Review,warning,Mixed specimen signal,0.02,33.8020,-84.4240
+P1288,H,10/28/2024,CASE-33,SPEC-33-01,sequence,Travel,Failed,error,Low coverage,0.09,33.8200,-84.4240
+P1289,A,11/1/2024,CASE-33,SPEC-33-01,sequence,Food|Travel,Pending,info,Awaiting replicate,0.16,33.6940,-84.4020
+P1290,B,11/2/2024,CASE-33,SPEC-33-01,sequence,Healthcare,Pass,none,,0.23,33.7120,-84.4020
+P1291,C,11/3/2024,CASE-33,SPEC-33-02,sequence,Community|Healthcare|Travel,Pass,none,,0.30,33.7300,-84.4020
+P1292,D,11/4/2024,CASE-33,SPEC-33-02,sequence,Travel,Review,warning,Mixed specimen signal,0.37,33.7480,-84.4020
+P1293,E,11/5/2024,CASE-33,SPEC-33-02,sequence,Food|Travel,Failed,error,Low coverage,0.44,33.7660,-84.4020
+P1294,F,11/6/2024,CASE-33,SPEC-33-02,sequence,Healthcare,Pending,info,Awaiting replicate,0.51,33.7840,-84.4020
+P1295,G,11/7/2024,CASE-33,SPEC-33-02,sequence,Community|Healthcare|Travel,Pass,none,,0.58,33.8020,-84.4020
+P1296,H,11/8/2024,CASE-33,SPEC-33-02,sequence,Travel,Pass,none,,0.65,33.8200,-84.4020
+P1297,A,11/9/2024,CASE-33,SPEC-33-02,sequence,Food|Travel,Review,warning,Mixed specimen signal,0.72,33.6940,-84.3800
+P1298,B,11/10/2024,CASE-33,SPEC-33-02,sequence,Healthcare,Failed,error,Low coverage,0.79,33.7120,-84.3800
+P1299,C,11/11/2024,CASE-33,SPEC-33-02,sequence,Community|Healthcare|Travel,Pending,info,Awaiting replicate,0.86,33.7300,-84.3800
+P1300,D,11/12/2024,CASE-33,SPEC-33-02,sequence,Travel,Pass,none,,0.93,33.7480,-84.3800
+P1301,E,11/13/2024,CASE-33,SPEC-33-03,sequence,Food|Travel,Pass,none,,0.00,33.7660,-84.3800
+P1302,F,11/14/2024,CASE-33,SPEC-33-03,sequence,Healthcare,Review,warning,Mixed specimen signal,0.07,33.7840,-84.3800
+P1303,G,11/15/2024,CASE-33,SPEC-33-03,sequence,Community|Healthcare|Travel,Failed,error,Low coverage,0.14,33.8020,-84.3800
+P1304,H,11/16/2024,CASE-33,SPEC-33-03,sequence,Travel,Pending,info,Awaiting replicate,0.21,33.8200,-84.3800
+P1305,A,11/17/2024,CASE-33,SPEC-33-03,sequence,Food|Travel,Pass,none,,0.28,33.6940,-84.3580
+P1306,B,11/18/2024,CASE-33,SPEC-33-03,sequence,Healthcare,Pass,none,,0.35,33.7120,-84.3580
+P1307,C,11/19/2024,CASE-33,SPEC-33-03,sequence,Community|Healthcare|Travel,Review,warning,Mixed specimen signal,0.42,33.7300,-84.3580
+P1308,D,11/20/2024,CASE-33,SPEC-33-03,sequence,Travel,Failed,error,Low coverage,0.49,33.7480,-84.3580
+P1309,E,11/21/2024,CASE-33,SPEC-33-03,sequence,Food|Travel,Pending,info,Awaiting replicate,0.56,33.7660,-84.3580
+P1310,F,11/22/2024,CASE-33,SPEC-33-03,sequence,Healthcare,Pass,none,,0.63,33.7840,-84.3580
+P1311,G,11/23/2024,CASE-33,SPEC-33-04,sequence,Community|Healthcare|Travel,Pass,none,,0.70,33.8020,-84.3580
+P1312,H,11/24/2024,CASE-33,SPEC-33-04,sequence,Travel,Review,warning,Mixed specimen signal,0.77,33.8200,-84.3580
+P1313,A,11/25/2024,CASE-33,SPEC-33-04,sequence,Food|Travel,Failed,error,Low coverage,0.84,33.6940,-84.3360
+P1314,B,11/26/2024,CASE-33,SPEC-33-04,sequence,Healthcare,Pending,info,Awaiting replicate,0.91,33.7120,-84.3360
+P1315,C,11/27/2024,CASE-33,SPEC-33-04,sequence,Community|Healthcare|Travel,Pass,none,,0.98,33.7300,-84.3360
+P1316,D,11/28/2024,CASE-33,SPEC-33-04,sequence,Travel,Pass,none,,0.05,33.7480,-84.3360
+P1317,E,12/1/2024,CASE-33,SPEC-33-04,sequence,Food|Travel,Review,warning,Mixed specimen signal,0.12,33.7660,-84.3360
+P1318,F,12/2/2024,CASE-33,SPEC-33-04,sequence,Healthcare,Failed,error,Low coverage,0.19,33.7840,-84.3360
+P1319,G,12/3/2024,CASE-33,SPEC-33-04,sequence,Community|Healthcare|Travel,Pending,info,Awaiting replicate,0.26,33.8020,-84.3360
+P1320,H,12/4/2024,CASE-33,SPEC-33-04,sequence,Travel,Pass,none,,0.33,33.8200,-84.3360
+P1321,A,12/5/2024,CASE-34,SPEC-34-01,sequence,Food|Travel,Pass,none,,0.40,40.6578,-74.0420
+P1322,B,12/6/2024,CASE-34,SPEC-34-01,sequence,Healthcare,Review,warning,Mixed specimen signal,0.47,40.6758,-74.0420
+P1323,C,12/7/2024,CASE-34,SPEC-34-01,sequence,Community|Healthcare|Travel,Failed,error,Low coverage,0.54,40.6938,-74.0420
+P1324,D,12/8/2024,CASE-34,SPEC-34-01,sequence,Travel,Pending,info,Awaiting replicate,0.61,40.7118,-74.0420
+P1325,E,12/9/2024,CASE-34,SPEC-34-01,sequence,Food|Travel,Pass,none,,0.68,40.7298,-74.0420
+P1326,F,12/10/2024,CASE-34,SPEC-34-01,sequence,Healthcare,Pass,none,,0.75,40.7478,-74.0420
+P1327,G,12/11/2024,CASE-34,SPEC-34-01,sequence,Community|Healthcare|Travel,Review,warning,Mixed specimen signal,0.82,40.7658,-74.0420
+P1328,H,12/12/2024,CASE-34,SPEC-34-01,sequence,Travel,Failed,error,Low coverage,0.89,40.7838,-74.0420
+P1329,A,12/13/2024,CASE-34,SPEC-34-01,sequence,Food|Travel,Pending,info,Awaiting replicate,0.96,40.6578,-74.0200
+P1330,B,12/14/2024,CASE-34,SPEC-34-01,sequence,Healthcare,Pass,none,,0.03,40.6758,-74.0200
+P1331,C,12/15/2024,CASE-34,SPEC-34-02,sequence,Community|Healthcare|Travel,Pass,none,,0.10,40.6938,-74.0200
+P1332,D,12/16/2024,CASE-34,SPEC-34-02,sequence,Travel,Review,warning,Mixed specimen signal,0.17,40.7118,-74.0200
+P1333,E,12/17/2024,CASE-34,SPEC-34-02,sequence,Food|Travel,Failed,error,Low coverage,0.24,40.7298,-74.0200
+P1334,F,12/18/2024,CASE-34,SPEC-34-02,sequence,Healthcare,Pending,info,Awaiting replicate,0.31,40.7478,-74.0200
+P1335,G,12/19/2024,CASE-34,SPEC-34-02,sequence,Community|Healthcare|Travel,Pass,none,,0.38,40.7658,-74.0200
+P1336,H,12/20/2024,CASE-34,SPEC-34-02,sequence,Travel,Pass,none,,0.45,40.7838,-74.0200
+P1337,A,12/21/2024,CASE-34,SPEC-34-02,sequence,Food|Travel,Review,warning,Mixed specimen signal,0.52,40.6578,-73.9980
+P1338,B,12/22/2024,CASE-34,SPEC-34-02,sequence,Healthcare,Failed,error,Low coverage,0.59,40.6758,-73.9980
+P1339,C,12/23/2024,CASE-34,SPEC-34-02,sequence,Community|Healthcare|Travel,Pending,info,Awaiting replicate,0.66,40.6938,-73.9980
+P1340,D,12/24/2024,CASE-34,SPEC-34-02,sequence,Travel,Pass,none,,0.73,40.7118,-73.9980
+P1341,E,12/25/2024,CASE-34,SPEC-34-03,sequence,Food|Travel,Pass,none,,0.80,40.7298,-73.9980
+P1342,F,12/26/2024,CASE-34,SPEC-34-03,sequence,Healthcare,Review,warning,Mixed specimen signal,0.87,40.7478,-73.9980
+P1343,G,12/27/2024,CASE-34,SPEC-34-03,sequence,Community|Healthcare|Travel,Failed,error,Low coverage,0.94,40.7658,-73.9980
+P1344,H,12/28/2024,CASE-34,SPEC-34-03,sequence,Travel,Pending,info,Awaiting replicate,0.01,40.7838,-73.9980
+P1345,A,1/1/2024,CASE-34,SPEC-34-03,sequence,Food|Travel,Pass,none,,0.08,40.6578,-73.9760
+P1346,B,1/2/2024,CASE-34,SPEC-34-03,sequence,Healthcare,Pass,none,,0.15,40.6758,-73.9760
+P1347,C,1/3/2024,CASE-34,SPEC-34-03,sequence,Community|Healthcare|Travel,Review,warning,Mixed specimen signal,0.22,40.6938,-73.9760
+P1348,D,1/4/2024,CASE-34,SPEC-34-03,sequence,Travel,Failed,error,Low coverage,0.29,40.7118,-73.9760
+P1349,E,1/5/2024,CASE-34,SPEC-34-03,sequence,Food|Travel,Pending,info,Awaiting replicate,0.36,40.7298,-73.9760
+P1350,F,1/6/2024,CASE-34,SPEC-34-03,sequence,Healthcare,Pass,none,,0.43,40.7478,-73.9760
+P1351,G,1/7/2024,CASE-34,SPEC-34-04,sequence,Community|Healthcare|Travel,Pass,none,,0.50,40.7658,-73.9760
+P1352,H,1/8/2024,CASE-34,SPEC-34-04,sequence,Travel,Review,warning,Mixed specimen signal,0.57,40.7838,-73.9760
+P1353,A,1/9/2024,CASE-34,SPEC-34-04,sequence,Food|Travel,Failed,error,Low coverage,0.64,40.6578,-73.9540
+P1354,B,1/10/2024,CASE-34,SPEC-34-04,sequence,Healthcare,Pending,info,Awaiting replicate,0.71,40.6758,-73.9540
+P1355,C,1/11/2024,CASE-34,SPEC-34-04,sequence,Community|Healthcare|Travel,Pass,none,,0.78,40.6938,-73.9540
+P1356,D,1/12/2024,CASE-34,SPEC-34-04,sequence,Travel,Pass,none,,0.85,40.7118,-73.9540
+P1357,E,1/13/2024,CASE-34,SPEC-34-04,sequence,Food|Travel,Review,warning,Mixed specimen signal,0.92,40.7298,-73.9540
+P1358,F,1/14/2024,CASE-34,SPEC-34-04,sequence,Healthcare,Failed,error,Low coverage,0.99,40.7478,-73.9540
+P1359,G,1/15/2024,CASE-34,SPEC-34-04,sequence,Community|Healthcare|Travel,Pending,info,Awaiting replicate,0.06,40.7658,-73.9540
+P1360,H,1/16/2024,CASE-34,SPEC-34-04,sequence,Travel,Pass,none,,0.13,40.7838,-73.9540
+P1361,A,1/17/2024,CASE-35,SPEC-35-01,sequence,Food|Travel,Pass,none,,0.20,47.5512,-122.3681
+P1362,B,1/18/2024,CASE-35,SPEC-35-01,sequence,Healthcare,Review,warning,Mixed specimen signal,0.27,47.5692,-122.3681
+P1363,C,1/19/2024,CASE-35,SPEC-35-01,sequence,Community|Healthcare|Travel,Failed,error,Low coverage,0.34,47.5872,-122.3681
+P1364,D,1/20/2024,CASE-35,SPEC-35-01,sequence,Travel,Pending,info,Awaiting replicate,0.41,47.6052,-122.3681
+P1365,E,1/21/2024,CASE-35,SPEC-35-01,sequence,Food|Travel,Pass,none,,0.48,47.6232,-122.3681
+P1366,F,1/22/2024,CASE-35,SPEC-35-01,sequence,Healthcare,Pass,none,,0.55,47.6412,-122.3681
+P1367,G,1/23/2024,CASE-35,SPEC-35-01,sequence,Community|Healthcare|Travel,Review,warning,Mixed specimen signal,0.62,47.6592,-122.3681
+P1368,H,1/24/2024,CASE-35,SPEC-35-01,sequence,Travel,Failed,error,Low coverage,0.69,47.6772,-122.3681
+P1369,A,1/25/2024,CASE-35,SPEC-35-01,sequence,Food|Travel,Pending,info,Awaiting replicate,0.76,47.5512,-122.3461
+P1370,B,1/26/2024,CASE-35,SPEC-35-01,sequence,Healthcare,Pass,none,,0.83,47.5692,-122.3461
+P1371,C,1/27/2024,CASE-35,SPEC-35-02,sequence,Community|Healthcare|Travel,Pass,none,,0.90,47.5872,-122.3461
+P1372,D,1/28/2024,CASE-35,SPEC-35-02,sequence,Travel,Review,warning,Mixed specimen signal,0.97,47.6052,-122.3461
+P1373,E,2/1/2024,CASE-35,SPEC-35-02,sequence,Food|Travel,Failed,error,Low coverage,0.04,47.6232,-122.3461
+P1374,F,2/2/2024,CASE-35,SPEC-35-02,sequence,Healthcare,Pending,info,Awaiting replicate,0.11,47.6412,-122.3461
+P1375,G,2/3/2024,CASE-35,SPEC-35-02,sequence,Community|Healthcare|Travel,Pass,none,,0.18,47.6592,-122.3461
+P1376,H,2/4/2024,CASE-35,SPEC-35-02,sequence,Travel,Pass,none,,0.25,47.6772,-122.3461
+P1377,A,2/5/2024,CASE-35,SPEC-35-02,sequence,Food|Travel,Review,warning,Mixed specimen signal,0.32,47.5512,-122.3241
+P1378,B,2/6/2024,CASE-35,SPEC-35-02,sequence,Healthcare,Failed,error,Low coverage,0.39,47.5692,-122.3241
+P1379,C,2/7/2024,CASE-35,SPEC-35-02,sequence,Community|Healthcare|Travel,Pending,info,Awaiting replicate,0.46,47.5872,-122.3241
+P1380,D,2/8/2024,CASE-35,SPEC-35-02,sequence,Travel,Pass,none,,0.53,47.6052,-122.3241
+P1381,E,2/9/2024,CASE-35,SPEC-35-03,sequence,Food|Travel,Pass,none,,0.60,47.6232,-122.3241
+P1382,F,2/10/2024,CASE-35,SPEC-35-03,sequence,Healthcare,Review,warning,Mixed specimen signal,0.67,47.6412,-122.3241
+P1383,G,2/11/2024,CASE-35,SPEC-35-03,sequence,Community|Healthcare|Travel,Failed,error,Low coverage,0.74,47.6592,-122.3241
+P1384,H,2/12/2024,CASE-35,SPEC-35-03,sequence,Travel,Pending,info,Awaiting replicate,0.81,47.6772,-122.3241
+P1385,A,2/13/2024,CASE-35,SPEC-35-03,sequence,Food|Travel,Pass,none,,0.88,47.5512,-122.3021
+P1386,B,2/14/2024,CASE-35,SPEC-35-03,sequence,Healthcare,Pass,none,,0.95,47.5692,-122.3021
+P1387,C,2/15/2024,CASE-35,SPEC-35-03,sequence,Community|Healthcare|Travel,Review,warning,Mixed specimen signal,0.02,47.5872,-122.3021
+P1388,D,2/16/2024,CASE-35,SPEC-35-03,sequence,Travel,Failed,error,Low coverage,0.09,47.6052,-122.3021
+P1389,E,2/17/2024,CASE-35,SPEC-35-03,sequence,Food|Travel,Pending,info,Awaiting replicate,0.16,47.6232,-122.3021
+P1390,F,2/18/2024,CASE-35,SPEC-35-03,sequence,Healthcare,Pass,none,,0.23,47.6412,-122.3021
+P1391,G,2/19/2024,CASE-35,SPEC-35-04,sequence,Community|Healthcare|Travel,Pass,none,,0.30,47.6592,-122.3021
+P1392,H,2/20/2024,CASE-35,SPEC-35-04,sequence,Travel,Review,warning,Mixed specimen signal,0.37,47.6772,-122.3021
+P1393,A,2/21/2024,CASE-35,SPEC-35-04,sequence,Food|Travel,Failed,error,Low coverage,0.44,47.5512,-122.2801
+P1394,B,2/22/2024,CASE-35,SPEC-35-04,sequence,Healthcare,Pending,info,Awaiting replicate,0.51,47.5692,-122.2801
+P1395,C,2/23/2024,CASE-35,SPEC-35-04,sequence,Community|Healthcare|Travel,Pass,none,,0.58,47.5872,-122.2801
+P1396,D,2/24/2024,CASE-35,SPEC-35-04,sequence,Travel,Pass,none,,0.65,47.6052,-122.2801
+P1397,E,2/25/2024,CASE-35,SPEC-35-04,sequence,Food|Travel,Review,warning,Mixed specimen signal,0.72,47.6232,-122.2801
+P1398,F,2/26/2024,CASE-35,SPEC-35-04,sequence,Healthcare,Failed,error,Low coverage,0.79,47.6412,-122.2801
+P1399,G,2/27/2024,CASE-35,SPEC-35-04,sequence,Community|Healthcare|Travel,Pending,info,Awaiting replicate,0.86,47.6592,-122.2801
+P1400,H,2/28/2024,CASE-35,SPEC-35-04,sequence,Travel,Pass,none,,0.93,47.6772,-122.2801
+P1401,A,3/1/2024,CASE-36,SPEC-36-01,sequence,Food|Travel,Pass,none,,0.00,33.9972,-118.2797
+P1402,B,3/2/2024,CASE-36,SPEC-36-01,sequence,Healthcare,Review,warning,Mixed specimen signal,0.07,34.0152,-118.2797
+P1403,C,3/3/2024,CASE-36,SPEC-36-01,sequence,Community|Healthcare|Travel,Failed,error,Low coverage,0.14,34.0332,-118.2797
+P1404,D,3/4/2024,CASE-36,SPEC-36-01,sequence,Travel,Pending,info,Awaiting replicate,0.21,34.0512,-118.2797
+P1405,E,3/5/2024,CASE-36,SPEC-36-01,sequence,Food|Travel,Pass,none,,0.28,34.0692,-118.2797
+P1406,F,3/6/2024,CASE-36,SPEC-36-01,sequence,Healthcare,Pass,none,,0.35,34.0872,-118.2797
+P1407,G,3/7/2024,CASE-36,SPEC-36-01,sequence,Community|Healthcare|Travel,Review,warning,Mixed specimen signal,0.42,34.1052,-118.2797
+P1408,H,3/8/2024,CASE-36,SPEC-36-01,sequence,Travel,Failed,error,Low coverage,0.49,34.1232,-118.2797
+P1409,A,3/9/2024,CASE-36,SPEC-36-01,sequence,Food|Travel,Pending,info,Awaiting replicate,0.56,33.9972,-118.2577
+P1410,B,3/10/2024,CASE-36,SPEC-36-01,sequence,Healthcare,Pass,none,,0.63,34.0152,-118.2577
+P1411,C,3/11/2024,CASE-36,SPEC-36-02,sequence,Community|Healthcare|Travel,Pass,none,,0.70,34.0332,-118.2577
+P1412,D,3/12/2024,CASE-36,SPEC-36-02,sequence,Travel,Review,warning,Mixed specimen signal,0.77,34.0512,-118.2577
+P1413,E,3/13/2024,CASE-36,SPEC-36-02,sequence,Food|Travel,Failed,error,Low coverage,0.84,34.0692,-118.2577
+P1414,F,3/14/2024,CASE-36,SPEC-36-02,sequence,Healthcare,Pending,info,Awaiting replicate,0.91,34.0872,-118.2577
+P1415,G,3/15/2024,CASE-36,SPEC-36-02,sequence,Community|Healthcare|Travel,Pass,none,,0.98,34.1052,-118.2577
+P1416,H,3/16/2024,CASE-36,SPEC-36-02,sequence,Travel,Pass,none,,0.05,34.1232,-118.2577
+P1417,A,3/17/2024,CASE-36,SPEC-36-02,sequence,Food|Travel,Review,warning,Mixed specimen signal,0.12,33.9972,-118.2357
+P1418,B,3/18/2024,CASE-36,SPEC-36-02,sequence,Healthcare,Failed,error,Low coverage,0.19,34.0152,-118.2357
+P1419,C,3/19/2024,CASE-36,SPEC-36-02,sequence,Community|Healthcare|Travel,Pending,info,Awaiting replicate,0.26,34.0332,-118.2357
+P1420,D,3/20/2024,CASE-36,SPEC-36-02,sequence,Travel,Pass,none,,0.33,34.0512,-118.2357
+P1421,E,3/21/2024,CASE-36,SPEC-36-03,sequence,Food|Travel,Pass,none,,0.40,34.0692,-118.2357
+P1422,F,3/22/2024,CASE-36,SPEC-36-03,sequence,Healthcare,Review,warning,Mixed specimen signal,0.47,34.0872,-118.2357
+P1423,G,3/23/2024,CASE-36,SPEC-36-03,sequence,Community|Healthcare|Travel,Failed,error,Low coverage,0.54,34.1052,-118.2357
+P1424,H,3/24/2024,CASE-36,SPEC-36-03,sequence,Travel,Pending,info,Awaiting replicate,0.61,34.1232,-118.2357
+P1425,A,3/25/2024,CASE-36,SPEC-36-03,sequence,Food|Travel,Pass,none,,0.68,33.9972,-118.2137
+P1426,B,3/26/2024,CASE-36,SPEC-36-03,sequence,Healthcare,Pass,none,,0.75,34.0152,-118.2137
+P1427,C,3/27/2024,CASE-36,SPEC-36-03,sequence,Community|Healthcare|Travel,Review,warning,Mixed specimen signal,0.82,34.0332,-118.2137
+P1428,D,3/28/2024,CASE-36,SPEC-36-03,sequence,Travel,Failed,error,Low coverage,0.89,34.0512,-118.2137
+P1429,E,4/1/2024,CASE-36,SPEC-36-03,sequence,Food|Travel,Pending,info,Awaiting replicate,0.96,34.0692,-118.2137
+P1430,F,4/2/2024,CASE-36,SPEC-36-03,sequence,Healthcare,Pass,none,,0.03,34.0872,-118.2137
+P1431,G,4/3/2024,CASE-36,SPEC-36-04,sequence,Community|Healthcare|Travel,Pass,none,,0.10,34.1052,-118.2137
+P1432,H,4/4/2024,CASE-36,SPEC-36-04,sequence,Travel,Review,warning,Mixed specimen signal,0.17,34.1232,-118.2137
+P1433,A,4/5/2024,CASE-36,SPEC-36-04,sequence,Food|Travel,Failed,error,Low coverage,0.24,33.9972,-118.1917
+P1434,B,4/6/2024,CASE-36,SPEC-36-04,sequence,Healthcare,Pending,info,Awaiting replicate,0.31,34.0152,-118.1917
+P1435,C,4/7/2024,CASE-36,SPEC-36-04,sequence,Community|Healthcare|Travel,Pass,none,,0.38,34.0332,-118.1917
+P1436,D,4/8/2024,CASE-36,SPEC-36-04,sequence,Travel,Pass,none,,0.45,34.0512,-118.1917
+P1437,E,4/9/2024,CASE-36,SPEC-36-04,sequence,Food|Travel,Review,warning,Mixed specimen signal,0.52,34.0692,-118.1917
+P1438,F,4/10/2024,CASE-36,SPEC-36-04,sequence,Healthcare,Failed,error,Low coverage,0.59,34.0872,-118.1917
+P1439,G,4/11/2024,CASE-36,SPEC-36-04,sequence,Community|Healthcare|Travel,Pending,info,Awaiting replicate,0.66,34.1052,-118.1917
+P1440,H,4/12/2024,CASE-36,SPEC-36-04,sequence,Travel,Pass,none,,0.73,34.1232,-118.1917
+P1441,A,4/13/2024,CASE-37,SPEC-37-01,sequence,Food|Travel,Pass,none,,0.80,33.6950,-84.4230
+P1442,B,4/14/2024,CASE-37,SPEC-37-01,sequence,Healthcare,Review,warning,Mixed specimen signal,0.87,33.7130,-84.4230
+P1443,C,4/15/2024,CASE-37,SPEC-37-01,sequence,Community|Healthcare|Travel,Failed,error,Low coverage,0.94,33.7310,-84.4230
+P1444,D,4/16/2024,CASE-37,SPEC-37-01,sequence,Travel,Pending,info,Awaiting replicate,0.01,33.7490,-84.4230
+P1445,E,4/17/2024,CASE-37,SPEC-37-01,sequence,Food|Travel,Pass,none,,0.08,33.7670,-84.4230
+P1446,F,4/18/2024,CASE-37,SPEC-37-01,sequence,Healthcare,Pass,none,,0.15,33.7850,-84.4230
+P1447,G,4/19/2024,CASE-37,SPEC-37-01,sequence,Community|Healthcare|Travel,Review,warning,Mixed specimen signal,0.22,33.8030,-84.4230
+P1448,H,4/20/2024,CASE-37,SPEC-37-01,sequence,Travel,Failed,error,Low coverage,0.29,33.8210,-84.4230
+P1449,A,4/21/2024,CASE-37,SPEC-37-01,sequence,Food|Travel,Pending,info,Awaiting replicate,0.36,33.6950,-84.4010
+P1450,B,4/22/2024,CASE-37,SPEC-37-01,sequence,Healthcare,Pass,none,,0.43,33.7130,-84.4010
+P1451,C,4/23/2024,CASE-37,SPEC-37-02,sequence,Community|Healthcare|Travel,Pass,none,,0.50,33.7310,-84.4010
+P1452,D,4/24/2024,CASE-37,SPEC-37-02,sequence,Travel,Review,warning,Mixed specimen signal,0.57,33.7490,-84.4010
+P1453,E,4/25/2024,CASE-37,SPEC-37-02,sequence,Food|Travel,Failed,error,Low coverage,0.64,33.7670,-84.4010
+P1454,F,4/26/2024,CASE-37,SPEC-37-02,sequence,Healthcare,Pending,info,Awaiting replicate,0.71,33.7850,-84.4010
+P1455,G,4/27/2024,CASE-37,SPEC-37-02,sequence,Community|Healthcare|Travel,Pass,none,,0.78,33.8030,-84.4010
+P1456,H,4/28/2024,CASE-37,SPEC-37-02,sequence,Travel,Pass,none,,0.85,33.8210,-84.4010
+P1457,A,5/1/2024,CASE-37,SPEC-37-02,sequence,Food|Travel,Review,warning,Mixed specimen signal,0.92,33.6950,-84.3790
+P1458,B,5/2/2024,CASE-37,SPEC-37-02,sequence,Healthcare,Failed,error,Low coverage,0.99,33.7130,-84.3790
+P1459,C,5/3/2024,CASE-37,SPEC-37-02,sequence,Community|Healthcare|Travel,Pending,info,Awaiting replicate,0.06,33.7310,-84.3790
+P1460,D,5/4/2024,CASE-37,SPEC-37-02,sequence,Travel,Pass,none,,0.13,33.7490,-84.3790
+P1461,E,5/5/2024,CASE-37,SPEC-37-03,sequence,Food|Travel,Pass,none,,0.20,33.7670,-84.3790
+P1462,F,5/6/2024,CASE-37,SPEC-37-03,sequence,Healthcare,Review,warning,Mixed specimen signal,0.27,33.7850,-84.3790
+P1463,G,5/7/2024,CASE-37,SPEC-37-03,sequence,Community|Healthcare|Travel,Failed,error,Low coverage,0.34,33.8030,-84.3790
+P1464,H,5/8/2024,CASE-37,SPEC-37-03,sequence,Travel,Pending,info,Awaiting replicate,0.41,33.8210,-84.3790
+P1465,A,5/9/2024,CASE-37,SPEC-37-03,sequence,Food|Travel,Pass,none,,0.48,33.6950,-84.3570
+P1466,B,5/10/2024,CASE-37,SPEC-37-03,sequence,Healthcare,Pass,none,,0.55,33.7130,-84.3570
+P1467,C,5/11/2024,CASE-37,SPEC-37-03,sequence,Community|Healthcare|Travel,Review,warning,Mixed specimen signal,0.62,33.7310,-84.3570
+P1468,D,5/12/2024,CASE-37,SPEC-37-03,sequence,Travel,Failed,error,Low coverage,0.69,33.7490,-84.3570
+P1469,E,5/13/2024,CASE-37,SPEC-37-03,sequence,Food|Travel,Pending,info,Awaiting replicate,0.76,33.7670,-84.3570
+P1470,F,5/14/2024,CASE-37,SPEC-37-03,sequence,Healthcare,Pass,none,,0.83,33.7850,-84.3570
+P1471,G,5/15/2024,CASE-37,SPEC-37-04,sequence,Community|Healthcare|Travel,Pass,none,,0.90,33.8030,-84.3570
+P1472,H,5/16/2024,CASE-37,SPEC-37-04,sequence,Travel,Review,warning,Mixed specimen signal,0.97,33.8210,-84.3570
+P1473,A,5/17/2024,CASE-37,SPEC-37-04,sequence,Food|Travel,Failed,error,Low coverage,0.04,33.6950,-84.3350
+P1474,B,5/18/2024,CASE-37,SPEC-37-04,sequence,Healthcare,Pending,info,Awaiting replicate,0.11,33.7130,-84.3350
+P1475,C,5/19/2024,CASE-37,SPEC-37-04,sequence,Community|Healthcare|Travel,Pass,none,,0.18,33.7310,-84.3350
+P1476,D,5/20/2024,CASE-37,SPEC-37-04,sequence,Travel,Pass,none,,0.25,33.7490,-84.3350
+P1477,E,5/21/2024,CASE-37,SPEC-37-04,sequence,Food|Travel,Review,warning,Mixed specimen signal,0.32,33.7670,-84.3350
+P1478,F,5/22/2024,CASE-37,SPEC-37-04,sequence,Healthcare,Failed,error,Low coverage,0.39,33.7850,-84.3350
+P1479,G,5/23/2024,CASE-37,SPEC-37-04,sequence,Community|Healthcare|Travel,Pending,info,Awaiting replicate,0.46,33.8030,-84.3350
+P1480,H,5/24/2024,CASE-37,SPEC-37-04,sequence,Travel,Pass,none,,0.53,33.8210,-84.3350
+P1481,A,5/25/2024,CASE-38,SPEC-38-01,sequence,Food|Travel,Pass,none,,0.60,40.6588,-74.0410
+P1482,B,5/26/2024,CASE-38,SPEC-38-01,sequence,Healthcare,Review,warning,Mixed specimen signal,0.67,40.6768,-74.0410
+P1483,C,5/27/2024,CASE-38,SPEC-38-01,sequence,Community|Healthcare|Travel,Failed,error,Low coverage,0.74,40.6948,-74.0410
+P1484,D,5/28/2024,CASE-38,SPEC-38-01,sequence,Travel,Pending,info,Awaiting replicate,0.81,40.7128,-74.0410
+P1485,E,6/1/2024,CASE-38,SPEC-38-01,sequence,Food|Travel,Pass,none,,0.88,40.7308,-74.0410
+P1486,F,6/2/2024,CASE-38,SPEC-38-01,sequence,Healthcare,Pass,none,,0.95,40.7488,-74.0410
+P1487,G,6/3/2024,CASE-38,SPEC-38-01,sequence,Community|Healthcare|Travel,Review,warning,Mixed specimen signal,0.02,40.7668,-74.0410
+P1488,H,6/4/2024,CASE-38,SPEC-38-01,sequence,Travel,Failed,error,Low coverage,0.09,40.7848,-74.0410
+P1489,A,6/5/2024,CASE-38,SPEC-38-01,sequence,Food|Travel,Pending,info,Awaiting replicate,0.16,40.6588,-74.0190
+P1490,B,6/6/2024,CASE-38,SPEC-38-01,sequence,Healthcare,Pass,none,,0.23,40.6768,-74.0190
+P1491,C,6/7/2024,CASE-38,SPEC-38-02,sequence,Community|Healthcare|Travel,Pass,none,,0.30,40.6948,-74.0190
+P1492,D,6/8/2024,CASE-38,SPEC-38-02,sequence,Travel,Review,warning,Mixed specimen signal,0.37,40.7128,-74.0190
+P1493,E,6/9/2024,CASE-38,SPEC-38-02,sequence,Food|Travel,Failed,error,Low coverage,0.44,40.7308,-74.0190
+P1494,F,6/10/2024,CASE-38,SPEC-38-02,sequence,Healthcare,Pending,info,Awaiting replicate,0.51,40.7488,-74.0190
+P1495,G,6/11/2024,CASE-38,SPEC-38-02,sequence,Community|Healthcare|Travel,Pass,none,,0.58,40.7668,-74.0190
+P1496,H,6/12/2024,CASE-38,SPEC-38-02,sequence,Travel,Pass,none,,0.65,40.7848,-74.0190
+P1497,A,6/13/2024,CASE-38,SPEC-38-02,sequence,Food|Travel,Review,warning,Mixed specimen signal,0.72,40.6588,-73.9970
+P1498,B,6/14/2024,CASE-38,SPEC-38-02,sequence,Healthcare,Failed,error,Low coverage,0.79,40.6768,-73.9970
+P1499,C,6/15/2024,CASE-38,SPEC-38-02,sequence,Community|Healthcare|Travel,Pending,info,Awaiting replicate,0.86,40.6948,-73.9970
+P1500,D,6/16/2024,CASE-38,SPEC-38-02,sequence,Travel,Pass,none,,0.93,40.7128,-73.9970
+P1501,E,6/17/2024,CASE-38,SPEC-38-03,sequence,Food|Travel,Pass,none,,0.00,40.7308,-73.9970
+P1502,F,6/18/2024,CASE-38,SPEC-38-03,sequence,Healthcare,Review,warning,Mixed specimen signal,0.07,40.7488,-73.9970
+P1503,G,6/19/2024,CASE-38,SPEC-38-03,sequence,Community|Healthcare|Travel,Failed,error,Low coverage,0.14,40.7668,-73.9970
+P1504,H,6/20/2024,CASE-38,SPEC-38-03,sequence,Travel,Pending,info,Awaiting replicate,0.21,40.7848,-73.9970
+P1505,A,6/21/2024,CASE-38,SPEC-38-03,sequence,Food|Travel,Pass,none,,0.28,40.6588,-73.9750
+P1506,B,6/22/2024,CASE-38,SPEC-38-03,sequence,Healthcare,Pass,none,,0.35,40.6768,-73.9750
+P1507,C,6/23/2024,CASE-38,SPEC-38-03,sequence,Community|Healthcare|Travel,Review,warning,Mixed specimen signal,0.42,40.6948,-73.9750
+P1508,D,6/24/2024,CASE-38,SPEC-38-03,sequence,Travel,Failed,error,Low coverage,0.49,40.7128,-73.9750
+P1509,E,6/25/2024,CASE-38,SPEC-38-03,sequence,Food|Travel,Pending,info,Awaiting replicate,0.56,40.7308,-73.9750
+P1510,F,6/26/2024,CASE-38,SPEC-38-03,sequence,Healthcare,Pass,none,,0.63,40.7488,-73.9750
+P1511,G,6/27/2024,CASE-38,SPEC-38-04,sequence,Community|Healthcare|Travel,Pass,none,,0.70,40.7668,-73.9750
+P1512,H,6/28/2024,CASE-38,SPEC-38-04,sequence,Travel,Review,warning,Mixed specimen signal,0.77,40.7848,-73.9750
+P1513,A,7/1/2024,CASE-38,SPEC-38-04,sequence,Food|Travel,Failed,error,Low coverage,0.84,40.6588,-73.9530
+P1514,B,7/2/2024,CASE-38,SPEC-38-04,sequence,Healthcare,Pending,info,Awaiting replicate,0.91,40.6768,-73.9530
+P1515,C,7/3/2024,CASE-38,SPEC-38-04,sequence,Community|Healthcare|Travel,Pass,none,,0.98,40.6948,-73.9530
+P1516,D,7/4/2024,CASE-38,SPEC-38-04,sequence,Travel,Pass,none,,0.05,40.7128,-73.9530
+P1517,E,7/5/2024,CASE-38,SPEC-38-04,sequence,Food|Travel,Review,warning,Mixed specimen signal,0.12,40.7308,-73.9530
+P1518,F,7/6/2024,CASE-38,SPEC-38-04,sequence,Healthcare,Failed,error,Low coverage,0.19,40.7488,-73.9530
+P1519,G,7/7/2024,CASE-38,SPEC-38-04,sequence,Community|Healthcare|Travel,Pending,info,Awaiting replicate,0.26,40.7668,-73.9530
+P1520,H,7/8/2024,CASE-38,SPEC-38-04,sequence,Travel,Pass,none,,0.33,40.7848,-73.9530
+P1521,A,7/9/2024,CASE-39,SPEC-39-01,sequence,Food|Travel,Pass,none,,0.40,47.5522,-122.3671
+P1522,B,7/10/2024,CASE-39,SPEC-39-01,sequence,Healthcare,Review,warning,Mixed specimen signal,0.47,47.5702,-122.3671
+P1523,C,7/11/2024,CASE-39,SPEC-39-01,sequence,Community|Healthcare|Travel,Failed,error,Low coverage,0.54,47.5882,-122.3671
+P1524,D,7/12/2024,CASE-39,SPEC-39-01,sequence,Travel,Pending,info,Awaiting replicate,0.61,47.6062,-122.3671
+P1525,E,7/13/2024,CASE-39,SPEC-39-01,sequence,Food|Travel,Pass,none,,0.68,47.6242,-122.3671
+P1526,F,7/14/2024,CASE-39,SPEC-39-01,sequence,Healthcare,Pass,none,,0.75,47.6422,-122.3671
+P1527,G,7/15/2024,CASE-39,SPEC-39-01,sequence,Community|Healthcare|Travel,Review,warning,Mixed specimen signal,0.82,47.6602,-122.3671
+P1528,H,7/16/2024,CASE-39,SPEC-39-01,sequence,Travel,Failed,error,Low coverage,0.89,47.6782,-122.3671
+P1529,A,7/17/2024,CASE-39,SPEC-39-01,sequence,Food|Travel,Pending,info,Awaiting replicate,0.96,47.5522,-122.3451
+P1530,B,7/18/2024,CASE-39,SPEC-39-01,sequence,Healthcare,Pass,none,,0.03,47.5702,-122.3451
+P1531,C,7/19/2024,CASE-39,SPEC-39-02,sequence,Community|Healthcare|Travel,Pass,none,,0.10,47.5882,-122.3451
+P1532,D,7/20/2024,CASE-39,SPEC-39-02,sequence,Travel,Review,warning,Mixed specimen signal,0.17,47.6062,-122.3451
+P1533,E,7/21/2024,CASE-39,SPEC-39-02,sequence,Food|Travel,Failed,error,Low coverage,0.24,47.6242,-122.3451
+P1534,F,7/22/2024,CASE-39,SPEC-39-02,sequence,Healthcare,Pending,info,Awaiting replicate,0.31,47.6422,-122.3451
+P1535,G,7/23/2024,CASE-39,SPEC-39-02,sequence,Community|Healthcare|Travel,Pass,none,,0.38,47.6602,-122.3451
+P1536,H,7/24/2024,CASE-39,SPEC-39-02,sequence,Travel,Pass,none,,0.45,47.6782,-122.3451
+P1537,A,7/25/2024,CASE-39,SPEC-39-02,sequence,Food|Travel,Review,warning,Mixed specimen signal,0.52,47.5522,-122.3231
+P1538,B,7/26/2024,CASE-39,SPEC-39-02,sequence,Healthcare,Failed,error,Low coverage,0.59,47.5702,-122.3231
+P1539,C,7/27/2024,CASE-39,SPEC-39-02,sequence,Community|Healthcare|Travel,Pending,info,Awaiting replicate,0.66,47.5882,-122.3231
+P1540,D,7/28/2024,CASE-39,SPEC-39-02,sequence,Travel,Pass,none,,0.73,47.6062,-122.3231
+P1541,E,8/1/2024,CASE-39,SPEC-39-03,sequence,Food|Travel,Pass,none,,0.80,47.6242,-122.3231
+P1542,F,8/2/2024,CASE-39,SPEC-39-03,sequence,Healthcare,Review,warning,Mixed specimen signal,0.87,47.6422,-122.3231
+P1543,G,8/3/2024,CASE-39,SPEC-39-03,sequence,Community|Healthcare|Travel,Failed,error,Low coverage,0.94,47.6602,-122.3231
+P1544,H,8/4/2024,CASE-39,SPEC-39-03,sequence,Travel,Pending,info,Awaiting replicate,0.01,47.6782,-122.3231
+P1545,A,8/5/2024,CASE-39,SPEC-39-03,sequence,Food|Travel,Pass,none,,0.08,47.5522,-122.3011
+P1546,B,8/6/2024,CASE-39,SPEC-39-03,sequence,Healthcare,Pass,none,,0.15,47.5702,-122.3011
+P1547,C,8/7/2024,CASE-39,SPEC-39-03,sequence,Community|Healthcare|Travel,Review,warning,Mixed specimen signal,0.22,47.5882,-122.3011
+P1548,D,8/8/2024,CASE-39,SPEC-39-03,sequence,Travel,Failed,error,Low coverage,0.29,47.6062,-122.3011
+P1549,E,8/9/2024,CASE-39,SPEC-39-03,sequence,Food|Travel,Pending,info,Awaiting replicate,0.36,47.6242,-122.3011
+P1550,F,8/10/2024,CASE-39,SPEC-39-03,sequence,Healthcare,Pass,none,,0.43,47.6422,-122.3011
+P1551,G,8/11/2024,CASE-39,SPEC-39-04,sequence,Community|Healthcare|Travel,Pass,none,,0.50,47.6602,-122.3011
+P1552,H,8/12/2024,CASE-39,SPEC-39-04,sequence,Travel,Review,warning,Mixed specimen signal,0.57,47.6782,-122.3011
+P1553,A,8/13/2024,CASE-39,SPEC-39-04,sequence,Food|Travel,Failed,error,Low coverage,0.64,47.5522,-122.2791
+P1554,B,8/14/2024,CASE-39,SPEC-39-04,sequence,Healthcare,Pending,info,Awaiting replicate,0.71,47.5702,-122.2791
+P1555,C,8/15/2024,CASE-39,SPEC-39-04,sequence,Community|Healthcare|Travel,Pass,none,,0.78,47.5882,-122.2791
+P1556,D,8/16/2024,CASE-39,SPEC-39-04,sequence,Travel,Pass,none,,0.85,47.6062,-122.2791
+P1557,E,8/17/2024,CASE-39,SPEC-39-04,sequence,Food|Travel,Review,warning,Mixed specimen signal,0.92,47.6242,-122.2791
+P1558,F,8/18/2024,CASE-39,SPEC-39-04,sequence,Healthcare,Failed,error,Low coverage,0.99,47.6422,-122.2791
+P1559,G,8/19/2024,CASE-39,SPEC-39-04,sequence,Community|Healthcare|Travel,Pending,info,Awaiting replicate,0.06,47.6602,-122.2791
+P1560,H,8/20/2024,CASE-39,SPEC-39-04,sequence,Travel,Pass,none,,0.13,47.6782,-122.2791
+P1561,A,8/21/2024,CASE-40,SPEC-40-01,sequence,Food|Travel,Pass,none,,0.20,33.9982,-118.2787
+P1562,B,8/22/2024,CASE-40,SPEC-40-01,sequence,Healthcare,Review,warning,Mixed specimen signal,0.27,34.0162,-118.2787
+P1563,C,8/23/2024,CASE-40,SPEC-40-01,sequence,Community|Healthcare|Travel,Failed,error,Low coverage,0.34,34.0342,-118.2787
+P1564,D,8/24/2024,CASE-40,SPEC-40-01,sequence,Travel,Pending,info,Awaiting replicate,0.41,34.0522,-118.2787
+P1565,E,8/25/2024,CASE-40,SPEC-40-01,sequence,Food|Travel,Pass,none,,0.48,34.0702,-118.2787
+P1566,F,8/26/2024,CASE-40,SPEC-40-01,sequence,Healthcare,Pass,none,,0.55,34.0882,-118.2787
+P1567,G,8/27/2024,CASE-40,SPEC-40-01,sequence,Community|Healthcare|Travel,Review,warning,Mixed specimen signal,0.62,34.1062,-118.2787
+P1568,H,8/28/2024,CASE-40,SPEC-40-01,sequence,Travel,Failed,error,Low coverage,0.69,34.1242,-118.2787
+P1569,A,9/1/2024,CASE-40,SPEC-40-01,sequence,Food|Travel,Pending,info,Awaiting replicate,0.76,33.9982,-118.2567
+P1570,B,9/2/2024,CASE-40,SPEC-40-01,sequence,Healthcare,Pass,none,,0.83,34.0162,-118.2567
+P1571,C,9/3/2024,CASE-40,SPEC-40-02,sequence,Community|Healthcare|Travel,Pass,none,,0.90,34.0342,-118.2567
+P1572,D,9/4/2024,CASE-40,SPEC-40-02,sequence,Travel,Review,warning,Mixed specimen signal,0.97,34.0522,-118.2567
+P1573,E,9/5/2024,CASE-40,SPEC-40-02,sequence,Food|Travel,Failed,error,Low coverage,0.04,34.0702,-118.2567
+P1574,F,9/6/2024,CASE-40,SPEC-40-02,sequence,Healthcare,Pending,info,Awaiting replicate,0.11,34.0882,-118.2567
+P1575,G,9/7/2024,CASE-40,SPEC-40-02,sequence,Community|Healthcare|Travel,Pass,none,,0.18,34.1062,-118.2567
+P1576,H,9/8/2024,CASE-40,SPEC-40-02,sequence,Travel,Pass,none,,0.25,34.1242,-118.2567
+P1577,A,9/9/2024,CASE-40,SPEC-40-02,sequence,Food|Travel,Review,warning,Mixed specimen signal,0.32,33.9982,-118.2347
+P1578,B,9/10/2024,CASE-40,SPEC-40-02,sequence,Healthcare,Failed,error,Low coverage,0.39,34.0162,-118.2347
+P1579,C,9/11/2024,CASE-40,SPEC-40-02,sequence,Community|Healthcare|Travel,Pending,info,Awaiting replicate,0.46,34.0342,-118.2347
+P1580,D,9/12/2024,CASE-40,SPEC-40-02,sequence,Travel,Pass,none,,0.53,34.0522,-118.2347
+P1581,E,9/13/2024,CASE-40,SPEC-40-03,sequence,Food|Travel,Pass,none,,0.60,34.0702,-118.2347
+P1582,F,9/14/2024,CASE-40,SPEC-40-03,sequence,Healthcare,Review,warning,Mixed specimen signal,0.67,34.0882,-118.2347
+P1583,G,9/15/2024,CASE-40,SPEC-40-03,sequence,Community|Healthcare|Travel,Failed,error,Low coverage,0.74,34.1062,-118.2347
+P1584,H,9/16/2024,CASE-40,SPEC-40-03,sequence,Travel,Pending,info,Awaiting replicate,0.81,34.1242,-118.2347
+P1585,A,9/17/2024,CASE-40,SPEC-40-03,sequence,Food|Travel,Pass,none,,0.88,33.9982,-118.2127
+P1586,B,9/18/2024,CASE-40,SPEC-40-03,sequence,Healthcare,Pass,none,,0.95,34.0162,-118.2127
+P1587,C,9/19/2024,CASE-40,SPEC-40-03,sequence,Community|Healthcare|Travel,Review,warning,Mixed specimen signal,0.02,34.0342,-118.2127
+P1588,D,9/20/2024,CASE-40,SPEC-40-03,sequence,Travel,Failed,error,Low coverage,0.09,34.0522,-118.2127
+P1589,E,9/21/2024,CASE-40,SPEC-40-03,sequence,Food|Travel,Pending,info,Awaiting replicate,0.16,34.0702,-118.2127
+P1590,F,9/22/2024,CASE-40,SPEC-40-03,sequence,Healthcare,Pass,none,,0.23,34.0882,-118.2127
+P1591,G,9/23/2024,CASE-40,SPEC-40-04,sequence,Community|Healthcare|Travel,Pass,none,,0.30,34.1062,-118.2127
+P1592,H,9/24/2024,CASE-40,SPEC-40-04,sequence,Travel,Review,warning,Mixed specimen signal,0.37,34.1242,-118.2127
+P1593,A,9/25/2024,CASE-40,SPEC-40-04,sequence,Food|Travel,Failed,error,Low coverage,0.44,33.9982,-118.1907
+P1594,B,9/26/2024,CASE-40,SPEC-40-04,sequence,Healthcare,Pending,info,Awaiting replicate,0.51,34.0162,-118.1907
+P1595,C,9/27/2024,CASE-40,SPEC-40-04,sequence,Community|Healthcare|Travel,Pass,none,,0.58,34.0342,-118.1907
+P1596,D,9/28/2024,CASE-40,SPEC-40-04,sequence,Travel,Pass,none,,0.65,34.0522,-118.1907
+P1597,E,10/1/2024,CASE-40,SPEC-40-04,sequence,Food|Travel,Review,warning,Mixed specimen signal,0.72,34.0702,-118.1907
+P1598,F,10/2/2024,CASE-40,SPEC-40-04,sequence,Healthcare,Failed,error,Low coverage,0.79,34.0882,-118.1907
+P1599,G,10/3/2024,CASE-40,SPEC-40-04,sequence,Community|Healthcare|Travel,Pending,info,Awaiting replicate,0.86,34.1062,-118.1907
+P1600,H,10/4/2024,CASE-40,SPEC-40-04,sequence,Travel,Pass,none,,0.93,34.1242,-118.1907

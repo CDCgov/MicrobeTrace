@@ -7,12 +7,12 @@
     <span style="overflow: visible; position: relative; width: 110px;">
       <a title="Settings" data-testid="twod-settings-button" class="btn btn-sm btn-clean btn-icon btn-icon-md" style="float:left" (click)="openSettings()"><i class="flaticon-settings primary"></i></a>
     </span>
-    <span style="overflow: visible; position: relative; width: 110px;">
-      <a title="Export Screen" class="btn btn-sm btn-clean btn-icon btn-icon-md" style="float:left" (click)="openExport()"><i class="flaticon-download primary"></i></a>
-    </span>
   }
   <span style="overflow: visible; position: relative; width: 110px;">
-    <a title="Center Screen" class="btn btn-sm btn-clean btn-icon btn-icon-md" style="float:left" (click)="openCenter()"><i class="flaticon-eye primary"></i></a>
+    <a title="Export Screen" data-testid="twod-export-button" class="btn btn-sm btn-clean btn-icon btn-icon-md" style="float:left" (click)="openExport()"><i class="flaticon-download primary"></i></a>
+  </span>
+  <span style="overflow: visible; position: relative; width: 110px;">
+    <a title="Center Screen" class="btn btn-sm btn-clean btn-icon btn-icon-md" style="float:left" (click)="openCenter(true)"><i class="flaticon-eye primary"></i></a>
   </span>
   @if (!sigmaPocEnabled) {
     <span style="overflow: visible; position: relative; width: 110px;">
@@ -40,7 +40,9 @@
       <div class="sigma-poc-banner" data-testid="sigma-poc-banner">
         <div>
           <strong>Sigma WebGL proof of concept</strong>
-          <span class="sigma-poc-badge">client-side only</span>
+          <span class="sigma-poc-badge">
+            {{ sigmaWebglActive ? 'WebGL active' : 'WebGL unavailable' }}
+          </span>
         </div>
         @if (sigmaPocLoading) {
           <div class="sigma-poc-loading" data-testid="sigma-poc-loading">{{ sigmaPocLoadingMessage }}</div>
@@ -64,6 +66,28 @@
             (click)="setSigmaPocEdgeDetailMode('all')">All</button>
         </div>
         <div class="sigma-poc-interaction-hint">Drag a node to reposition it · Drag empty group space to move its cluster · Shift-drag to select an area</div>
+        @if (sigmaRendererRecoveryMessage) {
+          <div class="sigma-poc-loading" data-testid="sigma-webgl-recovery"
+            role="status" aria-live="polite">
+            {{ sigmaRendererRecoveryMessage }}
+          </div>
+        }
+      </div>
+    }
+    @if (cytoscapeWebglRequested) {
+      <div class="sigma-poc-banner" data-testid="cytoscape-webgl-banner">
+        <div>
+          <strong>Cytoscape WebGL comparison</strong>
+          <span class="sigma-poc-badge">
+            {{ cytoscapeWebglActive ? 'WebGL active' : 'Canvas fallback' }}
+          </span>
+        </div>
+        @if (cytoscapeRendererFallbackReason) {
+          <div class="sigma-poc-loading" data-testid="cytoscape-webgl-fallback"
+            role="status" aria-live="polite">
+            {{ cytoscapeRendererFallbackReason }}
+          </div>
+        }
       </div>
     }
 
@@ -71,15 +95,40 @@
 
     <div #exportContainer class="cytoscape-container" style="position: relative;">
       @if (sigmaPocEnabled) {
-        <div #sigmaPoc id="sigma-network-poc" data-testid="sigma-network-poc"></div>
+        <div #sigmaPoc id="sigma-network-poc" data-testid="sigma-network-poc"
+          tabindex="0" role="application" aria-roledescription="interactive network"
+          aria-label="Sigma network visualization"
+          aria-describedby="network-renderer-keyboard-instructions network-renderer-live-status"
+          (focus)="onRendererKeyboardFocus()" (keydown)="onRendererKeydown($event)"></div>
       } @else {
-        <div #cy id="cy" style="width: 100%; height: 100%; position: relative;"></div>
+        <div #cy id="cy" data-testid="cytoscape-network"
+          tabindex="0" role="application" aria-roledescription="interactive network"
+          aria-label="Cytoscape network visualization"
+          aria-describedby="network-renderer-keyboard-instructions network-renderer-live-status"
+          style="width: 100%; height: 100%; position: relative;"
+          (focus)="onRendererKeyboardFocus()" (keydown)="onRendererKeydown($event)"></div>
       }
       <div class="grid-overlay" [class.hidden]="!widgets['network-gridlines-show']"></div>
 
       <!-- Static Watermark (Optional) -->
       <div id="watermark" class="watermark"></div>
     </div>
+    <div id="network-renderer-keyboard-instructions" class="sr-only">
+      Use arrow keys, Home, or End to move through nodes. Press Enter or Space to toggle selection. Press G to collapse or expand the focused group. Press Escape to clear selection.
+    </div>
+    <p id="network-renderer-live-status" class="sr-only" aria-live="polite" aria-atomic="true"
+      data-testid="network-renderer-live-status">{{ rendererKeyboardLiveStatus }}</p>
+    <section class="sr-only" data-testid="renderer-accessible-feature-summary"
+      aria-label="Network feature summary">
+      <p aria-live="polite">{{ rendererAccessibleFeatureSummary }}</p>
+      <ul>
+        @for (item of rendererAccessibleFeatureItems; track item.id) {
+          <li [attr.data-node-id]="item.id">
+            {{ item.id }}: {{ item.description }}{{ item.selected ? '; selected' : '' }}
+          </li>
+        }
+      </ul>
+    </section>
     <div id="network-statistics-wrapper">
       <div id="network-statistics-draghandle"><span class="oi oi-move"></span></div>
       <table #networkStats id="network-statistics-table">

@@ -1,5 +1,22 @@
 import Graph from 'graphology';
 import Sigma from 'sigma';
+import {
+  EMPTY_NETWORK_NODE_VISUAL_FEATURES,
+  hasNetworkNodeVisualFeatures,
+  type NetworkNodeVisualFeatures,
+} from '@app/contactTraceCommonServices/network-node-features';
+import {
+  drawNetworkNodeFeatureGlyph,
+  prepareNetworkFeatureCanvas,
+} from './network-node-feature-overlay';
+import type { NetworkGeographicProjection } from '@app/contactTraceCommonServices/network-geography.model';
+import { drawNetworkGeographicOverlay } from './network-geographic-overlay';
+import type { NetworkRendererViewState } from './network-renderer-view-state';
+import {
+  buildSigmaNetworkFeatureAttributes,
+  MICROBETRACE_SIGMA_NODE_PRIMITIVES,
+  type SigmaNetworkFeatureAttributes,
+} from './sigma-network-node-program';
 
 export type SigmaEdgeDetailMode = 'overview' | 'detail' | 'all';
 
@@ -14,6 +31,7 @@ export interface SigmaPocNode {
   selected: boolean;
   group?: string | null;
   groupColor?: string;
+  features?: NetworkNodeVisualFeatures;
   raw: any;
 }
 
@@ -32,25 +50,33 @@ export interface SigmaPocGraphData {
   nodes: SigmaPocNode[];
   links: SigmaPocLink[];
   showGroupHulls: boolean;
+  geographicOverlay?: NetworkGeographicProjection | null;
 }
 
 export interface SigmaPocRenderSummary {
   residentNodeCount: number;
   residentLinkCount: number;
   drawnLinkCount: number;
+  groupHullCount: number;
   edgeDetailMode: SigmaEdgeDetailMode;
   edgeStride: number;
 }
 
 export interface SigmaPocCallbacks {
-  onNodeSelectionChange?: (selectedNodeIds: Set<string>) => void;
+  onNodeSelectionChange?: (
+    selectedNodeIds: ReadonlySet<string>,
+    changedNodeIds: ReadonlySet<string>,
+  ) => void;
   onNodeHover?: (node: SigmaPocNode | null, event?: MouseEvent | TouchEvent) => void;
   onNodeContextMenu?: (node: SigmaPocNode, event: MouseEvent) => void;
   onNodePositionChange?: (nodeId: string, position: { x: number; y: number }) => void;
+  onGroupToggle?: (groupIdOrLabel: string) => void;
+  onViewStateChange?: (state: NetworkRendererViewState) => void;
   onSummaryChange?: (summary: SigmaPocRenderSummary) => void;
+  onWebglContextLost?: () => void;
 }
 
-interface SigmaNodeAttributes extends Record<string, unknown> {
+interface SigmaNodeAttributes extends Record<string, unknown>, SigmaNetworkFeatureAttributes {
   x: number;
   y: number;
   label: string;
@@ -60,6 +86,7 @@ interface SigmaNodeAttributes extends Record<string, unknown> {
   selected: boolean;
   group: string | null;
   groupColor: string;
+  features: NetworkNodeVisualFeatures;
   raw: SigmaPocNode;
 }
 
@@ -453,16 +480,20 @@ export class SigmaNetworkRendererAdapter {
     allowSelfLoops: true,
   });
   private renderer: Sigma<SigmaNodeAttributes, SigmaEdgeAttributes> | null = null;
+  private geographicLayer: HTMLCanvasElement | null = null;
   private groupLayer: HTMLCanvasElement | null = null;
+  private featureLayer: HTMLCanvasElement | null = null;
   private selectionLayer: HTMLCanvasElement | null = null;
   private groupHulls: SigmaGroupHull[] = [];
   private selectedNodeIds = new Set<string>();
   private hoveredNodeId: string | null = null;
+  private keyboardFocusedNodeId: string | null = null;
   private hoveredNeighborhood = new Set<string>();
   private edgeDetailMode: SigmaEdgeDetailMode = 'overview';
   private baseEdgeStride = 1;
   private effectiveEdgeStride = 1;
   private showGroupHulls = false;
+  private geographicOverlay: NetworkGeographicProjection | null = null;
   private rankedEdges: SigmaRankedEdge[] = [];
   private incidentEdgeIdsByNode = new Map<string, string[]>();
   private projectionTimer: ReturnType<typeof setTimeout> | null = null;
@@ -476,6 +507,13 @@ export class SigmaNetworkRendererAdapter {
   private hullDragState: SigmaHullDragState | null = null;
   private suppressStageClick = false;
   private suppressStageClickTimer: ReturnType<typeof setTimeout> | null = null;
+  private webglLayers: HTMLCanvasElement[] = [];
+  private customWebglNodeFeaturesActive = false;
+
+  private readonly handleWebglContextLost = (event: Event): void => {
+    event.preventDefault();
+    this.callbacks.onWebglContextLost?.();
+  };
 
   private readonly handleSelectionPointerDown = (event: PointerEvent): void => {
     if (!event.shiftKey || event.button !== 0 || !this.renderer) return;
@@ -484,7 +522,13 @@ export class SigmaNetworkRendererAdapter {
     this.selectionPointerId = event.pointerId;
     this.selectionStart = this.viewportPointFromPointer(event);
     this.selectionEnd = this.selectionStart;
-    this.selectionMouseLayer?.setPointerCapture?.(event.pointerId);
+    try {
+      this.selectionMouseLayer?.setPointerCapture?.(event.pointerId);
+    } catch {
+      // Synthetic test events and older browsers may not register an active
+      // pointer for setPointerCapture. Document-level listeners still complete
+      // the gesture in that case.
+    }
     document.addEventListener('pointermove', this.handleSelectionPointerMove, true);
     document.addEventListener('pointerup', this.handleSelectionPointerUp, true);
     document.addEventListener('pointercancel', this.handleSelectionPointerUp, true);
@@ -504,7 +548,11 @@ export class SigmaNetworkRendererAdapter {
     event.preventDefault();
     event.stopImmediatePropagation();
     this.selectionEnd = this.viewportPointFromPointer(event);
-    this.selectionMouseLayer?.releasePointerCapture?.(event.pointerId);
+    try {
+      this.selectionMouseLayer?.releasePointerCapture?.(event.pointerId);
+    } catch {
+      // The document listeners are sufficient if capture was not established.
+    }
     document.removeEventListener('pointermove', this.handleSelectionPointerMove, true);
     document.removeEventListener('pointerup', this.handleSelectionPointerUp, true);
     document.removeEventListener('pointercancel', this.handleSelectionPointerUp, true);
@@ -529,6 +577,7 @@ export class SigmaNetworkRendererAdapter {
 
     for (const node of data.nodes) {
       if (node.selected) this.selectedNodeIds.add(node.id);
+      const features = node.features || EMPTY_NETWORK_NODE_VISUAL_FEATURES;
       graph.addNode(node.id, {
         x: Number.isFinite(node.x) ? node.x : 0,
         y: Number.isFinite(node.y) ? node.y : 0,
@@ -539,6 +588,8 @@ export class SigmaNetworkRendererAdapter {
         selected: node.selected,
         group: node.group || null,
         groupColor: node.groupColor || GROUP_PALETTE[stableHash(node.group || node.id) % GROUP_PALETTE.length],
+        features,
+        ...buildSigmaNetworkFeatureAttributes(features),
         raw: node,
       });
     }
@@ -561,7 +612,12 @@ export class SigmaNetworkRendererAdapter {
     }
 
     this.graph = graph;
+    if (this.keyboardFocusedNodeId && !this.graph.hasNode(this.keyboardFocusedNodeId)) {
+      this.keyboardFocusedNodeId = null;
+    }
+    this.rebuildActiveNeighborhood();
     this.showGroupHulls = data.showGroupHulls;
+    this.geographicOverlay = data.geographicOverlay || null;
     this.baseEdgeStride = this.resolveBaseEdgeStride(graph.size);
     this.updateEffectiveEdgeStride(this.renderer?.getCamera().getState().ratio || 1);
     this.rebuildEdgeIndexes();
@@ -582,7 +638,9 @@ export class SigmaNetworkRendererAdapter {
     if (priorCamera) this.renderer.getCamera().setState(priorCamera);
     else void this.renderer.getCamera().reset({ duration: 0 });
     this.renderer.refresh();
+    this.drawGeographicOverlay();
     this.drawGroupHulls();
+    this.drawNodeFeatures();
     this.emitSummary();
   }
 
@@ -602,7 +660,9 @@ export class SigmaNetworkRendererAdapter {
 
   resize(): void {
     this.renderer?.resize();
+    this.drawGeographicOverlay();
     this.drawGroupHulls();
+    this.drawNodeFeatures();
     this.drawSelectionBox();
     this.scheduleProjectionRefresh();
   }
@@ -615,6 +675,10 @@ export class SigmaNetworkRendererAdapter {
     return this.renderer;
   }
 
+  usesCustomWebglNodeFeatures(): boolean {
+    return this.customWebglNodeFeaturesActive;
+  }
+
   getDisplayGraph(): Graph<SigmaNodeAttributes, SigmaEdgeAttributes> {
     return this.displayGraph;
   }
@@ -624,9 +688,112 @@ export class SigmaNetworkRendererAdapter {
       residentNodeCount: this.graph.order,
       residentLinkCount: this.graph.size,
       drawnLinkCount: this.displayGraph.size,
+      groupHullCount: this.groupHulls.length,
       edgeDetailMode: this.edgeDetailMode,
       edgeStride: this.effectiveEdgeStride,
     };
+  }
+
+  getSelectedNodeIds(): string[] {
+    return Array.from(this.selectedNodeIds);
+  }
+
+  getNodeIds(): string[] {
+    return this.graph.nodes();
+  }
+
+  getKeyboardFocusedNodeId(): string | null {
+    return this.keyboardFocusedNodeId;
+  }
+
+  setKeyboardFocusedNode(nodeId: string | null): void {
+    const normalizedId = nodeId === null ? null : String(nodeId);
+    const nextNodeId = normalizedId && this.graph.hasNode(normalizedId) ? normalizedId : null;
+    if (nextNodeId === this.keyboardFocusedNodeId) return;
+    this.keyboardFocusedNodeId = nextNodeId;
+    this.rebuildActiveNeighborhood();
+    this.rebuildDisplayGraph(true);
+    this.drawNodeFeatures();
+  }
+
+  getViewState(): NetworkRendererViewState | null {
+    if (!this.renderer) return null;
+    const dimensions = this.renderer.getDimensions();
+    const center = this.renderer.viewportToGraph({
+      x: dimensions.width / 2,
+      y: dimensions.height / 2,
+    });
+    const graphToViewportRatio = this.renderer.getGraphToViewportRatio();
+    if (!Number.isFinite(graphToViewportRatio) || graphToViewportRatio <= 0) return null;
+    return {
+      centerX: center.x,
+      centerY: center.y,
+      graphUnitsPerPixel: 1 / graphToViewportRatio,
+      edgeDetailMode: this.edgeDetailMode,
+    };
+  }
+
+  setViewState(state: NetworkRendererViewState): void {
+    if (!this.renderer || state.graphUnitsPerPixel <= 0) return;
+    const camera = this.renderer.getCamera();
+    const current = camera.getState();
+    const currentGraphToViewportRatio = this.renderer.getGraphToViewportRatio();
+    if (!Number.isFinite(currentGraphToViewportRatio) || currentGraphToViewportRatio <= 0) return;
+    const currentGraphUnitsPerPixel = 1 / currentGraphToViewportRatio;
+    const framedCenter = this.renderer.graphToFramedGraph({ x: state.centerX, y: state.centerY });
+    camera.setState({
+      ...current,
+      x: framedCenter.x,
+      y: framedCenter.y,
+      ratio: current.ratio * state.graphUnitsPerPixel / currentGraphUnitsPerPixel,
+    });
+    this.setEdgeDetailMode(state.edgeDetailMode);
+  }
+
+  hasActiveWebglContext(): boolean {
+    // Constructing Sigma successfully means its WebGL programs and canvases are
+    // live. Do not probe every canvas with getContext(): Sigma also owns 2D
+    // interaction layers, and asking one of those for WebGL can permanently
+    // claim the canvas and break pointer-based selection.
+    return Boolean(this.renderer && this.webglLayers.length > 0);
+  }
+
+  recoverWebglContext(): boolean {
+    if (!this.renderer) return false;
+    const priorCamera = this.renderer.getCamera().getState();
+    this.container.removeEventListener('pointerdown', this.handleSelectionPointerDown, true);
+    this.detachWebglFailureMonitor();
+    this.renderer.kill();
+    this.renderer = null;
+    this.geographicLayer = null;
+    this.groupLayer = null;
+    this.featureLayer = null;
+    this.selectionLayer = null;
+    this.selectionMouseLayer = null;
+
+    try {
+      this.createRenderer();
+      this.renderer.setCustomBBox(this.resolveGraphBounds());
+      this.renderer.getCamera().setState(priorCamera);
+      this.renderer.refresh();
+      this.drawGeographicOverlay();
+      this.drawGroupHulls();
+      this.drawNodeFeatures();
+      return this.hasActiveWebglContext();
+    } catch (error) {
+      console.error('Unable to recreate the Sigma WebGL renderer.', error);
+      return false;
+    }
+  }
+
+  selectNodes(nodeIds: Iterable<string>): void {
+    const previousSelection = new Set(this.selectedNodeIds);
+    this.selectedNodeIds.clear();
+    for (const nodeId of nodeIds) {
+      const normalizedId = String(nodeId);
+      if (this.graph.hasNode(normalizedId)) this.selectedNodeIds.add(normalizedId);
+    }
+    this.syncSelectionAttributes(previousSelection);
   }
 
   destroy(): void {
@@ -634,19 +801,23 @@ export class SigmaNetworkRendererAdapter {
     this.projectionTimer = null;
     if (this.hullRefreshFrame !== null) cancelAnimationFrame(this.hullRefreshFrame);
     this.hullRefreshFrame = null;
-    this.selectionMouseLayer?.removeEventListener('pointerdown', this.handleSelectionPointerDown, true);
+    this.container.removeEventListener('pointerdown', this.handleSelectionPointerDown, true);
+    this.detachWebglFailureMonitor();
     document.removeEventListener('pointermove', this.handleSelectionPointerMove, true);
     document.removeEventListener('pointerup', this.handleSelectionPointerUp, true);
     document.removeEventListener('pointercancel', this.handleSelectionPointerUp, true);
     this.renderer?.kill();
     this.renderer = null;
+    this.geographicLayer = null;
     this.groupLayer = null;
+    this.featureLayer = null;
     this.selectionLayer = null;
     this.selectionMouseLayer = null;
     this.selectionStart = null;
     this.selectionEnd = null;
     this.selectionPointerId = null;
     this.nodeDragStartPointer = null;
+    this.keyboardFocusedNodeId = null;
     this.nodeDragStartPositions.clear();
     this.hullDragState = null;
     if (this.suppressStageClickTimer) clearTimeout(this.suppressStageClickTimer);
@@ -657,12 +828,13 @@ export class SigmaNetworkRendererAdapter {
     this.incidentEdgeIdsByNode.clear();
     this.graph.clear();
     this.displayGraph.clear();
+    this.geographicOverlay = null;
   }
 
   private createRenderer(): void {
-    this.renderer = new Sigma(this.displayGraph, this.container, {
+    const rendererOptions = {
       settings: {
-        autoRescaleContent: 'nodes',
+        autoRescaleContent: 'nodes' as const,
         enableNodeDrag: true,
         getDraggedNodes: draggedNode => [draggedNode],
         // Sigma v4's drag manager retains the graph supplied at construction.
@@ -681,23 +853,27 @@ export class SigmaNetworkRendererAdapter {
         stagePadding: 48,
       },
       nodeReducer: (_key, displayData, attributes, state) => {
-        const inActiveNeighborhood = !this.hoveredNodeId || this.hoveredNeighborhood.has(String(attributes.raw.id));
+        const activeNodeId = this.hoveredNodeId || this.keyboardFocusedNodeId;
+        const focused = this.keyboardFocusedNodeId === String(attributes.raw.id);
+        const inActiveNeighborhood = !activeNodeId || this.hoveredNeighborhood.has(String(attributes.raw.id));
         const selected = this.selectedNodeIds.has(String(attributes.raw.id));
         return {
           ...displayData,
           color: selected ? this.selectedColor : String(attributes.color),
           opacity: inActiveNeighborhood ? Number(attributes.opacity) : 0.12,
-          size: Number(attributes.size) * (selected || state.isHovered ? 1.35 : 1),
+          size: Number(attributes.size) * Number(attributes.mtFeatureScale || 1) *
+            (selected || state.isHovered || focused ? 1.35 : 1),
           label: inActiveNeighborhood ? String(attributes.label) : null,
-          labelVisibility: selected || state.isHovered ? 'visible' : 'auto',
-          highlighted: selected || state.isHovered,
-          zIndex: selected || state.isHovered ? 20 : 1,
+          labelVisibility: selected || state.isHovered || focused ? 'visible' : 'auto',
+          highlighted: selected || state.isHovered || focused,
+          zIndex: selected || state.isHovered || focused ? 20 : 1,
         };
       },
       edgeReducer: (_key, displayData, attributes, state) => {
+        const activeNodeId = this.hoveredNodeId || this.keyboardFocusedNodeId;
         const incidentToHover = Boolean(
-          this.hoveredNodeId &&
-          (attributes.sourceId === this.hoveredNodeId || attributes.targetId === this.hoveredNodeId),
+          activeNodeId &&
+          (attributes.sourceId === activeNodeId || attributes.targetId === activeNodeId),
         );
         const incidentToSelection = this.selectedNodeIds.size === 1 && (
           this.selectedNodeIds.has(String(attributes.sourceId)) ||
@@ -712,22 +888,86 @@ export class SigmaNetworkRendererAdapter {
           zIndex: incidentToHover || incidentToSelection ? 10 : 0,
         };
       },
+    };
+
+    let needsCustomNodeFeatures = false;
+    this.graph.forEachNode((_nodeId, attributes) => {
+      needsCustomNodeFeatures ||= hasNetworkNodeVisualFeatures(attributes.features);
     });
 
+    if (needsCustomNodeFeatures) {
+      try {
+        this.renderer = new Sigma(this.displayGraph, this.container, {
+          ...rendererOptions,
+          primitives: {
+            nodes: MICROBETRACE_SIGMA_NODE_PRIMITIVES,
+          },
+        });
+        this.customWebglNodeFeaturesActive = true;
+      } catch (error) {
+        // A custom shader can fail on an older/limited GPU even when WebGL2 is
+        // available. Keep Sigma usable and preserve feature semantics through
+        // the existing Canvas glyph layer in that case.
+        console.warn('Sigma custom node feature program unavailable; using Canvas glyphs.', error);
+        this.container.replaceChildren();
+        this.renderer = new Sigma(this.displayGraph, this.container, rendererOptions);
+        this.customWebglNodeFeaturesActive = false;
+      }
+    } else {
+      this.renderer = new Sigma(this.displayGraph, this.container, rendererOptions);
+      this.customWebglNodeFeaturesActive = false;
+    }
+
+    this.geographicLayer = this.renderer.createCanvas('microbetrace-geography', {
+      beforeLayer: 'stage',
+      style: { pointerEvents: 'none' },
+    });
+    this.geographicLayer.dataset.testid = 'network-geographic-overlay';
+    this.geographicLayer.dataset.renderer = 'sigma';
+    this.geographicLayer.setAttribute('aria-hidden', 'true');
     this.groupLayer = this.renderer.createCanvas('microbetrace-groups', {
       beforeLayer: 'stage',
       style: { pointerEvents: 'none' },
     });
+    this.groupLayer.dataset.testid = 'network-group-hull-overlay';
+    this.groupLayer.dataset.renderer = 'sigma';
+    this.featureLayer = this.renderer.createCanvas('microbetrace-node-features', {
+      afterLayer: 'stage',
+      style: { pointerEvents: 'none' },
+    });
+    this.featureLayer.dataset.testid = 'network-node-feature-overlay';
+    this.featureLayer.dataset.renderer = 'sigma';
+    this.featureLayer.dataset.renderMode = this.customWebglNodeFeaturesActive
+      ? 'webgl-program'
+      : 'canvas-overlay';
     this.selectionLayer = this.renderer.createCanvas('microbetrace-selection', {
       afterLayer: 'stage',
       style: { pointerEvents: 'none' },
     });
     this.selectionMouseLayer = this.renderer.getMouseLayer();
-    this.selectionMouseLayer.addEventListener('pointerdown', this.handleSelectionPointerDown, true);
-    this.renderer.on('afterRender', () => this.drawGroupHulls());
+    // Listen on the stable container because Sigma may recreate or reorder its
+    // internal mouse layer while rebuilding the display graph.
+    this.container.addEventListener('pointerdown', this.handleSelectionPointerDown, true);
+    this.renderer.on('afterRender', () => {
+      this.drawGeographicOverlay();
+      this.drawGroupHulls();
+      this.drawNodeFeatures();
+    });
     this.renderer.on('enterNode', payload => this.handleNodeHover(payload.node, payload.event.original));
     this.renderer.on('leaveNode', payload => this.handleNodeHover(null, payload.event.original));
     this.renderer.on('clickNode', payload => this.handleNodeClick(payload.node, payload.event.original));
+    this.renderer.on('doubleClickNode', payload => {
+      const raw = this.graph.getNodeAttribute(payload.node, 'raw')?.raw;
+      if (!raw?.rendererGroupAggregate) return;
+      payload.preventSigmaDefault();
+      this.callbacks.onGroupToggle?.(String(raw.rendererGroupId || payload.node));
+    });
+    this.renderer.on('doubleClickStage', payload => {
+      const group = this.hullAtViewportPoint(payload.event);
+      if (!group) return;
+      payload.preventSigmaDefault();
+      this.callbacks.onGroupToggle?.(group.label);
+    });
     this.renderer.on('clickStage', () => {
       if (this.suppressStageClick) {
         this.suppressStageClick = false;
@@ -765,7 +1005,28 @@ export class SigmaNetworkRendererAdapter {
     this.renderer.getCamera().on('updated', camera => {
       this.updateEffectiveEdgeStride(camera.ratio);
       this.scheduleProjectionRefresh();
+      const viewState = this.getViewState();
+      if (viewState) this.callbacks.onViewStateChange?.(viewState);
     });
+    this.attachWebglFailureMonitor();
+  }
+
+  private attachWebglFailureMonitor(): void {
+    this.detachWebglFailureMonitor();
+    // webglcontextlost is harmless on non-WebGL canvases, so listening on all
+    // Sigma layers avoids calling getContext() and changing a layer's context
+    // type as a side effect.
+    this.webglLayers = Array.from(this.container.querySelectorAll('canvas')) as HTMLCanvasElement[];
+    this.webglLayers.forEach(layer => {
+      layer.addEventListener('webglcontextlost', this.handleWebglContextLost);
+    });
+  }
+
+  private detachWebglFailureMonitor(): void {
+    this.webglLayers.forEach(layer => {
+      layer.removeEventListener('webglcontextlost', this.handleWebglContextLost);
+    });
+    this.webglLayers = [];
   }
 
   private resolveGraphBounds(): SigmaGraphBounds {
@@ -859,6 +1120,7 @@ export class SigmaNetworkRendererAdapter {
     const maxX = Math.max(start.x, end.x);
     const minY = Math.min(start.y, end.y);
     const maxY = Math.max(start.y, end.y);
+    const previousSelection = new Set(this.selectedNodeIds);
     this.graph.forEachNode((nodeId, attributes) => {
       const displayedAttributes = this.displayGraph.hasNode(nodeId)
         ? this.displayGraph.getNodeAttributes(nodeId)
@@ -871,7 +1133,7 @@ export class SigmaNetworkRendererAdapter {
         this.selectedNodeIds.add(nodeId);
       }
     });
-    this.syncSelectionAttributes();
+    this.syncSelectionAttributes(previousSelection);
   }
 
   private syncDraggedNodePositions(nodeIds: string[], notify: boolean): void {
@@ -957,9 +1219,10 @@ export class SigmaNetworkRendererAdapter {
     // This only runs for downStage. A pointer over a node produces downNode,
     // allowing Sigma's node selection and drag behavior to take precedence.
     payload.preventSigmaDefault();
+    const previousSelection = new Set(this.selectedNodeIds);
     this.selectedNodeIds.clear();
     group.nodeIds.forEach(nodeId => this.selectedNodeIds.add(nodeId));
-    this.syncSelectionAttributes();
+    this.syncSelectionAttributes(previousSelection);
 
     const startPositions = new Map<string, { x: number; y: number }>();
     group.nodeIds.forEach(nodeId => {
@@ -1023,40 +1286,88 @@ export class SigmaNetworkRendererAdapter {
 
   private handleNodeHover(nodeId: string | null, event?: MouseEvent | TouchEvent): void {
     this.hoveredNodeId = nodeId;
-    this.hoveredNeighborhood.clear();
     if (nodeId && this.graph.hasNode(nodeId)) {
-      this.hoveredNeighborhood.add(nodeId);
-      this.graph.forEachNeighbor(nodeId, neighbor => this.hoveredNeighborhood.add(neighbor));
       this.callbacks.onNodeHover?.(this.graph.getNodeAttribute(nodeId, 'raw'), event);
     } else {
       this.callbacks.onNodeHover?.(null, event);
     }
+    this.rebuildActiveNeighborhood();
     this.rebuildDisplayGraph(true);
     this.emitSummary();
+  }
+
+  private rebuildActiveNeighborhood(): void {
+    this.hoveredNeighborhood.clear();
+    const activeNodeId = this.hoveredNodeId || this.keyboardFocusedNodeId;
+    if (!activeNodeId || !this.graph.hasNode(activeNodeId)) return;
+    this.hoveredNeighborhood.add(activeNodeId);
+    this.graph.forEachNeighbor(activeNodeId, neighbor => this.hoveredNeighborhood.add(neighbor));
   }
 
   private handleNodeClick(nodeId: string, event: MouseEvent | TouchEvent): void {
     const mouseEvent = event instanceof MouseEvent ? event : null;
     const additive = Boolean(mouseEvent?.ctrlKey || mouseEvent?.metaKey || mouseEvent?.shiftKey);
     const wasSelected = this.selectedNodeIds.has(nodeId);
+    const previousSelection = new Set(this.selectedNodeIds);
     if (!additive) this.selectedNodeIds.clear();
     if (!wasSelected || !additive) this.selectedNodeIds.add(nodeId);
     else this.selectedNodeIds.delete(nodeId);
-    this.syncSelectionAttributes();
+    this.syncSelectionAttributes(previousSelection);
   }
 
-  private clearSelection(): void {
+  clearSelection(): void {
     if (this.selectedNodeIds.size === 0) return;
+    const previousSelection = new Set(this.selectedNodeIds);
     this.selectedNodeIds.clear();
-    this.syncSelectionAttributes();
+    this.syncSelectionAttributes(previousSelection);
   }
 
-  private syncSelectionAttributes(): void {
-    this.graph.forEachNode(nodeId => {
-      this.graph.setNodeAttribute(nodeId, 'selected', this.selectedNodeIds.has(nodeId));
+  private syncSelectionAttributes(previousSelection: ReadonlySet<string>): void {
+    const changedNodeIds = new Set<string>();
+    previousSelection.forEach(nodeId => {
+      if (!this.selectedNodeIds.has(nodeId)) changedNodeIds.add(nodeId);
     });
-    this.callbacks.onNodeSelectionChange?.(new Set(this.selectedNodeIds));
-    this.rebuildDisplayGraph(true);
+    this.selectedNodeIds.forEach(nodeId => {
+      if (!previousSelection.has(nodeId)) changedNodeIds.add(nodeId);
+    });
+
+    changedNodeIds.forEach(nodeId => {
+      if (this.graph.hasNode(nodeId)) {
+        this.graph.setNodeAttribute(nodeId, 'selected', this.selectedNodeIds.has(nodeId));
+      }
+      if (this.displayGraph.hasNode(nodeId)) {
+        this.displayGraph.setNodeAttribute(nodeId, 'selected', this.selectedNodeIds.has(nodeId));
+      }
+    });
+    this.callbacks.onNodeSelectionChange?.(
+      new Set(this.selectedNodeIds),
+      changedNodeIds,
+    );
+
+    const selectionChangesProjection = this.edgeDetailMode !== 'all' &&
+      (previousSelection.size === 1 || this.selectedNodeIds.size === 1);
+    if (selectionChangesProjection) {
+      this.rebuildDisplayGraph();
+    } else if (this.renderer && changedNodeIds.size > 0) {
+      const affectedEdgeIds = new Set<string>();
+      if (previousSelection.size === 1) {
+        previousSelection.forEach(nodeId => {
+          (this.incidentEdgeIdsByNode.get(nodeId) || []).forEach(edgeId => affectedEdgeIds.add(edgeId));
+        });
+      }
+      if (this.selectedNodeIds.size === 1) {
+        this.selectedNodeIds.forEach(nodeId => {
+          (this.incidentEdgeIdsByNode.get(nodeId) || []).forEach(edgeId => affectedEdgeIds.add(edgeId));
+        });
+      }
+      this.renderer.refresh({
+        partialGraph: {
+          nodes: Array.from(changedNodeIds).filter(nodeId => this.displayGraph.hasNode(nodeId)),
+          edges: Array.from(affectedEdgeIds).filter(edgeId => this.displayGraph.hasEdge(edgeId)),
+        },
+        skipIndexation: true,
+      });
+    }
     this.emitSummary();
   }
 
@@ -1334,6 +1645,60 @@ export class SigmaNetworkRendererAdapter {
       center.y /= points.length;
       this.groupHulls.push({ label, color: group.color, nodeIds: group.nodeIds, points, center });
     });
+  }
+
+  private drawNodeFeatures(): void {
+    if (!this.renderer || !this.featureLayer) return;
+    const { width, height } = this.renderer.getDimensions();
+    const context = prepareNetworkFeatureCanvas(this.featureLayer, width, height);
+    if (!context) return;
+
+    this.graph.forEachNode((nodeId, attributes) => {
+      const focused = nodeId === this.keyboardFocusedNodeId;
+      if (!focused && !hasNetworkNodeVisualFeatures(attributes.features)) return;
+      const point = this.renderer!.graphToViewport({
+        x: Number(attributes.x),
+        y: Number(attributes.y),
+      });
+      const radius = this.renderer!.scaleSize(
+        Number(attributes.size) * Number(attributes.mtFeatureScale || 1),
+      );
+      const margin = radius + 16;
+      if (
+        point.x < -margin || point.x > width + margin ||
+        point.y < -margin || point.y > height + margin
+      ) return;
+      if (!this.customWebglNodeFeaturesActive && hasNetworkNodeVisualFeatures(attributes.features)) {
+        drawNetworkNodeFeatureGlyph(context, {
+          x: point.x,
+          y: point.y,
+          radius,
+          features: attributes.features,
+        });
+      }
+      if (focused) {
+        context.save();
+        context.beginPath();
+        context.arc(point.x, point.y, radius + 6, 0, Math.PI * 2);
+        context.strokeStyle = '#0ea5e9';
+        context.lineWidth = 3;
+        context.setLineDash([5, 3]);
+        context.stroke();
+        context.restore();
+      }
+    });
+  }
+
+  private drawGeographicOverlay(): void {
+    if (!this.renderer || !this.geographicLayer) return;
+    const { width, height } = this.renderer.getDimensions();
+    drawNetworkGeographicOverlay(
+      this.geographicLayer,
+      width,
+      height,
+      this.geographicOverlay,
+      point => this.renderer!.graphToViewport(point),
+    );
   }
 
   private drawGroupHulls(): void {

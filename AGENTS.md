@@ -25,3 +25,11 @@ Useful Cypress commands:
 - `npm run e2e:journeys:flows:local:chrome` runs ingestion and journey flow specs.
 - `npm run e2e:journeys:view-state:local:chrome` runs view-state specs.
 - `npm run e2e:journeys:contracts:local:chrome` runs contract-mode specs.
+
+## GitHub and Git Workflow
+
+- The canonical remote is `origin` at `https://github.com/CDCgov/MicrobeTrace.git`.
+- Use the repository's configured Git Credential Manager for GitHub authentication; never request or store passwords or tokens in repository files or chat.
+- When the user explicitly requests a push, use `git push origin <branch>` and report any authentication failure without exposing credentials.
+- Local commits and branch operations do not require GitHub authentication.
+- If Codex is blocked by the sandbox while updating `.git` metadata or pushing over the network, request the required elevated permission rather than changing repository files to work around it.

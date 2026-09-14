@@ -1,0 +1,16 @@
+source,target,distance,confidence
+SEQ-001,SEQ-002,2,high
+SEQ-002,SEQ-003,4,high
+SEQ-003,SEQ-004,6,medium
+SEQ-004,SEQ-001,8,medium
+SEQ-005,SEQ-006,2,high
+SEQ-006,SEQ-007,5,medium
+SEQ-007,SEQ-008,7,medium
+SEQ-008,SEQ-005,9,low
+SEQ-009,SEQ-010,3,high
+SEQ-010,SEQ-011,5,medium
+SEQ-011,SEQ-012,8,low
+SEQ-012,SEQ-009,10,low
+SEQ-003,SEQ-005,12,low
+SEQ-007,SEQ-009,13,low
+SEQ-002,SEQ-010,15,low

@@ -667,8 +667,13 @@ export function goTo2DNetworkView(): void {
 }
 
 export function assertTwoDNetworkReady(timeout = 30000): void {
-  cy.get('#cy', { timeout }).should('be.visible');
-  cy.window({ timeout }).should('have.property', 'cytoscapeInstance');
+  cy.get('#cy:visible, #sigma-network-poc:visible', { timeout }).should('be.visible');
+  cy.window({ timeout }).should((win: any) => {
+    expect(
+      win.cytoscapeInstance || win.sigmaPocInstance,
+      '2D network renderer instance',
+    ).to.exist;
+  });
 }
 
 export function assertPhyloTreeReady(timeout = 30000): void {
@@ -942,7 +947,7 @@ export function ensureCrosstabView(): void {
 
 export function ensureTwoDNetworkView(): void {
   cy.get('body', { timeout: 15000 }).then(($body) => {
-    if ($body.find('#cy:visible').length) {
+    if ($body.find('#cy:visible, #sigma-network-poc:visible').length) {
       assertTwoDNetworkReady();
       return;
     }

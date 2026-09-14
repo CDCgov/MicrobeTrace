@@ -11,6 +11,7 @@ import {
 type DistanceMetric = 'tn93' | 'snps';
 type FileDatatype = 'link' | 'node' | 'matrix' | 'fasta' | 'newick' | 'MT/other';
 type DefaultView = '2D Network' | 'Table' | 'Map' | 'Phylogenetic Tree' | 'Alignment View';
+export type PerformanceRendererMode = 'cytoscape-canvas' | 'cytoscape-webgl' | 'sigma';
 
 export type PerformanceFileLoadSpec = {
   name: string;
@@ -40,6 +41,8 @@ export type PerformanceScenario = {
   timeoutMs?: number;
   enabled?: boolean;
   metadata?: Record<string, unknown>;
+  renderer?: PerformanceRendererMode;
+  rendererProfile?: 'legacy' | 'optimized';
 };
 
 export type PerformanceCounts = {
@@ -54,6 +57,18 @@ export type PerformanceCounts = {
   cytoscapeVisibleEdges: number | null;
   cytoscapeTotalNodes: number | null;
   cytoscapeTotalEdges: number | null;
+  rendererResidentNodes: number | null;
+  rendererResidentEdges: number | null;
+  rendererDrawnNodes: number | null;
+  rendererDrawnEdges: number | null;
+  rendererGroupCount: number | null;
+  rendererRenderedGroupHullCount: number | null;
+  rendererCompoundNodeCount: number | null;
+  rendererGeographicOverlayActive: boolean | null;
+  rendererGeographicPositionedNodeCount: number | null;
+  rendererMixedValueDonutNodeCount: number | null;
+  rendererQcOverlayNodeCount: number | null;
+  rendererUncertaintyOverlayNodeCount: number | null;
   filteredNodes: number | null;
   filteredLinks: number | null;
   representedNodes: number | null;
@@ -70,6 +85,53 @@ export type HeapSnapshot = {
   deltaUsedJSHeapSize: number | null;
 };
 
+export type BrowserProcessMemorySnapshot = {
+  phase: string;
+  capturedAt: string;
+  platform: string;
+  browserName: string | null;
+  available: boolean;
+  reason: string | null;
+  rootPid: number | null;
+  processCount: number;
+  workingSetBytes: number | null;
+  privateBytes: number | null;
+  summedProcessPeakWorkingSetBytes: number | null;
+  processTypes: Record<string, {
+    count: number;
+    workingSetBytes: number;
+    privateBytes: number;
+  }>;
+  gpu: {
+    available: boolean;
+    reason: string | null;
+    processCount: number;
+    dedicatedBytes: number | null;
+    sharedBytes: number | null;
+    residentBytes: number | null;
+    totalCommittedBytes: number | null;
+  };
+};
+
+export type BrowserMemorySummary = {
+  protocol: 'isolated-browser-process-tree-with-gpu';
+  samples: BrowserProcessMemorySnapshot[];
+  initial: BrowserProcessMemorySnapshot | null;
+  final: BrowserProcessMemorySnapshot | null;
+  peakObserved: {
+    workingSetBytes: number | null;
+    privateBytes: number | null;
+    gpuResidentBytes: number | null;
+    gpuTotalCommittedBytes: number | null;
+  };
+  delta: {
+    workingSetBytes: number | null;
+    privateBytes: number | null;
+    gpuResidentBytes: number | null;
+    gpuTotalCommittedBytes: number | null;
+  };
+};
+
 export type LongTaskSummary = {
   count: number;
   maxDurationMs: number;
@@ -82,12 +144,35 @@ export type PerformanceMeasurement = {
   metrics: Record<string, number | null>;
   counts: PerformanceCounts;
   heap: HeapSnapshot;
+  browserMemory?: BrowserMemorySummary;
   longTasks: LongTaskSummary;
   app: {
     loadTimeMs: number | null;
     performance?: unknown;
     patristic?: unknown;
+    renderer?: RendererComparisonSnapshot | null;
   };
+};
+
+export type RendererComparisonSnapshot = {
+  requestedMode: PerformanceRendererMode;
+  activeMode: PerformanceRendererMode;
+  webglRequested: boolean;
+  webglActive: boolean;
+  fallbackReason: string | null;
+  residentNodeCount: number;
+  residentEdgeCount: number;
+  drawnNodeCount: number;
+  drawnEdgeCount: number;
+  groupCount: number;
+  renderedGroupHullCount: number;
+  compoundNodeCount: number;
+  geographicOverlayActive: boolean;
+  geographicPositionedNodeCount: number;
+  mixedValueDonutNodeCount: number;
+  qcOverlayNodeCount: number;
+  uncertaintyOverlayNodeCount: number;
+  nodeFeatureRenderingMode: 'canvas-overlay' | 'sigma-webgl-program';
 };
 
 export type TwoDInteractionMeasurementOptions = {
@@ -104,8 +189,40 @@ export type TwoDInteractionMeasurementOptions = {
 };
 
 export type PerfWindow = Window & {
+  gc?: () => void;
   commonService: any;
   cytoscapeInstance?: any;
+  sigmaPocInstance?: any;
+  mtRendererComparison?: {
+    getDiagnostics: () => RendererComparisonSnapshot;
+    getCollapsedGroupIds?: () => string[];
+    setCollapsedGroups?: (groupLabelsOrIds: string[]) => Promise<void>;
+    exportComposite?: () => {
+      width: number;
+      height: number;
+      pixelRatio: number;
+      canvasLayerCount: number;
+      pngDataUrl: string;
+      svg: string;
+      metadata: Record<string, any>;
+    };
+    getViewState?: () => {
+      centerX: number;
+      centerY: number;
+      graphUnitsPerPixel: number;
+      edgeDetailMode: 'overview' | 'detail' | 'all';
+    } | null;
+    setViewState?: (state: {
+      centerX: number;
+      centerY: number;
+      graphUnitsPerPixel: number;
+      edgeDetailMode: 'overview' | 'detail' | 'all';
+    }) => void;
+    getKeyboardState?: () => {
+      focusedNodeId: string | null;
+      liveStatus: string;
+    };
+  };
   __mtPerfLongTasks?: Array<{ duration: number; startTime: number; name: string }>;
   __mtPerfLongTaskObserver?: PerformanceObserver;
 };
@@ -136,6 +253,64 @@ function readHeapUsed(win: Window): number | null {
   return typeof value === 'number' ? value : null;
 }
 
+function difference(finalValue: number | null, initialValue: number | null): number | null {
+  return finalValue !== null && initialValue !== null ? finalValue - initialValue : null;
+}
+
+function maxAvailable(values: Array<number | null>): number | null {
+  const available = values.filter((value): value is number => value !== null);
+  return available.length ? Math.max(...available) : null;
+}
+
+function summarizeBrowserMemory(
+  samples: BrowserProcessMemorySnapshot[],
+): BrowserMemorySummary {
+  const availableSamples = samples.filter(sample => sample.available);
+  const initial = availableSamples[0] || samples[0] || null;
+  const final = availableSamples[availableSamples.length - 1] || samples[samples.length - 1] || null;
+
+  return {
+    protocol: 'isolated-browser-process-tree-with-gpu',
+    samples,
+    initial,
+    final,
+    peakObserved: {
+      workingSetBytes: maxAvailable(availableSamples.map(sample => sample.workingSetBytes)),
+      privateBytes: maxAvailable(availableSamples.map(sample => sample.privateBytes)),
+      gpuResidentBytes: maxAvailable(availableSamples.map(sample => sample.gpu.residentBytes)),
+      gpuTotalCommittedBytes: maxAvailable(
+        availableSamples.map(sample => sample.gpu.totalCommittedBytes),
+      ),
+    },
+    delta: {
+      workingSetBytes: difference(final?.workingSetBytes ?? null, initial?.workingSetBytes ?? null),
+      privateBytes: difference(final?.privateBytes ?? null, initial?.privateBytes ?? null),
+      gpuResidentBytes: difference(
+        final?.gpu.residentBytes ?? null,
+        initial?.gpu.residentBytes ?? null,
+      ),
+      gpuTotalCommittedBytes: difference(
+        final?.gpu.totalCommittedBytes ?? null,
+        initial?.gpu.totalCommittedBytes ?? null,
+      ),
+    },
+  };
+}
+
+function captureBrowserMemorySample(
+  measurement: PerformanceMeasurement,
+  phase: string,
+): Cypress.Chainable<PerformanceMeasurement> {
+  if (!Cypress.env('rendererMemory')) return cy.wrap(measurement, { log: false });
+
+  return cy.task('perf:captureBrowserMemory', { phase }, { timeout: 30000 })
+    .then((snapshot: BrowserProcessMemorySnapshot) => {
+      const samples = [...(measurement.browserMemory?.samples || []), snapshot];
+      measurement.browserMemory = summarizeBrowserMemory(samples);
+      return measurement;
+    });
+}
+
 function summarizeLongTasks(win: PerfWindow): LongTaskSummary {
   const longTasks = win.__mtPerfLongTasks || [];
   return {
@@ -143,6 +318,14 @@ function summarizeLongTasks(win: PerfWindow): LongTaskSummary {
     maxDurationMs: longTasks.reduce((max, task) => Math.max(max, task.duration), 0),
     totalDurationMs: longTasks.reduce((sum, task) => sum + task.duration, 0),
   };
+}
+
+function readRendererComparison(win: PerfWindow): RendererComparisonSnapshot | null {
+  try {
+    return win.mtRendererComparison?.getDiagnostics() || null;
+  } catch (_error) {
+    return null;
+  }
 }
 
 export function collectPerformanceCounts(win: PerfWindow): PerformanceCounts {
@@ -154,6 +337,7 @@ export function collectPerformanceCounts(win: PerfWindow): PerformanceCounts {
   const adaptiveState = session.meta?.adaptiveNetwork;
   const fullSummary = adaptiveState?.fullGraphSummary;
   const adaptiveView = adaptiveState?.lastView;
+  const renderer = readRendererComparison(win);
 
   return {
     nodes: nodes.length,
@@ -173,6 +357,18 @@ export function collectPerformanceCounts(win: PerfWindow): PerformanceCounts {
     cytoscapeTotalEdges: win.cytoscapeInstance?.edges
       ? win.cytoscapeInstance.edges().length
       : null,
+    rendererResidentNodes: renderer?.residentNodeCount ?? null,
+    rendererResidentEdges: renderer?.residentEdgeCount ?? null,
+    rendererDrawnNodes: renderer?.drawnNodeCount ?? null,
+    rendererDrawnEdges: renderer?.drawnEdgeCount ?? null,
+    rendererGroupCount: renderer?.groupCount ?? null,
+    rendererRenderedGroupHullCount: renderer?.renderedGroupHullCount ?? null,
+    rendererCompoundNodeCount: renderer?.compoundNodeCount ?? null,
+    rendererGeographicOverlayActive: renderer?.geographicOverlayActive ?? null,
+    rendererGeographicPositionedNodeCount: renderer?.geographicPositionedNodeCount ?? null,
+    rendererMixedValueDonutNodeCount: renderer?.mixedValueDonutNodeCount ?? null,
+    rendererQcOverlayNodeCount: renderer?.qcOverlayNodeCount ?? null,
+    rendererUncertaintyOverlayNodeCount: renderer?.uncertaintyOverlayNodeCount ?? null,
     filteredNodes: typeof fullSummary?.filteredNodeCount === 'number'
       ? fullSummary.filteredNodeCount
       : null,
@@ -277,6 +473,7 @@ function buildMeasurement(
       loadTimeMs: typeof appLoadTime === 'number' ? appLoadTime : null,
       performance: getAppPerformance(win),
       patristic: getPatristicPerformance(win),
+      renderer: readRendererComparison(win),
     },
   };
 }
@@ -307,19 +504,40 @@ export function assertScenarioExpectedCounts(
 export function launchPerformanceScenarioToTwoD(
   scenario: PerformanceScenario,
   timeout = 120000,
+  beforeTwoD?: (win: PerfWindow) => void | Promise<void>,
 ): Cypress.Chainable<PerformanceMeasurement> {
   const profile = asJourneyProfile(scenario);
   const marks = {} as TimingMarks;
   let initialHeap: number | null = null;
+  let initialBrowserMemory: BrowserProcessMemorySnapshot | null = null;
 
-  visitAppAndAcceptEula();
+  visitAppAndAcceptEula({
+    extraQuery: scenario.renderer
+      ? {
+        renderer: scenario.renderer,
+        rendererProfile: scenario.rendererProfile || 'optimized',
+      }
+      : undefined,
+  });
   startPerformanceCapture();
 
   cy.window().then((win: unknown) => {
     const perfWindow = win as PerfWindow;
+    if (Cypress.env('rendererMemory')) {
+      expect(perfWindow.gc, 'forced GC hook for isolated memory benchmark').to.be.a('function');
+      perfWindow.gc?.();
+      perfWindow.gc?.();
+    }
     marks.uploadStart = perfWindow.performance.now();
     initialHeap = readHeapUsed(perfWindow);
   });
+
+  if (Cypress.env('rendererMemory')) {
+    cy.task('perf:captureBrowserMemory', { phase: 'before-dataset' }, { timeout: 30000 })
+      .then((snapshot: BrowserProcessMemorySnapshot) => {
+        initialBrowserMemory = snapshot;
+      });
+  }
 
   cy.loadFiles(scenario.files);
 
@@ -341,14 +559,21 @@ export function launchPerformanceScenarioToTwoD(
     marks.viewStart = marks.fullyLoaded;
   });
 
+  if (beforeTwoD) {
+    cy.window().then((win: unknown) => beforeTwoD(win as PerfWindow));
+  }
+
   ensureTwoDNetworkView();
 
   return cy.window().then((win: unknown) => {
     marks.viewReady = (win as Window).performance.now();
     const measurement = buildMeasurement(scenario, marks, initialHeap, win as PerfWindow);
+    if (initialBrowserMemory) {
+      measurement.browserMemory = summarizeBrowserMemory([initialBrowserMemory]);
+    }
     assertScenarioExpectedCounts(scenario, measurement.counts);
     return measurement;
-  });
+  }).then(measurement => captureBrowserMemorySample(measurement, 'view-ready'));
 }
 
 export function appendMeasuredView(
@@ -387,6 +612,7 @@ export function appendMeasuredView(
         ...measurement.app,
         performance: getAppPerformance(perfWindow),
         patristic: getPatristicPerformance(perfWindow),
+        renderer: readRendererComparison(perfWindow),
       },
     };
   });
@@ -449,6 +675,191 @@ export function measureFrameGaps(
       }, observeMs);
     });
   });
+}
+
+function measureAnimatedFrameGaps(
+  metricPrefix: string,
+  update: (win: PerfWindow, progress: number) => void,
+  observeMs = 800,
+): Cypress.Chainable<Record<string, number | null>> {
+  return cy.window().then((win: unknown) => {
+    const perfWindow = win as PerfWindow;
+
+    return new Cypress.Promise<Record<string, number | null>>((resolve, reject) => {
+      const gaps: number[] = [];
+      const start = perfWindow.performance.now();
+      let lastFrame = start;
+
+      const tick = (now: number) => {
+        const elapsed = now - start;
+        const progress = Math.min(1, elapsed / observeMs);
+        gaps.push(now - lastFrame);
+        lastFrame = now;
+
+        try {
+          update(perfWindow, progress);
+        } catch (error) {
+          reject(error);
+          return;
+        }
+
+        if (progress < 1) {
+          perfWindow.requestAnimationFrame(tick);
+          return;
+        }
+
+        const maxGap = gaps.reduce((max, gap) => Math.max(max, gap), 0);
+        const totalGap = gaps.reduce((sum, gap) => sum + gap, 0);
+        const averageGap = gaps.length ? totalGap / gaps.length : null;
+        resolve({
+          [`${metricPrefix}FrameCount`]: gaps.length,
+          [`${metricPrefix}MaxFrameGapMs`]: gaps.length ? maxGap : null,
+          [`${metricPrefix}P95FrameGapMs`]: percentile(gaps, 95),
+          [`${metricPrefix}AverageFrameGapMs`]: averageGap,
+          [`${metricPrefix}AverageFps`]: averageGap ? 1000 / averageGap : null,
+          [`${metricPrefix}ObservedMs`]: now - start,
+        });
+      };
+
+      perfWindow.requestAnimationFrame(tick);
+    });
+  });
+}
+
+export function prepareRendererFullDetail(
+  measurement: PerformanceMeasurement,
+): Cypress.Chainable<PerformanceMeasurement> {
+  const overviewDrawnEdges = measurement.app.renderer?.drawnEdgeCount ?? null;
+  measurement.metrics.rendererOverviewDrawnEdges = overviewDrawnEdges;
+
+  return cy.window().then((win: unknown) => {
+    const perfWindow = win as PerfWindow;
+    if (readRendererComparison(perfWindow)?.activeMode === 'sigma') {
+      // Persist the requested mode in product state as well as the adapter.
+      // Feature/style changes can queue a renderer refresh; without this, that
+      // refresh can restore the prior overview mode after the probe requests
+      // full detail.
+      perfWindow.commonService.session.style.widgets['network-edge-detail-mode'] = 'all';
+      const viewState = perfWindow.mtRendererComparison?.getViewState?.();
+      if (viewState && perfWindow.mtRendererComparison?.setViewState) {
+        perfWindow.mtRendererComparison.setViewState({
+          ...viewState,
+          edgeDetailMode: 'all',
+        });
+      } else {
+        perfWindow.sigmaPocInstance?.setEdgeDetailMode('all');
+      }
+    }
+  }).then(() => {
+    cy.window({ timeout: 30000 }).should((win: unknown) => {
+      const diagnostics = readRendererComparison(win as PerfWindow);
+      if (diagnostics?.activeMode === 'sigma') {
+        expect(diagnostics.drawnEdgeCount, 'Sigma full-detail edge projection')
+          .to.equal(diagnostics.residentEdgeCount);
+      }
+    });
+    return refreshPerformanceMeasurement(measurement, 'full-detail');
+  }).then((refreshed) => {
+    refreshed.metrics.rendererFullDetailDrawnEdges =
+      refreshed.app.renderer?.drawnEdgeCount ?? null;
+    return refreshed;
+  });
+}
+
+/**
+ * Runs equivalent renderer-level probes without relying on either library's
+ * pointer-event implementation. This keeps the workload repeatable while the
+ * frame scheduler still captures each renderer's redraw cost.
+ */
+export function measureRendererComparisonInteractions(
+  measurement: PerformanceMeasurement,
+  observeMs = 800,
+): Cypress.Chainable<PerformanceMeasurement> {
+  let cytoscapeInitialPan: { x: number; y: number } | null = null;
+  let sigmaInitialCamera: any = null;
+
+  // Keep renderer creation, queued feature-layer refreshes, and font/canvas
+  // warm-up out of the steady-state navigation probe. Two frames after the
+  // idle window also ensure each renderer has presented its settled state.
+  return cy.wait(500, { log: false }).then(() => cy.window().then((win: unknown) => (
+    new Cypress.Promise<void>((resolve) => {
+      (win as PerfWindow).requestAnimationFrame(() => {
+        (win as PerfWindow).requestAnimationFrame(() => resolve());
+      });
+    })
+  ))).then(() => measureAnimatedFrameGaps('rendererPan', (win, progress) => {
+    const mode = readRendererComparison(win)?.activeMode;
+    if (mode === 'sigma') {
+      const camera = win.sigmaPocInstance?.getRenderer()?.getCamera();
+      if (!camera) throw new Error('Sigma camera is unavailable for the comparison probe');
+      sigmaInitialCamera ||= camera.getState();
+      camera.setState({
+        ...sigmaInitialCamera,
+        x: sigmaInitialCamera.x + progress * 0.08,
+        y: sigmaInitialCamera.y - progress * 0.05,
+      });
+      return;
+    }
+
+    const cyInstance = requireCytoscape(win);
+    cytoscapeInitialPan ||= cyInstance.pan();
+    cyInstance.pan({
+      x: cytoscapeInitialPan.x + progress * 120,
+      y: cytoscapeInitialPan.y - progress * 80,
+    });
+  }, observeMs))
+    .then((metrics) => {
+      mergeInteractionMetrics(measurement, metrics);
+      let cytoscapeInitialZoom: number | null = null;
+      let sigmaZoomCamera: any = null;
+      return measureAnimatedFrameGaps('rendererZoom', (win, progress) => {
+        const mode = readRendererComparison(win)?.activeMode;
+        if (mode === 'sigma') {
+          const camera = win.sigmaPocInstance?.getRenderer()?.getCamera();
+          if (!camera) throw new Error('Sigma camera is unavailable for the comparison probe');
+          sigmaZoomCamera ||= camera.getState();
+          camera.setState({
+            ...sigmaZoomCamera,
+            ratio: sigmaZoomCamera.ratio / (1 + progress * 0.4),
+          });
+          return;
+        }
+
+        const cyInstance = requireCytoscape(win);
+        cytoscapeInitialZoom ??= cyInstance.zoom();
+        cyInstance.zoom(cytoscapeInitialZoom * (1 + progress * 0.4));
+      }, observeMs);
+    })
+    .then((metrics) => {
+      mergeInteractionMetrics(measurement, metrics);
+      return cy.window().then((win: unknown) => {
+        const perfWindow = win as PerfWindow;
+        const mode = readRendererComparison(perfWindow)?.activeMode;
+        const selectionStartedAt = perfWindow.performance.now();
+        let selectedCount = 0;
+
+        if (mode === 'sigma') {
+          const adapter = perfWindow.sigmaPocInstance;
+          const nodeId = adapter?.getGraph()?.nodes()?.[0];
+          if (!adapter || !nodeId) throw new Error('Sigma node is unavailable for selection probe');
+          adapter.selectNodes([nodeId]);
+          selectedCount = adapter.getSelectedNodeIds().length;
+        } else {
+          const cyInstance = requireCytoscape(perfWindow);
+          const node = cyInstance.nodes().filter((candidate: any) => !candidate.isParent())[0];
+          if (!node) throw new Error('Cytoscape node is unavailable for selection probe');
+          cyInstance.elements().unselect();
+          node.select();
+          selectedCount = cyInstance.nodes(':selected').length;
+        }
+
+        measurement.metrics.rendererSelectionActionMs =
+          perfWindow.performance.now() - selectionStartedAt;
+        measurement.metrics.rendererSelectedNodeCount = selectedCount;
+        expect(selectedCount, 'renderer selection count').to.equal(1);
+      });
+    })
+    .then(() => refreshPerformanceMeasurement(measurement, 'after-interactions'));
 }
 
 function requireCytoscape(win: PerfWindow): any {
@@ -569,10 +980,30 @@ export function measureStatisticsRefresh(
 
 export function refreshPerformanceMeasurement(
   measurement: PerformanceMeasurement,
+  browserMemoryPhase = 'refresh',
 ): Cypress.Chainable<PerformanceMeasurement> {
   return cy.window().then((win: unknown) => {
     const perfWindow = win as PerfWindow;
+    if (Cypress.env('rendererMemory')) {
+      expect(perfWindow.gc, 'forced GC hook for isolated memory benchmark').to.be.a('function');
+      perfWindow.gc?.();
+      perfWindow.gc?.();
+    }
     const finalHeap = readHeapUsed(perfWindow);
+    const performance = getAppPerformance(perfWindow) as Record<string, any>;
+    const renderer = readRendererComparison(perfWindow);
+    const layoutEntry = renderer?.activeMode === 'sigma'
+      ? performance?.render?.twoDSigmaPocLayout
+      : performance?.render?.twoDPrecomputePositions;
+    const rendererCreateEntry = renderer?.activeMode === 'sigma'
+      ? performance?.render?.twoDSigmaPocRendererCreate
+      : performance?.render?.twoDCreateCytoscape;
+    if (typeof layoutEntry?.durationMs === 'number') {
+      measurement.metrics.rendererLayoutMs = layoutEntry.durationMs;
+    }
+    if (typeof rendererCreateEntry?.durationMs === 'number') {
+      measurement.metrics.rendererCreateMs = rendererCreateEntry.durationMs;
+    }
 
     return {
       ...measurement,
@@ -588,11 +1019,12 @@ export function refreshPerformanceMeasurement(
       longTasks: summarizeLongTasks(perfWindow),
       app: {
         ...measurement.app,
-        performance: getAppPerformance(perfWindow),
+        performance,
         patristic: getPatristicPerformance(perfWindow),
+        renderer,
       },
-    };
-  });
+    } as PerformanceMeasurement;
+  }).then(refreshed => captureBrowserMemorySample(refreshed, browserMemoryPhase));
 }
 
 export function assertPerformanceTimingEntry(
@@ -631,10 +1063,13 @@ export function writePerformanceResult(
         expected: scenario.expected,
         interactions: scenario.interactions,
         metadata: scenario.metadata,
+        renderer: scenario.renderer,
+        rendererProfile: scenario.rendererProfile,
       },
       metrics: measurement.metrics,
       counts: measurement.counts,
       heap: measurement.heap,
+      browserMemory: measurement.browserMemory,
       longTasks: measurement.longTasks,
       app: measurement.app,
       browser: {

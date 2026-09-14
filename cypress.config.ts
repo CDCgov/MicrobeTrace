@@ -1,6 +1,7 @@
 import { defineConfig } from "cypress";
 import { registerOracleTasks } from "./cypress/oracle/task";
 import { registerPerformanceTasks } from "./cypress/performance/task";
+import { configurePerformanceBrowserMemory } from "./cypress/performance/browser-memory";
 
 export default defineConfig({
   e2e: {
@@ -31,6 +32,14 @@ export default defineConfig({
       treeValidationMode: 0,
     },
     setupNodeEvents(on, config) {
+      on('before:browser:launch', (browser, launchOptions) => {
+        if (config.env.rendererMemory && browser.family === 'chromium') {
+          launchOptions.args.push('--js-flags=--expose-gc');
+          launchOptions.args.push('--enable-precise-memory-info');
+          configurePerformanceBrowserMemory(browser, launchOptions);
+        }
+        return launchOptions;
+      });
       registerOracleTasks(on);
       registerPerformanceTasks(on);
       return config;

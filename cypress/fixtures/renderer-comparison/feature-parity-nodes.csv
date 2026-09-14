@@ -1,0 +1,13 @@
+_id,Case ID,Specimen ID,Entity Type,Exposure,QC Status,QC Severity,QC Reason,Uncertainty,Latitude,Longitude
+SEQ-001,CASE-A,SPEC-A1,sequence,Food|Travel|Food,Review,warning,Mixed specimen signal,0.70,33.7490,-84.3880
+SEQ-002,CASE-A,SPEC-A1,sequence,Food,Pass,none,,0.10,33.7550,-84.3900
+SEQ-003,CASE-A,SPEC-A2,sequence,Food|Healthcare,Pass,none,,0.20,33.7420,-84.3820
+SEQ-004,CASE-A,SPEC-A2,sequence,Travel,Failed,error,Low coverage,0.90,33.7460,-84.3750
+SEQ-005,CASE-B,SPEC-B1,sequence,Healthcare|Travel,Review,warning,Ambiguous base calls,0.60,40.7128,-74.0060
+SEQ-006,CASE-B,SPEC-B1,sequence,Healthcare,Pass,none,,0.00,40.7180,-74.0100
+SEQ-007,CASE-B,SPEC-B2,sequence,Travel|Food,Pending,info,Awaiting replicate,0.40,40.7070,-74.0010
+SEQ-008,CASE-B,SPEC-B2,sequence,Food,Pass,none,,0.10,40.7150,-73.9980
+SEQ-009,CASE-C,SPEC-C1,sequence,Community|Healthcare,Review,warning,Conflicting metadata,0.55,47.6062,-122.3321
+SEQ-010,CASE-C,SPEC-C1,sequence,Community,Pass,none,,0.05,47.6100,-122.3380
+SEQ-011,CASE-C,SPEC-C2,sequence,Community|Food|Travel,Failed,error,Contamination suspected,0.80,47.6010,-122.3250
+SEQ-012,CASE-C,SPEC-C2,sequence,Travel,Pass,none,,0.15,47.6140,-122.3290

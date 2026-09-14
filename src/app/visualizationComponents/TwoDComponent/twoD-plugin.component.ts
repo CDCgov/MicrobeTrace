@@ -33,6 +33,42 @@ import {
     SigmaNetworkRendererAdapter,
     SigmaPocRenderSummary,
 } from './sigma-network-renderer.adapter';
+import {
+    canCreateWebGL2Context,
+    NetworkRendererDiagnostics,
+    NetworkRendererMode,
+    resolveNetworkRendererMode,
+} from './network-renderer-comparison';
+import {
+    buildNetworkGroupingModel,
+    NetworkGroupingModel,
+    projectNetworkGroupingGraph,
+} from '@app/contactTraceCommonServices/network-grouping.model';
+import {
+    buildNetworkNodeVisualFeatures,
+    hasMixedValueDonut,
+    hasNetworkNodeVisualFeatures,
+    parseNetworkCategoricalValues,
+    type NetworkNodeFeatureFields,
+    type NetworkNodeVisualFeatures,
+} from '@app/contactTraceCommonServices/network-node-features';
+import {
+    drawNetworkNodeFeatureGlyph,
+    prepareNetworkFeatureCanvas,
+} from './network-node-feature-overlay';
+import {
+    projectNetworkGeography,
+    type NetworkGeographicProjection,
+} from '@app/contactTraceCommonServices/network-geography.model';
+import { drawNetworkGeographicOverlay } from './network-geographic-overlay';
+import {
+    captureNetworkRendererComposite,
+    type NetworkRendererCompositeExport,
+} from './network-renderer-export';
+import {
+    normalizeNetworkRendererViewState,
+    type NetworkRendererViewState,
+} from './network-renderer-view-state';
 
 interface CustomNodeSvgExportReplacement {
     exportHeight: number;
@@ -69,14 +105,32 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
 
     // Cytoscape core instance
     cy: Core;
-    readonly sigmaPocEnabled = typeof window !== 'undefined' &&
-        new URL(window.location.href).searchParams.get('renderer') === 'sigma';
+    readonly requestedRendererMode: NetworkRendererMode = typeof window !== 'undefined'
+        ? resolveNetworkRendererMode(window.location.href)
+        : 'cytoscape-canvas';
+    readonly optimizedRendererComparison = typeof window !== 'undefined' &&
+        new URL(window.location.href).searchParams.get('rendererProfile') === 'optimized';
+    readonly sigmaPocEnabled = this.requestedRendererMode === 'sigma';
+    readonly cytoscapeWebglRequested = this.requestedRendererMode === 'cytoscape-webgl';
+    cytoscapeWebglActive = false;
+    cytoscapeRendererFallbackReason: string | null = null;
     sigmaPocLoading = false;
     sigmaPocLoadingMessage = 'Preparing the complete client-side graph…';
+    sigmaWebglActive = false;
+    sigmaRendererRecoveryMessage: string | null = null;
+    rendererAccessibleFeatureSummary = 'No renderer feature data is available.';
+    rendererAccessibleFeatureItems: Array<{
+        id: string;
+        description: string;
+        selected: boolean;
+    }> = [];
+    rendererKeyboardFocusedNodeId: string | null = null;
+    rendererKeyboardLiveStatus = 'Use the arrow keys to move through network nodes. Press Enter to select a node and Escape to clear selection.';
     sigmaPocSummary: SigmaPocRenderSummary = {
         residentNodeCount: 0,
         residentLinkCount: 0,
         drawnLinkCount: 0,
+        groupHullCount: 0,
         edgeDetailMode: 'overview',
         edgeStride: 1,
     };
@@ -85,6 +139,46 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
     private sigmaPocRenderQueued = false;
     private sigmaPocLinkCache: { key: string; links: any[] } | null = null;
     private sigmaPocLayoutGroupByNodeId = new Map<string, string>();
+    private cytoscapeForceCanvas = false;
+    private cytoscapeWebglLayer: HTMLCanvasElement | null = null;
+    private cytoscapeGeographicLayer: HTMLCanvasElement | null = null;
+    private cytoscapeNodeFeatureLayer: HTMLCanvasElement | null = null;
+    private cytoscapeRecoveryInProgress = false;
+    private sigmaRecoveryInProgress = false;
+    private rendererGeographicProjection: NetworkGeographicProjection | null = null;
+    private rendererGeographicPositionedNodeCount = 0;
+    private rendererViewStateTimer: ReturnType<typeof setTimeout> | null = null;
+    private readonly handleCytoscapeCameraGestureEnd = (): void => {
+        this.scheduleRendererViewStatePersistence();
+    };
+
+    private attachCytoscapeCameraGesturePersistence(): void {
+        const container = this.cyContainer?.nativeElement;
+        if (!container) return;
+        this.detachCytoscapeCameraGesturePersistence();
+        container.addEventListener('wheel', this.handleCytoscapeCameraGestureEnd, { passive: true });
+        container.addEventListener('pointerup', this.handleCytoscapeCameraGestureEnd);
+        container.addEventListener('touchend', this.handleCytoscapeCameraGestureEnd);
+    }
+
+    private detachCytoscapeCameraGesturePersistence(): void {
+        const container = this.cyContainer?.nativeElement;
+        if (!container) return;
+        container.removeEventListener('wheel', this.handleCytoscapeCameraGestureEnd);
+        container.removeEventListener('pointerup', this.handleCytoscapeCameraGestureEnd);
+        container.removeEventListener('touchend', this.handleCytoscapeCameraGestureEnd);
+    }
+
+    private restoreRendererGroupingSessionState(): void {
+        const savedCollapsedGroupIds = (this.commonService.session?.meta as any)
+            ?.rendererGrouping?.collapsedGroupIds;
+        this.collapsedRendererGroupIds = new Set(
+            Array.isArray(savedCollapsedGroupIds) ? savedCollapsedGroupIds.map(String) : [],
+        );
+    }
+    private rendererDiagnosticsHandle: any = null;
+    private rendererGroupingModel: NetworkGroupingModel | null = null;
+    private collapsedRendererGroupIds = new Set<string>();
     vizLoaded = true;
     nodePositions: Map<string, { x: number; y: number }> = new Map();
     private nodeDataById: Map<string, any> = new Map();
@@ -126,6 +220,867 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                 ...extra
             }
         );
+    }
+
+    get activeRendererMode(): NetworkRendererMode {
+        if (this.sigmaPocEnabled) return 'sigma';
+        return this.cytoscapeWebglActive ? 'cytoscape-webgl' : 'cytoscape-canvas';
+    }
+
+    private getRendererDiagnostics(): NetworkRendererDiagnostics {
+        if (this.sigmaPocEnabled && this.sigmaPocRenderer) {
+            const summary = this.sigmaPocRenderer.getSummary();
+            const groups = new Set<string>();
+            const nodeFeatures: NetworkNodeVisualFeatures[] = [];
+            this.sigmaPocRenderer.getGraph().forEachNode((_nodeId, attributes: any) => {
+                if (attributes.group) groups.add(String(attributes.group));
+                if (attributes.features) nodeFeatures.push(attributes.features);
+            });
+            const featureSummary = this.summarizeRendererNodeFeatures(nodeFeatures);
+            return {
+                requestedMode: this.requestedRendererMode,
+                activeMode: 'sigma',
+                webglRequested: true,
+                webglActive: this.sigmaWebglActive,
+                fallbackReason: this.sigmaRendererRecoveryMessage,
+                residentNodeCount: summary.residentNodeCount,
+                residentEdgeCount: summary.residentLinkCount,
+                drawnNodeCount: summary.residentNodeCount,
+                drawnEdgeCount: summary.drawnLinkCount,
+                groupCount: groups.size,
+                renderedGroupHullCount: summary.groupHullCount,
+                compoundNodeCount: 0,
+                geographicOverlayActive: Boolean(this.rendererGeographicProjection),
+                geographicPositionedNodeCount: this.rendererGeographicPositionedNodeCount,
+                nodeFeatureRenderingMode: this.sigmaPocRenderer.usesCustomWebglNodeFeatures()
+                    ? 'sigma-webgl-program'
+                    : 'canvas-overlay',
+                ...featureSummary,
+            };
+        }
+
+        const nodes = this.cy?.nodes().filter(node => !node.isParent()) || [];
+        const edges = this.cy?.edges() || [];
+        const cytoscapeGroupIds = new Set<string>();
+        if (this.cy) {
+            this.cy.nodes(':parent').forEach(node => {
+                cytoscapeGroupIds.add(node.id());
+            });
+            this.cy.nodes('[rendererGroupAggregate]').forEach(node => {
+                cytoscapeGroupIds.add(String(node.data('rendererGroupId') || node.id()));
+            });
+        }
+        const nodeFeatures = this.cy
+            ? this.cy.nodes().filter(node => !node.isParent())
+                .map(node => node.data('nodeFeature'))
+                .filter(Boolean) as NetworkNodeVisualFeatures[]
+            : [];
+        const featureSummary = this.summarizeRendererNodeFeatures(nodeFeatures);
+        return {
+            requestedMode: this.requestedRendererMode,
+            activeMode: this.activeRendererMode,
+            webglRequested: this.cytoscapeWebglRequested,
+            webglActive: this.cytoscapeWebglActive,
+            fallbackReason: this.cytoscapeRendererFallbackReason,
+            residentNodeCount: nodes.length || 0,
+            residentEdgeCount: edges.length || 0,
+            drawnNodeCount: this.cy
+                ? this.cy.nodes(':visible').filter(node => !node.isParent()).length
+                : 0,
+            drawnEdgeCount: this.cy ? this.cy.edges(':visible').length : 0,
+            groupCount: cytoscapeGroupIds.size,
+            renderedGroupHullCount: this.cy ? this.cy.nodes(':parent').length : 0,
+            compoundNodeCount: this.cy ? this.cy.nodes(':parent').length : 0,
+            geographicOverlayActive: Boolean(this.rendererGeographicProjection),
+            geographicPositionedNodeCount: this.rendererGeographicPositionedNodeCount,
+            nodeFeatureRenderingMode: 'canvas-overlay',
+            ...featureSummary,
+        };
+    }
+
+    private publishRendererDiagnostics(): void {
+        if (typeof window === 'undefined') return;
+        if (!this.rendererDiagnosticsHandle) {
+            this.rendererDiagnosticsHandle = {
+                getDiagnostics: () => this.getRendererDiagnostics(),
+                getCollapsedGroupIds: () => this.getRendererCollapsedGroupIds(),
+                setCollapsedGroups: (groupLabelsOrIds: string[]) =>
+                    this.setRendererCollapsedGroups(groupLabelsOrIds),
+                exportComposite: () => this.exportRendererComposite(),
+                getViewState: () => this.getRendererViewState(),
+                setViewState: (state: NetworkRendererViewState) => this.setRendererViewState(state),
+                getKeyboardState: () => ({
+                    focusedNodeId: this.rendererKeyboardFocusedNodeId,
+                    liveStatus: this.rendererKeyboardLiveStatus,
+                }),
+                requestedMode: this.requestedRendererMode,
+            };
+        }
+        (window as any).mtRendererComparison = this.rendererDiagnosticsHandle;
+    }
+
+    public exportRendererComposite(pixelRatio?: number): NetworkRendererCompositeExport {
+        const host = (this.sigmaPocEnabled
+            ? this.sigmaPocContainer?.nativeElement
+            : this.cyContainer?.nativeElement) as HTMLElement | undefined;
+        if (!host) throw new Error('The active network renderer is not available for export.');
+        const diagnostics = this.getRendererDiagnostics();
+        return captureNetworkRendererComposite(host, {
+            renderer: diagnostics.activeMode,
+            residentNodeCount: diagnostics.residentNodeCount,
+            residentEdgeCount: diagnostics.residentEdgeCount,
+            drawnNodeCount: diagnostics.drawnNodeCount,
+            drawnEdgeCount: diagnostics.drawnEdgeCount,
+            collapsedGroupIds: this.getRendererCollapsedGroupIds(),
+            geographicOverlayActive: diagnostics.geographicOverlayActive,
+            mixedValueDonutNodeCount: diagnostics.mixedValueDonutNodeCount,
+            qcOverlayNodeCount: diagnostics.qcOverlayNodeCount,
+            uncertaintyOverlayNodeCount: diagnostics.uncertaintyOverlayNodeCount,
+        }, String(this.widgets?.['background-color'] || '#ffffff'), pixelRatio);
+    }
+
+    public getRendererViewState(): NetworkRendererViewState | null {
+        if (this.sigmaPocEnabled) return this.sigmaPocRenderer?.getViewState() || null;
+        if (!this.cy || !this.cyContainer?.nativeElement) return null;
+        const bounds = this.cyContainer.nativeElement.getBoundingClientRect();
+        const zoom = this.cy.zoom();
+        const pan = this.cy.pan();
+        if (!Number.isFinite(zoom) || zoom <= 0 || bounds.width <= 0 || bounds.height <= 0) return null;
+        return {
+            centerX: (bounds.width / 2 - pan.x) / zoom,
+            centerY: (bounds.height / 2 - pan.y) / zoom,
+            graphUnitsPerPixel: 1 / zoom,
+            edgeDetailMode: this.resolveSavedSigmaEdgeDetailMode(),
+        };
+    }
+
+    public setRendererViewState(stateValue: NetworkRendererViewState, persist = true): void {
+        const state = normalizeNetworkRendererViewState(stateValue);
+        if (!state) return;
+        if (this.sigmaPocEnabled) {
+            this.sigmaPocRenderer?.setViewState(state);
+        } else if (this.cy && this.cyContainer?.nativeElement) {
+            const bounds = this.cyContainer.nativeElement.getBoundingClientRect();
+            const zoom = 1 / state.graphUnitsPerPixel;
+            this.cy.zoom(zoom);
+            this.cy.pan({
+                x: bounds.width / 2 - state.centerX * zoom,
+                y: bounds.height / 2 - state.centerY * zoom,
+            });
+        }
+        this.widgets['network-edge-detail-mode'] = state.edgeDetailMode;
+        if (persist) this.persistRendererViewState(state);
+    }
+
+    private resolveSavedSigmaEdgeDetailMode(): SigmaEdgeDetailMode {
+        const mode = this.widgets?.['network-edge-detail-mode'];
+        return mode === 'detail' || mode === 'all' ? mode : 'overview';
+    }
+
+    private restoreRendererViewState(): boolean {
+        const state = normalizeNetworkRendererViewState(
+            (this.commonService.session?.meta as any)?.rendererViewState,
+        );
+        if (!state) return false;
+        if (this.sigmaPocEnabled ? !this.sigmaPocRenderer : !this.cy) return false;
+        this.setRendererViewState(state, false);
+        return true;
+    }
+
+    private persistRendererViewState(stateValue?: NetworkRendererViewState | null): void {
+        const state = normalizeNetworkRendererViewState(stateValue || this.getRendererViewState());
+        if (!state) return;
+        const sessionMeta = this.commonService.session.meta as any;
+        sessionMeta.rendererViewState = state;
+        this.widgets['network-edge-detail-mode'] = state.edgeDetailMode;
+    }
+
+    private scheduleRendererViewStatePersistence(state?: NetworkRendererViewState): void {
+        if (this.rendererViewStateTimer) clearTimeout(this.rendererViewStateTimer);
+        this.rendererViewStateTimer = setTimeout(() => {
+            this.rendererViewStateTimer = null;
+            this.persistRendererViewState(state || this.getRendererViewState());
+        }, 100);
+    }
+
+    private detachCytoscapeWebglFailureMonitor(): void {
+        this.cytoscapeWebglLayer?.removeEventListener('webglcontextlost', this.handleCytoscapeWebglContextLost);
+        this.cytoscapeWebglLayer = null;
+    }
+
+    private readonly handleCytoscapeWebglContextLost = (event: Event): void => {
+        event.preventDefault();
+        if (this.cytoscapeRecoveryInProgress || this.isDestroyed) return;
+        void this.recoverCytoscapeWithCanvas('The Cytoscape WebGL context was lost; MT recovered with Canvas.');
+    };
+
+    private attachCytoscapeWebglFailureMonitor(): void {
+        this.detachCytoscapeWebglFailureMonitor();
+        if (!this.cytoscapeWebglActive || !this.cyContainer?.nativeElement) return;
+        this.cytoscapeWebglLayer = this.cyContainer.nativeElement.querySelector(
+            'canvas[data-id="layer3-webgl"]',
+        ) as HTMLCanvasElement | null;
+        this.cytoscapeWebglLayer?.addEventListener(
+            'webglcontextlost',
+            this.handleCytoscapeWebglContextLost,
+        );
+    }
+
+    private readonly handleCytoscapeFeatureRender = (): void => {
+        this.drawCytoscapeGeographicOverlay();
+        this.drawCytoscapeNodeFeatures();
+    };
+
+    private installCytoscapeGeographicOverlay(): void {
+        this.destroyCytoscapeGeographicOverlay();
+        if (!this.cy || !this.cyContainer?.nativeElement || !this.rendererGeographicProjection) return;
+        const layer = document.createElement('canvas');
+        layer.dataset.testid = 'network-geographic-overlay';
+        layer.dataset.renderer = this.activeRendererMode;
+        layer.setAttribute('aria-hidden', 'true');
+        Object.assign(layer.style, {
+            position: 'absolute',
+            inset: '0',
+            pointerEvents: 'none',
+            zIndex: '10',
+        });
+        this.cyContainer.nativeElement.appendChild(layer);
+        this.cytoscapeGeographicLayer = layer;
+    }
+
+    private destroyCytoscapeGeographicOverlay(): void {
+        this.cytoscapeGeographicLayer?.remove();
+        this.cytoscapeGeographicLayer = null;
+    }
+
+    private drawCytoscapeGeographicOverlay(): void {
+        if (!this.cy || !this.cytoscapeGeographicLayer || !this.cyContainer?.nativeElement) return;
+        const bounds = this.cyContainer.nativeElement.getBoundingClientRect();
+        const zoom = this.cy.zoom();
+        const pan = this.cy.pan();
+        drawNetworkGeographicOverlay(
+            this.cytoscapeGeographicLayer,
+            Math.max(1, bounds.width),
+            Math.max(1, bounds.height),
+            this.rendererGeographicProjection,
+            point => ({ x: point.x * zoom + pan.x, y: point.y * zoom + pan.y }),
+        );
+    }
+
+    private installCytoscapeNodeFeatureOverlay(): void {
+        this.destroyCytoscapeNodeFeatureOverlay();
+        if (!this.cy || !this.cyContainer?.nativeElement) return;
+        const layer = document.createElement('canvas');
+        layer.dataset.testid = 'network-node-feature-overlay';
+        layer.dataset.renderer = this.activeRendererMode;
+        layer.setAttribute('aria-hidden', 'true');
+        Object.assign(layer.style, {
+            position: 'absolute',
+            inset: '0',
+            pointerEvents: 'none',
+            zIndex: '20',
+        });
+        this.cyContainer.nativeElement.appendChild(layer);
+        this.cytoscapeNodeFeatureLayer = layer;
+        this.cy.on('render', this.handleCytoscapeFeatureRender);
+        requestAnimationFrame(this.handleCytoscapeFeatureRender);
+    }
+
+    private destroyCytoscapeNodeFeatureOverlay(): void {
+        if (this.cy) this.cy.off('render', this.handleCytoscapeFeatureRender);
+        this.cytoscapeNodeFeatureLayer?.remove();
+        this.cytoscapeNodeFeatureLayer = null;
+    }
+
+    private drawCytoscapeNodeFeatures(): void {
+        if (!this.cy || !this.cytoscapeNodeFeatureLayer || !this.cyContainer?.nativeElement) return;
+        const bounds = this.cyContainer.nativeElement.getBoundingClientRect();
+        const width = Math.max(1, bounds.width);
+        const height = Math.max(1, bounds.height);
+        const context = prepareNetworkFeatureCanvas(this.cytoscapeNodeFeatureLayer, width, height);
+        if (!context) return;
+
+        this.cy.nodes().forEach(node => {
+            if (node.isParent() || !node.visible()) return;
+            const features = node.data('nodeFeature') as NetworkNodeVisualFeatures | undefined;
+            if (!features) return;
+            const point = node.renderedPosition();
+            const radius = Math.max(3, Number(node.renderedOuterWidth()) / 2);
+            const margin = radius + 16;
+            if (
+                point.x < -margin || point.x > width + margin ||
+                point.y < -margin || point.y > height + margin
+            ) return;
+            drawNetworkNodeFeatureGlyph(context, {
+                x: point.x,
+                y: point.y,
+                radius,
+                features,
+            });
+        });
+    }
+
+    private async recoverCytoscapeWithCanvas(reason: string): Promise<void> {
+        if (!this.cy || this.cytoscapeRecoveryInProgress || this.isDestroyed) return;
+        this.cytoscapeRecoveryInProgress = true;
+        const recoveryStartedAt = this.getPerformanceNow();
+        const priorZoom = this.cy.zoom();
+        const priorPan = this.cy.pan();
+        const selectedNodeIds = this.cy.nodes(':selected').map(node => node.id());
+
+        this.cy.nodes().forEach(node => {
+            if (!node.isParent()) this.nodePositions.set(node.id(), node.position());
+        });
+        this.detachCytoscapeWebglFailureMonitor();
+        this.destroyCytoscapeGeographicOverlay();
+        this.destroyCytoscapeNodeFeatureOverlay();
+        this.cy.removeAllListeners();
+        this.cy.destroy();
+        this.cy = null;
+        this.cytoscapeForceCanvas = true;
+        this.cytoscapeWebglActive = false;
+        this.cytoscapeRendererFallbackReason = reason;
+        this.commonService.session.network.rendering = false;
+        this.cdref.markForCheck();
+
+        try {
+            await this._rerender();
+            if (this.cy) {
+                this.cy.zoom(priorZoom);
+                this.cy.pan(priorPan);
+                selectedNodeIds.forEach(nodeId => this.cy.getElementById(nodeId).select());
+            }
+            this.recordTwoDRenderTiming('twoDWebglRecovery', recoveryStartedAt, {
+                requestedRenderer: this.requestedRendererMode,
+                recoveredRenderer: 'cytoscape-canvas',
+                selectedNodeCount: selectedNodeIds.length,
+            });
+        } finally {
+            this.cytoscapeRecoveryInProgress = false;
+            this.publishRendererDiagnostics();
+            this.cdref.markForCheck();
+        }
+    }
+
+    private enableCytoscapeWebglForThisRender(): boolean {
+        if (!this.cytoscapeWebglRequested || this.cytoscapeForceCanvas) return false;
+        if (canCreateWebGL2Context(document)) return true;
+        this.cytoscapeRendererFallbackReason =
+            'WebGL 2 is unavailable in this browser; MT is using Cytoscape Canvas.';
+        return false;
+    }
+
+    private getNetworkNodeFeatureFields(): NetworkNodeFeatureFields {
+        return {
+            // Mixed values in the existing Color By field are represented as a
+            // donut rather than collapsed into one synthetic category.
+            compositionField: String(this.widgets?.['node-color-variable'] || 'None'),
+            qcStatusField: String(this.widgets?.['node-qc-status-variable'] || 'None'),
+            qcSeverityField: String(this.widgets?.['node-qc-severity-variable'] || 'None'),
+            qcReasonField: String(this.widgets?.['node-qc-reason-variable'] || 'None'),
+            uncertaintyField: String(this.widgets?.['node-uncertainty-variable'] || 'None'),
+        };
+    }
+
+    private buildRendererNodeFeatures(node: any): NetworkNodeVisualFeatures {
+        return buildNetworkNodeVisualFeatures(node, this.getNetworkNodeFeatureFields());
+    }
+
+    private summarizeRendererNodeFeatures(features: NetworkNodeVisualFeatures[]): {
+        mixedValueDonutNodeCount: number;
+        qcOverlayNodeCount: number;
+        uncertaintyOverlayNodeCount: number;
+    } {
+        return {
+            mixedValueDonutNodeCount: features.filter(feature => hasMixedValueDonut(feature)).length,
+            qcOverlayNodeCount: features.filter(feature => Boolean(feature.qc)).length,
+            uncertaintyOverlayNodeCount: features.filter(feature => feature.uncertainty !== null).length,
+        };
+    }
+
+    private updateRendererAccessibleFeatures(nodes: any[]): void {
+        const featureRows = nodes.map(node => ({
+            id: String(node._id ?? node.id ?? ''),
+            selected: node.selected === true,
+            features: this.buildRendererNodeFeatures(node),
+        }));
+        const summary = this.summarizeRendererNodeFeatures(featureRows.map(row => row.features));
+        this.rendererAccessibleFeatureSummary = [
+            `${nodes.length} network nodes`,
+            `${summary.mixedValueDonutNodeCount} mixed-value donut nodes`,
+            `${summary.qcOverlayNodeCount} QC overlays`,
+            `${summary.uncertaintyOverlayNodeCount} uncertainty overlays`,
+        ].join('; ');
+        this.rendererAccessibleFeatureItems = featureRows
+            .filter(row => hasNetworkNodeVisualFeatures(row.features))
+            .slice(0, 200)
+            .map(row => ({
+                id: row.id,
+                description: row.features.accessibleLabel,
+                selected: row.selected,
+            }));
+        this.cdref.markForCheck();
+    }
+
+    private syncRendererAccessibleSelection(selectedIds: ReadonlySet<string>): void {
+        let changed = false;
+        this.rendererAccessibleFeatureItems = this.rendererAccessibleFeatureItems.map(item => {
+            const selected = selectedIds.has(item.id);
+            if (selected === item.selected) return item;
+            changed = true;
+            return { ...item, selected };
+        });
+        if (changed) this.cdref.markForCheck();
+    }
+
+    private getRendererKeyboardNodeIds(): string[] {
+        const ids = this.sigmaPocEnabled
+            ? this.sigmaPocRenderer?.getNodeIds() || []
+            : this.cy?.nodes()
+                .filter(node => !node.isParent() && node.visible())
+                .map(node => node.id()) || [];
+        return ids.map(String).sort((left, right) => left.localeCompare(right));
+    }
+
+    private isRendererNodeSelected(nodeId: string): boolean {
+        return this.sigmaPocEnabled
+            ? Boolean(this.sigmaPocRenderer?.getSelectedNodeIds().includes(nodeId))
+            : Boolean(this.cy?.getElementById(nodeId).selected());
+    }
+
+    private describeRendererKeyboardNode(nodeId: string): string {
+        if (this.sigmaPocEnabled && this.sigmaPocRenderer?.getGraph().hasNode(nodeId)) {
+            const features = this.sigmaPocRenderer.getGraph().getNodeAttribute(nodeId, 'features');
+            return String(features?.accessibleLabel || nodeId);
+        }
+        const node = this.cy?.getElementById(nodeId);
+        return String(node?.data('nodeFeature')?.accessibleLabel || node?.data('label') || nodeId);
+    }
+
+    private focusRendererKeyboardNode(nodeId: string, announce = true): void {
+        const nodeIds = this.getRendererKeyboardNodeIds();
+        if (!nodeIds.includes(nodeId)) return;
+        this.rendererKeyboardFocusedNodeId = nodeId;
+        if (this.sigmaPocEnabled) {
+            this.sigmaPocRenderer?.setKeyboardFocusedNode(nodeId);
+        } else if (this.cy) {
+            this.cy.elements().removeClass('renderer-keyboard-focus renderer-keyboard-neighbor');
+            const node = this.cy.getElementById(nodeId);
+            node.addClass('renderer-keyboard-focus');
+            node.neighborhood('node').addClass('renderer-keyboard-neighbor');
+            node.connectedEdges().addClass('renderer-keyboard-neighbor');
+        }
+        if (announce) {
+            const position = nodeIds.indexOf(nodeId) + 1;
+            const selected = this.isRendererNodeSelected(nodeId) ? '; selected' : '';
+            this.rendererKeyboardLiveStatus = `Node ${position} of ${nodeIds.length}: ${nodeId}; ${this.describeRendererKeyboardNode(nodeId)}${selected}.`;
+        }
+        this.cdref.markForCheck();
+    }
+
+    private restoreRendererKeyboardFocus(): void {
+        const nodeIds = this.getRendererKeyboardNodeIds();
+        if (this.rendererKeyboardFocusedNodeId && nodeIds.includes(this.rendererKeyboardFocusedNodeId)) {
+            this.focusRendererKeyboardNode(this.rendererKeyboardFocusedNodeId, false);
+        } else if (this.rendererKeyboardFocusedNodeId) {
+            this.rendererKeyboardFocusedNodeId = null;
+            this.sigmaPocRenderer?.setKeyboardFocusedNode(null);
+        }
+    }
+
+    onRendererKeyboardFocus(): void {
+        const nodeIds = this.getRendererKeyboardNodeIds();
+        if (!nodeIds.length) return;
+        const current = this.rendererKeyboardFocusedNodeId;
+        this.focusRendererKeyboardNode(current && nodeIds.includes(current) ? current : nodeIds[0]);
+    }
+
+    private async toggleRendererKeyboardGroup(nodeId: string): Promise<void> {
+        const groupField = String(this.widgets?.['polygons-foci'] || 'None');
+        if (groupField === 'None') {
+            this.rendererKeyboardLiveStatus = 'The focused node is not in a collapsible group.';
+            this.cdref.markForCheck();
+            return;
+        }
+        const model = this.buildRendererGroupingModel(this.commonService.getVisibleNodes(), groupField);
+        const group = model.groupById.get(nodeId) || model.leafGroupByEntityId.get(nodeId);
+        if (!group) {
+            this.rendererKeyboardLiveStatus = 'The focused node is not in a collapsible group.';
+            this.cdref.markForCheck();
+            return;
+        }
+
+        const collapsing = !this.collapsedRendererGroupIds.has(group.id);
+        await this.toggleRendererGroup(group.id);
+        const nextFocusId = collapsing
+            ? group.id
+            : [...group.memberIds].sort((left, right) => left.localeCompare(right))[0];
+        if (nextFocusId) this.focusRendererKeyboardNode(nextFocusId, false);
+        this.rendererKeyboardLiveStatus = `${group.label} ${collapsing ? 'collapsed' : 'expanded'}; ${group.statistics.visibleMemberCount} members.`;
+        this.cdref.markForCheck();
+    }
+
+    onRendererKeydown(event: KeyboardEvent): void {
+        const nodeIds = this.getRendererKeyboardNodeIds();
+        if (!nodeIds.length) return;
+        const currentIndex = this.rendererKeyboardFocusedNodeId
+            ? nodeIds.indexOf(this.rendererKeyboardFocusedNodeId)
+            : -1;
+        let nextIndex: number | null = null;
+        if (event.key === 'ArrowRight' || event.key === 'ArrowDown') {
+            nextIndex = currentIndex < 0 ? 0 : (currentIndex + 1) % nodeIds.length;
+        } else if (event.key === 'ArrowLeft' || event.key === 'ArrowUp') {
+            nextIndex = currentIndex < 0 ? nodeIds.length - 1 : (currentIndex - 1 + nodeIds.length) % nodeIds.length;
+        } else if (event.key === 'Home') {
+            nextIndex = 0;
+        } else if (event.key === 'End') {
+            nextIndex = nodeIds.length - 1;
+        }
+        if (nextIndex !== null) {
+            event.preventDefault();
+            this.focusRendererKeyboardNode(nodeIds[nextIndex]);
+            return;
+        }
+
+        if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault();
+            const nodeId = this.rendererKeyboardFocusedNodeId || nodeIds[0];
+            if (!this.rendererKeyboardFocusedNodeId) this.focusRendererKeyboardNode(nodeId, false);
+            const shouldSelect = !this.isRendererNodeSelected(nodeId);
+            if (this.sigmaPocEnabled) {
+                this.sigmaPocRenderer?.selectNodes(shouldSelect ? [nodeId] : []);
+            } else if (this.cy) {
+                this.cy.batch(() => {
+                    this.cy.nodes().unselect();
+                    if (shouldSelect) this.cy.getElementById(nodeId).select();
+                });
+            }
+            this.rendererKeyboardLiveStatus = `${nodeId} ${shouldSelect ? 'selected' : 'deselected'}.`;
+            this.cdref.markForCheck();
+            return;
+        }
+
+        if (event.key.toLowerCase() === 'g') {
+            event.preventDefault();
+            const nodeId = this.rendererKeyboardFocusedNodeId || nodeIds[0];
+            if (!this.rendererKeyboardFocusedNodeId) this.focusRendererKeyboardNode(nodeId, false);
+            void this.toggleRendererKeyboardGroup(nodeId);
+            return;
+        }
+
+        if (event.key === 'Escape') {
+            event.preventDefault();
+            if (this.sigmaPocEnabled) this.sigmaPocRenderer?.clearSelection();
+            else this.cy?.nodes().unselect();
+            this.rendererKeyboardLiveStatus = 'Network selection cleared.';
+            this.cdref.markForCheck();
+        }
+    }
+
+    private buildRendererGroupingModel(nodes: any[], foci: string): NetworkGroupingModel {
+        return buildNetworkGroupingModel(
+            nodes.map(node => ({
+                id: String(node._id ?? node.id ?? ''),
+                kind: String(node.entityType || node.kind || 'node'),
+                selected: node.selected === true,
+                visible: node.visible !== false,
+                values: node,
+            })),
+            [foci],
+            {
+                normalizeValue: value => this.normalizeGroupingValue(value),
+            },
+        );
+    }
+
+    private isRendererGeographicOverlayEnabled(): boolean {
+        const setting = this.widgets?.['network-geographic-overlay'];
+        const enabled = setting === true || String(setting).toLowerCase() === 'true' || setting === 'On';
+        return enabled
+            && String(this.widgets?.['map-field-lat'] || 'None') !== 'None'
+            && String(this.widgets?.['map-field-lon'] || 'None') !== 'None';
+    }
+
+    private applyRendererGeographicProjection<T extends { nodes: any[]; links: any[] }>(networkData: T): T {
+        this.rendererGeographicProjection = null;
+        this.rendererGeographicPositionedNodeCount = 0;
+        if (!this.isRendererGeographicOverlayEnabled()) return networkData;
+
+        const result = projectNetworkGeography(
+            networkData.nodes,
+            String(this.widgets['map-field-lat']),
+            String(this.widgets['map-field-lon']),
+        );
+        this.rendererGeographicProjection = result.projection;
+        this.rendererGeographicPositionedNodeCount = result.projection?.positionedNodeIds.length || 0;
+        return { ...networkData, nodes: result.nodes };
+    }
+
+    private updateRenderedGeographicNodeCount(nodes: any[]): void {
+        if (!this.rendererGeographicProjection) {
+            this.rendererGeographicPositionedNodeCount = 0;
+            return;
+        }
+        this.rendererGeographicPositionedNodeCount = nodes.filter(node => (
+            node.geographicCoordinateValid !== false
+        )).length;
+    }
+
+    private applyRendererGroupingProjection(
+        networkData: { nodes: any[]; links: any[] },
+        model: NetworkGroupingModel,
+    ): { nodes: any[]; links: any[] } {
+        if (this.collapsedRendererGroupIds.size === 0) return networkData;
+        const nodeById = new Map(networkData.nodes.map(node => [String(node._id ?? node.id), node]));
+        const linkById = new Map<string, any>();
+        const relationships = networkData.links.map((link, index) => {
+            const id = String(link.id ?? `renderer-link-${index}`);
+            linkById.set(id, link);
+            return {
+                id,
+                source: this.getLinkEndpointId(link.source),
+                target: this.getLinkEndpointId(link.target),
+                directed: link.directed === true,
+                values: link,
+            };
+        });
+        const projection = projectNetworkGroupingGraph(
+            model,
+            relationships,
+            this.collapsedRendererGroupIds,
+        );
+        const fields = this.getNetworkNodeFeatureFields();
+        const fieldName = (value: string | null | undefined): string | null => {
+            const normalized = String(value || '').trim();
+            return !normalized || normalized.toLowerCase() === 'none' ? null : normalized;
+        };
+        const compositionField = fieldName(fields.compositionField);
+        const qcStatusField = fieldName(fields.qcStatusField);
+        const qcSeverityField = fieldName(fields.qcSeverityField);
+        const qcReasonField = fieldName(fields.qcReasonField);
+        const uncertaintyField = fieldName(fields.uncertaintyField);
+        const severityRank = { none: 0, info: 1, warning: 2, error: 3 } as const;
+
+        const projectedNodes = projection.nodes.map(projected => {
+            if (projected.kind === 'entity') return nodeById.get(projected.id);
+            const group = projected.group!;
+            const members = projected.memberEntityIds
+                .map(id => nodeById.get(id))
+                .filter(Boolean);
+            const positionedMembers = members.filter(member => (
+                this.hasFinitePosition(member)
+                && (!this.rendererGeographicProjection || member.geographicCoordinateValid !== false)
+            ));
+            const base = members[0] || {};
+            const aggregate: any = {
+                ...base,
+                id: group.id,
+                _id: group.id,
+                group: undefined,
+                entityType: 'aggregate-group',
+                rendererGroupAggregate: true,
+                rendererGroupId: group.id,
+                rendererGroupLabel: group.label,
+                label: `${group.label} (${group.statistics.visibleMemberCount})`,
+                memberNodeIds: projected.memberEntityIds,
+                memberNodeCount: group.statistics.memberCount,
+                selectedMemberCount: group.statistics.selectedMemberCount,
+                // Treat the aggregate as selected only when the whole group is selected.
+                // A partial member selection is retained in selectedMemberCount without
+                // turning a renderer-created aggregate into a new source selection.
+                selected: members.length > 0 && members.every(member => member.selected === true),
+                internalEdgeCount:
+                    projection.internalRelationshipIdsByAggregateGroupId.get(group.id)?.length || 0,
+                geographicCoordinateValid: this.rendererGeographicProjection
+                    ? positionedMembers.length > 0
+                    : undefined,
+                geographicMemberCount: this.rendererGeographicProjection
+                    ? positionedMembers.length
+                    : undefined,
+                x: positionedMembers.length
+                    ? positionedMembers.reduce((sum, member) => sum + Number(member.x), 0) / positionedMembers.length
+                    : undefined,
+                y: positionedMembers.length
+                    ? positionedMembers.reduce((sum, member) => sum + Number(member.y), 0) / positionedMembers.length
+                    : undefined,
+            };
+            aggregate[group.field] = group.label;
+
+            if (compositionField) {
+                aggregate[compositionField] = members.flatMap(member =>
+                    parseNetworkCategoricalValues(member[compositionField]));
+            }
+            const memberFeatures = members.map(member => this.buildRendererNodeFeatures(member));
+            const worstQc = memberFeatures
+                .map(feature => feature.qc)
+                .filter(Boolean)
+                .sort((left, right) => severityRank[right!.severity] - severityRank[left!.severity])[0];
+            if (qcStatusField) {
+                const flaggedCount = memberFeatures.filter(feature =>
+                    feature.qc && feature.qc.severity !== 'none').length;
+                aggregate[qcStatusField] = flaggedCount
+                    ? `${flaggedCount} of ${members.length} require review`
+                    : 'Pass';
+            }
+            if (qcSeverityField) aggregate[qcSeverityField] = worstQc?.severity || 'none';
+            if (qcReasonField) {
+                aggregate[qcReasonField] = Array.from(new Set(memberFeatures
+                    .map(feature => feature.qc?.reason)
+                    .filter(Boolean))).join('; ');
+            }
+            if (uncertaintyField) {
+                const uncertainties = memberFeatures
+                    .map(feature => feature.uncertainty)
+                    .filter((value): value is number => value !== null);
+                aggregate[uncertaintyField] = uncertainties.length
+                    ? uncertainties.reduce((sum, value) => sum + value, 0) / uncertainties.length
+                    : null;
+            }
+            return aggregate;
+        }).filter(Boolean);
+
+        const projectedLinks = projection.links.map(link => {
+            const memberLinks = link.memberRelationshipIds.map(id => linkById.get(id)).filter(Boolean);
+            const representative = memberLinks[0] || {};
+            const finiteDistances = memberLinks
+                .map(member => Number(member.distance))
+                .filter(Number.isFinite);
+            return {
+                ...representative,
+                id: link.id,
+                source: link.source,
+                target: link.target,
+                directed: link.directed,
+                distance: finiteDistances.length ? Math.min(...finiteDistances) : representative.distance,
+                memberLinkIds: link.memberRelationshipIds,
+                memberLinkCount: link.relationshipCount,
+                rendererGroupAggregate: true,
+            };
+        });
+
+        return { nodes: projectedNodes, links: projectedLinks };
+    }
+
+    public getRendererCollapsedGroupIds(): string[] {
+        return Array.from(this.collapsedRendererGroupIds).sort();
+    }
+
+    public async setRendererCollapsedGroups(groupLabelsOrIds: Iterable<string>): Promise<void> {
+        const groupField = String(this.widgets?.['polygons-foci'] || 'None');
+        if (groupField === 'None') return;
+        const model = this.buildRendererGroupingModel(this.commonService.getVisibleNodes(), groupField);
+        const requested = new Set(Array.from(groupLabelsOrIds).map(String));
+        this.collapsedRendererGroupIds = new Set(model.groups
+            .filter(group => requested.has(group.id) || requested.has(group.label))
+            .map(group => group.id));
+        const sessionMeta = this.commonService.session.meta as any;
+        sessionMeta.rendererGrouping = {
+            ...(sessionMeta.rendererGrouping || {}),
+            groupField,
+            collapsedGroupIds: this.getRendererCollapsedGroupIds(),
+        };
+
+        let priorZoom: number | null = null;
+        let priorPan: cytoscape.Position | null = null;
+        if (this.cy) {
+            priorZoom = this.cy.zoom();
+            priorPan = { ...this.cy.pan() };
+            this.cy.nodes().forEach(node => {
+                if (!node.isParent()) this.nodePositions.set(node.id(), node.position());
+            });
+            this.detachCytoscapeWebglFailureMonitor();
+            this.destroyCytoscapeGeographicOverlay();
+            this.destroyCytoscapeNodeFeatureOverlay();
+            this.cy.removeAllListeners();
+            if ((window as any).cytoscapeInstance === this.cy) delete (window as any).cytoscapeInstance;
+            this.cy.destroy();
+            this.cy = null;
+            this.commonService.session.network.rendering = false;
+        }
+
+        await this._rerender();
+        if (this.cy && priorZoom !== null && priorPan) {
+            this.cy.zoom(priorZoom);
+            this.cy.pan(priorPan);
+        }
+        this.publishRendererDiagnostics();
+        this.cdref.markForCheck();
+    }
+
+    public async toggleRendererGroup(groupLabelOrId: string): Promise<void> {
+        const groupField = String(this.widgets?.['polygons-foci'] || 'None');
+        if (groupField === 'None') return;
+        const model = this.buildRendererGroupingModel(this.commonService.getVisibleNodes(), groupField);
+        const group = model.groups.find(candidate =>
+            candidate.id === groupLabelOrId || candidate.label === groupLabelOrId);
+        if (!group) return;
+        const next = new Set(this.collapsedRendererGroupIds);
+        if (next.has(group.id)) next.delete(group.id);
+        else next.add(group.id);
+        await this.setRendererCollapsedGroups(next);
+    }
+
+    private buildCytoscapeGroupMap(
+        cy: cytoscape.Core,
+        foci: string,
+    ): Map<string, cytoscape.NodeSingular[]> {
+        const childNodes = cy.nodes().filter(node => (
+            !node.hasClass('parent') && !node.data('rendererGroupAggregate')
+        ));
+        const nodeById = new Map<string, cytoscape.NodeSingular>();
+        const entities = childNodes
+            .map(element => {
+                const node = element as cytoscape.NodeSingular;
+                const groupingValue = this.getCyNodeGroupingKey(node, foci);
+                if (groupingValue === null) return null;
+                nodeById.set(node.id(), node);
+                return {
+                    id: node.id(),
+                    kind: String(node.data('entityType') || node.data('kind') || 'node'),
+                    selected: node.selected(),
+                    visible: node.visible(),
+                    values: { [foci]: groupingValue },
+                };
+            })
+            .filter(Boolean) as any[];
+        this.rendererGroupingModel = buildNetworkGroupingModel(entities, [foci]);
+
+        const groupMap = new Map<string, cytoscape.NodeSingular[]>();
+        this.rendererGroupingModel.groups
+            .filter(group => group.depth === 0)
+            .forEach(group => {
+                const members = group.directMemberIds
+                    .map(nodeId => nodeById.get(nodeId))
+                    .filter(Boolean) as cytoscape.NodeSingular[];
+                if (members.length > 0) groupMap.set(group.label, members);
+            });
+        return groupMap;
+    }
+
+    private recoverSigmaWebglContext(): void {
+        if (!this.sigmaPocRenderer || this.sigmaRecoveryInProgress || this.isDestroyed) return;
+        this.sigmaRecoveryInProgress = true;
+        const recoveryStartedAt = this.getPerformanceNow();
+        this.sigmaWebglActive = false;
+        this.sigmaRendererRecoveryMessage = 'The Sigma WebGL context was lost; recreating the renderer…';
+        this.publishRendererDiagnostics();
+        this.cdref.markForCheck();
+
+        setTimeout(() => {
+            const recovered = this.sigmaPocRenderer?.recoverWebglContext() || false;
+            this.sigmaWebglActive = recovered;
+            this.sigmaRendererRecoveryMessage = recovered
+                ? 'Sigma recreated its WebGL context after a context loss.'
+                : 'Sigma could not recreate its WebGL context.';
+            this.sigmaRecoveryInProgress = false;
+            this.recordTwoDRenderTiming('twoDSigmaWebglRecovery', recoveryStartedAt, {
+                recovered,
+                nodes: this.sigmaPocSummary.residentNodeCount,
+                edges: this.sigmaPocSummary.residentLinkCount,
+            });
+            this.publishRendererDiagnostics();
+            this.cdref.markForCheck();
+        }, 0);
     }
 
     private hasFinitePosition(node: any): boolean {
@@ -280,6 +1235,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             fontSize: this.getNodeFontSize(node),
             shape: resolveCustomNodeIconCytoscapeShape(shapeKey),
             shapeKey,
+            nodeFeature: this.buildRendererNodeFeatures(node),
             ...getCustomNodeShapeData(shapeKey, node.nodeColor)
         };
 
@@ -294,6 +1250,12 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             cytoscapeData.adaptiveAction = node.adaptiveParentKey
                 ? 'Double-click to collapse this group'
                 : 'Double-click to expand this group';
+        }
+        if (node.rendererGroupAggregate === true) {
+            cytoscapeData.rendererGroupAggregate = true;
+            cytoscapeData.rendererGroupId = node.rendererGroupId;
+            cytoscapeData.rendererGroupLabel = node.rendererGroupLabel;
+            cytoscapeData.rendererGroupAction = 'Double-click to expand this group';
         }
 
         return cytoscapeData;
@@ -577,8 +1539,13 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         // this.setExpanded(this.mainSite);
 
         this.widgets = this.commonService.session.style.widgets;
+        this.restoreRendererGroupingSessionState();
 
-        this.container.on('resize', () => { setTimeout(() => this.fit(), 200)})
+        this.container.on('resize', () => {
+            setTimeout(() => {
+                if (!this.restoreRendererViewState()) this.fit();
+            }, 200);
+        })
         this.container.on('hide', () => { 
             this.viewActive = false; 
             this.cdref.detectChanges();
@@ -591,7 +1558,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                     this._rerender()
                     this.rerenderOnActive = false;
                 }
-                this.fit()
+                if (!this.restoreRendererViewState()) this.fit();
                 this.commonService.onStatisticsChanged("Show");
                 this.syncPolygonColorTableVisibility();
             }, 50)
@@ -745,11 +1712,16 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         }
     }
 
-    private syncSigmaPocSelection(selectedIds: Set<string>): void {
+    private syncSigmaPocSelection(
+        selectedIds: ReadonlySet<string>,
+        changedNodeIds?: ReadonlySet<string>,
+    ): void {
         let selectionChanged = false;
         const syncNodes = (nodes: any[]) => {
             (nodes || []).forEach(node => {
-                const selected = selectedIds.has(String(node._id ?? node.id ?? ''));
+                const nodeId = String(node._id ?? node.id ?? '');
+                if (changedNodeIds && !changedNodeIds.has(nodeId)) return;
+                const selected = selectedIds.has(nodeId);
                 if (node.selected !== selected) {
                     node.selected = selected;
                     selectionChanged = true;
@@ -758,6 +1730,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         };
         syncNodes(this.commonService.session.data.nodes);
         syncNodes(this.commonService.session.data.nodeFilteredValues);
+        this.syncRendererAccessibleSelection(selectedIds);
         if (selectionChanged) $(document).trigger('node-selected');
         this.schedulePatristicFocusRefresh();
     }
@@ -783,8 +1756,9 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         this.cdref.markForCheck();
 
         try {
-            const networkData = await this.collectSigmaPocNetworkData();
+            let networkData = await this.collectSigmaPocNetworkData();
             if (this.isDestroyed) return;
+            networkData = this.applyRendererGeographicProjection(networkData);
 
             this.sigmaPocLoadingMessage = 'Computing a sparse layout backbone…';
             this.cdref.markForCheck();
@@ -793,27 +1767,30 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             });
             const groupField = String(this.widgets['polygons-foci'] || 'None');
             const showGroupHulls = Boolean(this.widgets['polygons-show']) && groupField !== 'None';
-            const layoutBackbone = selectSigmaLayoutBackbone(networkData.links, 3);
+            this.rendererGroupingModel = showGroupHulls
+                ? this.buildRendererGroupingModel(networkData.nodes, groupField)
+                : null;
+            if (this.rendererGroupingModel && this.collapsedRendererGroupIds.size > 0) {
+                networkData = this.applyRendererGroupingProjection(networkData, this.rendererGroupingModel);
+            }
+            this.updateRenderedGeographicNodeCount(networkData.nodes);
+            this.updateRendererAccessibleFeatures(networkData.nodes);
             const needsInitialLayout = !this.sigmaPocRenderer ||
                 networkData.nodes.some(node => !this.hasFinitePosition(node));
+            const sigmaLayoutStartedAt = this.getPerformanceNow();
+            let sigmaLayoutStrategy = 'preserved-positions';
+            let sigmaLayoutLinkCount = 0;
+            let sigmaLayoutTicks = 0;
             if (needsInitialLayout) {
-                const overviewLayout = assignSigmaOverviewPositions(
+                const optimizedLayout = await this.computeOptimizedRendererPositions(
                     networkData.nodes,
                     networkData.links,
                     showGroupHulls ? groupField : null,
                 );
-                if (overviewLayout.applied) {
-                    this.sigmaPocLoadingMessage = 'Relaxing strongest ties into organic clusters…';
-                    this.cdref.markForCheck();
-                    await this.relaxSigmaOrganicOverview(networkData.nodes, layoutBackbone);
-                } else {
-                    const layout = await this.precomputePositionsWithD3(
-                        networkData.nodes,
-                        layoutBackbone,
-                        networkData.nodes.length > 2500 ? 90 : 180,
-                    );
-                    networkData.nodes = layout.nodes;
-                }
+                networkData.nodes = optimizedLayout.nodes;
+                sigmaLayoutStrategy = optimizedLayout.strategy;
+                sigmaLayoutLinkCount = optimizedLayout.layoutLinkCount;
+                sigmaLayoutTicks = optimizedLayout.ticks;
                 networkData.nodes.forEach(node => {
                     const nodeId = String(node._id ?? node.id);
                     this.nodePositions.set(nodeId, { x: Number(node.x) || 0, y: Number(node.y) || 0 });
@@ -822,13 +1799,27 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                     }
                 });
             }
+            if (needsInitialLayout) {
+                // Preserve the initial layout measurement. Later style or
+                // selection refreshes reuse positions and must not overwrite it
+                // with a near-zero "preserved positions" duration.
+                this.recordTwoDRenderTiming('twoDSigmaPocLayout', sigmaLayoutStartedAt, {
+                    nodes: networkData.nodes.length,
+                    residentLinks: networkData.links.length,
+                    layoutLinks: sigmaLayoutLinkCount,
+                    ticks: sigmaLayoutTicks,
+                    applied: true,
+                    strategy: sigmaLayoutStrategy,
+                });
+            }
             if (this.isDestroyed) return;
 
             const sigmaNodes = networkData.nodes.map(node => {
                 const [color, opacity] = this.getNodeColor(node);
                 const nodeId = String(node._id ?? node.id);
                 const group = showGroupHulls
-                    ? this.normalizeGroupingValue(node[groupField])
+                    ? this.rendererGroupingModel?.leafGroupByEntityId.get(nodeId)?.label ||
+                        node.rendererGroupLabel || null
                     : this.sigmaPocLayoutGroupByNodeId.get(nodeId) || null;
                 return {
                     id: nodeId,
@@ -841,6 +1832,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                     selected: node.selected === true,
                     group,
                     groupColor: group ? this.getSigmaPocGroupColor(group) : undefined,
+                    features: this.buildRendererNodeFeatures(node),
                     raw: node,
                 };
             });
@@ -858,13 +1850,15 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                 };
             });
 
+            const creatingSigmaRenderer = !this.sigmaPocRenderer;
+            const sigmaRendererCreateStartedAt = this.getPerformanceNow();
             if (!this.sigmaPocRenderer) {
                 this.sigmaPocRenderer = new SigmaNetworkRendererAdapter(
                     this.sigmaPocContainer.nativeElement,
                     String(this.widgets['selected-color'] || '#ff2d55'),
                     {
-                        onNodeSelectionChange: selectedIds => this.zone.run(() => {
-                            this.syncSigmaPocSelection(selectedIds);
+                        onNodeSelectionChange: (selectedIds, changedNodeIds) => this.zone.run(() => {
+                            this.syncSigmaPocSelection(selectedIds, changedNodeIds);
                         }),
                         onNodeHover: (node, event) => this.zone.run(() => {
                             if (node && event) this.showNodeTooltip(node.raw, event);
@@ -877,17 +1871,42 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                             this.nodePositions.set(nodeId, position);
                             this.commonService.updateNodePosition(nodeId, position);
                         }),
+                        onGroupToggle: groupIdOrLabel => this.zone.run(() => {
+                            void this.toggleRendererGroup(groupIdOrLabel);
+                        }),
+                        onViewStateChange: state => this.zone.run(() => {
+                            this.scheduleRendererViewStatePersistence(state);
+                        }),
                         onSummaryChange: summary => this.zone.run(() => {
                             this.sigmaPocSummary = summary;
                             this.cdref.markForCheck();
+                        }),
+                        onWebglContextLost: () => this.zone.run(() => {
+                            this.recoverSigmaWebglContext();
                         }),
                     },
                 );
             }
             const layoutGroupCount = new Set(sigmaNodes.map(node => node.group).filter(Boolean)).size;
             const drawGroupHulls = showGroupHulls || (layoutGroupCount >= 2 && layoutGroupCount <= 20);
-            this.sigmaPocRenderer.render({ nodes: sigmaNodes, links: sigmaLinks, showGroupHulls: drawGroupHulls }, preserveCamera);
+            this.sigmaPocRenderer.render({
+                nodes: sigmaNodes,
+                links: sigmaLinks,
+                showGroupHulls: drawGroupHulls,
+                geographicOverlay: this.rendererGeographicProjection,
+            }, preserveCamera);
+            this.setSigmaPocEdgeDetailMode(this.resolveSavedSigmaEdgeDetailMode(), false);
+            this.restoreRendererViewState();
+            this.restoreRendererKeyboardFocus();
             this.sigmaPocSummary = this.sigmaPocRenderer.getSummary();
+            if (creatingSigmaRenderer) {
+                this.recordTwoDRenderTiming('twoDSigmaPocRendererCreate', sigmaRendererCreateStartedAt, {
+                    nodes: this.sigmaPocSummary.residentNodeCount,
+                    residentEdges: this.sigmaPocSummary.residentLinkCount,
+                    drawnEdges: this.sigmaPocSummary.drawnLinkCount,
+                });
+            }
+            this.sigmaWebglActive = this.sigmaPocRenderer.hasActiveWebglContext();
             const guardrailWarning = (this.commonService.session?.warnings || []).find(
                 (warning: any) => warning?.type === 'newick-visible-link-guardrail',
             );
@@ -901,6 +1920,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             if ((window as any).Cypress) {
                 (window as any).sigmaPocInstance = this.sigmaPocRenderer;
             }
+            this.publishRendererDiagnostics();
             this.store.setNetworkRendered(true);
             this.store.setNetworkUpdated(false);
             this.commonService.session.network.rendering = false;
@@ -909,7 +1929,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                 nodes: this.sigmaPocSummary.residentNodeCount,
                 edges: this.sigmaPocSummary.residentLinkCount,
                 drawnEdges: this.sigmaPocSummary.drawnLinkCount,
-                layoutEdges: layoutBackbone.length,
+                layoutEdges: sigmaLayoutLinkCount,
             });
         } catch (error) {
             this.commonService.session.network.rendering = false;
@@ -926,9 +1946,12 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         }
     }
 
-    setSigmaPocEdgeDetailMode(mode: SigmaEdgeDetailMode): void {
+    setSigmaPocEdgeDetailMode(mode: SigmaEdgeDetailMode, persist = true): void {
+        this.widgets['network-edge-detail-mode'] = mode;
         this.sigmaPocRenderer?.setEdgeDetailMode(mode);
         this.sigmaPocSummary = this.sigmaPocRenderer?.getSummary() || this.sigmaPocSummary;
+        const viewState = this.sigmaPocRenderer?.getViewState();
+        if (persist && viewState) this.persistRendererViewState({ ...viewState, edgeDetailMode: mode });
         this.cdref.markForCheck();
     }
 
@@ -1100,7 +2123,8 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         .pipe(takeUntil(this.destroy$))
         .subscribe(loaded => {
             if(loaded && this.commonService.activeTab === '2D Network') {
-
+                 this.widgets = this.commonService.session.style.widgets;
+                 this.restoreRendererGroupingSessionState();
                  this._rerender();
 
             }
@@ -1198,8 +2222,12 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
 	            const parent = (node.group && this.widgets['polygons-show']) || undefined;
 	            return {
 	                data: this.buildCytoscapeNodeData(node, shapeKey, parent),
-	                classes: node.adaptiveAggregate === true ? 'adaptive-aggregate' : undefined,
+	                classes: [
+                        node.adaptiveAggregate === true ? 'adaptive-aggregate' : '',
+                        node.rendererGroupAggregate === true ? 'renderer-group-aggregate' : '',
+                    ].filter(Boolean).join(' ') || undefined,
 	                selectable: !node.adaptiveAggregate,
+                    selected: node.selected === true,
 	                position: { 
 	                    x:node.x || this.nodePositions.get(node.id)?.x || Math.random() * 500,
 	                    y:node.y || this.nodePositions.get(node.id)?.y || Math.random() * 500
@@ -1214,8 +2242,12 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
 	            const parent = (node.group && this.widgets['polygons-show']) || undefined;
 	            return {
 	                data: this.buildCytoscapeNodeData(node, shapeKey, parent),
-	                classes: node.adaptiveAggregate === true ? 'adaptive-aggregate' : undefined,
+	                classes: [
+                        node.adaptiveAggregate === true ? 'adaptive-aggregate' : '',
+                        node.rendererGroupAggregate === true ? 'renderer-group-aggregate' : '',
+                    ].filter(Boolean).join(' ') || undefined,
 	                selectable: !node.adaptiveAggregate,
+                    selected: node.selected === true,
 	                position: {
 	                    x: node.x || this.nodePositions.get(node.id)?.x || Math.random() * 500,
 	                    y: node.y || this.nodePositions.get(node.id)?.y || Math.random() * 500
@@ -1345,6 +2377,18 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                 }
             },
             {
+                selector: 'node.renderer-group-aggregate',
+                css: {
+                    'shape': 'round-rectangle',
+                    'border-width': 3,
+                    'border-color': '#334155',
+                    'background-opacity': 0.88,
+                    'text-wrap': 'wrap',
+                    'text-max-width': '120px',
+                    'font-weight': 700,
+                }
+            },
+            {
                 selector: 'node[!isParent][nodeColor][iconBackgroundImage]',
                 css: {
                     'background-color': '#ffffff',
@@ -1446,6 +2490,31 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                 }
             },
             {
+                selector: 'node.renderer-keyboard-focus',
+                css: {
+                    'border-color': '#0ea5e9',
+                    'border-width': 5,
+                    'z-index': 30,
+                }
+            },
+            {
+                selector: 'node.renderer-keyboard-neighbor',
+                css: {
+                    'border-color': '#38bdf8',
+                    'border-width': 3,
+                    'z-index': 15,
+                }
+            },
+            {
+                selector: 'edge.renderer-keyboard-neighbor',
+                css: {
+                    'line-color': '#0ea5e9',
+                    'opacity': 1,
+                    'width': 3,
+                    'z-index': 10,
+                }
+            },
+            {
                 selector: 'edge:selected',
                 css: {
                     // 'line-color': '#f00',
@@ -1467,13 +2536,30 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
     attachCytoscapeEvents() {
         console.log('--- TwoD attachCytoscapeEvents called');
         $('#cy').off('contextmenu.twod').on('contextmenu.twod', (e) => e.preventDefault());
+        const attachedCy = this.cy;
+        attachedCy.on('zoom pan', () => {
+            this.scheduleAdaptiveViewportRefresh();
+        });
+        this.attachCytoscapeCameraGesturePersistence();
+
+        this.cy.on('dbltap', 'node.parent', event => {
+            const groupLabel = String(event.target.data('label') || event.target.id());
+            this.zone.run(() => void this.toggleRendererGroup(groupLabel));
+        });
+        this.cy.on('dbltap', 'node.renderer-group-aggregate', event => {
+            const groupId = String(event.target.data('rendererGroupId') || event.target.id());
+            this.zone.run(() => void this.toggleRendererGroup(groupId));
+        });
 
         // Debounced function to sync Cytoscape selections with the common service.
         const syncCySelectionToService = _.debounce(() => {
-            const selectedNodes = this.cy.nodes(':selected');
+            // Projection changes recreate Cytoscape. Ignore work queued by the retired
+            // instance instead of allowing the debounce to dereference the new/null one.
+            if (!this.cy || this.cy !== attachedCy || attachedCy.destroyed()) return;
+            const selectedNodes = attachedCy.nodes(':selected');
             const selectedIds = new Set(selectedNodes.map(node => node.id()));
             const renderedExactIds = new Set(
-                this.cy.nodes()
+                attachedCy.nodes()
                     .filter(node => !node.data('adaptiveAggregate'))
                     .map(node => node.id()),
             );
@@ -1505,8 +2591,19 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             if (selectionChanged) {
                 $(document).trigger('node-selected');
             }
+            this.syncRendererAccessibleSelection(selectedIds);
             if (this.isAdaptivePatristicViewActive()) this.schedulePatristicFocusRefresh();
         }, 100); // Debounce for 100ms to handle rapid events efficiently.
+
+        // A Cytoscape compound parent represents a MicrobeTrace visual group,
+        // so selecting or clearing that parent must update the member entities
+        // just as selecting a Sigma hull does. Source/session state is updated
+        // by the shared debounced selection handler below.
+        this.cy.on('select unselect', 'node.parent', event => {
+            const children = event.target.children();
+            if (event.type === 'select') children.select();
+            else children.unselect();
+        });
 
         // Listen for all selection events to trigger the sync.
         this.cy.on('select unselect', 'node', syncCySelectionToService);
@@ -1595,9 +2692,13 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
     
         this.cy.on('dragfree', 'node', (evt) => {
             const node = evt.target;
-            let skip = (node.children().length > 0 || node.classes().includes('hidden')) // no need to update position of parent or hidden nodes
-
-            if (!skip) {
+            const children = node.children();
+            if (children.length > 0) {
+                // Cytoscape moves compound children when their parent is
+                // dragged. Persist each scientific entity position so the
+                // move survives renderer changes and session restoration.
+                children.forEach(child => this.updateNodePos(child));
+            } else if (!node.classes().includes('hidden')) {
                 this.updateNodePos(node);
             }
 
@@ -1858,6 +2959,46 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
     private getD3TicksPerYield(nodes: any[], links: any[]): number {
         const workUnits = nodes.length + links.length;
         return workUnits >= 12000 ? 1 : 5;
+    }
+
+    /**
+     * Shared optimized layout used by both comparison renderers. Keeping this
+     * outside either adapter prevents a renderer choice from implicitly choosing
+     * a different scientific grouping or layout workload.
+     */
+    private async computeOptimizedRendererPositions(
+        nodes: any[],
+        links: any[],
+        groupField: string | null,
+    ): Promise<{
+        nodes: any[];
+        links: any[];
+        layoutLinkCount: number;
+        strategy: string;
+        ticks: number;
+    }> {
+        const layoutBackbone = selectSigmaLayoutBackbone(links, 3);
+        const overviewLayout = assignSigmaOverviewPositions(nodes, links, groupField);
+        if (overviewLayout.applied) {
+            await this.relaxSigmaOrganicOverview(nodes, layoutBackbone);
+            return {
+                nodes,
+                links,
+                layoutLinkCount: layoutBackbone.length,
+                strategy: `shared-${overviewLayout.method}-organic-relaxation`,
+                ticks: nodes.length <= 1000 ? 72 : nodes.length <= 3000 ? 42 : 24,
+            };
+        }
+
+        const ticks = nodes.length > 2500 ? 90 : 180;
+        const layout = await this.precomputePositionsWithD3(nodes, layoutBackbone, ticks);
+        return {
+            nodes: layout.nodes,
+            links,
+            layoutLinkCount: layoutBackbone.length,
+            strategy: 'shared-d3-force-backbone',
+            ticks,
+        };
     }
 
     /**
@@ -2151,8 +3292,12 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
      * @param event Event from scale input
      */
     updateCalculatedResolution(): void {
-        let height = Math.floor(this.cyContainer.nativeElement.offsetHeight * this.SelectedNetworkExportScaleVariable);
-        let width  = Math.floor(this.cyContainer.nativeElement.offsetWidth  * this.SelectedNetworkExportScaleVariable);
+        const rendererContainer = this.sigmaPocEnabled
+            ? this.sigmaPocContainer?.nativeElement
+            : this.cyContainer?.nativeElement;
+        if (!rendererContainer) return;
+        let height = Math.floor(rendererContainer.offsetHeight * this.SelectedNetworkExportScaleVariable);
+        let width  = Math.floor(rendererContainer.offsetWidth  * this.SelectedNetworkExportScaleVariable);
 
         this.CalculatedResolution = `${width} x ${height}`;
     }
@@ -2442,6 +3587,26 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         const shouldExportPolygonColorTable = this.shouldDisplayPolygonColorTable();
 
         if (this.SelectedNetworkExportFileTypeListVariable == 'svg') {
+
+            const diagnostics = this.getRendererDiagnostics();
+            const needsCompositeSvg = this.sigmaPocEnabled
+                || diagnostics.geographicOverlayActive
+                || diagnostics.mixedValueDonutNodeCount > 0
+                || diagnostics.qcOverlayNodeCount > 0
+                || diagnostics.uncertaintyOverlayNodeCount > 0;
+            if (needsCompositeSvg) {
+                const composite = this.exportRendererComposite(this.SelectedNetworkExportScaleVariable);
+                let elementsToExport: HTMLTableElement[] = [];
+                if (shouldExportPolygonColorTable && polygonColorTableElement) {
+                    elementsToExport.push(polygonColorTableElement);
+                }
+                if (window.getComputedStyle(this.networkStatisticsTable.nativeElement.parentElement).display == 'block') {
+                    elementsToExport.push(this.networkStatisticsTable.nativeElement);
+                }
+                this.exportService.requestSVGExport(elementsToExport, composite.svg, true, true, true);
+                this.Show2DExportPane = false;
+                return;
+            }
 
             let options = { scale: 1, full: true, bg: this.commonService.session.style.widgets['background-color'] || '#ffffff'};
             let content = (this.cy as any).svg(options);
@@ -2955,21 +4120,8 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
      * @param cy Cytoscape instance
      */
     private addParentNodesAndGroupChildren(cy: cytoscape.Core): void {
-        const groupMap: Map<string, cytoscape.NodeSingular[]> = new Map();
         let foci = this.commonService.session.style.widgets['polygons-foci'];
-        cy.nodes().forEach(node => {
-            if (node.hasClass('parent')) {
-                return;
-            }
-
-            const groupKey = this.getCyNodeGroupingKey(node, foci);
-            if (groupKey !== null) {
-                if (!groupMap.has(groupKey)) {
-                    groupMap.set(groupKey, []);
-                }
-                groupMap.get(groupKey)?.push(node);
-            }
-        });
+        const groupMap = this.buildCytoscapeGroupMap(cy, foci);
 
         const groupedChildCount = Array.from(groupMap.values()).reduce((sum, nodesInGroup) => sum + nodesInGroup.length, 0);
         if (this.shouldSkipSingletonClusterGroups(foci, groupMap.size, groupedChildCount)) {
@@ -3581,6 +4733,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
     async centerPolygons(e, updateLayout: boolean = true) {
 
         this.widgets['polygons-foci'] = e;
+        if (this.isRendererGeographicOverlayEnabled()) updateLayout = false;
         if (this.shouldChunkLargeNoLinkLayout()) {
             this.updateGroupAssignmentsNoLinkFast(e);
             if (this.widgets['polygons-color-show'] == true) {
@@ -3648,22 +4801,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             });
     
             // Determine new groups based on foci
-            const groupMap: Map<string, cytoscape.NodeSingular[]> = new Map();
-    
-            cy.nodes().forEach(node => {
-                // if(node.data('id') === '30578_KF773488_D99cl05') {
-                //     console.log('nodeee1: ', node.data());
-                //     console.log('nodeee2: ', node.data(foci));
-                // }
-                
-                const group = this.getCyNodeGroupingKey(node, foci);
-                if (group !== null) {
-                    if (!groupMap.has(group)) {
-                        groupMap.set(group, []);
-                    }
-                    groupMap.get(group)?.push(node);
-                }
-            });
+            const groupMap = this.buildCytoscapeGroupMap(cy, foci);
 
             const groupedChildCount = Array.from(groupMap.values()).reduce((sum, nodesInGroup) => sum + nodesInGroup.length, 0);
             if (this.shouldSkipSingletonClusterGroups(foci, groupMap.size, groupedChildCount)) {
@@ -3728,19 +4866,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         }
 
         const layoutStart = this.getPerformanceNow();
-        const groupMap: Map<string, cytoscape.NodeSingular[]> = new Map();
-
-        cy.nodes().forEach(node => {
-            if (node.hasClass('parent')) return;
-
-            const group = this.getCyNodeGroupingKey(node, foci);
-            if (group !== null) {
-                if (!groupMap.has(group)) {
-                    groupMap.set(group, []);
-                }
-                groupMap.get(group)?.push(node);
-            }
-        });
+        const groupMap = this.buildCytoscapeGroupMap(cy, foci);
 
         const groupedChildCount = Array.from(groupMap.values()).reduce((sum, nodesInGroup) => sum + nodesInGroup.length, 0);
         if (this.shouldSkipSingletonClusterGroups(foci, groupMap.size, groupedChildCount)) {
@@ -3800,7 +4926,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                     });
                 });
 
-                cy.collection(group.values).move({ parent: parentId });
+                group.values.forEach(node => node.move({ parent: parentId }));
             });
 
             this.applyPolygonLabelStyle();
@@ -4474,6 +5600,17 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
 
         const collectDataStart = this.getPerformanceNow();
         let networkData = this.getVisibleNetworkDataForRender(timelineTick || this.isTimelineFilteringActive());
+        networkData = this.applyRendererGeographicProjection(networkData);
+        const rendererGroupField = String(this.widgets['polygons-foci'] || 'None');
+        const rendererGroupsVisible = Boolean(this.widgets['polygons-show']) && rendererGroupField !== 'None';
+        this.rendererGroupingModel = rendererGroupsVisible
+            ? this.buildRendererGroupingModel(networkData.nodes, rendererGroupField)
+            : null;
+        if (this.rendererGroupingModel && this.collapsedRendererGroupIds.size > 0) {
+            networkData = this.applyRendererGroupingProjection(networkData, this.rendererGroupingModel);
+        }
+        this.updateRenderedGeographicNodeCount(networkData.nodes);
+        this.updateRendererAccessibleFeatures(networkData.nodes);
         this.recordTwoDRenderTiming('twoDCollectVisibleGraphData', collectDataStart, {
             timelineTick,
             nodes: networkData.nodes.length,
@@ -4504,20 +5641,69 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             ((this.commonService.session?.meta as any)?.adaptiveNetwork as AdaptiveNetworkSessionState | undefined)
                 ?.lastView?.active,
         );
-        const initialLayout = initialAdaptiveView
-            ? { nodes: networkData.nodes, links: networkData.links, tickBatches: 0, ticksPerYield: 0 }
-            : await this.precomputePositionsWithD3(networkData.nodes, networkData.links, 300);
-        const refinementLayout = initialAdaptiveView
-            ? initialLayout
-            : await this.precomputePositionsWithD3(initialLayout.nodes, initialLayout.links, 5, false);
-        const { nodes: laidOutNodes, links: laidOutLinks } = refinementLayout;
+        let laidOutNodes = networkData.nodes;
+        let laidOutLinks = networkData.links;
+        let layoutMetadata: Record<string, any>;
+        if (initialAdaptiveView) {
+            layoutMetadata = {
+                ticks: 0,
+                tickBatches: 0,
+                initialTicksPerYield: 0,
+                refinementTicksPerYield: 0,
+                strategy: 'adaptive-view-positions',
+            };
+        } else if (this.rendererGeographicProjection) {
+            layoutMetadata = {
+                ticks: 0,
+                tickBatches: 0,
+                initialTicksPerYield: 0,
+                refinementTicksPerYield: 0,
+                strategy: 'renderer-neutral-geographic-projection',
+            };
+        } else if (this.optimizedRendererComparison) {
+            networkData.nodes.forEach(node => {
+                node.nodeSize = Number(this.getNodeSize(node));
+            });
+            const groupField = String(this.widgets['polygons-foci'] || 'None');
+            const showGroupHulls = Boolean(this.widgets['polygons-show']) && groupField !== 'None';
+            const optimizedLayout = await this.computeOptimizedRendererPositions(
+                networkData.nodes,
+                networkData.links,
+                showGroupHulls ? groupField : null,
+            );
+            laidOutNodes = optimizedLayout.nodes;
+            laidOutLinks = optimizedLayout.links;
+            layoutMetadata = {
+                ticks: optimizedLayout.ticks,
+                layoutLinks: optimizedLayout.layoutLinkCount,
+                strategy: optimizedLayout.strategy,
+            };
+        } else {
+            const initialLayout = await this.precomputePositionsWithD3(
+                networkData.nodes,
+                networkData.links,
+                300,
+            );
+            const refinementLayout = await this.precomputePositionsWithD3(
+                initialLayout.nodes,
+                initialLayout.links,
+                5,
+                false,
+            );
+            laidOutNodes = refinementLayout.nodes;
+            laidOutLinks = refinementLayout.links;
+            layoutMetadata = {
+                ticks: 305,
+                tickBatches: initialLayout.tickBatches + refinementLayout.tickBatches,
+                initialTicksPerYield: initialLayout.ticksPerYield,
+                refinementTicksPerYield: refinementLayout.ticksPerYield,
+                strategy: 'legacy-full-link-force',
+            };
+        }
         this.recordTwoDRenderTiming('twoDPrecomputePositions', precomputeStart, {
             nodes: laidOutNodes.length,
             links: laidOutLinks.length,
-            ticks: initialAdaptiveView ? 0 : 305,
-            tickBatches: initialLayout.tickBatches + refinementLayout.tickBatches,
-            initialTicksPerYield: initialLayout.ticksPerYield,
-            refinementTicksPerYield: refinementLayout.ticksPerYield
+            ...layoutMetadata,
         });
 
         if (this.isDestroyed || !this.cyContainer?.nativeElement) {
@@ -4594,7 +5780,10 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             // });
 
             // layout.run();
-            if (this.commonService.session.style.widgets['polygons-show']) {
+            if (
+                this.commonService.session.style.widgets['polygons-show'] &&
+                this.collapsedRendererGroupIds.size === 0
+            ) {
                 this.updateGroupAssignments(this.widgets['polygons-foci'], false);
             }
             this.recordTwoDRenderTiming('twoDRerender', rerenderStart, {
@@ -4664,6 +5853,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             
             // 4) Actually create Cytoscape
             const cytoscapeCreateStart = this.getPerformanceNow();
+            const enableCytoscapeWebgl = this.enableCytoscapeWebglForThisRender();
             if (this.debugMode) {
                 console.log(this.cyContainer);
             }
@@ -4682,12 +5872,39 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
               userPanningEnabled: true,
               pixelRatio: 1,
               hideLabelsOnViewport: true,
-              hideEdgesOnViewport: true,
+              // Keep the full-detail comparison visually equivalent to Sigma:
+              // both renderers retain edges while the camera is moving.
+              hideEdgesOnViewport: false,
+              webgl: enableCytoscapeWebgl,
+              // MT uses a relatively small set of node styles but many graph
+              // instances. Larger batches reduce draw calls; a denser atlas
+              // keeps label quality usable while reducing texture count.
+              webglTexSize: 4096,
+              webglTexRows: 48,
+              webglBatchSize: 16384,
+              webglTexPerBatch: 16,
             });
+            const webglLayer = this.cyContainer.nativeElement.querySelector(
+                'canvas[data-id="layer3-webgl"]',
+            ) as HTMLCanvasElement | null;
+            this.cytoscapeWebglActive = Boolean(
+                enableCytoscapeWebgl && webglLayer?.getContext('webgl2'),
+            );
+            if (enableCytoscapeWebgl && !this.cytoscapeWebglActive) {
+                this.cytoscapeRendererFallbackReason =
+                    'Cytoscape could not initialize WebGL 2; MT is using Canvas.';
+            }
             this.cy.resize();
+            this.attachCytoscapeWebglFailureMonitor();
+            this.installCytoscapeGeographicOverlay();
+            this.installCytoscapeNodeFeatureOverlay();
+            this.publishRendererDiagnostics();
             this.recordTwoDRenderTiming('twoDCreateCytoscape', cytoscapeCreateStart, {
                 nodes: el.nodes.length,
-                edges: el.edges.length
+                edges: el.edges.length,
+                requestedRenderer: this.requestedRendererMode,
+                activeRenderer: this.activeRendererMode,
+                webglActive: this.cytoscapeWebglActive,
             });
             
             if ((window as any).Cypress) {
@@ -4976,7 +6193,9 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                     nodes: this.cy.nodes().length,
                     edges: this.cy.edges().length
                 });
-               }
+              }
+              this.restoreRendererViewState();
+              this.restoreRendererKeyboardFocus();
 
               // Mark as rendered
               this.store.setNetworkRendered(true);
@@ -4995,6 +6214,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                 nodes: this.cy.nodes().length,
                 edges: this.cy.edges().length
               });
+              this.publishRendererDiagnostics();
             };
 
             this.cy.ready(() => {
@@ -5570,6 +6790,7 @@ private updateArrowStyles(): void {
 	            const fullNode = this.getFullNodeDataForCyNode(node);
 	            const [newColor, opacity] = this.getNodeColor(fullNode);
 	            node.data('nodeColor', newColor);
+            node.data('nodeFeature', this.buildRendererNodeFeatures(fullNode));
             node.data('bgOpacity', opacity);
             node.data('borderColor', newColor);
 
@@ -5580,6 +6801,7 @@ private updateArrowStyles(): void {
             }
         });
         this.cy.style().update(); // Refresh Cytoscape styles to apply changes
+        this.drawCytoscapeNodeFeatures();
 
 
     };
@@ -5643,7 +6865,11 @@ scaleLinkWidth() {
     /**
      * centers the view
      */
-    fit() {
+    fit(force = false) {
+        // Preserve a renderer-neutral saved camera across delayed layout and
+        // container resize callbacks. The explicit Center control opts into a
+        // fresh fit and then persists that new camera.
+        if (!force && this.restoreRendererViewState()) return;
         if (this.sigmaPocEnabled) {
             this.sigmaPocRenderer?.fit();
             return;
@@ -5697,8 +6923,9 @@ scaleLinkWidth() {
     /**
      * On click of center button, show centers the view
      */
-    openCenter() {
-        this.fit();
+    openCenter(force = false) {
+        this.fit(force);
+        if (force) setTimeout(() => this.persistRendererViewState(), 300);
     }
 
     /**
@@ -5710,7 +6937,7 @@ scaleLinkWidth() {
 
     openRefreshScreen() {
         this.loadSettings();
-        setTimeout(this.fit, 2000);
+        setTimeout(() => this.fit(), 2000);
     }
 
     /**
@@ -5774,7 +7001,18 @@ scaleLinkWidth() {
     // Retrieve fresh node/link data. Timeline renders only links whose
     // endpoints are currently timeline-visible, matching the statistics panel.
     const collectDataStart = this.getPerformanceNow();
-    const networkData = this.getVisibleNetworkDataForRender();
+    let networkData = this.getVisibleNetworkDataForRender();
+    networkData = this.applyRendererGeographicProjection(networkData);
+    const rendererGroupField = String(this.widgets['polygons-foci'] || 'None');
+    const rendererGroupsVisible = Boolean(this.widgets['polygons-show']) && rendererGroupField !== 'None';
+    this.rendererGroupingModel = rendererGroupsVisible
+        ? this.buildRendererGroupingModel(networkData.nodes, rendererGroupField)
+        : null;
+    if (this.rendererGroupingModel && this.collapsedRendererGroupIds.size > 0) {
+        networkData = this.applyRendererGroupingProjection(networkData, this.rendererGroupingModel);
+    }
+    this.updateRenderedGeographicNodeCount(networkData.nodes);
+    this.updateRendererAccessibleFeatures(networkData.nodes);
     this.recordTwoDRenderTiming('twoDPartialCollectVisibleGraphData', collectDataStart, {
         nodes: networkData.nodes.length,
         links: networkData.links.length
@@ -5791,7 +7029,7 @@ scaleLinkWidth() {
         })
     }
     const precomputeStart = this.getPerformanceNow();
-    const partialLayout = this.adaptiveViewOnlyUpdate
+    const partialLayout = this.adaptiveViewOnlyUpdate || Boolean(this.rendererGeographicProjection)
         ? { nodes: networkData.nodes, links: networkData.links, tickBatches: 0, ticksPerYield: 0 }
         : await this.precomputePositionsWithD3(networkData.nodes, networkData.links, 30, false);
     const { nodes: laidOutNodes, links: laidOutLinks } = partialLayout;
@@ -5898,8 +7136,6 @@ scaleLinkWidth() {
             this.zone.run(() => this.toggleAdaptiveAggregateDetail(evt.target));
         });
 
-        this.cy.on('zoom pan', () => this.scheduleAdaptiveViewportRefresh());
-
         // Remove old edges
         cy.edges().forEach(edge => {
             if (!newLinkIds.has(edge.id())) {
@@ -5952,7 +7188,7 @@ scaleLinkWidth() {
         //     }
         // });
 
-        if (!this.adaptiveViewOnlyUpdate) this.fit();
+        if (!this.adaptiveViewOnlyUpdate && !this.restoreRendererViewState()) this.fit();
 
            // Set rendered to true now that network has rendered
            this.store.setNetworkRendered(true); 
@@ -5978,6 +7214,9 @@ scaleLinkWidth() {
         this.isDestroyed = true;
         if (this.adaptiveViewportTimer) clearTimeout(this.adaptiveViewportTimer);
         if (this.adaptiveFocusTimer) clearTimeout(this.adaptiveFocusTimer);
+        if (this.rendererViewStateTimer) clearTimeout(this.rendererViewStateTimer);
+        this.rendererViewStateTimer = null;
+        this.detachCytoscapeCameraGesturePersistence();
         this.pendingPartialUpdate = false;
         this.destroy$.next();
         this.destroy$.complete();
@@ -5992,6 +7231,9 @@ scaleLinkWidth() {
         if ((window as any).sigmaPocInstance) delete (window as any).sigmaPocInstance;
 
         if (this.cy){
+            this.detachCytoscapeWebglFailureMonitor();
+            this.destroyCytoscapeGeographicOverlay();
+            this.destroyCytoscapeNodeFeatureOverlay();
             this.cy.removeAllListeners();
             if ((window as any).cytoscapeInstance === this.cy) {
                 delete (window as any).cytoscapeInstance;
@@ -5999,6 +7241,10 @@ scaleLinkWidth() {
             this.cy.destroy();
             this.cy = null;
         }
+        if ((window as any).mtRendererComparison === this.rendererDiagnosticsHandle) {
+            delete (window as any).mtRendererComparison;
+        }
+        this.rendererDiagnosticsHandle = null;
         if (this.commonService.visuals.twoD === this) {
             (this.commonService.visuals as any).twoD = null;
         }
@@ -6020,6 +7266,7 @@ scaleLinkWidth() {
 
         console.log('onLoadNewData');
         this.widgets = this.commonService.session.style.widgets;
+        this.restoreRendererGroupingSessionState();
         this.IsDataAvailable = (this.commonService.session.data.nodes.length > 0);
 
         if (!this.IsDataAvailable) {

@@ -26,6 +26,11 @@ on:
         required: false
         type: boolean
         default: false
+      renderer_compare:
+        description: Compare optimized Cytoscape WebGL and Sigma on the same representative samples in Chrome.
+        required: false
+        type: boolean
+        default: false
       enforce_budgets:
         description: Fail the job on reviewed budget failures or missing configured metrics.
         required: false
@@ -54,6 +59,10 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Verify renderer feature, session, accessibility, and recovery contracts in Chrome
+        if: inputs.renderer_compare
+        run: npm run e2e:renderer-contracts
+
       - name: Run Cypress performance baseline
         run: |
           set -euo pipefail
@@ -75,6 +84,18 @@ jobs:
 
       - name: Propose descriptive budgets
         run: node scripts/propose-performance-budgets.js --min-samples "${{ inputs.min_samples }}"
+
+      - name: Compare optimized renderers on representative samples in Chrome
+        if: inputs.renderer_compare
+        run: npm run e2e:renderer-compare:representative
+
+      - name: Compare feature-rich renderer paths at scale in Chrome
+        if: inputs.renderer_compare
+        run: npm run e2e:renderer-compare:feature-scale
+
+      - name: Compare forced-GC memory in isolated Chrome processes
+        if: inputs.renderer_compare
+        run: npm run e2e:renderer-memory
 
       - name: Check reviewed budgets
         run: |

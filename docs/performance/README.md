@@ -13,5 +13,7 @@ This folder contains performance-specific planning notes, baseline strategy, and
 - `genetic-distance-refactor-performance-comparison.md`: before/after performance results for the genetic-distance and Newick/patristic refactor comparison.
 - `fasta-statistics-wasm-measurement.md`: FASTA/statistics timing evidence and Wasm recommendation from the expanded sequence harness.
 - `problem-10k-node-only-performance.md`: case study for the 10k node-only fixture and 2D grouping/rendering improvements.
+- `network-renderer-comparison.md`: detailed optimized Cytoscape WebGL/Sigma protocol and measurements, including complete isolated Chrome-process and graphics-memory results.
+- `network-renderer-comparison-plain-language.md`: the same current evidence summarized for non-technical readers.
 
 Generated Cypress artifacts still live under `cypress/downloads/performance/` and are intentionally not committed.

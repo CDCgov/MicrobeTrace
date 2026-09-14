@@ -504,6 +504,8 @@ export class CommonService extends AppComponentBase implements OnInit {
             'map-countries-show': false,
             'map-field-lat': 'None',
             'map-field-lon': 'None',
+            'network-geographic-overlay': false,
+            'network-edge-detail-mode': 'overview',
             'map-field-tract': 'None',
             'map-field-zipcode': 'None',
             'map-field-county': 'None',
@@ -529,6 +531,10 @@ export class CommonService extends AppComponentBase implements OnInit {
             'node-color-table-counts': true,
             'node-color-table-frequencies': false,
             'node-color-variable': 'None',
+            'node-qc-status-variable': 'None',
+            'node-qc-severity-variable': 'None',
+            'node-qc-reason-variable': 'None',
+            'node-uncertainty-variable': 'None',
             'node-highlight': false,
             'node-label-size': 16,
             'node-label-variable': 'None',
@@ -2734,6 +2740,38 @@ export class CommonService extends AppComponentBase implements OnInit {
         this.session.style = oldSession.style;
 
         this.session.meta.startTime = Date.now();
+        const rendererGrouping = oldSession?.meta?.rendererGrouping;
+        if (rendererGrouping && typeof rendererGrouping === 'object') {
+            (this.session.meta as any).rendererGrouping = {
+                groupField: typeof rendererGrouping.groupField === 'string'
+                    ? rendererGrouping.groupField
+                    : 'None',
+                collapsedGroupIds: Array.isArray(rendererGrouping.collapsedGroupIds)
+                    ? rendererGrouping.collapsedGroupIds.map(id => String(id))
+                    : [],
+            };
+        }
+        const rendererViewState = oldSession?.meta?.rendererViewState;
+        const rendererCenterX = Number(rendererViewState?.centerX);
+        const rendererCenterY = Number(rendererViewState?.centerY);
+        const rendererGraphUnitsPerPixel = Number(rendererViewState?.graphUnitsPerPixel);
+        if (
+            rendererViewState && typeof rendererViewState === 'object'
+            && Number.isFinite(rendererCenterX)
+            && Number.isFinite(rendererCenterY)
+            && Number.isFinite(rendererGraphUnitsPerPixel)
+            && rendererGraphUnitsPerPixel > 0
+        ) {
+            (this.session.meta as any).rendererViewState = {
+                centerX: rendererCenterX,
+                centerY: rendererCenterY,
+                graphUnitsPerPixel: rendererGraphUnitsPerPixel,
+                edgeDetailMode: rendererViewState.edgeDetailMode === 'detail'
+                    || rendererViewState.edgeDetailMode === 'all'
+                    ? rendererViewState.edgeDetailMode
+                    : 'overview',
+            };
+        }
 
 
         if(oldSession.layout) {

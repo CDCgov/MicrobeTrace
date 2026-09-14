@@ -1,6 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import type { PluginEvents } from 'cypress';
+import { captureBrowserProcessMemory } from './browser-memory';
 
 type PerformanceResult = {
   runId?: string;
@@ -8,6 +9,8 @@ type PerformanceResult = {
   scenario?: {
     id?: string;
     title?: string;
+    renderer?: string;
+    rendererProfile?: string;
   };
   timestamp?: string;
   [key: string]: unknown;
@@ -213,6 +216,10 @@ function readRealSampleManifest(): RealSampleManifestResult {
 
 export function registerPerformanceTasks(on: PluginEvents): void {
   on('task', {
+    'perf:captureBrowserMemory'(options?: { phase?: string }) {
+      return captureBrowserProcessMemory(options?.phase || 'checkpoint');
+    },
+
     'perf:readRealSampleManifest'(): RealSampleManifestResult {
       return readRealSampleManifest();
     },
@@ -239,10 +246,14 @@ export function registerPerformanceTasks(on: PluginEvents): void {
 
       fs.mkdirSync(outputDir, { recursive: true });
 
-      const filePath = path.join(outputDir, `${runId}-${scenarioId}.json`);
+      const existingResults = runResults.get(runId) || [];
+      const scenarioSampleNumber = existingResults.filter(entry => (
+        safeSegment(entry.scenarioId || entry.scenario?.id || 'scenario') === scenarioId
+      )).length + 1;
+      const sampleSuffix = scenarioSampleNumber > 1 ? `-sample-${scenarioSampleNumber}` : '';
+      const filePath = path.join(outputDir, `${runId}-${scenarioId}${sampleSuffix}.json`);
       fs.writeFileSync(filePath, `${JSON.stringify(stampedResult, null, 2)}\n`, 'utf8');
 
-      const existingResults = runResults.get(runId) || [];
       existingResults.push(stampedResult);
       runResults.set(runId, existingResults);
 
@@ -260,6 +271,7 @@ export function registerPerformanceTasks(on: PluginEvents): void {
             metrics: result.metrics,
             counts: result.counts,
             heap: result.heap,
+            browserMemory: result.browserMemory,
             longTasks: result.longTasks,
             app: result.app,
           };
