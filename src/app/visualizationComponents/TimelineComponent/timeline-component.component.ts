@@ -1,4 +1,4 @@
-import { Component, ElementRef, EventEmitter, ChangeDetectorRef, Inject, OnInit, Output, ViewChild, OnDestroy } from '@angular/core';
+import { Component, ElementRef, EventEmitter, ChangeDetectorRef, Inject, OnInit, Output, ViewChild, OnDestroy, ChangeDetectionStrategy } from '@angular/core';
 import { CommonService } from '../../contactTraceCommonServices/common.service';
 import { BaseComponentDirective } from '@app/base-component.directive';
 import { MicobeTraceNextPluginEvents } from '@app/helperClasses/interfaces';
@@ -18,6 +18,7 @@ import { CommonStoreService } from '@app/contactTraceCommonServices/common-store
     selector: 'app-timeline-component',
     templateUrl: './timeline-component.component.html',
     styleUrls: ['./timeline-component.component.scss'],
+    changeDetection: ChangeDetectionStrategy.Eager,
     standalone: false
 })
 export class TimelineComponent extends BaseComponentDirective implements OnInit, MicobeTraceNextPluginEvents, OnDestroy {

@@ -161,7 +161,7 @@ const setToggleState = (label: string, desired: boolean, propPath: string): void
 
     cy.get('@phyloSettings')
       .contains('.form-group.row', label)
-      .find('p-selectbutton')
+      .find('p-select-button')
       .contains(desired ? 'Show' : 'Hide')
       .click({ force: true });
   });
@@ -371,7 +371,7 @@ describe('Journey Flow - Phylogenetic Tree metadata-backed controls', () => {
 
       cy.get('@phyloSettings')
         .contains('.form-group.row', 'Use Global Shapes')
-        .find('p-selectbutton')
+        .find('p-select-button')
         .contains('Enable')
         .click({ force: true });
     });

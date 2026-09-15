@@ -30,7 +30,7 @@ describe('Journey Flow - Threshold Sparkline Interaction', () => {
     cy.get('#link-threshold-sparkline')
       .scrollIntoView()
       .should('be.visible');
-    cy.get('#threshold-sparkline-readout').should('contain', 'Hover chart for cluster count');
+    cy.get('#threshold-sparkline-readout').should('contain', 'Hover over the chart to inspect cluster counts');
     cy.click_histogram_at('#link-threshold-sparkline', 0.40);
     cy.window()
       .its('commonService.session.style.widgets.link-threshold')
