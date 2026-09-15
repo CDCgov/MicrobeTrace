@@ -8,6 +8,7 @@ import {
 } from '../../../support/journey-helpers';
 import {
   addEpiCurveAnnotation,
+  addEpiCurveSeries,
   assertEpiCurveHasBars,
   assertEpiCurveColorPickerVisible,
   readEpiCurveBars,
@@ -15,6 +16,7 @@ import {
   readEpiStackOrderLabels,
   readEpiCurveXAxisTickLabels,
   reorderEpiStackGroups,
+  removeEpiCurveSeries,
   selectEpiCurveDropdown,
   selectEpiCurveSettingsTab,
   setEpiCurveColor,
@@ -23,6 +25,8 @@ import {
   setEpiCurveLegendPosition,
   setEpiCurveLineStyle,
   setEpiCurveRange,
+  setEpiCurveSeriesCumulative,
+  setEpiCurveSeriesLabel,
   setEpiStackGroupColor,
   setEpiStackGroupOpacity,
   setEpiCurveTickInterval,
@@ -173,7 +177,13 @@ const assertCumulativeTransition = (
     previousHeights = bars.map((bar) => bar.height);
   });
 
-  setEpiCurveCumulative(cumulative);
+  if (dateFieldCounts == 1) {
+    setEpiCurveCumulative(cumulative);
+  } else {
+    for (let fieldIndex = 0; fieldIndex < dateFieldCounts; fieldIndex += 1) {
+      setEpiCurveSeriesCumulative(fieldIndex as 0 | 1 | 2, cumulative);
+    }
+  }
 
   readEpiCurveBars().then((bars) => {
     const nextHeights = bars.map((bar) => bar.height);
@@ -207,6 +217,88 @@ describe('Journey Flow - Epi Curve controls on uploaded data', () => {
     selectEpiCurveDropdown('Date Field', 'Date of symptom onset Date');
     assertEpiCurveHasBars();
     ensureEpiSettingsDialogOpen();
+  });
+
+  it('reports how many records contribute to each configured series', () => {
+    getEpiSettingsDialog()
+      .find('#epi-data-inclusion-summary-1')
+      .should('have.text', '30 of 33 records plotted · 3 missing or invalid dates');
+
+    selectEpiCurveDropdown('Graph Type', 'Multi: Side by Side');
+    selectEpiCurveDropdown('Value Field 1', 'Zipcode');
+    getEpiSettingsDialog()
+      .find('#epi-data-inclusion-summary-1')
+      .should('have.text', '30 of 33 records plotted · 3 missing or invalid dates');
+
+    cy.window().then((win) => {
+      const epiCurve = Cypress._.get(win, 'commonService.visuals.epiCurve');
+      const node = Cypress._.get(win, 'commonService.session.data.nodes')
+        .find((candidate: Record<string, unknown>) =>
+          candidate['Date of symptom onset Date'] && candidate.Zip_code);
+
+      expect(node, 'record with a usable date and numeric value').to.exist;
+      node.Zip_code = '';
+      epiCurve.refresh();
+      epiCurve.cdref.detectChanges();
+    });
+
+    getEpiSettingsDialog()
+      .find('#epi-data-inclusion-summary-1')
+      .should('have.text', '29 of 33 records plotted · 3 missing or invalid dates · 1 missing or nonnumeric value');
+  });
+
+  it('offers compatible date and numeric fields and explains invalid saved selections', () => {
+    cy.window().then((win) => {
+      const epiCurve = Cypress._.get(win, 'commonService.visuals.epiCurve');
+      const dateOptions = epiCurve.FieldList.map((option: { label: string }) => option.label);
+      const valueOptions = epiCurve.ValueFieldList.map((option: { label: string }) => option.label);
+
+      expect(dateOptions, 'date field options').to.deep.equal([
+        'None',
+        'CollectionDate',
+        'Date of symptom onset Date',
+        'Date symptoms resolved',
+      ]);
+      expect(valueOptions, 'numeric value field options').to.deep.equal(['None', 'Zipcode']);
+      expect(dateOptions, 'date field options without internal metadata')
+        .not.to.include.members(['Index', 'Selected', 'Cluster', 'Visible', 'Degree', 'Origin']);
+      expect(valueOptions, 'numeric options without internal metadata')
+        .not.to.include.members(['Index', 'Selected', 'Cluster', 'Visible', 'Degree', 'Origin']);
+
+      const widgets = epiCurve.widgets;
+      widgets['epiCurve-date-fields'][0] = 'index';
+      epiCurve.onDateFieldChange(0);
+      epiCurve.cdref.detectChanges();
+    });
+
+    getEpiSettingsDialog()
+      .find('.epi-field-validation')
+      .should('have.text', 'Index is not a compatible date field. Choose a field containing calendar dates.');
+    cy.get('#epiCurveSVG .epiCurve-epi-curve').should('have.length', 0);
+    cy.get('#epiCurveSVG .axis--x').should('have.length', 0);
+
+    cy.window().then((win) => {
+      const epiCurve = Cypress._.get(win, 'commonService.visuals.epiCurve');
+      const dateField = epiCurve.FieldList.find(
+        (option: { label: string }) => option.label === 'Date of symptom onset Date',
+      ).value;
+      const widgets = epiCurve.widgets;
+
+      epiCurve.selectedGraphType = 'Multi: Side by Side';
+      widgets['epiCurve-graphType'] = epiCurve.selectedGraphType;
+      widgets['epiCurve-date-fields'][0] = dateField;
+      widgets['epiCurve-value-fields'][0] = 'degree';
+      widgets['epiCurve-series-aggregations'][0] = 'Sum';
+      epiCurve.onGraphTypeChange();
+      epiCurve.cdref.detectChanges();
+    });
+
+    getEpiSettingsDialog()
+      .find('.epi-field-validation')
+      .should('have.text', 'Degree is not a compatible numeric value field. Choose another field or None.');
+    cy.get('#epiCurveSVG .epiCurve-epi-curve').should('have.length', 0);
+
+    cy.closeSettingsPane('Epi Curve Settings');
   });
 
   it('applies uploaded single-date settings and keeps the rendered SVG in sync', () => {
@@ -332,12 +424,12 @@ describe('Journey Flow - Epi Curve controls on uploaded data', () => {
 
     ensureEpiSettingsDialogOpen();
     selectEpiCurveDropdown('Bin Size', 'Year');
-    selectEpiCurveSettingsTab('Legend & Labels');
+    selectEpiCurveSettingsTab('Appearance');
     getEpiSettingsDialog().find('#epi-tick-size').should('not.be.visible');
 
     ensureEpiSettingsDialogOpen();
     selectEpiCurveDropdown('Bin Size', 'Quarter');
-    selectEpiCurveSettingsTab('Legend & Labels');
+    selectEpiCurveSettingsTab('Appearance');
     getEpiSettingsDialog().find('#epi-tick-size').should('be.visible');
     cy.window()
       .its('commonService.visuals.epiCurve.tickInterval')
@@ -475,6 +567,8 @@ describe('Journey Flow - Epi Curve controls on uploaded data', () => {
 
     ensureEpiSettingsDialogOpen();
     selectEpiCurveDropdown('Graph Type', 'Multi: Side by Side');
+    addEpiCurveSeries(2);
+    addEpiCurveSeries(3);
     ensureEpiSettingsDialogOpen();
     selectEpiCurveDropdown('Date Field', 'CollectionDate');
     ensureEpiSettingsDialogOpen();
@@ -493,7 +587,7 @@ describe('Journey Flow - Epi Curve controls on uploaded data', () => {
 
     cy.window().should((win) => {
       const fields = Cypress._.get(win, 'commonService.session.style.widgets.epiCurve-date-fields');
-      expect(fields, 'all epi date fields after clearing').to.deep.equal(['None', 'None', 'None']);
+      expect(fields, 'all epi date fields after clearing').to.deep.equal(['None', 'None', 'None', 'None']);
     });
 
     cy.get('#epiCurveSVG .epiCurve-epi-curve rect').should('have.length', 0);
@@ -504,13 +598,137 @@ describe('Journey Flow - Epi Curve controls on uploaded data', () => {
     cy.closeSettingsPane('Epi Curve Settings');
   });
 
-  it('renders uploaded multi-date controls for side-by-side bars and line overlays', () => {
+  it('stacks one additive Overlay bar by category and keeps line series separate', () => {
+    const assertSegmentsAddToTotals = (): void => {
+      cy.get('#epiCurveSVG .epiCurve-stacked-bar-segment')
+        .should('have.length.greaterThan', 1)
+        .then(($segments) => {
+          const totalsByBin = new Map<string, { segmentSum: number; total: number }>();
+
+          [...$segments].forEach((segment) => {
+            const transform = String(segment.getAttribute('transform') || '');
+            const binKey = transform.match(/^translate\(([^,]+),/)?.[1] || transform;
+            const entry = totalsByBin.get(binKey) || {
+              segmentSum: 0,
+              total: Number(segment.getAttribute('data-stack-total')),
+            };
+            entry.segmentSum += Number(segment.getAttribute('data-segment-value'));
+            totalsByBin.set(binKey, entry);
+          });
+
+          expect(totalsByBin.size, 'stacked date bins').to.be.greaterThan(1);
+          totalsByBin.forEach(({ segmentSum, total }) => {
+            expect(segmentSum, 'category segments add to the displayed bar total')
+              .to.be.closeTo(total, 0.001);
+          });
+        });
+    };
+
+    ensureEpiSettingsDialogOpen();
+    selectEpiCurveDropdown('Graph Type', 'Multi: Overlay');
+    addEpiCurveSeries(2);
+    selectEpiCurveDropdown('Date Field', 'CollectionDate');
+    selectEpiCurveDropdown('Date Field 2', 'Date of symptom onset Date');
+    selectEpiCurveDropdown('Series Type 2', 'Line');
+    setEpiCurveSeriesLabel(0, 'Reported cases');
+    setEpiCurveSeriesLabel(1, 'Onset trend');
+    selectEpiCurveDropdown('Color By', 'State');
+
+    getEpiSettingsDialog()
+      .find('.epi-stack-colors-note')
+      .should('contain.text', 'The bar is stacked by category');
+    cy.get('#epiCurveSVG .epiCurve-stacked-bar-segment')
+      .should('have.attr', 'data-series-axis', 'right')
+      .and('have.attr', 'data-aggregation', 'count');
+    cy.get('#epiCurveSVG .epiCurve-line-overlay')
+      .should('have.length', 1)
+      .and('have.attr', 'data-series-axis', 'left');
+    cy.get('#epiCurveSVG .axis--y-right').should('exist');
+    assertSegmentsAddToTotals();
+
+    cy.get('#epiCurveSVG .epiCurve-stacked-bar-segment title')
+      .first()
+      .should('contain.text', 'State —')
+      .and('contain.text', 'Reported cases total:')
+      .and('contain.text', 'Onset trend:');
+    cy.get('#epiCurveSVG .epiCurve-legend-label')
+      .then(($labels) => {
+        const labels = [...$labels].map(label => String(label.textContent || '').trim());
+        expect(labels.filter(label => label.startsWith('State: ')).length, 'category legend entries')
+          .to.be.greaterThan(1);
+        expect(labels[labels.length - 1], 'line legend entry').to.equal('Line: Onset trend');
+      });
+
+    ensureEpiSettingsDialogOpen();
+    setEpiCurveLegendPosition('Right');
+    cy.get('#epiCurveSVG').then(($svg) => {
+      const svgLeft = $svg[0].getBoundingClientRect().left;
+      const rightAxis = $svg[0].querySelector('.axis--y-right');
+      expect(rightAxis, 'right axis for stacked legend bounds').to.exist;
+      const rightAxisLeft = (rightAxis as SVGGraphicsElement).getBoundingClientRect().left;
+
+      cy.get('#epiCurveSVG .epiCurve-legend-label')
+        .each(($label) => {
+          const bounds = $label[0].getBoundingClientRect();
+          expect(bounds.left, `${$label.text()} left edge`).to.be.at.least(svgLeft);
+          expect(bounds.right, `${$label.text()} right edge`).to.be.lessThan(rightAxisLeft);
+        });
+    });
+
+    ensureEpiSettingsDialogOpen();
+    selectEpiCurveDropdown('Value Field 1', 'Zipcode');
+    cy.get('#epiCurveSVG .epiCurve-stacked-bar-segment')
+      .should('have.attr', 'data-aggregation', 'sum');
+    assertSegmentsAddToTotals();
+
+    ensureEpiSettingsDialogOpen();
+    selectEpiCurveDropdown('Aggregation 1', 'Last');
+    cy.get('#epiCurveSVG .epiCurve-stacked-bar-segment').should('not.exist');
+    cy.get('#epiCurveSVG .epiCurve-overlay-bar')
+      .should('have.attr', 'data-aggregation', 'last');
+    selectEpiCurveSettingsTab('Appearance');
+    getEpiSettingsDialog()
+      .find('.epi-stack-colors-note')
+      .should('contain.text', 'Last and Average remain unstacked');
+    getEpiSettingsDialog()
+      .find('#epi-stack-color-by-select')
+      .should('have.attr', 'aria-disabled', 'true');
+
+    selectEpiCurveDropdown('Aggregation 1', 'Sum');
+    selectEpiCurveDropdown('Series Type 2', 'Bar');
+    cy.get('#epiCurveSVG .epiCurve-stacked-bar-segment').should('not.exist');
+    cy.get('#epiCurveSVG .epiCurve-overlay-bar')
+      .should('have.attr', 'opacity', '0.6');
+    selectEpiCurveSettingsTab('Appearance');
+    getEpiSettingsDialog()
+      .find('.epi-stack-colors-note')
+      .should('contain.text', 'exactly one configured bar series');
+
+    cy.closeSettingsPane('Epi Curve Settings');
+  });
+
+  it('renders uploaded multi-date controls for side-by-side bars and configurable line overlays', () => {
     let sideBySideBarWidth = 0;
 
     ensureEpiSettingsDialogOpen();
     selectEpiCurveDropdown('Graph Type', 'Multi: Side by Side');
-    getEpiSettingsDialog().contains('label', 'Date Field 2').should('be.visible');
-    getEpiSettingsDialog().contains('label', 'Date Field 3').should('be.visible');
+    getEpiSettingsDialog().find('.epi-series-help-tooltip__content').should('not.be.visible');
+    getEpiSettingsDialog().find('.epi-series-help-tooltip__trigger').focus();
+    getEpiSettingsDialog().find('.epi-series-help-tooltip__content')
+      .should('be.visible')
+      .and('contain.text', 'Add up to four series')
+      .and('contain.text', 'bars use the right axis');
+    getEpiSettingsDialog().find('.epi-series-help-tooltip__trigger').blur();
+    getEpiSettingsDialog().find('.epi-series-help-tooltip__content').should('not.be.visible');
+    getEpiSettingsDialog().find('.epi-series-card').should('have.length', 1);
+    getEpiSettingsDialog()
+      .contains('.epi-series-toolbar', '1 of 4 series')
+      .scrollIntoView()
+      .should('be.visible');
+    addEpiCurveSeries(2);
+    addEpiCurveSeries(3);
+    getEpiSettingsDialog().contains('label', 'Date Field 2').should('exist');
+    getEpiSettingsDialog().contains('label', 'Date Field 3').should('exist');
 
     ensureEpiSettingsDialogOpen();
     selectEpiCurveDropdown('Date Field', 'CollectionDate');
@@ -551,12 +769,83 @@ describe('Journey Flow - Epi Curve controls on uploaded data', () => {
 
     ensureEpiSettingsDialogOpen();
     selectEpiCurveDropdown('Graph Type', 'Multi: Overlay');
-    getEpiSettingsDialog().find('#epi-line-style-select-2').should('be.visible');
-    getEpiSettingsDialog().find('#epi-line-style-select-3').should('be.visible');
+    selectEpiCurveDropdown('Series Type 2', 'Line');
+    selectEpiCurveDropdown('Series Type 3', 'Line');
+    getEpiSettingsDialog()
+      .find('#epi-line-style-select-2')
+      .scrollIntoView()
+      .should('be.visible');
+    getEpiSettingsDialog()
+      .find('#epi-line-style-select-3')
+      .scrollIntoView()
+      .should('be.visible');
     setEpiCurveLineStyle(1, 'Solid');
     setEpiCurveLineStyle(2, 'Dashed');
-    selectEpiCurveDropdown('Line 1 Value', 'Zipcode');
-    selectEpiCurveDropdown('Line 2 Value', 'Zipcode');
+    selectEpiCurveDropdown('Value Field 2', 'Zipcode');
+    selectEpiCurveDropdown('Value Field 3', 'Zipcode');
+    selectEpiCurveDropdown('Aggregation 2', 'Last');
+    selectEpiCurveDropdown('Aggregation 3', 'Average');
+
+    getEpiSettingsDialog().find('.epi-series-axis-badge')
+      .should('have.length', 3)
+      .then(($badges) => {
+        expect([...$badges].map((badge) => String(badge.textContent || '').trim()))
+          .to.deep.equal(['Axis: Right', 'Axis: Left', 'Axis: Left']);
+        expect([...$badges].map((badge) => badge.getAttribute('data-series-axis')))
+          .to.deep.equal(['right', 'left', 'left']);
+      });
+    cy.get('#epiCurveSVG .label--left').should('have.text', 'Zip code');
+    cy.get('#epiCurveSVG .label--right').should('have.text', 'Number of Cases');
+
+    selectEpiCurveSettingsTab('Titles & Axes');
+    getEpiSettingsDialog().find('#epi-left-y-axis-label').should('have.attr', 'placeholder', 'Zip code');
+    getEpiSettingsDialog().find('#epi-right-y-axis-label').should('have.attr', 'placeholder', 'Number of Cases');
+    selectEpiCurveSettingsTab('Graph');
+
+    cy.get('#epiCurveSVG .epiCurve-legend-label')
+      .then(($labels) => {
+        expect([...$labels].map((label) => String(label.textContent || '').trim()))
+          .to.deep.equal(['Collection Date', 'Zip code', 'Zip code']);
+      });
+
+    setEpiCurveSeriesLabel(0, 'Reported cases');
+    setEpiCurveSeriesLabel(1, 'Cumulative doses 2025');
+    setEpiCurveSeriesLabel(2, 'Cumulative doses 2024');
+
+    cy.get('#epiCurveSVG .epiCurve-legend-label')
+      .then(($labels) => {
+        expect([...$labels].map((label) => String(label.textContent || '').trim()))
+          .to.deep.equal(['Reported cases', 'Cumulative doses 2025', 'Cumulative doses 2024']);
+      });
+    cy.get('#epiCurveSVG .epiCurve-overlay-bar title')
+      .first()
+      .should('contain.text', 'Reported cases:')
+      .and('contain.text', 'Cumulative doses 2025:')
+      .and('contain.text', 'Cumulative doses 2024:');
+
+    ensureEpiSettingsDialogOpen();
+    setEpiCurveLegendPosition('Right');
+    cy.get('#epiCurveSVG').then(($svg) => {
+      const svgLeft = $svg[0].getBoundingClientRect().left;
+      const rightAxis = $svg[0].querySelector('.axis--y-right');
+      expect(rightAxis, 'right axis for legend bounds').to.exist;
+      const rightAxisLeft = (rightAxis as SVGGraphicsElement).getBoundingClientRect().left;
+
+      cy.get('#epiCurveSVG .epiCurve-legend-label')
+        .should('have.length', 3)
+        .each(($label) => {
+          const bounds = $label[0].getBoundingClientRect();
+          expect(bounds.left, `${$label.text()} left edge`).to.be.at.least(svgLeft);
+          expect(bounds.right, `${$label.text()} right edge`).to.be.lessThan(rightAxisLeft);
+        });
+      cy.get('#epiCurveSVG .epiCurve-legend-marker, #epiCurveSVG .epiCurve-legend-line')
+        .should('have.length', 3)
+        .each(($marker) => {
+          const bounds = $marker[0].getBoundingClientRect();
+          expect(bounds.left, 'legend marker left edge').to.be.at.least(svgLeft);
+          expect(bounds.right, 'legend marker right edge').to.be.lessThan(rightAxisLeft);
+        });
+    });
 
     ensureEpiSettingsDialogOpen();
     setEpiCurveLegendPosition('Top');
@@ -592,11 +881,26 @@ describe('Journey Flow - Epi Curve controls on uploaded data', () => {
           { color: '#00aa00', dashArray: null, fieldIndex: '1', style: 'solid' },
           { color: '#0300aa', dashArray: '10 7', fieldIndex: '2', style: 'dashed' },
         ]);
+        expect($lines[0].querySelector('title')?.textContent)
+          .to.equal('Cumulative doses 2025 (solid line)');
+        expect($lines[1].querySelector('title')?.textContent)
+          .to.equal('Cumulative doses 2024 (dashed line)');
       });
+    cy.get('#epiCurveSVG .epiCurve-line-overlay')
+      .eq(0)
+      .should('have.attr', 'data-aggregation', 'last')
+      .and('have.attr', 'data-cumulative', 'false');
+    cy.get('#epiCurveSVG .epiCurve-line-overlay')
+      .eq(1)
+      .should('have.attr', 'data-aggregation', 'average')
+      .and('have.attr', 'data-cumulative', 'false');
 
     cy.get('#epiCurveSVG .epiCurve-overlay-bar')
       .first()
-      .should('have.attr', 'stroke', 'black');
+      .should('have.attr', 'stroke', 'black')
+      .and('have.attr', 'data-series-axis', 'right');
+    cy.get('#epiCurveSVG .epiCurve-line-overlay')
+      .should('have.attr', 'data-series-axis', 'left');
     cy.get('#epiCurveSVG .axis--y-right').should('exist');
     cy.get('#epiCurveSVG .epiCurve-chart-title').should('contain.text', 'MMWR-style example');
     cy.get('#epiCurveSVG text.x.label').should('have.text', 'Onset date');
@@ -605,6 +909,153 @@ describe('Journey Flow - Epi Curve controls on uploaded data', () => {
     cy.get('#epiCurveSVG .epiCurve-footnote').should('contain.text', 'Abbreviation: MMR vaccine.');
     cy.get('#epiCurveSVG .epiCurve-legend-marker').should('have.length', 1);
     cy.get('#epiCurveSVG .epiCurve-legend-line').should('have.length', 2);
+
+    cy.closeSettingsPane('Epi Curve Settings');
+  });
+
+  it('adds, removes, and renders up to four independently configured series', () => {
+    let layeredBarWidth = 0;
+    let aggregationsBeforeRemoval: string[] = [];
+    let cumulativeBeforeRemoval: boolean[] = [];
+    let datesBeforeRemoval: string[] = [];
+    let labelsBeforeRemoval: string[] = [];
+    let typesBeforeRemoval: string[] = [];
+
+    ensureEpiSettingsDialogOpen();
+    selectEpiCurveDropdown('Graph Type', 'Multi: Overlay');
+    addEpiCurveSeries(2);
+    addEpiCurveSeries(3);
+    selectEpiCurveDropdown('Date Field', 'CollectionDate');
+    selectEpiCurveDropdown('Date Field 2', 'Date of symptom onset Date');
+    selectEpiCurveDropdown('Date Field 3', 'Date symptoms resolved');
+    addEpiCurveSeries(4);
+    selectEpiCurveDropdown('Date Field 4', 'Date of symptom onset Date');
+
+    selectEpiCurveDropdown('Series Type 1', 'Bar');
+    selectEpiCurveDropdown('Series Type 2', 'Bar');
+    selectEpiCurveDropdown('Series Type 3', 'Line');
+    selectEpiCurveDropdown('Series Type 4', 'Line');
+    setEpiCurveLineStyle(2, 'Solid');
+    setEpiCurveLineStyle(3, 'Dashed');
+    selectEpiCurveDropdown('Value Field 3', 'Zipcode');
+    selectEpiCurveDropdown('Value Field 4', 'Zipcode');
+    selectEpiCurveDropdown('Aggregation 3', 'Last');
+    selectEpiCurveDropdown('Aggregation 4', 'Average');
+    setEpiCurveSeriesCumulative(3, true);
+    setEpiCurveSeriesLabel(0, 'Series A');
+    setEpiCurveSeriesLabel(1, 'Series B');
+    setEpiCurveSeriesLabel(2, 'Series C');
+    setEpiCurveSeriesLabel(3, 'Series D');
+
+    setEpiCurveColor(0, '#aa0000');
+    setEpiCurveColor(1, '#00aa00');
+    setEpiCurveColor(2, '#0300aa');
+    setEpiCurveColor(3, '#cc00cc');
+
+    getEpiSettingsDialog().find('.epi-series-card').should('have.length', 4);
+    getEpiSettingsDialog().find('#epi-add-series').should('be.disabled');
+
+    cy.get('#epiCurveSVG .epiCurve-overlay-bar')
+      .should('have.length.greaterThan', 1)
+      .then(($bars) => {
+        const bars = [...$bars];
+        expect(
+          [...new Set(bars.map((bar) => bar.getAttribute('data-field-index')))].sort(),
+          'layered bar series indexes',
+        ).to.deep.equal(['0', '1']);
+        expect(
+          [...new Set(bars.map((bar) => bar.getAttribute('opacity')))],
+          'layered bar opacity',
+        ).to.deep.equal(['0.6']);
+        layeredBarWidth = Number(bars[0].getAttribute('width'));
+        expect(layeredBarWidth, 'layered bar width').to.be.greaterThan(0);
+      });
+
+    cy.get('#epiCurveSVG .epiCurve-line-overlay')
+      .should('have.length', 2)
+      .then(($lines) => {
+        expect([...$lines].map((line) => ({
+          aggregation: line.getAttribute('data-aggregation'),
+          cumulative: line.getAttribute('data-cumulative'),
+          fieldIndex: line.getAttribute('data-field-index'),
+          style: line.getAttribute('data-line-style'),
+        }))).to.deep.equal([
+          { aggregation: 'last', cumulative: 'false', fieldIndex: '2', style: 'solid' },
+          { aggregation: 'average', cumulative: 'true', fieldIndex: '3', style: 'dashed' },
+        ]);
+      });
+    cy.get('#epiCurveSVG .axis--y-right').should('exist');
+    cy.get('#epiCurveSVG .epiCurve-legend-marker').should('have.length', 2);
+    cy.get('#epiCurveSVG .epiCurve-legend-line').should('have.length', 2);
+
+    ensureEpiSettingsDialogOpen();
+    selectEpiCurveDropdown('Graph Type', 'Multi: Side by Side');
+    cy.get('#epiCurveSVG .epiCurve-bar-series')
+      .first()
+      .invoke('attr', 'width')
+      .then((width) => {
+        expect(Number(width), 'grouped bar width').to.be.lessThan(layeredBarWidth);
+      });
+    cy.get('#epiCurveSVG .epiCurve-line-overlay').should('have.length', 2);
+    cy.get('#epiCurveSVG .axis--y-right').should('exist');
+
+    cy.window().then((win) => {
+      aggregationsBeforeRemoval = [...Cypress._.get(win, 'commonService.session.style.widgets.epiCurve-series-aggregations')];
+      cumulativeBeforeRemoval = [...Cypress._.get(win, 'commonService.session.style.widgets.epiCurve-series-cumulative')];
+      datesBeforeRemoval = [...Cypress._.get(win, 'commonService.session.style.widgets.epiCurve-date-fields')];
+      labelsBeforeRemoval = [...Cypress._.get(win, 'commonService.session.style.widgets.epiCurve-series-labels')];
+      typesBeforeRemoval = [...Cypress._.get(win, 'commonService.session.style.widgets.epiCurve-series-types')];
+    });
+
+    ensureEpiSettingsDialogOpen();
+    removeEpiCurveSeries(1, 3);
+
+    cy.window().then((win) => {
+      const aggregations = Cypress._.get(win, 'commonService.session.style.widgets.epiCurve-series-aggregations');
+      const cumulative = Cypress._.get(win, 'commonService.session.style.widgets.epiCurve-series-cumulative');
+      const dates = Cypress._.get(win, 'commonService.session.style.widgets.epiCurve-date-fields');
+      const labels = Cypress._.get(win, 'commonService.session.style.widgets.epiCurve-series-labels');
+      const types = Cypress._.get(win, 'commonService.session.style.widgets.epiCurve-series-types');
+      expect(aggregations, 'aggregations compact after removal').to.deep.equal([
+        aggregationsBeforeRemoval[0],
+        aggregationsBeforeRemoval[2],
+        aggregationsBeforeRemoval[3],
+        'Count',
+      ]);
+      expect(cumulative, 'cumulative transforms compact after removal').to.deep.equal([
+        cumulativeBeforeRemoval[0],
+        cumulativeBeforeRemoval[2],
+        cumulativeBeforeRemoval[3],
+        false,
+      ]);
+      expect(dates, 'date fields compact after removal').to.deep.equal([
+        datesBeforeRemoval[0],
+        datesBeforeRemoval[2],
+        datesBeforeRemoval[3],
+        'None',
+      ]);
+      expect(labels, 'series labels compact after removal').to.deep.equal([
+        labelsBeforeRemoval[0],
+        labelsBeforeRemoval[2],
+        labelsBeforeRemoval[3],
+        '',
+      ]);
+      expect(types, 'series types compact after removal').to.deep.equal([
+        typesBeforeRemoval[0],
+        typesBeforeRemoval[2],
+        typesBeforeRemoval[3],
+        'Bar',
+      ]);
+    });
+    getEpiSettingsDialog().find('#epi-add-series').should('be.enabled');
+    cy.get('#epiCurveSVG .epiCurve-bar-series')
+      .should('have.attr', 'data-field-index', '0');
+    cy.get('#epiCurveSVG .epiCurve-line-overlay')
+      .should('have.length', 2)
+      .then(($lines) => {
+        expect([...$lines].map((line) => line.getAttribute('data-field-index')))
+          .to.deep.equal(['1', '2']);
+      });
 
     cy.closeSettingsPane('Epi Curve Settings');
   });

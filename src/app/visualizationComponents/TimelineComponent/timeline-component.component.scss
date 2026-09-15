@@ -45,6 +45,176 @@
     display: flex !important;
   }
 
+  .epi-series-help-tooltip {
+    display: inline-flex;
+    margin-left: 5px;
+    position: relative;
+    vertical-align: middle;
+  }
+
+  .epi-series-help-tooltip__trigger {
+    align-items: center;
+    background: transparent;
+    border: 0;
+    color: #1769aa;
+    cursor: help;
+    display: inline-flex;
+    font-size: 0.9rem;
+    justify-content: center;
+    line-height: 1;
+    padding: 2px;
+  }
+
+  .epi-series-help-tooltip__trigger:focus-visible {
+    border-radius: 50%;
+    box-shadow: 0 0 0 2px rgba(23, 105, 170, 0.3);
+    outline: none;
+  }
+
+  .epi-series-help-tooltip__content {
+    background: #212529;
+    border-radius: 4px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.22);
+    color: #fff;
+    font-size: 0.78rem;
+    font-weight: 400;
+    left: 0;
+    line-height: 1.4;
+    opacity: 0;
+    padding: 8px 10px;
+    pointer-events: auto;
+    position: absolute;
+    text-align: left;
+    top: calc(100% + 6px);
+    transition: opacity 120ms ease-in-out;
+    visibility: hidden;
+    white-space: normal;
+    width: 360px;
+    z-index: 1200;
+  }
+
+  .epi-series-help-tooltip:hover .epi-series-help-tooltip__content,
+  .epi-series-help-tooltip:focus-within .epi-series-help-tooltip__content {
+    opacity: 1;
+    visibility: visible;
+  }
+
+  .epi-field-empty,
+  .epi-field-validation {
+    border-radius: 4px;
+    font-size: 0.82rem;
+    line-height: 1.35;
+    padding: 7px 9px;
+  }
+
+  .epi-field-empty {
+    background: #fff8e1;
+    border: 1px solid #f0cf77;
+    color: #6b5200;
+    margin-bottom: 12px;
+  }
+
+  .epi-field-validation {
+    background: #fce8e6;
+    border: 1px solid #edb6b1;
+    color: #8f1d14;
+    margin: -2px 0 8px;
+  }
+
+  .epi-data-inclusion-summary {
+    align-items: flex-start;
+    background: #eef6ff;
+    border: 1px solid #c9def5;
+    border-radius: 4px;
+    color: #24496b;
+    display: flex;
+    font-size: 0.8rem;
+    gap: 6px;
+    line-height: 1.35;
+    margin: -2px 0 8px;
+    padding: 6px 8px;
+  }
+
+  .epi-data-inclusion-summary .pi {
+    flex: 0 0 auto;
+    margin-top: 2px;
+  }
+
+  .epi-series-list {
+    padding-right: 4px;
+  }
+
+  .epi-series-card {
+    background: #f8f9fa;
+    border: 1px solid #dee2e6;
+    border-radius: 4px;
+    margin-bottom: 10px;
+    padding: 8px 10px 2px;
+  }
+
+  .epi-series-card__header,
+  .epi-series-toolbar {
+    align-items: center;
+    display: flex;
+    justify-content: space-between;
+  }
+
+  .epi-series-card__header {
+    color: #343a40;
+    font-weight: 600;
+    margin-bottom: 6px;
+  }
+
+  .epi-series-card__actions {
+    align-items: center;
+    display: flex;
+    gap: 6px;
+  }
+
+  .epi-series-axis-badge {
+    background: #e7f1ff;
+    border: 1px solid #b6d4fe;
+    border-radius: 999px;
+    color: #174ea6;
+    font-size: 0.72rem;
+    font-weight: 600;
+    line-height: 1.2;
+    padding: 3px 8px;
+    white-space: nowrap;
+  }
+
+  .epi-series-axis-badge--right {
+    background: #fff3cd;
+    border-color: #ffecb5;
+    color: #664d03;
+  }
+
+  .epi-series-card .form-group {
+    margin-bottom: 8px;
+  }
+
+  .epi-remove-series {
+    color: #b42318;
+    line-height: 1;
+    padding: 3px 7px;
+  }
+
+  .epi-remove-series:hover,
+  .epi-remove-series:focus {
+    background: #fce8e6;
+    color: #8f1d14;
+  }
+
+  .epi-series-toolbar {
+    color: #6c757d;
+    font-size: 0.85rem;
+    margin: 8px 0 14px;
+  }
+
+  .epi-series-toolbar .pi {
+    margin-right: 5px;
+  }
+
   .tool-btn {
     height: 30px;
     width: 30px !important;
@@ -74,6 +244,34 @@
 
   .epi-chart-text-help {
     margin-bottom: 14px;
+  }
+
+  .epi-appearance-section + .epi-appearance-section {
+    border-top: 1px solid #dee2e6;
+    margin-top: 14px;
+    padding-top: 14px;
+  }
+
+  .epi-appearance-section__heading {
+    color: #343a40;
+    font-size: 0.9rem;
+    font-weight: 600;
+    margin: 0 0 10px;
+  }
+
+  .epi-appearance-section .form-group:last-child {
+    margin-bottom: 0;
+  }
+
+  .epi-stack-colors-note {
+    background: #f5f8fc;
+    border: 1px solid #d5dfeb;
+    border-radius: 4px;
+    color: #495057;
+    font-size: 0.82rem;
+    line-height: 1.35;
+    margin-bottom: 10px;
+    padding: 7px 9px;
   }
 
   #epi-add-annotation {

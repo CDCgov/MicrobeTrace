@@ -211,9 +211,11 @@ const assertEpiLegendItemColor = (label: string, expectedColor: string): void =>
 
       expect(text, `Epi legend label ${label}`).to.exist;
 
-      const marker = text?.previousElementSibling as SVGElement | null;
+      const marker = [text?.previousElementSibling, text?.nextElementSibling]
+        .find((candidate) => candidate?.classList.contains('epiCurve-legend-marker')) as SVGElement | undefined;
 
-      expect(String(marker?.tagName || '').toLowerCase(), `Epi legend marker for ${label}`).to.equal('circle');
+      expect(marker, `Epi legend marker for ${label}`).to.exist;
+      expect(String(marker?.tagName || '').toLowerCase(), `Epi legend marker shape for ${label}`).to.equal('circle');
 
       const fill = String(marker?.style?.fill || marker?.getAttribute('fill') || Cypress.$(marker as Element).css('fill') || '');
 

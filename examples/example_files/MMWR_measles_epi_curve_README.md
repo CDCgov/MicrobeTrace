@@ -11,21 +11,35 @@
 ## Graph settings
 
 - **Graph Type:** `Multi: Overlay`
+- Click **Add series** twice so Series 1, Series 2, and Series 3 are available.
 - **Date Field:** `No. of measles cases in 2025`
-- **Bar Value:** `Measles case count`
+- **Value Field 1:** `Measles case count`
+- **Aggregation 1:** `Sum`
+- **Cumulative 1:** `Off (per bin)`
+- **Series Label 1:** `No. of measles cases in 2025`
+- **Series Type 1:** `Bar`
 - **Date Field 2:** `No. of MMR doses administered in 2025`
-- **Line 1 Value:** `Cumulative MMR doses administered in 2025`
-- **Line 1 Style:** `Solid`
+- **Value Field 2:** `Cumulative MMR doses administered in 2025`
+- **Aggregation 2:** `Last`
+- **Cumulative 2:** `Off (per bin)`
+- **Series Label 2:** `No. of MMR doses administered in 2025`
+- **Series Type 2:** `Line`
+- **Line Style 2:** `Solid`
 - **Date Field 3:** `No. of MMR doses administered during the same period in 2024`
-- **Line 2 Value:** `Cumulative MMR doses administered during the same period in 2024`
-- **Line 2 Style:** `Dashed`
+- **Value Field 3:** `Cumulative MMR doses administered during the same period in 2024`
+- **Aggregation 3:** `Last`
+- **Cumulative 3:** `Off (per bin)`
+- **Series Label 3:** `No. of MMR doses administered during the same period in 2024`
+- **Series Type 3:** `Line`
+- **Line Style 3:** `Dashed`
 - **Bin Size:** `Day`
-- **Epi Curve:** `Noncumulative`
-- **Bar color:** `#9ec5e5`
-- **Line 1 color:** `#005bbb`
-- **Line 2 color:** `#005bbb`
+- **Series 1 color:** `#9ec5e5`
+- **Series 2 color:** `#005bbb`
+- **Series 3 color:** `#005bbb`
 
-Keep the plot noncumulative because the two line-value columns already contain cumulative totals.
+Each series card shows its assigned axis. In this mixed chart, line series use the left axis and bar series use the right axis. Charts containing only bars or only lines use the left axis.
+
+Use `Last` with cumulative turned off for the two line series because their source columns already contain cumulative totals. This also preserves the correct end-of-period value if you switch to weekly or monthly bins, instead of summing repeated cumulative values.
 
 ## Legend and labels
 
@@ -50,8 +64,6 @@ Add these entries in the **Annotations** tab:
 | `2025-02-14` | `measles outbreak declared` |
 | `2025-08-14` | `end of last patient's infectious period` |
 | `2025-09-26` | `measles outbreak declared over` |
-
-The overlay automatically assigns the line series to the left axis and the bar series to the right axis.
 
 ## Regenerate the dataset
 
