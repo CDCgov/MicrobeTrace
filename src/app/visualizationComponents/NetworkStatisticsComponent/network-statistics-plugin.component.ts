@@ -8,6 +8,7 @@ import {
   OnInit,
   Output,
   ViewChild,
+  ChangeDetectionStrategy
 } from '@angular/core';
 import { BaseComponentDirective } from '@app/base-component.directive';
 import { CommonService } from '@app/contactTraceCommonServices/common.service';
@@ -20,7 +21,6 @@ import {
 import { WorkerComputeService } from '@app/contactTraceCommonServices/worker-compute.service';
 import { MicobeTraceNextPluginEvents } from '@app/helperClasses/interfaces';
 import { MicrobeTraceNextVisuals } from '@app/microbe-trace-next-plugin-visuals';
-import { GoogleTagManagerService } from 'angular-google-tag-manager';
 import { ComponentContainer } from 'golden-layout';
 import { SelectItem } from 'primeng/api';
 import { Table } from 'primeng/table';
@@ -52,6 +52,7 @@ interface FilterType {
   selector: 'networkStatisticsComponent',
   templateUrl: './network-statistics-plugin.component.html',
   styleUrls: ['./network-statistics-plugin.component.scss'],
+  changeDetection: ChangeDetectionStrategy.Eager,
   standalone: false,
 })
 export class NetworkStatisticsComponent
@@ -152,7 +153,6 @@ export class NetworkStatisticsComponent
     private commonService: CommonService,
     private store: CommonStoreService,
     private workerComputeService: WorkerComputeService,
-    private gtmService: GoogleTagManagerService,
   ) {
     super(elRef.nativeElement);
     this.visuals = commonService.visuals;
@@ -160,12 +160,6 @@ export class NetworkStatisticsComponent
   }
 
   ngOnInit(): void {
-    this.gtmService.pushTag({
-      event: 'page_view',
-      page_location: '/network-statistics',
-      page_title: 'Network Statistics View',
-    });
-
     this.SelectedTableData = this.getTableData(this.dataSetViewSelected);
     this.IsDataAvailable = this.commonService.session.data.nodes.length > 0;
     this.goldenLayoutComponentResize();
@@ -568,6 +562,17 @@ export class NetworkStatisticsComponent
       { metric: 'Clusters', value: summary.clusterCount },
       { metric: 'Singletons', value: summary.singletonCount },
       { metric: 'Largest Cluster', value: this.getLargestClusterSize(result) },
+      { metric: 'Largest Cluster Fraction (L1)', value: summary.componentMetrics.largestClusterFraction },
+      { metric: 'Second-largest Cluster', value: summary.componentMetrics.secondLargestClusterSize },
+      { metric: 'Second-largest Cluster Fraction (L2)', value: summary.componentMetrics.secondLargestClusterFraction },
+      { metric: 'Clustered Fraction', value: summary.componentMetrics.clusteredFraction },
+      { metric: 'Singleton Fraction', value: summary.componentMetrics.singletonFraction },
+      { metric: 'Component-size Gini', value: summary.componentMetrics.giniCoefficient },
+      { metric: 'Mean Cluster Size', value: summary.componentMetrics.meanClusterSize },
+      { metric: 'Median Cluster Size', value: summary.componentMetrics.medianClusterSize },
+      { metric: 'Largest / Mean Cluster Size', value: summary.componentMetrics.largestToMeanClusterRatio },
+      { metric: 'Largest / Median Cluster Size', value: summary.componentMetrics.largestToMedianClusterRatio },
+      { metric: 'L2 / L1', value: summary.componentMetrics.l2ToL1Ratio },
       { metric: 'Density', value: summary.density },
       { metric: 'Average Degree', value: summary.averageDegree },
       { metric: 'Max Degree', value: summary.maxDegree },
@@ -603,8 +608,8 @@ export class NetworkStatisticsComponent
 
   private applySelectedRowsToTable(): void {
     if (this.dataTable) {
-      this.dataTable.rows = this.selectedRows;
-      this.dataTable.first = 0;
+      this.dataTable.rows.set(this.selectedRows);
+      this.dataTable.first.set(0);
     }
 
     this.cdref.detectChanges();

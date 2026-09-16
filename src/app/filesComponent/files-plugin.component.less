@@ -52,6 +52,130 @@ mat-drawer-content {
     width: 100%;
 }
 
+.files-smart-launch-wrap {
+    position: relative;
+    display: inline-flex;
+}
+
+.files-smart-launch-callout {
+    position: absolute;
+    z-index: 4;
+    top: -1.35rem;
+    left: 50%;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.2rem;
+    transform: translateX(-50%);
+    white-space: nowrap;
+}
+
+.files-smart-launch-new {
+    padding: 0.08rem 0.38rem;
+    color: #4c1d95;
+    border: 1px solid rgba(91, 33, 182, 0.24);
+    border-radius: 999px;
+    background: #f3e8ff;
+    box-shadow: 0 1px 4px rgba(76, 29, 149, 0.16);
+    font-size: 0.68rem;
+    font-weight: 700;
+    line-height: 1.15;
+}
+
+.files-smart-launch-info {
+    position: relative;
+    display: inline-flex;
+}
+
+.files-smart-launch-info__trigger {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1rem;
+    height: 1rem;
+    padding: 0;
+    color: #4c1d95;
+    border: 0;
+    border-radius: 50%;
+    background: #fff;
+    box-shadow: 0 1px 4px rgba(76, 29, 149, 0.2);
+    cursor: help;
+}
+
+.files-smart-launch-info__trigger:focus-visible {
+    outline: 2px solid #2563eb;
+    outline-offset: 2px;
+}
+
+.files-smart-launch-info__tooltip {
+    position: absolute;
+    z-index: 6;
+    right: -0.5rem;
+    bottom: calc(100% + 0.5rem);
+    width: min(22rem, 70vw);
+    padding: 0.65rem 0.75rem;
+    color: #fff;
+    border-radius: 0.45rem;
+    background: #25144d;
+    box-shadow: 0 7px 20px rgba(20, 10, 45, 0.3);
+    font-size: 0.75rem;
+    font-weight: 400;
+    line-height: 1.35;
+    opacity: 0;
+    pointer-events: none;
+    transform: translateY(0.2rem);
+    transition: opacity 120ms ease, transform 120ms ease;
+    white-space: normal;
+}
+
+.files-smart-launch-info__tooltip::after {
+    position: absolute;
+    top: 100%;
+    right: 0.65rem;
+    border: 0.35rem solid transparent;
+    border-top-color: #25144d;
+    content: '';
+}
+
+.files-smart-launch-info:hover .files-smart-launch-info__tooltip,
+.files-smart-launch-info:focus-within .files-smart-launch-info__tooltip {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+.files-smart-launch {
+    color: #fff;
+    border-color: #5b21b6;
+    background: linear-gradient(135deg, #7c3aed 0%, #2563eb 54%, #0891b2 100%);
+    box-shadow: 0 3px 10px rgba(76, 29, 149, 0.28);
+    font-weight: 600;
+    transition: box-shadow 150ms ease, filter 150ms ease, transform 150ms ease;
+}
+
+.files-smart-launch:hover:not(:disabled),
+.files-smart-launch:focus-visible:not(:disabled) {
+    color: #fff;
+    border-color: #4c1d95;
+    filter: brightness(1.08);
+    box-shadow: 0 5px 14px rgba(76, 29, 149, 0.38);
+    transform: translateY(-1px);
+}
+
+.files-smart-launch:focus-visible {
+    outline: 3px solid rgba(37, 99, 235, 0.3);
+    outline-offset: 2px;
+}
+
+.files-smart-launch:disabled {
+    color: rgba(255, 255, 255, 0.9);
+    filter: grayscale(0.45);
+    opacity: 0.58;
+}
+
+.files-smart-launch__sparkle {
+    display: inline-block;
+    margin-right: 0.2rem;
+}
+
 #file-prompt {
     z-index: 1;
     position: relative;

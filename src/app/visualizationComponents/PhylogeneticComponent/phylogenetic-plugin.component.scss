@@ -34,6 +34,37 @@
   }
 }
 
+.bootstrap-progress-wrapper {
+  display: block;
+  width: 100%;
+}
+
+.bootstrap-progress-track {
+  display: block;
+  width: 100%;
+  height: 24px;
+  overflow: hidden;
+  border-radius: 6px;
+  background-color: #dfe5ee;
+}
+
+.bootstrap-progress-fill {
+  display: block;
+  width: 0;
+  max-width: 100%;
+  height: 100%;
+  border-radius: 6px 0 0 6px;
+  background-color: #10b981;
+  transition: width 150ms linear;
+}
+
+.bootstrap-progress-label {
+  margin-top: 4px;
+  font-size: 0.875rem;
+  line-height: 1.2;
+  color: #334155;
+}
+
  /* Button appearance on hover */
  .btn-icon:hover {
   transform: scale(1.1); /* Slight enlarge on hover */

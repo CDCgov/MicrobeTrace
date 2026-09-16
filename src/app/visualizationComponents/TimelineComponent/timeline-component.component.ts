@@ -1,4 +1,4 @@
-import { Component, ElementRef, EventEmitter, ChangeDetectorRef, Inject, OnInit, Output, ViewChild, OnDestroy } from '@angular/core';
+import { Component, ElementRef, EventEmitter, ChangeDetectorRef, Inject, OnInit, Output, ViewChild, OnDestroy, ChangeDetectionStrategy } from '@angular/core';
 import { CommonService } from '../../contactTraceCommonServices/common.service';
 import { BaseComponentDirective } from '@app/base-component.directive';
 import { MicobeTraceNextPluginEvents } from '@app/helperClasses/interfaces';
@@ -10,7 +10,6 @@ import { MicrobeTraceNextVisuals } from '@app/microbe-trace-next-plugin-visuals'
 import { saveAs } from 'file-saver';
 import { saveSvgAsPng } from 'save-svg-as-png';
 import { SelectItem } from 'primeng/api';
-import { GoogleTagManagerService } from 'angular-google-tag-manager';
 import { ExportService } from '@app/contactTraceCommonServices/export.service';
 import { Subject, takeUntil } from 'rxjs';
 import { CommonStoreService } from '@app/contactTraceCommonServices/common-store.services';
@@ -20,6 +19,7 @@ import { showColorTransparencyPicker } from '../KeyTablesComponent/color-transpa
     selector: 'app-timeline-component',
     templateUrl: './timeline-component.component.html',
     styleUrls: ['./timeline-component.component.scss'],
+    changeDetection: ChangeDetectionStrategy.Eager,
     standalone: false
 })
 export class TimelineComponent extends BaseComponentDirective implements OnInit, MicobeTraceNextPluginEvents, OnDestroy {
@@ -94,7 +94,6 @@ export class TimelineComponent extends BaseComponentDirective implements OnInit,
     @Inject(BaseComponentDirective.GoldenLayoutContainerInjectionToken) private container: ComponentContainer,
     elRef: ElementRef,
     private cdref: ChangeDetectorRef,
-    private gtmService: GoogleTagManagerService,
     private store: CommonStoreService,
     private exportService: ExportService) {
 
@@ -132,11 +131,6 @@ export class TimelineComponent extends BaseComponentDirective implements OnInit,
 
   ngOnInit() {
 
-    this.gtmService.pushTag({
-            event: "page_view",
-            page_location: "/timeline",
-            page_title: "Timeline View"
-        });
     // populate this.twoD.FieldList with [None, ...nodeFields]
     this.updateFieldLists();
 

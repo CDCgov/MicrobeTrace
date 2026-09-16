@@ -1,5 +1,8 @@
-import { Injector, Component, Output, EventEmitter, OnInit, AfterViewInit,
-  ViewChild, ViewContainerRef, ElementRef, ChangeDetectorRef, Inject } from '@angular/core';
+import {
+  Injector, Component, Output, EventEmitter, OnInit, AfterViewInit,
+  ViewChild, ViewContainerRef, ElementRef, ChangeDetectorRef, Inject,
+  ChangeDetectionStrategy
+} from '@angular/core';
 import { EventManager } from '@angular/platform-browser';
 import { CommonService } from '@app/contactTraceCommonServices/common.service';
 import { SelectItem } from 'primeng/api';
@@ -12,7 +15,6 @@ import { BaseComponentDirective } from '@app/base-component.directive';
 import { ComponentContainer } from 'golden-layout';
 import { GanttChartService } from './gantt-chart/gantt-chart.service';
 import { GanttChartComponent } from './gantt-chart/gantt-chart.component';
-import { GoogleTagManagerService } from 'angular-google-tag-manager';
 import { MicrobeTraceNextVisuals } from '../../microbe-trace-next-plugin-visuals';
 import { cloneDeep } from 'lodash';
 import { ExportService } from '@app/contactTraceCommonServices/export.service';
@@ -24,6 +26,7 @@ import { showColorTransparencyPicker } from '../KeyTablesComponent/color-transpa
     selector: 'GanttComponent',
     templateUrl: './gantt-plugin.component.html',
     styleUrls: ['./gantt-plugin.component.scss'],
+    changeDetection: ChangeDetectionStrategy.Eager,
     standalone: false
 })
 export class GanttComponent extends BaseComponentDirective implements OnInit, AfterViewInit {
@@ -106,7 +109,6 @@ export class GanttComponent extends BaseComponentDirective implements OnInit, Af
               elRef: ElementRef,
               ganttChartService: GanttChartService,
               private cdref: ChangeDetectorRef,
-              private gtmService: GoogleTagManagerService,
               private exportService: ExportService,
               private store: CommonStoreService) {
 
@@ -137,12 +139,6 @@ export class GanttComponent extends BaseComponentDirective implements OnInit, Af
   }
 
   ngOnInit(): void {
-
-    this.gtmService.pushTag({
-            event: "page_view",
-            page_location: "/gantt",
-            page_title: "Gantt Chart View"
-        });
 
     this.nodeIds = this.getNodeIds();
     this.visuals.gantt.FieldList.push(

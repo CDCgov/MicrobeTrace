@@ -80,9 +80,10 @@ const dockGlobalKeyTables = (): void => {
 };
 
 const closeDialogIfPresent = (title: string): void => {
+  cy.wait(500, { log: false });
   cy.get('body').then(($body) => {
     const dialogTitle = $body
-      .find('.p-dialog-title')
+      .find('.p-dialog-title:visible')
       .toArray()
       .find((candidate) => String(candidate.textContent || '').trim() === title);
 

@@ -1,15 +1,16 @@
 import { BrowserModule } from '@angular/platform-browser';
 import { BrowserAnimationsModule } from '@angular/platform-browser/animations';
-import { NgModule, Component, ErrorHandler } from '@angular/core';
+import { NgModule, Component, ErrorHandler, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { AppRoutingModule } from './app-routing.module';
 import { RouterModule, ExtraOptions } from '@angular/router';
 
-import  Lara  from '@primeng/themes/lara';
+import Lara from '@primeuix/themes/lara';
 import { providePrimeNG } from 'primeng/config';
+import { primeUiLicenseKey } from '../environments/primeui-license.generated';
 
 import { AppComponent } from './app.component';
-import { provideHttpClient, withInterceptorsFromDi, withJsonpSupport } from '@angular/common/http';
+import { provideHttpClient, withInterceptorsFromDi, withJsonpSupport, withXhr } from '@angular/common/http';
 import { FormsModule } from '@angular/forms';
 // import { ServiceProxyModule } from '@shared/service-proxies/service-proxy.module';
 import { UtilsModule } from '@shared/utils/utils.module';
@@ -80,7 +81,6 @@ import { GanttChartComponent } from './visualizationComponents/GanttComponent/ga
 import { GanttChartService } from './visualizationComponents/GanttComponent/gantt-chart/gantt-chart.service';
 import { HeatmapComponent } from './visualizationComponents/HeatmapComponent/heatmap.component';
 import { WaterfallComponent } from './visualizationComponents/WaterfallComponent/waterfall.component';
-import { GoogleTagManagerModule } from 'angular-google-tag-manager';
 import { SankeyComponent } from './visualizationComponents/SankeyComponent/sankey.component';
 import { KeyTablesComponent } from './visualizationComponents/KeyTablesComponent/key-tables.component';
 import { StyleKeyTableComponent } from './visualizationComponents/KeyTablesComponent/style-key-table.component';
@@ -91,13 +91,6 @@ import { GlobalErrorHandler } from './runtime-security/global-error-handler';
 PlotlyModule.plotlyjs = PlotlyJS;
 // It is required to have JQuery as global in the window object.
 window['$'] = $;
-const hashParamsText = window.location.hash.replace(/^#/, '').includes('?')
-  ? window.location.hash.replace(/^#/, '').slice(window.location.hash.replace(/^#/, '').indexOf('?') + 1)
-  : window.location.hash.replace(/^#/, '');
-const analyticsDisabledForHandoff = new URLSearchParams(window.location.search).has('handoff')
-  || new URLSearchParams(hashParamsText).has('handoff');
-const googleTagManagerMode = analyticsDisabledForHandoff ? 'silent' : 'noisy';
-
 const routerOptions: ExtraOptions = {
   // Your router configurations
 };
@@ -106,6 +99,7 @@ const routerOptions: ExtraOptions = {
 @Component({
     template: `<h1>Test2</h1>`,
     selector: `app-tested`,
+    changeDetection: ChangeDetectionStrategy.Eager,
     standalone: false
 })
 export class TestedComponent {
@@ -154,11 +148,11 @@ export class TestedComponent {
         MatSelectModule,
         MatProgressSpinnerModule,
         MatIconModule,
-        ModalModule.forRoot(),
-        TooltipModule.forRoot(),
-        TabsModule.forRoot(),
-        BsDropdownModule.forRoot(),
-        PopoverModule.forRoot(),
+        ModalModule,
+        TooltipModule,
+        TabsModule,
+        BsDropdownModule,
+        PopoverModule,
         FileUploadModule,
         AppRoutingModule,
         UtilsModule,
@@ -183,13 +177,13 @@ export class TestedComponent {
         LeafletModule,
         LeafletMarkerClusterModule,
         OrderListModule,
-        GoogleTagManagerModule.forRoot({ id: analyticsDisabledForHandoff ? null : 'G-0MWHB1NG2M', }),
         CommonModule], providers: [
           providePrimeNG({
             theme: {
                 preset: Lara,
                 options: {darkModeSelector: false || 'none'}
             },
+            license: primeUiLicenseKey,
         }),
         AppSessionService,
         AppUiCustomizationService,
@@ -197,11 +191,10 @@ export class TestedComponent {
         GanttChartService,
         GoldenLayoutComponentService,
         PlotlyModule,
-        { provide: 'googleTagManagerMode', useValue: googleTagManagerMode },
         {
           provide: ErrorHandler,
           useClass: GlobalErrorHandler,
         },
-        provideHttpClient(withInterceptorsFromDi(), withJsonpSupport()),
+        provideHttpClient(withXhr(), withInterceptorsFromDi(), withJsonpSupport()),
     ] })
 export class AppModule { }

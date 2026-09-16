@@ -52,6 +52,7 @@ export const getMimeTypeFromFilename = (name: string): string => {
   const ext = (name.split('.').pop() || '').toLowerCase();
 
   if (ext === 'csv') return 'text/csv';
+  if (ext === 'geojson') return 'application/geo+json';
   if (ext === 'json' || ext === 'microbetrace' || ext === 'style') return 'application/json';
   if (ext === 'graphml') return 'application/graphml+xml';
   if (ext === 'gexf') return 'application/gexf+xml';
@@ -153,25 +154,42 @@ Cypress.Commands.add('loadFiles', (opts: FileLoadOptions[]) => {
 });
 
 Cypress.Commands.add('closeSettingsPane', (dialogTitle: string) => {
-  cy.contains('.p-dialog-title', dialogTitle)
+  cy.contains('.p-dialog-title:visible', dialogTitle)
     .parents('.p-dialog')
     .find('button.p-dialog-close-button')
     .click({ force: true });
 
-  cy.contains('.p-dialog-title', dialogTitle).should('not.exist');
+  cy.contains('.p-dialog-title:visible', dialogTitle).should('not.exist');
 });
 
 Cypress.Commands.add('openGlobalSettings', () => {
-  const dialogSelector = byTestId(testIds.appGlobalSettingsDialog);
-  const dialogTitleSelector = `${dialogSelector} .p-dialog-title`;
-  cy.window().then((win: unknown) => {
-    const app = (win as any).commonService?.visuals?.microbeTrace;
-    if (app?.GlobalSettingsDialogSettings?.isVisible !== true) {
-      app?.DisplayGlobalSettingsDialog?.();
-    }
+  cy.get('body').then(($body) => {
+    const isOpen = $body
+      .find('.p-dialog-title:visible')
+      .filter((_, element) => String(element.textContent || '').includes('Global Settings'))
+      .length > 0;
+
+    if (isOpen) return;
+    cy.get(byTestId(testIds.appGlobalSettingsButton), { timeout: 15000 }).click({ force: true });
   });
-  cy.contains(dialogTitleSelector, 'Global Settings', { timeout: 15000 }).should('be.visible');
-  cy.contains(`${dialogSelector} .nav-link`, 'Timeline', { timeout: 15000 }).should('be.visible');
+  cy.wait(250);
+  cy.get('body').then(($body) => {
+    const isOpen = $body
+      .find('.p-dialog-title:visible')
+      .filter((_, element) => String(element.textContent || '').includes('Global Settings'))
+      .length > 0;
+
+    if (isOpen) return;
+    cy.window().then((win: unknown) => {
+      (win as any).commonService?.visuals?.microbeTrace?.DisplayGlobalSettingsDialog?.();
+    });
+  });
+  cy.contains('.p-dialog-title:visible', 'Global Settings', { timeout: 15000 })
+    .should('be.visible')
+    .closest('.p-dialog')
+    .within(() => {
+      cy.contains('.nav-link', 'Timeline', { timeout: 15000 }).should('be.visible');
+    });
 });
 
 Cypress.Commands.add('closeGlobalSettings', () => {
@@ -190,11 +208,11 @@ Cypress.Commands.add('closeGlobalSettings', () => {
 Cypress.Commands.add('enableTimelineMode', (variableLabel = 'Date of symptom onset') => {
   cy.openGlobalSettings();
 
-  cy.contains('.p-dialog:visible .nav-link', 'Timeline').click({ force: true });
-  cy.get('.p-dialog:visible #timeline-config').should('exist').and('be.visible');
+  cy.contains('.nav-link:visible', 'Timeline').click({ force: true });
+  cy.get('#timeline-config').should('exist');
 
   closeVisibleSelectOverlays();
-  cy.get('.p-dialog:visible #node-timeline-variable').click({ force: true });
+  cy.get('#node-timeline-variable').click({ force: true });
   cy.get(visibleSelectOverlay, { timeout: 15000 })
     .last()
     .then(($overlay) => {
@@ -212,8 +230,7 @@ Cypress.Commands.add('enableTimelineMode', (variableLabel = 'Date of symptom ons
     });
   cy.get(visibleSelectOverlay, { timeout: 15000 })
     .last()
-    .find('p-selectitem')
-    .find('li')
+    .find('.p-select-option')
     .then(($options) => {
       const exactMatch = $options
         .filter((_, option) => String(option.textContent || '').trim() === variableLabel)

@@ -711,7 +711,7 @@ describe('Bubble View', () => {
     cy.contains('div.p-dialog', 'Bubble Settings').within(() => {
       cy.get('p-select').eq(axisPosition).click();
     });
-    cy.get('p-selectitem').contains('li', value).click();
+    cy.contains('.p-select-option', value).click();
     if (date && axis == 'X') {
       cy.get('#xVarDate').click()
     } else if (date && axis == 'Y') {

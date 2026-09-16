@@ -1,7 +1,6 @@
-import { ChangeDetectorRef, Component, ElementRef, Inject, OnInit, Output, EventEmitter, ViewChild, OnDestroy } from '@angular/core';
+import { ChangeDetectorRef, Component, ElementRef, Inject, OnInit, Output, EventEmitter, ViewChild, OnDestroy, ChangeDetectionStrategy } from '@angular/core';
 import { SelectItem } from 'primeng/api';
 import { saveAs } from 'file-saver';
-import { GoogleTagManagerService } from 'angular-google-tag-manager';
 
 import { BaseComponentDirective } from '@app/base-component.directive';
 import { CommonService } from '@app/contactTraceCommonServices/common.service';
@@ -51,6 +50,7 @@ interface BubblePieSvgExportReplacement {
     selector: 'bubble-component',
     templateUrl: './bubble.component.html',
     styleUrls: ['./bubble.component.scss'],
+    changeDetection: ChangeDetectionStrategy.Eager,
     standalone: false
 })
 export class BubbleComponent extends BaseComponentDirective implements OnInit, MicobeTraceNextPluginEvents, OnDestroy {
@@ -113,7 +113,6 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
     @Inject(BaseComponentDirective.GoldenLayoutContainerInjectionToken) private container: ComponentContainer,
     elRef: ElementRef,
     private cdref: ChangeDetectorRef,
-    private gtmService: GoogleTagManagerService,
     private store: CommonStoreService,
     private exportService: ExportService
   ) {
@@ -127,12 +126,6 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
   }
 
   ngOnInit(): void {
-    this.gtmService.pushTag({
-      event: "page_view",
-      page_location: "/bubble",
-      page_title: "Bubble View"
-    });
-
     try {
       this.viewHeight = this.container.height - 73;
       this.viewWidth = this.container.width - 42;
@@ -166,9 +159,10 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
     })
     
     let that = this;
-    $(document).on("node-selected", function() {
+    $(document).off('.bubbleView');
+    $(document).on('node-selected.bubbleView', function() {
       if (that.viewActive && that.cy) {
-        that.visuals.bubble.setSelectedNodes(that);
+        that.setSelectedNodes(that);
       }
     });
 
@@ -195,7 +189,7 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
       }
     });
 
-    $( document ).on( "node-visibility", function( ) {
+    $(document).on('node-visibility.bubbleView', function() {
       //console.log('node visi event')
       that.updateVisibleNodes()
       if (!that.SelectedNodeCollapsingTypeVariable) {
@@ -215,10 +209,15 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
   ngOnDestroy(): void {
     this.destroy$.next();
     this.destroy$.complete();
+    $(document).off('.bubbleView');
 
     if (this.cy){
         this.cy.removeAllListeners();
         this.cy.destroy();
+        this.cy = null;
+    }
+    if (this.commonService.visuals.bubble === this) {
+      (this.commonService.visuals as any).bubble = null;
     }
     this.cyContainer = null;
   }
@@ -1144,7 +1143,7 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
     if (!that.cy) return;
   
     // If collapsed, bubble nodes are aggregates, so node-level selection doesn't map cleanly.
-    if (that.commonService.visuals.bubble.SelectedNodeCollapsingTypeVariable) {
+    if (that.SelectedNodeCollapsingTypeVariable) {
       return;
     }
   

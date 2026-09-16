@@ -238,18 +238,17 @@ export interface StyleKeyTableShapePanelRequest {
                                 <a class="transparency-symbol" style="cursor: pointer" (click)="onAlphaClick(row, $event)">&#8691;</a>
                             }
                         } @else {
-                            <p-treeSelect
+                            <p-tree-select
                                 [options]="shapeOptions"
                                 [panelStyle]="{ width: '23rem' }"
                                 panelStyleClass="shapeTreeSelectPanel"
                                 selectionMode="single"
                                 appendTo="body"
-                                class="width-percent-100"
+                                class="width-percent-100 shapeDropdown"
                                 [ngModel]="row.shapeSelection"
                                 (ngModelChange)="onShapeSelectionChange(row, $event)"
-                                styleClass="shapeDropdown"
                                 (onShow)="onShapePanelShow(row)">
-                                <ng-template pTemplate="value" let-node let-placeholder="placeholder">
+                                <ng-template #value let-node let-placeholder="placeholder">
                                     @if (node?.data) {
                                         <div class="shape-tree-value style-key-table__shape-option">
                                             <img
@@ -264,18 +263,7 @@ export interface StyleKeyTableShapePanelRequest {
                                         <span>{{ placeholder }}</span>
                                     }
                                 </ng-template>
-                                <ng-template pTemplate="shape" let-node>
-                                    <div class="shape-tree-node style-key-table__shape-option">
-                                        <img
-                                            class="style-key-table__shape-preview"
-                                            [attr.data-shape-key]="node.data.key"
-                                            [src]="getShapePreviewSrc(node.data.key)"
-                                            alt=""
-                                            aria-hidden="true">
-                                        <span class="style-key-table__shape-label">{{ node.data.name }}</span>
-                                    </div>
-                                </ng-template>
-                            </p-treeSelect>
+                            </p-tree-select>
                         }
                     </td>
                 </tr>

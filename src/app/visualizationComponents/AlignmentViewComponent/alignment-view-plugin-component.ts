@@ -1,4 +1,4 @@
-import { Component, OnInit, Injector, Inject, ElementRef, ChangeDetectorRef, AfterViewInit, OnDestroy } from '@angular/core';
+import { Component, OnInit, Injector, Inject, ElementRef, ChangeDetectorRef, AfterViewInit, OnDestroy, ChangeDetectionStrategy } from '@angular/core';
 import { EventManager } from '@angular/platform-browser';
 import { BaseComponentDirective } from '@app/base-component.directive';
 import { MicrobeTraceNextVisuals } from '@app/microbe-trace-next-plugin-visuals';
@@ -10,7 +10,6 @@ import { generateCanvas } from './generateAlignmentViewCanvas';
 import { SelectItem } from 'primeng/api';
 import { saveAs } from 'file-saver';
 import { svgAsPngUri } from 'save-svg-as-png';
-import { GoogleTagManagerService } from 'angular-google-tag-manager';
 import { ExportService } from '@app/contactTraceCommonServices/export.service';
 import { Subject, takeUntil } from 'rxjs';
 import { CommonStoreService } from '@app/contactTraceCommonServices/common-store.services';
@@ -19,6 +18,7 @@ import { CommonStoreService } from '@app/contactTraceCommonServices/common-store
     selector: 'AlignmentViewComponent',
     templateUrl: './alignment-view-plugin-component.html',
     styleUrls: ['./alignment-view-plugin-component.scss'],
+    changeDetection: ChangeDetectionStrategy.Eager,
     standalone: false
 })
 export class AlignmentViewComponent extends BaseComponentDirective implements OnInit, AfterViewInit, MicobeTraceNextPluginEvents, OnDestroy {
@@ -150,7 +150,6 @@ export class AlignmentViewComponent extends BaseComponentDirective implements On
     @Inject(BaseComponentDirective.GoldenLayoutContainerInjectionToken) private container: ComponentContainer, 
     elRef: ElementRef,
     private cdref: ChangeDetectorRef,
-    private gtmService: GoogleTagManagerService,
     private store: CommonStoreService,
     private exportService: ExportService) {
 
@@ -163,11 +162,6 @@ export class AlignmentViewComponent extends BaseComponentDirective implements On
 
   ngOnInit(): void {
 
-    this.gtmService.pushTag({
-            event: "page_view",
-            page_location: "/alignment",
-            page_title: "Alignment View"
-        });
     // set events such as node-selected
     this.setEvents();
 

@@ -1095,17 +1095,23 @@ export function waitForProcessingDialogToClear(timeout = 30000): void {
 }
 
 export function openGlobalFilteringTab(): void {
-  const dialogSelector = byTestId(testIds.appGlobalSettingsDialog);
   cy.openGlobalSettings();
-  cy.contains(`${dialogSelector} .nav-link`, 'Filtering').click({ force: true });
-  cy.get(`${dialogSelector} #filtering-config`, { timeout: 15000 }).should('exist');
+  cy.contains('.p-dialog-title:visible', 'Global Settings')
+    .closest('.p-dialog')
+    .within(() => {
+      cy.contains('.nav-link', 'Filtering').click({ force: true });
+      cy.get('#filtering-config', { timeout: 15000 }).should('exist');
+    });
 }
 
 export function openGlobalStylingTab(): void {
-  const dialogSelector = byTestId(testIds.appGlobalSettingsDialog);
   cy.openGlobalSettings();
-  cy.contains(`${dialogSelector} .nav-link`, 'Styling').click({ force: true });
-  cy.get(`${dialogSelector} #style-config`, { timeout: 15000 }).should('exist');
+  cy.contains('.p-dialog-title:visible', 'Global Settings')
+    .closest('.p-dialog')
+    .within(() => {
+      cy.contains('.nav-link', 'Styling').click({ force: true });
+      cy.get('#style-config', { timeout: 15000 }).should('exist');
+    });
 }
 
 export function setFilteringPruneWith(value: PruneWith): void {
@@ -1258,8 +1264,8 @@ export function setTimelineRange(start: string | Date, end: string | Date): void
   const endDate = parsedEnd.toDate();
 
   cy.openGlobalSettings();
-  cy.contains('.p-dialog:visible .nav-link', 'Timeline').click({ force: true });
-  cy.get('.p-dialog:visible #timeline-config').should('exist').and('be.visible');
+  cy.contains('.nav-link:visible', 'Timeline').click({ force: true });
+  cy.get('#timeline-config').should('exist');
   setTimelineRangeInput('#timeline-range-start', startInput);
   setTimelineRangeInput('#timeline-range-end', endInput);
   cy.closeGlobalSettings();
@@ -1546,8 +1552,8 @@ export function applyStyleFromProfile(profile: DatasetProfile): void {
   if (!style) return;
 
   cy.openGlobalSettings();
-  cy.contains('.p-dialog:visible .nav-link', 'Styling').click({ force: true });
-  cy.get('.p-dialog:visible #apply-style').should('exist');
+  cy.contains('.nav-link:visible', 'Styling').click({ force: true });
+  cy.get('#apply-style').should('exist');
   cy.attach_files('#apply-style', [style.styleFile], ['application/json']);
 
   assertStyleWidgetsFromProfile(profile);

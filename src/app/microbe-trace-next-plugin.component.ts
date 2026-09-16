@@ -23,11 +23,18 @@ import { GraphMLService } from './contactTraceCommonServices/graphml.service';
 import { sanitizeExportRows } from './contactTraceCommonServices/export-sanitization';
 import { formatNodeColorWeightPercentage, getMixedNodeColorLegendEntries } from './contactTraceCommonServices/color-mapping.service';
 import * as XLSX from 'xlsx';
-import { buildDate, commitHash } from "src/environments/version";
+import { buildDate, commitHash, version as appVersion } from "src/environments/version";
 import { EmbedHandoffService } from './embed/embed-handoff.service';
 import { KeyTablesComponent } from './visualizationComponents/KeyTablesComponent/key-tables.component';
 import { KEY_TABLE_NAMES, KeyTableName, KeyTablesController } from './visualizationComponents/KeyTablesComponent/key-tables.controller';
 import { NetworkStatisticsComponent } from './visualizationComponents/NetworkStatisticsComponent/network-statistics-plugin.component';
+import type { ThresholdSweepSummary } from './contactTraceCommonServices/threshold-analysis';
+import {
+    computeComponentStructureMetrics,
+    scoreComponentStructureMetrics,
+    type ComponentStructureMetrics,
+    type ComponentStructureScoreBreakdown
+} from './contactTraceCommonServices/component-metrics';
 import {
     StyleKeyTableAlphaRequest,
     StyleKeyTableColorChange,
@@ -40,7 +47,6 @@ import {
     StyleKeyTableSortColumn
 } from './visualizationComponents/KeyTablesComponent/style-key-table.component';
 import { hideColorTransparencyPicker, showColorTransparencyPicker } from './visualizationComponents/KeyTablesComponent/color-transparency-picker';
-import type { ThresholdSweepSummary } from './contactTraceCommonServices/threshold-analysis';
 import {
     ColorAssignmentService,
     NodeColorAssignmentParseError,
@@ -59,15 +65,18 @@ import {
     GlobalSettingsDialogRequest,
     NormalizedGlobalSettingsDialogRequest
 } from './helperClasses/globalSettingsDialogRequest';
+import { AnalyticsService } from './contactTraceCommonServices/analytics.service';
 
-type ThresholdSweepSnapshot = {
+type ThresholdSweepSnapshot = ComponentStructureMetrics & {
     threshold: number;
-    componentCount: number;
-    clusterCount: number;
-    singletonCount: number;
-    largestClusterSize: number;
     sourceThreshold: number | null;
+    maximumClusterCount: number;
+    componentStructureScore: number;
+    componentStructureScoreBreakdown: ComponentStructureScoreBreakdown;
 };
+
+type ThresholdMetricKey = 'largestFraction' | 'clustered' | 'gini' | 'l2ToL1' | 'largestToMedian';
+type ThresholdScoreTermKey = 'fragmentation' | 'dominance' | 'balance' | 'participation' | 'equality';
 
 type ThresholdStabilityRegion = {
     startThreshold: number;
@@ -134,7 +143,7 @@ function buildNodeShapeTreeOptions(groups: NodeShapeOptionGroup[], defaultExpand
         expanded: group.key === defaultExpandedGroup,
         children: group.items.map(option => ({
             key: option.key,
-            label: option.name,
+            label: `${option.value}${option.name}`,
             type: 'shape',
             data: option,
             leaf: true,
@@ -236,7 +245,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
     // messages to display in loading modal
     messages: string[] = [];
 
-    version: string = '2.2.1';
+    readonly version: string = appVersion;
     auspiceUrlVal: string|null = '';
 
     private thresholdSubscription: Subscription;
@@ -284,6 +293,8 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
 
     FieldList: SelectItem[] = [];
     ToolTipFieldList: SelectItem[] = [];
+    NetworkSubsetNodeFieldList: SelectItem[] = [];
+    NetworkSubsetLinkFieldList: SelectItem[] = [];
     NetworkSubsetOperatorTypes: SelectItem[] = [
         { label: 'Contains', value: 'contains' },
         { label: 'Equals', value: 'equals' },
@@ -329,7 +340,11 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
     thresholdSweepMetricLabel: string = '';
     thresholdSweepSampleCount: number = 0;
     thresholdStabilityExpanded: boolean = false;
+    thresholdScoreExplanationExpanded: boolean = false;
+    thresholdStableRangesExpanded: boolean = false;
+    activeThresholdMetricHelp: string | null = null;
     thresholdStabilityCurrent: ThresholdSweepSnapshot | null = null;
+    thresholdScoreRecommendation: ThresholdSweepSnapshot | null = null;
     thresholdStabilityRegions: ThresholdStabilityRegion[] = [];
     thresholdStabilityMessage: string = '';
 
@@ -437,6 +452,14 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
 
     private timelinePlaybackPaused: boolean = false;
 
+    private timelineTickDateFormat: ((date: Date) => string) | null = null;
+
+    private timelineResizeObserver: ResizeObserver | null = null;
+
+    private timelineResizeFrame: number | null = null;
+
+    private readonly timelineWindowResizeHandler = () => this.scheduleTimelineResize();
+
     private previousTab: string = '';
 
     private bpaaSPayloadWrappers: BpaaSPayloadWrapper[] = [];
@@ -474,7 +497,8 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         private exportService: ExportService,
         private graphMLService: GraphMLService,
         private embedHandoffService: EmbedHandoffService,
-        private colorAssignmentService: ColorAssignmentService
+        private colorAssignmentService: ColorAssignmentService,
+        private analyticsService: AnalyticsService
     ) {
 
 
@@ -832,6 +856,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         const componentRef = this._goldenLayoutHostComponent.getComponentRef(goldenLayoutComponent.container);
         
         this.addTab(component, component + this.activeTabIndex, this.activeTabIndex, componentRef);
+        this.analyticsService.trackView(component);
         
         console.log('--- addComponent Tab added');
 
@@ -1161,18 +1186,46 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         try {
             // Retrieve export options from the service
             const options: ExportOptions = this.exportService.getExportOptions();
+            const mapLibreCanvasSnapshots = elementsForExport.flatMap((element) =>
+                Array.from(element.querySelectorAll<HTMLCanvasElement>('canvas.maplibregl-canvas')).map((canvas) => ({
+                    dataUrl: canvas.toDataURL('image/png'),
+                    width: canvas.width,
+                    height: canvas.height
+                }))
+            );
             let settings = {
                 scale: Number(options.scale) || 1,
                 useCORS: true, // Enable CORS if images are loaded from external sources,
                 allowTaint: true,
-                onclone: (clonedDoc) => {
+                onclone: async (clonedDoc: Document) => {
+                    // html2canvas does not reliably preserve a transformed WebGL canvas.
+                    // Replace MapLibre canvases in the clone with snapshots of their current
+                    // composited frames so panned/zoomed basemaps export at the visible position.
+                    const clonedMapLibreCanvases = clonedDoc.querySelectorAll<HTMLCanvasElement>('canvas.maplibregl-canvas');
+                    const mapLibreImageLoads: Promise<void>[] = [];
+                    clonedMapLibreCanvases.forEach((clonedCanvas, index) => {
+                        const snapshot = mapLibreCanvasSnapshots[index];
+                        if (!snapshot) {
+                            return;
+                        }
+
+                        const image = clonedDoc.createElement('img');
+                        image.src = snapshot.dataUrl;
+                        image.width = snapshot.width;
+                        image.height = snapshot.height;
+                        image.className = clonedCanvas.className;
+                        image.style.cssText = clonedCanvas.style.cssText;
+                        clonedCanvas.parentNode?.replaceChild(image, clonedCanvas);
+                        mapLibreImageLoads.push(image.decode());
+                    });
+
                     // Remove all transparency symbols
                     const clonedTransparencySymbols = clonedDoc.querySelectorAll('a.transparency-symbol');
                     clonedTransparencySymbols.forEach(symbol => {
                         symbol.parentNode?.removeChild(symbol);
                     })
                     // Replace color input elements with colored spans
-                    const clonedInputs = clonedDoc.querySelectorAll('input[type="color"]');
+                    const clonedInputs = clonedDoc.querySelectorAll<HTMLInputElement>('input[type="color"]');
                     clonedInputs.forEach(input => {
                         const color = input.getAttribute('value') || '#ffffff';
                         const opacity = input.style.opacity || '1'
@@ -1186,6 +1239,8 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
                         span.style.border = '1px solid #777777'; // Optional: Add border for visibility
                         input.parentNode?.replaceChild(span, input);
                     });
+
+                    await Promise.all(mapLibreImageLoads);
     
                     // Optionally, handle other elements that display hex codes
                     // For example, if you have spans or divs showing hex values:
@@ -1789,12 +1844,23 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
     /**
      * Updates GlobalSetingModel variable and cluster-minimum-size widget. Removes and adds clusters when needed
      */
-    onMinimumClusterSizeChanged(silent: boolean = false) {
+    onMinimumClusterSizeChanged(valueOrSilent: number | string | boolean = false) {
 
+        const silent = typeof valueOrSilent === 'boolean' ? valueOrSilent : false;
         console.log('--- onMinimumClusterSizeChanged called: silent: ', silent);
-        this.commonService.GlobalSettingsModel.SelectedClusterMinimumSizeVariable = this.SelectedClusterMinimumSizeVariable;
 
-        let val = parseInt(this.SelectedClusterMinimumSizeVariable);
+        const rawValue = typeof valueOrSilent === 'boolean'
+            ? this.SelectedClusterMinimumSizeVariable
+            : valueOrSilent;
+
+        let val = parseInt(`${rawValue}`, 10);
+        if (!Number.isFinite(val)) {
+            return;
+        }
+
+        val = Math.max(1, val);
+        this.SelectedClusterMinimumSizeVariable = val;
+        this.commonService.GlobalSettingsModel.SelectedClusterMinimumSizeVariable = val;
         this.commonService.session.style.widgets["cluster-minimum-size"] = val;
 
         if(this.commonService.session.data.nodes.length === 0) {
@@ -3169,6 +3235,115 @@ ${warnings.join('\n')}`,
         }
     }
 
+    private getTimelineWidth(): number {
+        const wrapperWidth = this.visualWrapperRef?.nativeElement?.clientWidth
+            ?? Number($('#visualwrapper').width() || 0);
+        return Math.max(0, wrapperWidth * 4 / 5);
+    }
+
+    private getTimelineTickValues(startDate: Date, endDate: Date): Date[] {
+        if (!this.xAttribute) {
+            return [];
+        }
+
+        const formatDate = this.timelineTickDateFormat ?? ((date: Date) => String(date));
+        const estimateTimelineTickWidth = (date: Date) => Math.max(28, formatDate(date).length * 7);
+
+        return [startDate, ...this.xAttribute.ticks(12), endDate]
+            .sort((a: Date, b: Date) => a.getTime() - b.getTime())
+            .filter((date: Date, index: number, dates: Date[]) => (
+                index === 0 || date.getTime() !== dates[index - 1].getTime()
+            ))
+            .filter((date: Date, index: number, dates: Date[]) => {
+                const isEndpoint = date.getTime() === startDate.getTime()
+                    || date.getTime() === endDate.getTime();
+                if (isEndpoint) {
+                    return true;
+                }
+
+                const previousDate = dates[index - 1];
+                const nextDate = dates[index + 1];
+                const x = this.xAttribute(date);
+                const previousX = previousDate ? this.xAttribute(previousDate) : Number.NEGATIVE_INFINITY;
+                const nextX = nextDate ? this.xAttribute(nextDate) : Number.POSITIVE_INFINITY;
+                const minimumPreviousGap = (
+                    estimateTimelineTickWidth(date)
+                    + (previousDate ? estimateTimelineTickWidth(previousDate) : 0)
+                ) / 2 + 6;
+                const minimumNextGap = (
+                    estimateTimelineTickWidth(date)
+                    + (nextDate ? estimateTimelineTickWidth(nextDate) : 0)
+                ) / 2 + 6;
+                return x - previousX >= minimumPreviousGap && nextX - x >= minimumNextGap;
+            });
+    }
+
+    private resizeTimeline(): void {
+        if (!this.xAttribute || !this.timelineDomainStart || !this.timelineDomainEnd) {
+            return;
+        }
+
+        const svgTimeline = d3.select('#global-timeline svg');
+        if (svgTimeline.empty()) {
+            return;
+        }
+
+        const width = this.getTimelineWidth();
+        if (width <= 0 || Math.abs(Number(svgTimeline.attr('width')) - width) < 0.5) {
+            return;
+        }
+
+        const activeDate = this.getActiveTimelineEnd();
+        const horizontalPadding = Math.min(9, width / 2);
+        const rangeEnd = Math.max(horizontalPadding, width - horizontalPadding);
+        this.xAttribute.range([horizontalPadding, rangeEnd]);
+        svgTimeline.attr('width', width);
+
+        svgTimeline.selectAll('line.track, line.track-inset, line.track-overlay')
+            .attr('x1', horizontalPadding)
+            .attr('x2', rangeEnd);
+
+        const tickValues = this.getTimelineTickValues(this.timelineDomainStart, this.timelineDomainEnd);
+        const tickGroup = svgTimeline.select('g.ticks');
+        tickGroup.selectAll('text').remove();
+        tickGroup.selectAll('text')
+            .data(tickValues)
+            .enter()
+            .append('text')
+            .attr('x', this.xAttribute)
+            .attr('y', 10)
+            .attr('text-anchor', 'middle')
+            .text((date: Date) => this.timelineTickDateFormat?.(date) ?? '');
+
+        this.syncTimelineRangeGraphics();
+        const activeX = this.xAttribute(activeDate);
+        this.currentTimelineValue = activeX;
+        this.handle?.attr('cx', activeX);
+        this.label
+            ?.attr('x', activeX)
+            .text(this.handleDateFormat ? this.handleDateFormat(activeDate) : '');
+    }
+
+    private scheduleTimelineResize(): void {
+        if (this.timelineResizeFrame !== null) {
+            cancelAnimationFrame(this.timelineResizeFrame);
+        }
+
+        this.timelineResizeFrame = requestAnimationFrame(() => {
+            this.timelineResizeFrame = null;
+            this.resizeTimeline();
+        });
+    }
+
+    private observeTimelineResize(): void {
+        window.addEventListener('resize', this.timelineWindowResizeHandler);
+
+        if (typeof ResizeObserver !== 'undefined' && this.visualWrapperRef?.nativeElement) {
+            this.timelineResizeObserver = new ResizeObserver(() => this.scheduleTimelineResize());
+            this.timelineResizeObserver.observe(this.visualWrapperRef.nativeElement);
+        }
+    }
+
     private applyTimelineVisibility(): void {
         this.commonService.setNodeVisibility(false);
         this.commonService.setLinkVisibility(false);
@@ -3272,9 +3447,7 @@ ${warnings.join('\n')}`,
         }
 
         // need to check and ensure bubble nodes are sorted by this variable, then rerender/recalculate bubbles position
-        if ('bubble' in this.commonService.visuals) {
-             this.commonService.visuals.bubble.sortData(variable);
-        }
+        this.commonService.visuals.bubble?.sortData(variable);
 
         console.log('timeline variable: ', variable);
         if(!this.commonService.temp.style.nodeColor) $("#node-color-variable").trigger("change");
@@ -3342,6 +3515,7 @@ ${warnings.join('\n')}`,
             else if (days<367*5) return formatDateIntoMonthYear(d);
             else return formatDateIntoYear(d);		
         }
+        this.timelineTickDateFormat = tickDateFormat;
         this.handleDateFormat = d => {
             if (days<367) return formatDateDateMonth(d);
             else return formatDateMonthYear(d);		
@@ -3349,7 +3523,7 @@ ${warnings.join('\n')}`,
         const startDate = timeDomainStart;
         const endDate = timeDomainEnd;
         const margin = {top:50, right:0, bottom:0, left:0},
-            width = Math.max(0, (($('#visualwrapper').width() || 0) * 4 / 5) - margin.left - margin.right),
+            width = Math.max(0, this.getTimelineWidth() - margin.left - margin.right),
             height = 200 - margin.top - margin.bottom;
 
         var svgTimeline = d3.select("#global-timeline")
@@ -3372,25 +3546,7 @@ ${warnings.join('\n')}`,
             .domain([startDate, endDate])
             .range([timelineHorizontalPadding, this.currentTimelineTargetValue - timelineHorizontalPadding])
             .clamp(true);
-        const estimateTimelineTickWidth = (date: Date) => Math.max(28, String(tickDateFormat(date)).length * 7);
-        const tickValues = [startDate, ...this.xAttribute.ticks(12), endDate]
-            .sort((a, b) => a.getTime() - b.getTime())
-            .filter((date, index, dates) => index === 0 || date.getTime() !== dates[index - 1].getTime())
-            .filter((date, index, dates) => {
-                const isEndpoint = date.getTime() === startDate.getTime() || date.getTime() === endDate.getTime();
-                if (isEndpoint) {
-                    return true;
-                }
-
-                const previousDate = dates[index - 1];
-                const nextDate = dates[index + 1];
-                const x = this.xAttribute(date);
-                const previousX = previousDate ? this.xAttribute(previousDate) : Number.NEGATIVE_INFINITY;
-                const nextX = nextDate ? this.xAttribute(nextDate) : Number.POSITIVE_INFINITY;
-                const minimumPreviousGap = (estimateTimelineTickWidth(date) + (previousDate ? estimateTimelineTickWidth(previousDate) : 0)) / 2 + 6;
-                const minimumNextGap = (estimateTimelineTickWidth(date) + (nextDate ? estimateTimelineTickWidth(nextDate) : 0)) / 2 + 6;
-                return x - previousX >= minimumPreviousGap && nextX - x >= minimumNextGap;
-            });
+        const tickValues = this.getTimelineTickValues(startDate, endDate);
         const slider = svgTimeline.append("g")
             .attr("class", "slider")
             .attr("transform", "translate(0," + height/2 + ")");
@@ -4313,27 +4469,17 @@ ${warnings.join('\n')}`,
 
     revealClicked() : void {
 
-        $("#cluster-minimum-size").val(1);
+        this.SelectedClusterMinimumSizeVariable = 1;
+        this.commonService.GlobalSettingsModel.SelectedClusterMinimumSizeVariable = 1;
         this.commonService.session.style.widgets["cluster-minimum-size"] = 1;
+        this._lastClusterMinimum = 1;
         this.commonService.clearNetworkSubsetFilter(false);
         this.loadNetworkSubsetFilterSettings();
         $("#filtering-wrapper").slideDown();
-        this.commonService.setClusterVisibility(true);
-       
-        this.commonService.setNodeVisibility(true);
-         //To catch links that should be filtered out based on cluster size:
-         this.commonService.setLinkVisibility(true);
-        //Because the network isn't robust to the order in which these operations
-        //take place, we just do them all silently and then react as though we did
-        //them each after all of them are already done.
+        this.commonService.updateNetworkVisuals(false, true);
 
         this.GlobalSettingsLinkColorDialogSettings.isVisible = true;
         this.GlobalSettingsNodeColorDialogSettings.isVisible = true;
-
-        this.store.setNetworkUpdated(true);
-        // this.updatedVisualization();
-
-        this.commonService.updateStatistics();
         this.refreshThresholdStabilityPanel();
 
     };
@@ -4430,6 +4576,12 @@ ${warnings.join('\n')}`,
 
         });
 
+        this.NetworkSubsetNodeFieldList = this.FieldList.filter(field =>
+            this.commonService.isNetworkSubsetFilterFieldAllowed('node', field.value)
+        );
+        this.NetworkSubsetLinkFieldList = this.ToolTipFieldList.filter(field =>
+            this.commonService.isNetworkSubsetFilterFieldAllowed('link', field.value)
+        );
 
         this.SelectedLinkSortVariable = this.commonService.GlobalSettingsModel.SelectedLinkSortVariable;
         this.loadNetworkSubsetFilterSettings();
@@ -4483,7 +4635,8 @@ ${warnings.join('\n')}`,
     private refreshNetworkSubsetNodeValueOptions(): void {
         this.NetworkSubsetNodeAllValueOptions = this.getNetworkSubsetValueOptions(
             this.commonService.session.data.nodes || [],
-            this.SelectedNetworkSubsetNodeField
+            this.SelectedNetworkSubsetNodeField,
+            'node'
         );
         this.filterNetworkSubsetNodeValueOptions();
     }
@@ -4491,7 +4644,8 @@ ${warnings.join('\n')}`,
     private refreshNetworkSubsetLinkValueOptions(): void {
         this.NetworkSubsetLinkAllValueOptions = this.getNetworkSubsetValueOptions(
             this.commonService.session.data.links || [],
-            this.SelectedNetworkSubsetLinkField
+            this.SelectedNetworkSubsetLinkField,
+            'link'
         );
         this.filterNetworkSubsetLinkValueOptions();
     }
@@ -4510,14 +4664,18 @@ ${warnings.join('\n')}`,
         );
     }
 
-    private getNetworkSubsetValueOptions(records: any[], field: string): string[] {
+    private getNetworkSubsetValueOptions(
+        records: any[],
+        field: string,
+        target: 'node' | 'link'
+    ): string[] {
         if (!field || field === 'None') {
             return [];
         }
 
         const options = new Set<string>();
         records.forEach(record => {
-            const rawValue = record?.[field];
+            const rawValue = this.commonService.getNetworkSubsetFieldValue(record, target, field);
             const values = Array.isArray(rawValue) ? rawValue : [rawValue];
 
             values.forEach(value => {
@@ -4579,7 +4737,6 @@ ${warnings.join('\n')}`,
     clearNetworkSubsetFilter(): void {
         this.commonService.clearNetworkSubsetFilter(false);
         this.loadNetworkSubsetFilterSettings();
-        this.commonService.setLinkVisibility(true, false);
         this.commonService.updateNetworkVisuals(false, true);
     }
 
@@ -4600,6 +4757,7 @@ ${warnings.join('\n')}`,
         // this.cmpRef = this.targets.first.createComponent(factory);
         // setTimeout(() => {
             this._goldenLayoutHostComponent.initialise();
+            this.observeTimelineResize();
             
             // headerHeight (tab) is updated so that goldenLayout knows what the css is set to. 
             this._goldenLayoutHostComponent['_goldenLayout.layoutConfig.dimensions.headerHeight'] = 36;
@@ -4675,7 +4833,7 @@ ${warnings.join('\n')}`,
             console.log('linktable vis - false tab changed: ', this.GlobalSettingsLinkColorDialogSettings.isVisible);
 
         });
-        
+
         this.store.updatecurrentThresholdStepSize(this.SelectedDistanceMetricVariable);
         console.log('tab changed end: ');
     }
@@ -5431,6 +5589,9 @@ ${warnings.join('\n')}`,
         this.syncThresholdDisplayFromStoredValue();
         setTimeout(() => this.syncThresholdDisplayFromStoredValue(), 0);
         this.thresholdStabilityExpanded = false;
+        this.thresholdScoreExplanationExpanded = false;
+        this.thresholdStableRangesExpanded = false;
+        this.activeThresholdMetricHelp = null;
 
         this.commonService.updateThresholdHistogram(this.linkThresholdSparkline.nativeElement);
         this.refreshThresholdStabilityPanel(false);
@@ -5585,6 +5746,20 @@ ${warnings.join('\n')}`,
 
     toggleThresholdStabilityPanel(): void {
         this.thresholdStabilityExpanded = !this.thresholdStabilityExpanded;
+    }
+
+    toggleThresholdScoreExplanation(): void {
+        this.thresholdScoreExplanationExpanded = !this.thresholdScoreExplanationExpanded;
+    }
+
+    toggleThresholdStableRanges(): void {
+        this.thresholdStableRangesExpanded = !this.thresholdStableRangesExpanded;
+    }
+
+    toggleThresholdMetricHelp(metricHelpId: string): void {
+        this.activeThresholdMetricHelp = this.activeThresholdMetricHelp === metricHelpId
+            ? null
+            : metricHelpId;
     }
 
 
@@ -6357,6 +6532,14 @@ ${warnings.join('\n')}`,
     }
 
     ngOnDestroy(): void {
+        window.removeEventListener('resize', this.timelineWindowResizeHandler);
+        this.timelineResizeObserver?.disconnect();
+        this.timelineResizeObserver = null;
+        if (this.timelineResizeFrame !== null) {
+            cancelAnimationFrame(this.timelineResizeFrame);
+            this.timelineResizeFrame = null;
+        }
+
         if (this.timelineTablesRefreshHandle !== null) {
             clearTimeout(this.timelineTablesRefreshHandle);
             this.timelineTablesRefreshHandle = null;
@@ -6432,13 +6615,22 @@ ${warnings.join('\n')}`,
         const nodeCount = this.commonService.session.data.nodes.length;
 
         if (summary.thresholds.length === 0 || threshold < summary.thresholds[0]) {
+            const componentMetrics = computeComponentStructureMetrics(
+                Array.from({ length: nodeCount }, () => 1),
+                nodeCount
+            );
+            const scoreResult = scoreComponentStructureMetrics(
+                componentMetrics,
+                summary.maximumClusterCount,
+                summary.scoreWeights
+            );
             return {
+                ...componentMetrics,
                 threshold,
-                componentCount: nodeCount,
-                clusterCount: 0,
-                singletonCount: nodeCount,
-                largestClusterSize: nodeCount > 0 ? 1 : 0,
-                sourceThreshold: null
+                sourceThreshold: null,
+                maximumClusterCount: summary.maximumClusterCount,
+                componentStructureScore: scoreResult.score,
+                componentStructureScoreBreakdown: scoreResult.breakdown
             };
         }
 
@@ -6457,12 +6649,12 @@ ${warnings.join('\n')}`,
         }
 
         return {
+            ...summary.componentMetrics[matchIndex],
             threshold,
-            componentCount: summary.componentCounts[matchIndex],
-            clusterCount: summary.clusterCounts[matchIndex],
-            singletonCount: summary.singletonCounts[matchIndex],
-            largestClusterSize: summary.largestClusterSizes[matchIndex],
-            sourceThreshold: summary.thresholds[matchIndex]
+            sourceThreshold: summary.thresholds[matchIndex],
+            maximumClusterCount: summary.maximumClusterCount,
+            componentStructureScore: summary.componentStructureScores[matchIndex],
+            componentStructureScoreBreakdown: summary.componentStructureScoreBreakdowns[matchIndex]
         };
     }
 
@@ -6535,25 +6727,6 @@ ${warnings.join('\n')}`,
             .slice(0, 3);
     }
 
-    private getVisibleThresholdSnapshot(threshold: number): ThresholdSweepSnapshot {
-        const visibleNodes = this.commonService.getVisibleNodes();
-        const visibleClusters = this.commonService.getVisibleClusters();
-        const clusterCount = visibleClusters.filter(cluster => cluster.nodes > 1).length;
-        const singletonCount = visibleNodes.filter(node => Number(node.degree ?? 0) === 0).length;
-        const largestClusterSize = visibleClusters.reduce((largest, cluster) => {
-            return cluster.nodes > largest ? cluster.nodes : largest;
-        }, 0);
-
-        return {
-            threshold,
-            componentCount: visibleClusters.length,
-            clusterCount,
-            singletonCount,
-            largestClusterSize,
-            sourceThreshold: null
-        };
-    }
-
     refreshThresholdStabilityPanel(markForCheck = true): void {
         const nodes = this.commonService.session.data.nodes;
 
@@ -6561,6 +6734,7 @@ ${warnings.join('\n')}`,
             this.thresholdSweepMetricLabel = '';
             this.thresholdSweepSampleCount = 0;
             this.thresholdStabilityCurrent = null;
+            this.thresholdScoreRecommendation = null;
             this.thresholdStabilityRegions = [];
             this.thresholdStabilityMessage = '';
             if (markForCheck) {
@@ -6575,13 +6749,19 @@ ${warnings.join('\n')}`,
 
         this.thresholdSweepMetricLabel = metric;
         this.thresholdSweepSampleCount = summary.thresholds.length;
-        this.thresholdStabilityCurrent = this.getVisibleThresholdSnapshot(threshold);
+        this.thresholdStabilityCurrent = this.getThresholdSweepSnapshotAtThreshold(summary, threshold);
+        this.thresholdScoreRecommendation = summary.recommendedIndex >= 0
+            ? this.getThresholdSweepSnapshotAtThreshold(
+                summary,
+                summary.thresholds[summary.recommendedIndex]
+            )
+            : null;
         this.thresholdStabilityRegions = this.buildThresholdStabilityRegions(summary, threshold);
 
         if (summary.thresholds.length === 0) {
             this.thresholdStabilityMessage = `No numeric ${this.commonService.titleize(metric)} values are available for this view.`;
         } else if (this.thresholdStabilityRegions.length === 0) {
-            this.thresholdStabilityMessage = 'No broad flat range was found for the current metric.';
+            this.thresholdStabilityMessage = 'No stable cluster-count range was found. The count changes at each neighboring threshold.';
         } else {
             this.thresholdStabilityMessage = '';
         }
@@ -6596,6 +6776,77 @@ ${warnings.join('\n')}`,
         this.SelectedLinkThresholdVariable = region.suggestedThreshold;
         this.commonService.GlobalSettingsModel.SelectedLinkThresholdVariable = this.SelectedLinkThresholdVariable;
         this.executeThresholdChange(region.suggestedThreshold);
+    }
+
+    applyThresholdScoreRecommendation(): void {
+        if (!this.thresholdScoreRecommendation) {
+            return;
+        }
+
+        const threshold = this.thresholdScoreRecommendation.threshold;
+        this.threshold = String(threshold);
+        this.SelectedLinkThresholdVariable = threshold;
+        this.commonService.GlobalSettingsModel.SelectedLinkThresholdVariable = threshold;
+        this.executeThresholdChange(threshold);
+    }
+
+    formatThresholdMetricPercent(value: number): string {
+        return `${(Math.max(0, Math.min(1, value)) * 100).toFixed(1)}%`;
+    }
+
+    formatThresholdMetricDecimal(value: number): string {
+        return Number.isFinite(value) ? value.toFixed(3) : 'N/A';
+    }
+
+    formatComponentStructureScore(value: number): string {
+        return Number.isFinite(value) ? value.toFixed(1) : 'N/A';
+    }
+
+    formatThresholdMetricEquation(metric: ThresholdMetricKey, snapshot: ThresholdSweepSnapshot): string {
+        const threshold = this.formatThresholdStabilityValue(snapshot.threshold);
+        const prefix = `At threshold ${threshold}:`;
+
+        switch (metric) {
+            case 'largestFraction':
+                return `${prefix} ${snapshot.largestClusterSize} ÷ ${snapshot.nodeCount} = ${this.formatThresholdMetricPercent(snapshot.largestClusterFraction)}`;
+            case 'clustered':
+                return `${prefix} ${snapshot.clusteredNodeCount} ÷ ${snapshot.nodeCount} = ${this.formatThresholdMetricPercent(snapshot.clusteredFraction)}`;
+            case 'gini': {
+                const denominator = snapshot.componentCount * snapshot.nodeCount;
+                const pairwiseDifferenceSum = Math.round(snapshot.giniCoefficient * denominator);
+                return `${prefix} Σ|size differences| = ${pairwiseDifferenceSum}; ${pairwiseDifferenceSum} ÷ (${snapshot.componentCount} × ${snapshot.nodeCount}) = ${this.formatThresholdMetricDecimal(snapshot.giniCoefficient)}`;
+            }
+            case 'l2ToL1':
+                return `${prefix} ${snapshot.secondLargestClusterSize} ÷ ${snapshot.largestClusterSize} = ${this.formatThresholdMetricDecimal(snapshot.l2ToL1Ratio)}`;
+            case 'largestToMedian':
+                return `${prefix} ${snapshot.largestClusterSize} ÷ ${snapshot.medianClusterSize.toLocaleString(undefined, { maximumFractionDigits: 1 })} = ${this.formatThresholdMetricDecimal(snapshot.largestToMedianClusterRatio)}`;
+        }
+    }
+
+    formatThresholdScoreEquation(snapshot: ThresholdSweepSnapshot): string {
+        const terms = snapshot.componentStructureScoreBreakdown;
+        return `At threshold ${this.formatThresholdStabilityValue(snapshot.threshold)}: 100 × (${this.formatThresholdMetricDecimal(terms.fragmentation)} + ${this.formatThresholdMetricDecimal(terms.dominance)} + ${this.formatThresholdMetricDecimal(terms.balance)} + ${this.formatThresholdMetricDecimal(terms.participation)} + ${this.formatThresholdMetricDecimal(terms.equality)}) ÷ 5 = ${this.formatComponentStructureScore(snapshot.componentStructureScore)}`;
+    }
+
+    formatThresholdScoreTermEquation(term: ThresholdScoreTermKey, snapshot: ThresholdSweepSnapshot): string {
+        const threshold = this.formatThresholdStabilityValue(snapshot.threshold);
+        const prefix = `At threshold ${threshold}:`;
+        const breakdown = snapshot.componentStructureScoreBreakdown;
+
+        switch (term) {
+            case 'fragmentation':
+                return `${prefix} ${snapshot.clusterCount} clusters ÷ ${snapshot.maximumClusterCount} maximum clusters in sweep = ${this.formatThresholdMetricDecimal(breakdown.fragmentation)}`;
+            case 'dominance':
+                return `${prefix} ${this.formatThresholdMetricDecimal(snapshot.clusteredFraction)} × (1 − ${this.formatThresholdMetricDecimal(snapshot.largestClusterFraction)}) = ${this.formatThresholdMetricDecimal(breakdown.dominance)}`;
+            case 'balance':
+                return snapshot.clusterCount >= 2
+                    ? `${prefix} median size ${snapshot.medianClusterSize.toLocaleString(undefined, { maximumFractionDigits: 1 })} ÷ largest size ${snapshot.largestClusterSize} = ${this.formatThresholdMetricDecimal(breakdown.balance)}`
+                    : `${prefix} fewer than 2 genetic clusters = ${this.formatThresholdMetricDecimal(breakdown.balance)}`;
+            case 'participation':
+                return `${prefix} ${snapshot.clusteredNodeCount} clustered nodes ÷ ${snapshot.nodeCount} total nodes = ${this.formatThresholdMetricDecimal(breakdown.participation)}`;
+            case 'equality':
+                return `${prefix} ${this.formatThresholdMetricDecimal(snapshot.clusteredFraction)} × (1 − ${this.formatThresholdMetricDecimal(snapshot.giniCoefficient)}) = ${this.formatThresholdMetricDecimal(breakdown.equality)}`;
+        }
     }
 
     formatThresholdStabilityClusterLabel(clusterCount: number): string {

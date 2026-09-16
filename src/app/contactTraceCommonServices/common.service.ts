@@ -22,7 +22,7 @@ import {
     buildStoredDistanceEdgeCache,
     buildThresholdSweepSummary,
     buildVisibleClusterSummary,
-    type ThresholdAnalysisBaseEdge,
+    isThresholdControlledGeneticLink,
     type ThresholdAnalysisPairEdge,
     type StoredDistanceEdgeCache,
     type ThresholdSweepSummary
@@ -80,6 +80,24 @@ interface ResolvedNetworkSubsetFilter {
     visibleLinkKeys: Set<string>;
 }
 
+const NETWORK_SUBSET_DERIVED_NODE_FIELDS = new Set([
+    'selected',
+    'cluster',
+    'visible',
+    'degree',
+    'hasdistance',
+    'x',
+    'y',
+    'vx',
+    'vy',
+    'foci'
+]);
+
+const NETWORK_SUBSET_DERIVED_LINK_FIELDS = new Set([
+    'visible',
+    'cluster',
+    'nn'
+]);
 @Directive()
 @Injectable({
     providedIn: 'root',
@@ -369,8 +387,19 @@ export class CommonService extends AppComponentBase implements OnInit {
             nodeTableColumns: [],
             linkTableColumns: [],
             clusterTableColumns: [],
+            geoJSON: null,
+            geoJSONLayerName: '',
+            floorplanImage: null,
+            floorplanImageLayerName: '',
+            floorplanImageBounds: null,
+            floorplanImageWidth: null,
+            floorplanImageHeight: null,
+            floorplanBackgroundBaseLayerState: null as any,
+            floorplanBoundaryField: 'None',
+            floorplanBoundaries: [],
             tree: {},
             newickString: '',
+            phylogeneticBootstrap: null,
             newickSource: '',
             auspiceMapData: {
                 countries: {
@@ -500,6 +529,12 @@ export class CommonService extends AppComponentBase implements OnInit {
             'map-field-county': 'None',
             'map-field-state': 'None',
             'map-field-country': 'None',
+            'map-user-geojson-show': false,
+            'map-user-geojson-color': '#3388ff',
+            'map-user-geojson-transparency': 0.25,
+            'map-user-geojson-label-field': 'None',
+            'map-floorplan-image-show': false,
+            'map-floorplan-boundaries-show': true,
             'map-link-show': true,
             'map-link-tooltip-variable': 'None',
             'map-link-transparency': 0,
@@ -576,8 +611,13 @@ export class CommonService extends AppComponentBase implements OnInit {
             'timeline-date-field': 'None',
             'timeline-noncumulative': true,
             'tree-animation-on': true,
+            'tree-bootstrap-custom-replicates': 100,
+            'tree-bootstrap-decimal-length': 1,
+            'tree-bootstrap-support-threshold': 0,
+            'tree-bootstrap-stop-when-stable': false,
             'tree-branch-distances-hide': true,
             'tree-branch-distance-size': 12,
+            'tree-branch-label-show': false,
             'tree-branch-nodes-show': false,
             'tree-horizontal-stretch': 1,
             'tree-layout-vertical': false,
@@ -1033,7 +1073,8 @@ export class CommonService extends AppComponentBase implements OnInit {
             this.session.data.nodes,
             this.session.data.links,
             metric,
-            analysis.version
+            analysis.version,
+            (link) => this.isThresholdAnalysisGeneticLink(link, metric)
         );
 
         analysis.storedDistanceCache[metric] = rebuilt;
@@ -1131,7 +1172,7 @@ export class CommonService extends AppComponentBase implements OnInit {
     public getThresholdSweepSummary(metric = this.session.style.widgets["link-sort-variable"]): ThresholdSweepSummary {
         const analysis = this.getAnalysisCache();
         const showNN = Boolean(this.session.style.widgets["link-show-nn"]);
-        const cacheKey = `${metric}|nn:${showNN ? 1 : 0}`;
+        const cacheKey = `${metric}|policy:genetic|nn:${showNN ? 1 : 0}`;
         const cached = analysis.thresholdSweepCache[cacheKey] as ThresholdSweepSummary | undefined;
 
         if (cached && cached.version === analysis.version) {
@@ -1141,58 +1182,15 @@ export class CommonService extends AppComponentBase implements OnInit {
         const distanceCache = this.getStoredDistanceEdgeCache(metric);
         const summary = buildThresholdSweepSummary(
             distanceCache,
-            this.getThresholdAnalysisBaseEdges(metric, distanceCache),
+            [],
             this.getThresholdAnalysisExcludedLinkIndexes(metric)
         );
         analysis.thresholdSweepCache[cacheKey] = summary;
         return summary;
     }
 
-    private getThresholdAnalysisBaseEdges(metric: string, cache: StoredDistanceEdgeCache): ThresholdAnalysisBaseEdge[] {
-        const edgesByKey = new Map<string, ThresholdAnalysisBaseEdge>();
-
-        this.session.data.links.forEach((link) => {
-            const sourceIndex = cache.nodeIndexById[link.source];
-            const targetIndex = cache.nodeIndexById[link.target];
-
-            if (
-                sourceIndex === undefined ||
-                targetIndex === undefined ||
-                sourceIndex === targetIndex
-            ) {
-                return;
-            }
-
-            const rawMetricValue = link?.[metric];
-            const metricValue = typeof rawMetricValue === 'number'
-                ? rawMetricValue
-                : (typeof rawMetricValue === 'string' && rawMetricValue.trim().length > 0
-                    ? Number(rawMetricValue)
-                    : NaN);
-            const hasNumericMetric = Number.isFinite(metricValue);
-            const distanceOrigins = this.getLinkDistanceOrigins(link);
-            const origins = Array.isArray(link?.origin) ? link.origin : [];
-            const hasNonDistanceOrigin = origins.some((originName: string) => {
-                const hasAuspice = /[Aa]uspice/.test(originName);
-                return Boolean(originName) && !hasAuspice && !this.isDistanceBackedOrigin(originName, distanceOrigins);
-            });
-            const isThresholdControlled = hasNumericMetric && link.hasDistance;
-            const isAlwaysVisible = hasNonDistanceOrigin || !isThresholdControlled;
-
-            if (!isAlwaysVisible) {
-                return;
-            }
-
-            const edgeKey = sourceIndex < targetIndex
-                ? `${sourceIndex}:${targetIndex}`
-                : `${targetIndex}:${sourceIndex}`;
-
-            if (!edgesByKey.has(edgeKey)) {
-                edgesByKey.set(edgeKey, { sourceIndex, targetIndex });
-            }
-        });
-
-        return Array.from(edgesByKey.values());
+    private isThresholdAnalysisGeneticLink(link: any, metric: string): boolean {
+        return isThresholdControlledGeneticLink(link, metric);
     }
 
     private getThresholdAnalysisExcludedLinkIndexes(metric: string): Set<number> {
@@ -1203,22 +1201,7 @@ export class CommonService extends AppComponentBase implements OnInit {
         const excludedIndexes = new Set<number>();
 
         this.session.data.links.forEach((link, linkIndex) => {
-            const rawMetricValue = link?.[metric];
-            const metricValue = typeof rawMetricValue === 'number'
-                ? rawMetricValue
-                : (typeof rawMetricValue === 'string' && rawMetricValue.trim().length > 0
-                    ? Number(rawMetricValue)
-                    : NaN);
-            const hasNumericMetric = Number.isFinite(metricValue);
-            const isThresholdControlled = hasNumericMetric && link.hasDistance;
-            const distanceOrigins = this.getLinkDistanceOrigins(link);
-            const origins = Array.isArray(link?.origin) ? link.origin : [];
-            const hasNonDistanceOrigin = origins.some((originName: string) => {
-                const hasAuspice = /[Aa]uspice/.test(originName);
-                return Boolean(originName) && !hasAuspice && !this.isDistanceBackedOrigin(originName, distanceOrigins);
-            });
-
-            if (isThresholdControlled && !link.nn && !hasNonDistanceOrigin) {
+            if (this.isThresholdAnalysisGeneticLink(link, metric) && !link.nn) {
                 excludedIndexes.add(linkIndex);
             }
         });
@@ -2164,11 +2147,27 @@ export class CommonService extends AppComponentBase implements OnInit {
         };
     }
 
-    private normalizeNetworkSubsetFilterRule(rule?: NetworkSubsetFilterRule): NetworkSubsetFilterRule {
-        return {
+    private normalizeNetworkSubsetFilterRule(
+        rule?: NetworkSubsetFilterRule,
+        target: 'node' | 'link' = 'node'
+    ): NetworkSubsetFilterRule {
+        const normalized = {
             ...this.createDefaultNetworkSubsetFilterRule(),
             ...(rule || {})
         };
+
+        return this.isNetworkSubsetFilterFieldAllowed(target, normalized.field)
+            ? normalized
+            : this.createDefaultNetworkSubsetFilterRule();
+    }
+
+    isNetworkSubsetFilterFieldAllowed(target: 'node' | 'link', field: any): boolean {
+        const normalizedField = String(field ?? '').trim().toLowerCase();
+        const derivedFields = target === 'node'
+            ? NETWORK_SUBSET_DERIVED_NODE_FIELDS
+            : NETWORK_SUBSET_DERIVED_LINK_FIELDS;
+
+        return !derivedFields.has(normalizedField);
     }
 
     ensureNetworkSubsetFilterState(): NetworkSubsetFilterState {
@@ -2183,8 +2182,8 @@ export class CommonService extends AppComponentBase implements OnInit {
         const state = this.session.state as any;
         const existing = state.networkSubsetFilter || {};
         const normalized = {
-            node: this.normalizeNetworkSubsetFilterRule(existing.node),
-            link: this.normalizeNetworkSubsetFilterRule(existing.link)
+            node: this.normalizeNetworkSubsetFilterRule(existing.node, 'node'),
+            link: this.normalizeNetworkSubsetFilterRule(existing.link, 'link')
         };
 
         state.networkSubsetFilter = normalized;
@@ -2201,8 +2200,8 @@ export class CommonService extends AppComponentBase implements OnInit {
         }
 
         (this.session.state as any).networkSubsetFilter = {
-            node: this.normalizeNetworkSubsetFilterRule(filter?.node),
-            link: this.normalizeNetworkSubsetFilterRule(filter?.link)
+            node: this.normalizeNetworkSubsetFilterRule(filter?.node, 'node'),
+            link: this.normalizeNetworkSubsetFilterRule(filter?.link, 'link')
         };
 
         if (updateNetwork) {
@@ -2265,7 +2264,6 @@ export class CommonService extends AppComponentBase implements OnInit {
             return;
         }
 
-        this.setLinkVisibility(true, false);
         this.updateNetworkVisuals(false, true);
     }
 
@@ -2281,6 +2279,15 @@ export class CommonService extends AppComponentBase implements OnInit {
         return String(node?._id ?? node?.id ?? '');
     }
 
+    private getNetworkSubsetEndpointId(endpoint: any): string {
+        if (endpoint && typeof endpoint === 'object') {
+            return this.getNetworkSubsetEndpointId(
+                endpoint._id ?? endpoint.id ?? endpoint.data?.id
+            );
+        }
+
+        return endpoint === undefined || endpoint === null ? '' : String(endpoint);
+    }
     private getNetworkSubsetLinkKey(link: any, index: number): string {
         return String(link?.id ?? link?.index ?? index);
     }
@@ -2333,6 +2340,9 @@ export class CommonService extends AppComponentBase implements OnInit {
                 }
 
                 return rawValues.some(value => {
+                    if (value.trim().length === 0) {
+                        return false;
+                    }
                     const rawNumber = Number(value);
                     if (!Number.isFinite(rawNumber)) {
                         return false;
@@ -2350,12 +2360,28 @@ export class CommonService extends AppComponentBase implements OnInit {
         }
     }
 
-    private objectMatchesNetworkSubsetRule(record: any, rule?: NetworkSubsetFilterRule): boolean {
+    getNetworkSubsetFieldValue(record: any, target: 'node' | 'link', field: string): any {
+        if (target === 'link' && field === 'origin') {
+            return this.getLinkAllOrigins(record);
+        }
+
+        return record?.[field];
+    }
+
+    private objectMatchesNetworkSubsetRule(
+        record: any,
+        rule?: NetworkSubsetFilterRule,
+        target: 'node' | 'link' = 'node'
+    ): boolean {
         if (!this.isNetworkSubsetRuleActive(rule)) {
             return true;
         }
 
-        return this.networkSubsetValueMatches(record?.[rule.field], rule.operator, rule.value);
+        return this.networkSubsetValueMatches(
+            this.getNetworkSubsetFieldValue(record, target, rule.field),
+            rule.operator,
+            rule.value
+        );
     }
 
     private resolveNetworkSubsetFilter(): ResolvedNetworkSubsetFilter {
@@ -2367,6 +2393,7 @@ export class CommonService extends AppComponentBase implements OnInit {
         const links = this.session.data.links || [];
         const visibleNodeIds = new Set<string>();
         const visibleLinkKeys = new Set<string>();
+        const candidateNodeIds = new Set<string>();
 
         if (!active) {
             return {
@@ -2378,43 +2405,34 @@ export class CommonService extends AppComponentBase implements OnInit {
             };
         }
 
-        if (nodeRuleActive) {
-            nodes.forEach(node => {
-                if (this.objectMatchesNetworkSubsetRule(node, filter.node)) {
-                    visibleNodeIds.add(this.getNetworkSubsetNodeId(node));
-                }
-            });
-        }
+        nodes.forEach(node => {
+            if (!nodeRuleActive || this.objectMatchesNetworkSubsetRule(node, filter.node, 'node')) {
+                candidateNodeIds.add(this.getNetworkSubsetNodeId(node));
+            }
+        });
 
-        if (linkRuleActive && !nodeRuleActive) {
-            links.forEach((link, index) => {
-                if (!this.objectMatchesNetworkSubsetRule(link, filter.link)) {
-                    return;
-                }
+        links.forEach((link, index) => {
+            const sourceId = this.getNetworkSubsetEndpointId(link.source);
+            const targetId = this.getNetworkSubsetEndpointId(link.target);
 
-                visibleLinkKeys.add(this.getNetworkSubsetLinkKey(link, index));
-                visibleNodeIds.add(String(link.source ?? ''));
-                visibleNodeIds.add(String(link.target ?? ''));
-            });
-        } else {
-            const eligibleNodeIds = nodeRuleActive
-                ? visibleNodeIds
-                : new Set(nodes.map(node => this.getNetworkSubsetNodeId(node)));
+            if (!candidateNodeIds.has(sourceId) || !candidateNodeIds.has(targetId)) {
+                return;
+            }
 
-            links.forEach((link, index) => {
-                const sourceId = String(link.source ?? '');
-                const targetId = String(link.target ?? '');
+            if (linkRuleActive && !this.objectMatchesNetworkSubsetRule(link, filter.link, 'link')) {
+                return;
+            }
 
-                if (!eligibleNodeIds.has(sourceId) || !eligibleNodeIds.has(targetId)) {
-                    return;
-                }
+            visibleLinkKeys.add(this.getNetworkSubsetLinkKey(link, index));
 
-                if (linkRuleActive && !this.objectMatchesNetworkSubsetRule(link, filter.link)) {
-                    return;
-                }
+            if (linkRuleActive) {
+                visibleNodeIds.add(sourceId);
+                visibleNodeIds.add(targetId);
+            }
+        });
 
-                visibleLinkKeys.add(this.getNetworkSubsetLinkKey(link, index));
-            });
+        if (!linkRuleActive) {
+            candidateNodeIds.forEach(nodeId => visibleNodeIds.add(nodeId));
         }
 
         return {
@@ -2820,6 +2838,9 @@ export class CommonService extends AppComponentBase implements OnInit {
         if (typeof oldSession.data?.newickString === 'string') {
             this.session.data.newickString = oldSession.data.newickString;
         }
+        if (oldSession.data?.phylogeneticBootstrap) {
+            this.session.data.phylogeneticBootstrap = oldSession.data.phylogeneticBootstrap;
+        }
         if (typeof oldSession.data?.newickSource === 'string') {
             this.session.data.newickSource = oldSession.data.newickSource;
         }
@@ -2841,10 +2862,25 @@ export class CommonService extends AppComponentBase implements OnInit {
         // Set to false to indicate that the network is not fully loaded  as new network is launching
         this.session.network.isFullyLoaded = false;
 
-         if (oldSession.data.geoJSONLayerName !== "") {
+        if (oldSession.data?.geoJSONLayerName || oldSession.data?.geoJSON) {
             this.session.data['geoJSON'] = oldSession.data.geoJSON;
-            this.session.data['geoJSONLayerName'] = oldSession.data.geoJSONLayerName;
+            this.session.data['geoJSONLayerName'] = oldSession.data.geoJSONLayerName || '';
         }
+
+        if (oldSession.data?.floorplanImageLayerName || oldSession.data?.floorplanImage) {
+            this.session.data['floorplanImage'] = oldSession.data.floorplanImage;
+            this.session.data['floorplanImageLayerName'] = oldSession.data.floorplanImageLayerName || '';
+            this.session.data['floorplanImageBounds'] = oldSession.data.floorplanImageBounds || null;
+            this.session.data['floorplanImageWidth'] = oldSession.data.floorplanImageWidth || null;
+            this.session.data['floorplanImageHeight'] = oldSession.data.floorplanImageHeight || null;
+        }
+
+        this.session.data['floorplanBackgroundBaseLayerState'] = oldSession.data?.floorplanBackgroundBaseLayerState || null;
+
+        this.session.data['floorplanBoundaryField'] = oldSession.data.floorplanBoundaryField || 'None';
+        this.session.data['floorplanBoundaries'] = Array.isArray(oldSession.data.floorplanBoundaries)
+            ? oldSession.data.floorplanBoundaries
+            : [];
 
         // Previous versions of MT could store jQuery events instead of color strings.
         // Node color history is now nested by variable, so sanitize its leaf values.
@@ -3860,25 +3896,17 @@ align(params): Promise<any> {
 
         console.log('----- finishUp -- search fields, color variable sort varialbe, distance UI');
 
-        $("#search-field")
-            .html(this.session.data.nodeFields.map(field => '<option value="' + field + '">' + this.titleize(field) + "</option>").join("\n"))
+        this.replaceSelectOptions("#search-field", this.session.data.nodeFields)
             .val(this.session.style.widgets["search-field"]);
         $("#search-form").css("display", "flex");
-        $("#link-sort-variable")
-            .html(this.session.data.linkFields.map(field => '<option value="' + field + '">' + this.titleize(field) + "</option>").join("\n"))
+        this.replaceSelectOptions("#link-sort-variable", this.session.data.linkFields)
             .val(this.session.style.widgets["link-sort-variable"]);
-        $("#node-color-variable")
-            .html(
-                "<option selected>None</option>" +
-                this.getStyleableNodeFields().map(field => '<option value="' + field + '">' + this.titleize(field) + "</option>").join("\n"))
+        this.replaceSelectOptions("#node-color-variable", this.getStyleableNodeFields(), true)
             .val(this.session.style.widgets["node-color-variable"]);
         $("#default-distance-metric")
             .val(this.session.style.widgets["default-distance-metric"]);
-        $("#link-color-variable")
-        .html(
-            "<option>None</option>" +
-            this.session.data.linkFields.map(field => '<option value="' + field + '">' + this.titleize(field) + "</option>").join("\n"))
-        .val(this.session.style.widgets["link-color-variable"]);
+        this.replaceSelectOptions("#link-color-variable", this.session.data.linkFields, true)
+            .val(this.session.style.widgets["link-color-variable"]);
         try {
             // TODO:: Refactoring asses need for this
             // this.updateThresholdHistogram();
@@ -3964,6 +3992,22 @@ align(params): Promise<any> {
         });
     };
 
+    /**
+     * Replaces a select element's options without interpreting field names as HTML.
+     */
+    private replaceSelectOptions(selector: string, fields: string[], includeNone = false) {
+        const select = $(selector).empty();
+
+        if (includeNone) {
+            select.append($("<option>").text("None"));
+        }
+
+        fields.forEach(field => {
+            select.append($("<option>").val(field).text(this.titleize(field)));
+        });
+
+        return select;
+    }
 
     updateNetworkVisuals(silent: boolean = false, forceClusterUpdate: boolean = false) {
         const updateStart = Date.now();
@@ -3977,6 +4021,10 @@ align(params): Promise<any> {
             .filter(link => link.visible)
             .map(link => getVisibleLinkKey(link))
         );
+
+        // Cluster membership must always be derived from the current threshold,
+        // nearest-neighbor, and subset rules rather than stale link.visible values.
+        this.setLinkVisibility(true, false);
 
         this.tagClusters().then(() => {
           this.setClusterVisibility(true);

@@ -114,7 +114,7 @@ const exportCrosstab = (
 
 describe('Crosstab Export', () => {
   beforeEach(() => {
-    visitAppAndAcceptEula({ skipDemoSession: false });
+    visitAppAndAcceptEula({ skipDemoSession: false, dismissWelcomeOverlay: true });
     goToCrosstabView();
 
     cy.contains('.p-dialog-title', 'Crosstab Settings', { timeout: 10000 })

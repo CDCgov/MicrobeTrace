@@ -385,8 +385,8 @@ describe('Epi Curve / Timeline View', () => {
           .click();
       });
 
-      cy.get('p-selectitem')
-        .contains('li', value)
+      cy.get('.p-select-option')
+        .contains(value)
         .click();
 
       const normalize = (s: string) => s.replace(/_/g, '').toLowerCase();
