@@ -294,6 +294,102 @@ const selectDockedCardVariable = (table: KeyTableName, optionLabel: string): voi
     .should('contain', optionLabel);
 };
 
+const assertDockedCardCollapsed = (table: KeyTableName, collapsed: boolean): void => {
+  getDockedCard(table).should(($card) => {
+    expect(
+      $card.hasClass('key-table-card--collapsed'),
+      `${table} compact card state`,
+    ).to.equal(collapsed);
+    const flexShrink = Number.parseFloat(getComputedStyle($card[0]).flexShrink);
+    if (collapsed) {
+      expect(flexShrink, `${table} compact card shrink`).to.equal(0);
+    } else {
+      expect(flexShrink, `${table} expanded card shrink`).to.equal(1);
+    }
+  });
+
+  getDockedCard(table)
+    .find(`button[title="${collapsed ? 'Expand table' : 'Collapse table'}"]`)
+    .should('be.visible');
+};
+
+const assertColorControlsOnOneLine = (tableSelector: string): void => {
+  cy.get(`${tableSelector} .style-key-table__color-control`, { timeout: 15000 })
+    .should(($controls) => {
+      expect($controls.length, `${tableSelector} color controls`).to.be.greaterThan(0);
+
+      $controls.each((_index, control) => {
+        const input = control.querySelector('input[type="color"]');
+        const transparency = control.querySelector('.transparency-symbol');
+
+        expect(input, `${tableSelector} color input`).to.exist;
+        expect(transparency, `${tableSelector} transparency control`).to.exist;
+
+        const inputRect = input!.getBoundingClientRect();
+        const transparencyRect = transparency!.getBoundingClientRect();
+        const inputCenter = (inputRect.top + inputRect.bottom) / 2;
+        const transparencyCenter = (transparencyRect.top + transparencyRect.bottom) / 2;
+
+        expect(
+          Math.abs(inputCenter - transparencyCenter),
+          `${tableSelector} color controls vertical alignment`,
+        ).to.be.lessThan(4);
+        expect(
+          inputRect.right,
+          `${tableSelector} color input before transparency control`,
+        ).to.be.at.most(transparencyRect.left);
+      });
+    });
+};
+
+const assertDockedVariableSelectWidthsMatch = (): void => {
+  cy.get('.key-table-card:visible .key-table-card__select')
+    .should('have.length', 3)
+    .then(($selects) => {
+      const widths = $selects
+        .toArray()
+        .map((select) => select.getBoundingClientRect().width);
+
+      expect(
+        Math.max(...widths) - Math.min(...widths),
+        'docked key-table variable selector width difference',
+      ).to.be.lessThan(1);
+    });
+};
+
+const assertStickyTableHeader = (tableSelector: string): void => {
+  cy.get(tableSelector, { timeout: 15000 }).then(($table) => {
+    const table = $table.get(0);
+    const scroller = table.closest('.key-table-card__table') as HTMLElement | null;
+    const header = table.querySelector('th') as HTMLElement | null;
+    const firstDataCell = table.querySelector('tr:nth-child(2) td') as HTMLElement | null;
+
+    expect(scroller, `${tableSelector} scroll container`).to.exist;
+    expect(header, `${tableSelector} header`).to.exist;
+    expect(firstDataCell, `${tableSelector} first data row`).to.exist;
+    expect(scroller!.scrollHeight, `${tableSelector} scrollable content`).to.be.greaterThan(scroller!.clientHeight);
+    expect(getComputedStyle(header!).position, `${tableSelector} sticky positioning`).to.equal('sticky');
+    expect(getComputedStyle(header!).backgroundColor, `${tableSelector} opaque header`).to.equal('rgb(255, 255, 255)');
+
+    scroller!.scrollTop = Math.min(20, scroller!.scrollHeight - scroller!.clientHeight);
+    const lockedHeaderTop = header!.getBoundingClientRect().top;
+
+    scroller!.scrollTop = scroller!.scrollHeight;
+    const scrolledHeaderTop = header!.getBoundingClientRect().top;
+
+    expect(
+      Math.abs(scrolledHeaderTop - lockedHeaderTop),
+      `${tableSelector} header position while scrolling`,
+    ).to.be.lessThan(1);
+    expect(
+      firstDataCell!.getBoundingClientRect().top,
+      `${tableSelector} rows move beneath the header`,
+    ).to.be.lessThan(scrolledHeaderTop);
+
+    scroller!.scrollTop = 0;
+  });
+};
+
 const readDockedColorTableValues = (selector: '#key-tables-node-table' | '#key-tables-link-table') => {
   return cy.get(selector, { timeout: 15000 }).then(($table) =>
     $table.find('td[data-value]')
@@ -811,6 +907,105 @@ describe('Journey Flow - Docked key tables on uploaded data', () => {
     assertFloatingDialogVisible('node-shape', false);
   });
 
+  it('rebalances card heights while keeping color controls inline and table headers sticky', () => {
+    cy.viewport(1600, 900);
+    launchProfileToTwoD(profile);
+    assertAfterLaunchCounts(profile);
+
+    enableKeyTablesFromGlobalSettings('Dock');
+    focusAppTab('Docked Key Tables');
+    selectDockedCardVariable('node-color', 'State');
+    selectDockedCardVariable('link-color', 'Contact type');
+    selectDockedCardVariable('node-shape', 'Node type');
+
+    assertColorControlsOnOneLine('#key-tables-node-table');
+    assertColorControlsOnOneLine('#key-tables-link-table');
+    assertStickyTableHeader('#key-tables-node-table');
+
+    cy.get('.key-table-card__table:visible th').should(($headers) => {
+      expect($headers.length, 'visible docked table headers').to.be.greaterThan(0);
+      $headers.each((_index, header) => {
+        expect(getComputedStyle(header).position, 'shared sticky header style').to.equal('sticky');
+      });
+    });
+
+    let denseNodeHeight = 0;
+    let constrainedLinkHeight = 0;
+
+    getDockedCard('node-color').then(($card) => {
+      denseNodeHeight = $card.get(0).getBoundingClientRect().height;
+    });
+    getDockedCard('link-color').then(($card) => {
+      constrainedLinkHeight = $card.get(0).getBoundingClientRect().height;
+    });
+
+    selectDockedCardVariable('node-color', 'Node type');
+
+    getDockedCard('node-color').should(($card) => {
+      expect(
+        $card.get(0).getBoundingClientRect().height,
+        'shortened node-color card height',
+      ).to.be.lessThan(denseNodeHeight);
+    });
+    getDockedCard('link-color').should(($card) => {
+      expect(
+        $card.get(0).getBoundingClientRect().height,
+        'remaining height transferred to link-color card',
+      ).to.be.greaterThan(constrainedLinkHeight);
+    });
+  });
+
+  it('automatically compacts docked cards whose backing variable is None', () => {
+    launchProfileToTwoD(profile);
+    assertAfterLaunchCounts(profile);
+
+    enableKeyTablesFromGlobalSettings('Dock');
+    focusAppTab('Docked Key Tables');
+
+    const selections: Array<{ table: KeyTableName; populated: string }> = [
+      { table: 'node-color', populated: 'State' },
+      { table: 'link-color', populated: 'Contact type' },
+      { table: 'node-shape', populated: 'State' },
+    ];
+
+    selections.forEach(({ table, populated }) => {
+      assertDockedCardCollapsed(table, false);
+      selectDockedCardVariable(table, 'None');
+      assertDockedCardCollapsed(table, true);
+
+      if (table === 'node-color') {
+        getDockedCard(table).find('button[title="Expand table"]').click({ force: true });
+        assertDockedCardCollapsed(table, false);
+        getDockedCard(table).find('.key-table-card__fallback').should('be.visible');
+
+        cy.window().then((win: unknown) => {
+          (win as WinWithMT).commonService.visuals.keyTables?.refreshTables?.();
+        });
+        assertDockedCardCollapsed(table, false);
+        getDockedCard(table).find('button[title="Collapse table"]').click({ force: true });
+        assertDockedCardCollapsed(table, true);
+      }
+
+      selectDockedCardVariable(table, populated);
+      assertDockedCardCollapsed(table, false);
+    });
+
+    selections.forEach(({ table }) => {
+      selectDockedCardVariable(table, 'None');
+      assertDockedCardCollapsed(table, true);
+    });
+    assertDockedVariableSelectWidthsMatch();
+    selections.forEach(({ table, populated }) => {
+      selectDockedCardVariable(table, populated);
+      assertDockedCardCollapsed(table, false);
+    });
+
+    getDockedCard('node-color').find('button[title="Collapse table"]').click({ force: true });
+    assertDockedCardCollapsed('node-color', true);
+    selectDockedCardVariable('node-color', 'Profession');
+    assertDockedCardCollapsed('node-color', true);
+  });
+
   it('lets docked cards edit category-specific node colors, link colors, and node shapes', () => {
     const updatedFloridaColor = '#ff0000';
     const updatedSportsTeamColor = '#0055aa';
@@ -1108,6 +1303,12 @@ describe('Journey Flow - Docked key tables on uploaded data', () => {
     });
     assertTableHeader(DOCKED_GROUP_COLOR_TABLE_SELECTOR, 'polygon-color', 'value', floatingGroupHeader);
     assertTableLabel(DOCKED_GROUP_COLOR_TABLE_SELECTOR, 'B', floatingSubtypeBLabel);
+    assertColorControlsOnOneLine(DOCKED_GROUP_COLOR_TABLE_SELECTOR);
+    cy.get(`${DOCKED_GROUP_COLOR_TABLE_SELECTOR} th`).should(($headers) => {
+      $headers.each((_index, header) => {
+        expect(getComputedStyle(header).position, 'group color sticky header style').to.equal('sticky');
+      });
+    });
     cy.window().its('commonService.session.style.widgets.polygons-foci').should('equal', 'subtype');
 
     focusAppTab('2D Network');

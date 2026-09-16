@@ -40,6 +40,7 @@ export class KeyTablesComponent extends BaseComponentDirective implements OnInit
     linkTableCollapsed = false;
     nodeShapeTableCollapsed = false;
     polygonTableCollapsed = false;
+    private readonly lastSelectedTableVariables: Partial<Record<KeyTableName, string>> = {};
 
     constructor(
         @Inject(BaseComponentDirective.GoldenLayoutContainerInjectionToken) private container: ComponentContainer,
@@ -178,6 +179,7 @@ export class KeyTablesComponent extends BaseComponentDirective implements OnInit
             return;
         }
 
+        this.syncTableCollapsedStates();
         this.hasNodeColorTable = this.isTableDocked('node-color') && microbeTrace.SelectedColorNodesByVariable !== 'None';
         this.hasLinkColorTable = this.isTableDocked('link-color') && microbeTrace.SelectedColorLinksByVariable !== 'None';
         this.hasNodeShapeTable = this.isTableDocked('node-shape') && microbeTrace.SelectedNodeSymbolVariable !== 'None';
@@ -334,16 +336,62 @@ export class KeyTablesComponent extends BaseComponentDirective implements OnInit
 
     toggleTableCollapsed(table: KeyTableName, event?: Event): void {
         event?.stopPropagation();
+        this.setTableCollapsed(table, !this.isTableCollapsed(table));
+        this.cdref.markForCheck();
+    }
 
+    private isTableCollapsed(table: KeyTableName): boolean {
         if (table === 'node-color') {
-            this.nodeTableCollapsed = !this.nodeTableCollapsed;
-        } else if (table === 'link-color') {
-            this.linkTableCollapsed = !this.linkTableCollapsed;
-        } else {
-            this.nodeShapeTableCollapsed = !this.nodeShapeTableCollapsed;
+            return this.nodeTableCollapsed;
         }
 
-        this.cdref.markForCheck();
+        if (table === 'link-color') {
+            return this.linkTableCollapsed;
+        }
+
+        return this.nodeShapeTableCollapsed;
+    }
+
+    private setTableCollapsed(table: KeyTableName, collapsed: boolean): void {
+        if (table === 'node-color') {
+            this.nodeTableCollapsed = collapsed;
+        } else if (table === 'link-color') {
+            this.linkTableCollapsed = collapsed;
+        } else {
+            this.nodeShapeTableCollapsed = collapsed;
+        }
+    }
+
+    private getSelectedTableVariable(table: KeyTableName): string {
+        if (table === 'node-color') {
+            return this.selectedNodeColorBy;
+        }
+
+        if (table === 'link-color') {
+            return this.selectedLinkColorBy;
+        }
+
+        return this.selectedNodeShapeBy;
+    }
+
+    private syncTableCollapsedStates(): void {
+        const tables: KeyTableName[] = ['node-color', 'link-color', 'node-shape'];
+
+        tables.forEach(table => {
+            const selectedVariable = this.getSelectedTableVariable(table);
+            const previousVariable = this.lastSelectedTableVariables[table];
+            if (selectedVariable === previousVariable) {
+                return;
+            }
+
+            if (selectedVariable === 'None') {
+                this.setTableCollapsed(table, true);
+            } else if (previousVariable === 'None') {
+                this.setTableCollapsed(table, false);
+            }
+
+            this.lastSelectedTableVariables[table] = selectedVariable;
+        });
     }
 
     togglePolygonColorTableDocking(event?: Event): void {

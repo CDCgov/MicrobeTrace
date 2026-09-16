@@ -110,11 +110,12 @@ export interface StyleKeyTableShapePanelRequest {
                         </div>
                     </th>
                 }
-                <th>{{ controlHeader }}</th>
+                <th [class.style-key-table__color-column]="controlType === 'color'">{{ controlHeader }}</th>
             </tr>
             @for (row of rows; track row.trackKey) {
                 <tr>
                     <td
+                        class="style-key-table__value-cell"
                         [attr.data-value]="row.rawValue"
                         [attr.contenteditable]="editable ? 'true' : null"
                         [textContent]="row.displayName"
@@ -127,7 +128,9 @@ export interface StyleKeyTableShapePanelRequest {
                     @if (showFrequencies) {
                         <td class="tableFrequency">{{ row.frequency }}</td>
                     }
-                    <td [style.background-color]="!editable && controlType === 'color' && !row.duoSegments?.length ? row.color : null">
+                    <td
+                        [class.style-key-table__color-column]="controlType === 'color'"
+                        [style.background-color]="!editable && controlType === 'color' && !row.duoSegments?.length ? row.color : null">
                         @if (controlType === 'color') {
                             @if (row.duoSegments?.length) {
                                 <div class="style-key-table__duo-swatch">
@@ -143,14 +146,16 @@ export interface StyleKeyTableShapePanelRequest {
                                     </div>
                                 </div>
                             } @else if (editable) {
-                                <input
-                                    type="color"
-                                    [attr.value]="row.color"
-                                    [value]="row.color"
-                                    [style.opacity]="row.alpha ?? 1"
-                                    style="border:none"
-                                    (change)="onColorInputChange(row, $event)">
-                                <a class="transparency-symbol" style="cursor: pointer" (click)="onAlphaClick(row, $event)">&#8691;</a>
+                                <div class="style-key-table__color-control">
+                                    <input
+                                        type="color"
+                                        class="style-key-table__color-input"
+                                        [attr.value]="row.color"
+                                        [value]="row.color"
+                                        [style.opacity]="row.alpha ?? 1"
+                                        (change)="onColorInputChange(row, $event)">
+                                    <a class="transparency-symbol" style="cursor: pointer" (click)="onAlphaClick(row, $event)">&#8691;</a>
+                                </div>
                             }
                         } @else {
                             <p-treeSelect
@@ -203,6 +208,14 @@ export interface StyleKeyTableShapePanelRequest {
             width: 100%;
         }
 
+        th {
+            position: sticky;
+            top: var(--style-key-table-sticky-top, 0);
+            z-index: 2;
+            background: #ffffff;
+            box-shadow: 0 1px 0 #e0e9e2;
+        }
+
         .style-key-table__duo-swatch {
             background: #f0f0f0;
             display: flex;
@@ -222,6 +235,36 @@ export interface StyleKeyTableShapePanelRequest {
             display: inline-block;
             height: 100%;
             width: 50%;
+        }
+
+        .style-key-table__value-cell {
+            overflow-wrap: anywhere;
+        }
+
+        .style-key-table__color-column {
+            padding-left: 8px;
+            width: 1%;
+            white-space: nowrap;
+        }
+
+        .style-key-table__color-control {
+            align-items: center;
+            display: inline-flex;
+            gap: 4px;
+            white-space: nowrap;
+        }
+
+        .style-key-table__color-input {
+            box-sizing: border-box;
+            flex: 0 0 42px;
+            min-width: 42px;
+            width: 42px;
+            border: none;
+        }
+
+        .style-key-table__color-control .transparency-symbol {
+            flex: 0 0 auto;
+            padding-left: 0;
         }
 
         .style-key-table__shape-option {

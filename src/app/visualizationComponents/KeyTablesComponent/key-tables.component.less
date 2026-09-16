@@ -56,9 +56,10 @@
 
 .key-table-card {
     display: flex;
-    flex: 1;
+    flex: 1 1 0;
     flex-direction: column;
     gap: 10px;
+    max-height: max-content;
     min-height: 0;
     padding: 14px;
     border: 1px solid #d8e2da;
@@ -73,41 +74,79 @@
 }
 
 .key-table-card__header {
-    display: flex;
-    align-items: flex-start;
-    justify-content: space-between;
-    gap: 10px;
-}
-
-.key-table-card__controls {
-    display: flex;
-    flex-wrap: wrap;
+    display: grid;
+    grid-template-columns: minmax(107px, max-content) minmax(0, 1fr);
     align-items: center;
-    justify-content: flex-end;
-    gap: 8px;
+    gap: 15px;
 }
 
-.key-table-card__controls span {
-    font-size: 11px;
+.key-table-card__identity {
+    display: flex;
+    flex: 0 0 auto;
+    flex-direction: column;
+    justify-content: center;
+    gap: 3px;
+    min-width: 0;
+    width: fit-content;
+}
+
+.key-table-card__identity h5 {
+    margin: 0;
+    font-size: 18px;
+    line-height: 1.15;
+    white-space: nowrap;
+}
+
+.key-table-card__scope {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding-top: 5px;
+    font-size: 9px;
     font-weight: 700;
+    line-height: 1;
     letter-spacing: 0.08em;
     text-transform: uppercase;
     color: #53735a;
 }
 
+.key-table-card__scope::before {
+    position: absolute;
+    top: 0;
+    right: 0;
+    left: 0;
+    height: 1px;
+    background: #9eb3a2;
+    content: '';
+}
+
+.key-table-card__controls {
+    display: flex;
+    flex: 1 1 auto;
+    flex-wrap: nowrap;
+    align-items: center;
+    justify-content: flex-end;
+    min-width: 0;
+}
+
 .key-table-card__select {
-    min-width: 180px;
+    min-width: 0;
+    flex: 1 1 180px;
 }
 
 .key-table-card__menu-anchor {
     position: relative;
+    flex: 0 0 auto;
 }
 
 .key-table-card__settings-trigger {
+    flex: 0 0 32px;
     min-width: 32px;
 }
 
 .key-table-card__collapse-trigger {
+    flex: 0 0 32px;
     min-width: 32px;
 }
 
@@ -170,7 +209,8 @@
 
 
 .key-table-card__table {
-    flex: 1;
+    --style-key-table-sticky-top: -6px;
+    flex: 0 1 auto;
     min-height: 0;
     overflow: auto;
     padding: 6px;
