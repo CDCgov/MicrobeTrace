@@ -1742,6 +1742,8 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
         ringPath.setAttribute('data-mt-node-id', replacement.nodeId);
         ringPath.setAttribute('data-mt-slice-label', slice.label);
         ringPath.setAttribute('data-mt-mixed-ring-segment', `${segmentIndex}`);
+        ringPath.setAttribute('data-mt-segment-start-fraction', this.formatSvgNumber(segment.startFraction));
+        ringPath.setAttribute('data-mt-segment-end-fraction', this.formatSvgNumber(segment.endFraction));
         ringPath.setAttribute('fill', segment.color);
         ringPath.setAttribute('fill-opacity', this.formatSvgNumber(Number.isFinite(segmentOpacity) ? segmentOpacity : 1));
         ringPath.setAttribute('stroke', 'none');

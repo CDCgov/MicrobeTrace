@@ -1,4 +1,5 @@
 import { MIXED_NODE_RING_WIDTH_RADIUS_FRACTION } from './node-shapes';
+import { buildNormalizedWeightedSegmentRanges } from './weighted-segments';
 
 export interface PieChartSlice {
   label: string;
@@ -271,17 +272,20 @@ export function buildEvenMixedPieChartRingSegments(
   outerRadius: number,
   innerRadius: number
 ): MixedPieChartRingPathSegment[] {
-  const validSegments = (segments || []).filter(segment => typeof segment?.color === 'string' && !!segment.color);
-  if (validSegments.length < 2) {
+  const weightedSegments = buildNormalizedWeightedSegmentRanges(
+    segments,
+    segment => typeof segment?.color === 'string' && !!segment.color
+  );
+  if (weightedSegments.length < 2) {
     return [];
   }
 
   const sliceFraction = Math.max(0, endFraction - startFraction);
-  return validSegments.map((segment, index) => {
-    const segmentStartFraction = startFraction + sliceFraction * index / validSegments.length;
-    const segmentEndFraction = index === validSegments.length - 1
+  return weightedSegments.map(({ segment, startFraction: weightedStart, endFraction: weightedEnd }, index) => {
+    const segmentStartFraction = startFraction + sliceFraction * weightedStart;
+    const segmentEndFraction = index === weightedSegments.length - 1
       ? endFraction
-      : startFraction + sliceFraction * (index + 1) / validSegments.length;
+      : startFraction + sliceFraction * weightedEnd;
     return {
       ...segment,
       startFraction: segmentStartFraction,
@@ -329,7 +333,7 @@ export function buildPieChartPatternDef(patternId: string, slices: PieChartSlice
     const ringSegments = mixedRingSegments.map((segment, index) => {
       const segmentAlpha = Number(segment.alpha ?? slice.alpha);
       const segmentOpacity = Number.isFinite(segmentAlpha) ? Math.max(0, Math.min(1, segmentAlpha)) : 1;
-      return `<path d='${segment.path}' fill='${segment.color}' fill-opacity='${segmentOpacity}' data-mt-mixed-ring-segment='${index}' />`;
+      return `<path d='${segment.path}' fill='${segment.color}' fill-opacity='${segmentOpacity}' data-mt-mixed-ring-segment='${index}' data-mt-segment-start-fraction='${formatPieChartNumber(segment.startFraction)}' data-mt-segment-end-fraction='${formatPieChartNumber(segment.endFraction)}' />`;
     }).join('');
     return `${hollowSlice}${ringSegments}`;
   }).join('');

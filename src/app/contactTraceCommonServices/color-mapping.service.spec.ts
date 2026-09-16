@@ -1,4 +1,4 @@
-import { buildCanonicalNodeColorCounts, canonicalizeMixedNodeColorComponents, ColorMappingService, getMixedNodeColorLegendEntries, getMixedNodeColorSegments, normalizeNodeStyleCategoryValue, parseMixedNodeColorValue } from './color-mapping.service';
+import { buildCanonicalNodeColorCounts, canonicalizeMixedNodeColorComponents, ColorMappingService, getMixedNodeColorLegendEntries, getMixedNodeColorSegments, normalizeNodeStyleCategoryValue, parseMixedNodeColorValue, parseWeightedMixedNodeColorValue } from './color-mapping.service';
 
 describe('mixed node color helpers', () => {
   it('normalizes null-like aliases to the shared empty category', () => {
@@ -46,9 +46,57 @@ describe('mixed node color helpers', () => {
       '#000000',
       1
     )).toEqual([
-      { value: '2a', color: '#00aa00', alpha: 0.4, weight: 1 },
-      { value: '3a', color: '#ffff00', alpha: 0.8, weight: 1 }
+      { value: '2a', color: '#00aa00', alpha: 0.4, weight: 0.5 },
+      { value: '3a', color: '#ffff00', alpha: 0.8, weight: 0.5 }
     ]);
+  });
+
+  it('normalizes count, decimal, and percentage weights to the same proportions', () => {
+    const expected = {
+      components: [
+        { value: '2a', weight: 0.7 },
+        { value: '3a', weight: 0.3 }
+      ],
+      hasExplicitWeights: true,
+      invalidWeights: false
+    };
+
+    ['2a:7/3a:3', '2a:0.7/3a:0.3', '2a:70%/3a:30%', '2a:70%/3a:0.3'].forEach(value => {
+      expect(parseWeightedMixedNodeColorValue(value)).toEqual(expected);
+    });
+  });
+
+  it('accepts every supported separator for weighted values', () => {
+    ['/', ',', ';', '+', '|', ' and '].forEach(separator => {
+      expect(parseWeightedMixedNodeColorValue(`2a:3${separator}3a:1`).components).toEqual([
+        { value: '2a', weight: 0.75 },
+        { value: '3a', weight: 0.25 }
+      ]);
+    });
+  });
+
+  it('sums duplicate weighted labels before normalization', () => {
+    expect(parseWeightedMixedNodeColorValue('2a:20/3a:50/2a:30')).toEqual({
+      components: [
+        { value: '2a', weight: 0.5 },
+        { value: '3a', weight: 0.5 }
+      ],
+      hasExplicitWeights: true,
+      invalidWeights: false
+    });
+  });
+
+  it('falls back to equal weights when annotations are partial or invalid', () => {
+    ['2a:70/3a', '2a:0/3a:1', '2a:-1/3a:2', '2a:nope/3a:30', '2a:Infinity/3a:30'].forEach(value => {
+      expect(parseWeightedMixedNodeColorValue(value)).toEqual({
+        components: [
+          { value: '2a', weight: 0.5 },
+          { value: '3a', weight: 0.5 }
+        ],
+        hasExplicitWeights: true,
+        invalidWeights: true
+      });
+    });
   });
 
   it('uses the persisted color-domain order for mixed segments regardless of source order', () => {
@@ -77,8 +125,8 @@ describe('mixed node color helpers', () => {
       { Genotype: 'N/A' },
       { Genotype: null }
     ], 'Genotype')).toEqual([
-      { value: '2a/3a', components: ['2a', '3a'], count: 2 },
-      { value: '6/7a', components: ['6', '7a'], count: 1 }
+      { value: '2a:0.5/3a:0.5', components: ['2a', '3a'], weights: [0.5, 0.5], count: 2, invalidWeights: false },
+      { value: '6:0.5/7a:0.5', components: ['6', '7a'], weights: [0.5, 0.5], count: 1, invalidWeights: false }
     ]);
   });
 
@@ -87,7 +135,18 @@ describe('mixed node color helpers', () => {
       { Genotype: '3a/2a' },
       { Genotype: '2a, 3a' }
     ], 'Genotype', ['2a', '3a'])).toEqual([
-      { value: '2a/3a', components: ['2a', '3a'], count: 2 }
+      { value: '2a:0.5/3a:0.5', components: ['2a', '3a'], weights: [0.5, 0.5], count: 2, invalidWeights: false }
+    ]);
+  });
+
+  it('groups reordered and proportionally equivalent weighted legend values', () => {
+    expect(getMixedNodeColorLegendEntries([
+      { Genotype: '3a:3/2a:7' },
+      { Genotype: '2a:70%/3a:30%' },
+      { Genotype: '2a:1/3a:1' }
+    ], 'Genotype', ['2a', '3a'])).toEqual([
+      { value: '2a:0.5/3a:0.5', components: ['2a', '3a'], weights: [0.5, 0.5], count: 1, invalidWeights: false },
+      { value: '2a:0.7/3a:0.3', components: ['2a', '3a'], weights: [0.7, 0.3], count: 2, invalidWeights: false }
     ]);
   });
 
@@ -113,7 +172,7 @@ describe('mixed node color helpers', () => {
     const expected = [
       { label: '1a', count: 1 },
       { label: '2a', count: 1 },
-      { label: '2a/3a', count: 2 },
+      { label: '2a:0.5/3a:0.5', count: 2 },
       { label: '3a', count: 1 }
     ];
 
@@ -162,6 +221,38 @@ describe('mixed node color helpers', () => {
     expect(result.aggregates['3a']).toBe(1);
     expect(result.updatedColorsTableKeys.Genotype).toEqual(['2a', '3a']);
     expect(result.updatedColorsTableKeys.Genotype).not.toContain('2a/3a');
+    expect(result.invalidMixedWeightCount).toBe(0);
+  });
+
+  it('reports visible invalid weighted values while preserving equal component colors', () => {
+    const service = new ColorMappingService();
+    const result = service.createNodeColorMap(
+      [
+        { visible: true, Genotype: '2a:70/3a' },
+        { visible: false, Genotype: '2a:0/3a:1' },
+        { visible: true, Genotype: '2a:3/3a:1' }
+      ],
+      'Genotype',
+      ['#00aa00', '#ffff00'],
+      [1, 1],
+      {},
+      {},
+      {},
+      {},
+      false,
+      true
+    );
+
+    expect(result.invalidMixedWeightCount).toBe(1);
+    expect(getMixedNodeColorSegments(
+      '2a:70/3a',
+      result.colorMap,
+      result.alphaMap,
+      '#000000'
+    ).map(segment => [segment.value, segment.weight])).toEqual([
+      ['2a', 0.5],
+      ['3a', 0.5]
+    ]);
   });
 
   it('keeps components that only occur inside mixed values in the color table domain', () => {

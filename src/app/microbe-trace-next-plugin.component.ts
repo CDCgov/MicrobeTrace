@@ -21,7 +21,7 @@ import { CommonStoreService } from './contactTraceCommonServices/common-store.se
 import { ExportService, ExportOptions } from './contactTraceCommonServices/export.service';
 import { GraphMLService } from './contactTraceCommonServices/graphml.service';
 import { sanitizeExportRows } from './contactTraceCommonServices/export-sanitization';
-import { getMixedNodeColorLegendEntries } from './contactTraceCommonServices/color-mapping.service';
+import { formatNodeColorWeightPercentage, getMixedNodeColorLegendEntries } from './contactTraceCommonServices/color-mapping.service';
 import * as XLSX from 'xlsx';
 import { buildDate, commitHash } from "src/environments/version";
 import { EmbedHandoffService } from './embed/embed-handoff.service';
@@ -3795,6 +3795,13 @@ ${warnings.join('\n')}`,
         this.onColorNodesByChanged(silent);
     }
 
+    get nodeMixedColorInvalidWeightCount(): number {
+        if (!this.SelectedNodeMixedColorsEnabledVariable || this.SelectedColorNodesByVariable === 'None') {
+            return 0;
+        }
+        return Number(this.commonService.temp.style.nodeMixedColorInvalidWeightCount || 0);
+    }
+
     generateNodeColorTable(tableId: string, isEditable: boolean = true) {
         this.nodeColorTableEditable = isEditable;
         this.nodeColorTableHeaders = {
@@ -3835,20 +3842,30 @@ ${warnings.join('\n')}`,
             )
                 .map(entry => {
                     const fillStyle = this.commonService.getNodeFillStyle({
-                        [this.SelectedColorNodesByVariable]: entry.components
+                        [this.SelectedColorNodesByVariable]: entry.value
                     });
+                    const displayName = entry.components
+                        .map((component, index) => {
+                            const componentName = this.getNodeValueDisplayName(
+                                component,
+                                this.SelectedColorNodesByVariable
+                            );
+                            return `${componentName} ${formatNodeColorWeightPercentage(entry.weights[index])}`;
+                        })
+                        .join(' / ');
 
                     return {
                         rawValue: entry.value,
                         trackKey: `node-color-mixed-${entry.value}`,
-                        displayName: this.getNodeValueDisplayName(entry.value, this.SelectedColorNodesByVariable),
+                        displayName,
                         count: entry.count,
                         frequency: vnodes.length === 0 ? '' : (entry.count / vnodes.length).toLocaleString(),
                         colorSegments: fillStyle.segments?.map(segment => ({
                             value: segment.value,
-                            displayName: this.getNodeValueDisplayName(segment.value, this.SelectedColorNodesByVariable),
+                            displayName: `${this.getNodeValueDisplayName(segment.value, this.SelectedColorNodesByVariable)} ${formatNodeColorWeightPercentage(segment.weight)}`,
                             color: segment.color,
                             opacity: segment.alpha,
+                            weight: segment.weight,
                             index: aggregateValues.findIndex(value => value === segment.value)
                         }))
                     };

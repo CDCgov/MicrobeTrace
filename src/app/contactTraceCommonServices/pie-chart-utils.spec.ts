@@ -125,6 +125,8 @@ describe('segmented pie chart slices', () => {
     expect(pattern).toContain("fill='none' fill-opacity='0' data-mt-contains-mixed-infection='true'");
     expect(pattern).not.toContain("fill='#ffffff' fill-opacity='1' data-mt-contains-mixed-infection='true'");
     expect(pattern).toContain("data-mt-mixed-hollow-slice='true'");
+    expect(pattern).toContain("data-mt-segment-end-fraction='0.25'");
+    expect(pattern).toContain("data-mt-segment-end-fraction='0.333333'");
     expect(pattern).toContain("fill='#ff0000'");
     expect(pattern).toContain("fill='#0000ff'");
     expect(pattern).toContain("fill='#00aa00'");
@@ -137,7 +139,7 @@ describe('segmented pie chart slices', () => {
     const mixedSlice = pathSlices[0];
     expect(mixedSlice.endFraction - mixedSlice.startFraction).toBeCloseTo(1 / 3);
 
-    const evenSegments = buildEvenMixedPieChartRingSegments(
+    const weightedSegments = buildEvenMixedPieChartRingSegments(
       slices[0].segments || [],
       mixedSlice.startFraction,
       mixedSlice.endFraction,
@@ -146,9 +148,8 @@ describe('segmented pie chart slices', () => {
       1,
       0.6
     );
-    evenSegments.forEach(segment => {
-      expect(segment.endFraction - segment.startFraction).toBeCloseTo(1 / 6);
-    });
+    expect(weightedSegments[0].endFraction - weightedSegments[0].startFraction).toBeCloseTo(1 / 4);
+    expect(weightedSegments[1].endFraction - weightedSegments[1].startFraction).toBeCloseTo(1 / 12);
     expect(1 - getMixedAggregateRingInnerRadius(1)).toBe(0.5);
 
     const svg = atob(buildPieChartSvgDataUri('mixed-svg', 40, slices).split(',')[1]);

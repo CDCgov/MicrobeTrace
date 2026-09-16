@@ -18,6 +18,9 @@ type WinWithMicrobeTrace = Window & {
   cytoscapeInstance?: any;
 };
 
+const weightedMixedValue = '2a:0.75/3a:0.25';
+const legacyMixedValue = '6:0.5/7a:0.5';
+
 const profile: DatasetProfile = {
   id: 'mixed-genotype-node-coloring',
   title: 'Mixed genotype node coloring',
@@ -85,6 +88,7 @@ const assertMixedStyleSegments = (expectedFirstColor?: string): void => {
 
     expect(mixedStyle.segments?.map((segment: any) => segment.value)).to.deep.equal(['2a', '3a']);
     expect(mixedStyle.segments?.map((segment: any) => segment.color)).to.deep.equal([color2a, color3a]);
+    expect(mixedStyle.segments?.map((segment: any) => segment.weight)).to.deep.equal([0.75, 0.25]);
     expect(singleStyle.segments).to.equal(undefined);
 
     if (expectedFirstColor) {
@@ -107,7 +111,13 @@ describe('Journey Flow - mixed node coloring', () => {
       .check({ force: true });
     cy.window().its('commonService.session.style.widgets.node-mixed-colors-enabled').should('equal', true);
 
-    ['2a/3a', '6/7a'].forEach((mixedValue) => {
+    selectPrimeOption('#node-color-variable', 'FallbackGenotype');
+    cy.get('[data-testid="node-mixed-weight-warning"]')
+      .should('contain.text', '1 mixed value has invalid or incomplete weights');
+    selectPrimeOption('#node-color-variable', 'Genotype');
+    cy.get('[data-testid="node-mixed-weight-warning"]').should('not.exist');
+
+    [weightedMixedValue, legacyMixedValue].forEach((mixedValue) => {
       cy.get(`#key-tables-node-table td[data-value="${mixedValue}"]`, { timeout: 15000 })
         .parents('tr')
         .within(() => {
@@ -117,6 +127,14 @@ describe('Journey Flow - mixed node coloring', () => {
             .should('have.length', 2);
         });
     });
+    cy.get(`#key-tables-node-table td[data-value="${weightedMixedValue}"]`)
+      .should('have.text', '2a 75% / 3a 25%')
+      .parents('tr')
+      .find('[data-mixed-color-swatch="true"] [data-segment-weight]')
+      .then(($segments) => {
+        expect([...$segments].map(segment => segment.getAttribute('data-segment-weight')))
+          .to.deep.equal(['0.75', '0.25']);
+      });
 
     ['2a', '3a'].forEach((singleValue) => {
       cy.get(`#key-tables-node-table td[data-value="${singleValue}"]`)
@@ -128,11 +146,11 @@ describe('Journey Flow - mixed node coloring', () => {
       cy.get(`#key-tables-node-table td[data-value="${mixedOnlyComponent}"]`).should('not.exist');
     });
 
-    cy.get('#key-tables-node-table td[data-value="2a/3a"]')
+    cy.get(`#key-tables-node-table td[data-value="${weightedMixedValue}"]`)
       .parents('tr')
       .find('[data-mixed-alpha-trigger="true"]')
       .click({ force: true });
-    cy.get('#key-tables-node-table input[aria-label="2a transparency"]')
+    cy.get('#key-tables-node-table input[aria-label="2a 75% transparency"]')
       .should('have.value', '1')
       .invoke('val', '0.35')
       .trigger('input');
@@ -142,12 +160,13 @@ describe('Journey Flow - mixed node coloring', () => {
       .should('have.css', 'opacity', '0.35');
     cy.window().should((win: unknown) => {
       const { commonService } = win as WinWithMicrobeTrace;
-      const mixedStyle = commonService.getNodeFillStyle({ Genotype: '2a/3a' });
+      const mixedStyle = commonService.getNodeFillStyle({ Genotype: '2a:3/3a:1' });
       expect(commonService.temp.style.nodeAlphaMap('2a')).to.equal(0.35);
       expect(mixedStyle.segments.map((segment: any) => [segment.value, segment.alpha])).to.deep.equal([
         ['2a', 0.35],
         ['3a', 1],
       ]);
+      expect(mixedStyle.segments.map((segment: any) => segment.weight)).to.deep.equal([0.75, 0.25]);
     });
 
     cy.closeGlobalSettings();
@@ -163,11 +182,12 @@ describe('Journey Flow - mixed node coloring', () => {
       expect(String(mixedNode.data('mixedColorImage') || '')).to.contain('data:image/svg+xml');
       const mixedNodeSvg = decodeURIComponent(String(mixedNode.data('mixedColorImage')).split(',')[1]);
       expect(mixedNodeSvg).to.contain('fill="#ffffff"');
-      expect(mixedNodeSvg).to.contain('stroke-dasharray="0.5 0.5"');
+      expect(mixedNodeSvg).to.contain('stroke-dasharray="0.75 0.25"');
+      expect(mixedNodeSvg).to.contain('stroke-dasharray="0.25 0.75"');
       expect(singleNode.data('mixedColorImage')).to.equal(undefined);
     });
 
-    cy.get('#key-tables-node-table td[data-value="2a/3a"]', { timeout: 15000 })
+    cy.get(`#key-tables-node-table td[data-value="${weightedMixedValue}"]`, { timeout: 15000 })
       .parents('tr')
       .find('[data-mixed-color-swatch="true"] input[data-color-segment="0"]')
       .invoke('val', '#00aa00')
@@ -221,15 +241,17 @@ describe('Journey Flow - mixed node coloring', () => {
       expect(pieSlices.map((slice: any) => [slice.label, slice.count])).to.deep.equal([
         ['1a', 1],
         ['2a', 1],
-        ['2a/3a', 1],
+        [weightedMixedValue, 1],
         ['3a', 1],
         ['null', 2],
-        ['6/7a', 1],
+        [legacyMixedValue, 1],
       ]);
-      expect(pieSlices.find((slice: any) => slice.label === '2a/3a').segments.map((segment: any) => segment.value))
-        .to.deep.equal(['2a', '3a']);
-      expect(pieSlices.find((slice: any) => slice.label === '6/7a').segments.map((segment: any) => segment.value))
-        .to.deep.equal(['6', '7a']);
+      expect(pieSlices.find((slice: any) => slice.label === weightedMixedValue).segments
+        .map((segment: any) => [segment.value, segment.weight]))
+        .to.deep.equal([['2a', 0.75], ['3a', 0.25]]);
+      expect(pieSlices.find((slice: any) => slice.label === legacyMixedValue).segments
+        .map((segment: any) => [segment.value, segment.weight]))
+        .to.deep.equal([['6', 0.5], ['7a', 0.5]]);
       expect(String(mixedAggregate.style('background-image'))).to.contain('data:image');
       const normalBorderWidth = Number(twoD.widgets['node-border-width']);
       const aggregateBorderWidth = Number(mixedAggregate.data('borderWidth'));
@@ -243,6 +265,7 @@ describe('Journey Flow - mixed node coloring', () => {
       expect(aggregateSvg).to.match(/<path[^>]*fill='none' fill-opacity='0'[^>]*data-mt-mixed-hollow-slice='true'/);
       expect(aggregateSvg).to.contain("data-mt-solid-aggregate-slice='true'");
       expect(aggregateSvg.match(/data-mt-mixed-ring-segment=/g)).to.have.length(4);
+      expect(aggregateSvg).to.contain("data-mt-segment-start-fraction=");
       expect(aggregateSvg.match(/data-mt-aggregate-slice-separator=/g)).to.have.length(6);
       expect(aggregateSvg).not.to.contain('data-mt-aggregate-mixed-indicator');
     });
@@ -299,10 +322,10 @@ describe('Journey Flow - mixed node coloring', () => {
       expect(aggregates[0].counts).to.deep.equal([
         { label: '1a', count: 1 },
         { label: '2a', count: 1 },
-        { label: '2a/3a', count: 1 },
+        { label: weightedMixedValue, count: 1 },
         { label: '3a', count: 1 },
         { label: 'null', count: 2 },
-        { label: '6/7a', count: 1 },
+        { label: legacyMixedValue, count: 1 },
       ]);
       expect(aggregates[1].counts).to.deep.equal([{ label: 'null', count: 2 }]);
       expect(renderedNodes.length, 'rendered collapsed Bubble count').to.equal(2);
@@ -320,19 +343,42 @@ describe('Journey Flow - mixed node coloring', () => {
       expect(pieSlices.map((slice: any) => [slice.label, slice.count])).to.deep.equal([
         ['1a', 1],
         ['2a', 1],
-        ['2a/3a', 1],
+        [weightedMixedValue, 1],
         ['3a', 1],
         ['null', 2],
-        ['6/7a', 1],
+        [legacyMixedValue, 1],
       ]);
-      expect(pieSlices.find((slice: any) => slice.label === '2a/3a').segments.map((segment: any) => segment.value))
-        .to.deep.equal(['2a', '3a']);
-      expect(pieSlices.find((slice: any) => slice.label === '6/7a').segments.map((segment: any) => segment.value))
-        .to.deep.equal(['6', '7a']);
+      expect(pieSlices.find((slice: any) => slice.label === weightedMixedValue).segments
+        .map((segment: any) => [segment.value, segment.weight]))
+        .to.deep.equal([['2a', 0.75], ['3a', 0.25]]);
+      expect(pieSlices.find((slice: any) => slice.label === legacyMixedValue).segments
+        .map((segment: any) => [segment.value, segment.weight]))
+        .to.deep.equal([['6', 0.5], ['7a', 0.5]]);
       expect(
         pieSlices.reduce((total: number, slice: any) => total + Number(slice.count || 0), 0),
         'cluster-0 pie total',
       ).to.equal(7);
+    });
+
+    cy.window().then((win: unknown) => {
+      const bubble = (win as WinWithMicrobeTrace).commonService.visuals.bubble;
+      let exportedSvg = '';
+      cy.stub((bubble as any).exportService, 'requestSVGExport')
+        .callsFake((_styles: unknown, content: string) => { exportedSvg = content; });
+      bubble.BubbleExportFileType = 'svg';
+      bubble.exportVisualization();
+
+      const doc = new DOMParser().parseFromString(exportedSvg, 'image/svg+xml');
+      const weightedPaths = Array.from(doc.querySelectorAll(
+        `[data-mt-export="bubble-pie-mixed-ring-segment"][data-mt-slice-label="${weightedMixedValue}"]`,
+      ));
+      expect(weightedPaths, 'weighted vector-export paths').to.have.length(2);
+      const spans = weightedPaths.map(path => (
+        Number(path.getAttribute('data-mt-segment-end-fraction'))
+        - Number(path.getAttribute('data-mt-segment-start-fraction'))
+      ));
+      expect(spans[0] / (spans[0] + spans[1])).to.be.closeTo(0.75, 0.01);
+      expect(spans[1] / (spans[0] + spans[1])).to.be.closeTo(0.25, 0.01);
     });
 
     // Cross-view cluster recomputation can invalidate Bubble's cached category
@@ -410,7 +456,9 @@ describe('Journey Flow - mixed node coloring', () => {
       const marker = map.mapNodeMarkersById['sample-4'];
       const iconUrl = String(marker?.options?.icon?.options?.iconUrl || '');
       expect(iconUrl).to.contain('data:image/svg+xml');
-      expect(decodeURIComponent(iconUrl)).to.contain('#00aa00');
+      const markerSvg = decodeURIComponent(iconUrl);
+      expect(markerSvg).to.contain('#00aa00');
+      expect(markerSvg).to.contain('data-mt-segment-end-fraction="0.75"');
     });
 
     goToPhyloTreeView();
@@ -422,6 +470,8 @@ describe('Journey Flow - mixed node coloring', () => {
         expect($ringSegments).to.have.length(2);
         const ringColors = [...$ringSegments].map((segment) => String(segment.getAttribute('stroke')).toLowerCase());
         expect(ringColors).to.include('#00aa00');
+        expect([...$ringSegments].map(segment => segment.getAttribute('data-mt-segment-end-fraction')))
+          .to.deep.equal(['0.75', '1']);
       });
   });
 
@@ -510,8 +560,8 @@ describe('Journey Flow - mixed node coloring', () => {
       const renderedNode = bubble.cy.getElementById(mixedSingleton.id);
 
       expect(mixedSingleton.totalCount, 'collapsed mixed singleton count').to.equal(1);
-      expect(mixedSingleton.counts).to.deep.equal([{ label: '6/7a', count: 1 }]);
-      expect(slices.map((slice: any) => [slice.label, slice.count])).to.deep.equal([['6/7a', 1]]);
+      expect(mixedSingleton.counts).to.deep.equal([{ label: legacyMixedValue, count: 1 }]);
+      expect(slices.map((slice: any) => [slice.label, slice.count])).to.deep.equal([[legacyMixedValue, 1]]);
       expect(slices[0].segments.map((segment: any) => segment.value)).to.deep.equal(['6', '7a']);
       expect(String(renderedNode.style('background-image'))).to.contain('data:image');
     });

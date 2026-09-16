@@ -1,5 +1,6 @@
 import { normalizeNodeStyleCategoryValue } from './color-mapping.service';
 import { getGeometryCenterMask } from './geometry-center-mask';
+import { buildNormalizedWeightedSegmentRanges } from './weighted-segments';
 
 export type NodeShapeGroupKey = 'basic' | 'places' | 'people' | 'vectors' | 'animals' | 'specimen' | 'other';
 
@@ -967,18 +968,14 @@ function formatSvgFraction(value: number): string {
 }
 
 export function getEvenMixedNodeShapeSegments(segments: MixedNodeShapeSegment[]): EvenMixedNodeShapeSegment[] {
-    const validSegments = segments.filter(segment => typeof segment?.color === 'string' && !!segment.color);
-    if (validSegments.length < 2) {
-        return [];
-    }
-
-    return validSegments.map((segment, index) => {
-        const startFraction = index / validSegments.length;
-        const endFraction = index === validSegments.length - 1
-            ? 1
-            : (index + 1) / validSegments.length;
-        return { segment, startFraction, endFraction };
-    });
+    return buildNormalizedWeightedSegmentRanges(
+        segments,
+        segment => typeof segment?.color === 'string' && !!segment.color
+    ).map(({ segment, startFraction, endFraction }) => ({
+        segment,
+        startFraction,
+        endFraction
+    }));
 }
 
 export function getMixedNodeRingWidth(renderedSize: number): number {
@@ -1098,7 +1095,7 @@ function buildMixedCustomNodeShapeRingContent(
         const color = sanitizeSvgColor(segment.color);
         const opacity = sanitizeSvgOpacity(segment.alpha ?? fallbackOpacity);
         const path = buildMixedNodeAngularSectorPath(centerX, centerY, coverRadius, startFraction, endFraction);
-        return `<path d="${path}" fill="${color}" fill-opacity="${opacity}" stroke="none" data-mt-mixed-ring-segment="${index}"/>`;
+        return `<path d="${path}" fill="${color}" fill-opacity="${opacity}" stroke="none" data-mt-mixed-ring-segment="${index}" data-mt-segment-start-fraction="${formatSvgFraction(startFraction)}" data-mt-segment-end-fraction="${formatSvgFraction(endFraction)}"/>`;
     }).join('');
     const fallbackMinorSpan = Math.min(viewBox.width, viewBox.height);
     const fallbackHoleClosingRadius = fallbackMinorSpan * 0.1;
@@ -1153,7 +1150,7 @@ function buildMixedNodeRingStrokeElements(
         const segmentLength = endFraction - startFraction;
         const gapLength = 1 - segmentLength;
 
-        return `<${elementName} ${geometryAttributes} pathLength="1" fill="none" stroke="${color}" stroke-opacity="${opacity}" stroke-width="${formatSvgFraction(ringStrokeWidth)}" stroke-dasharray="${formatSvgFraction(segmentLength)} ${formatSvgFraction(gapLength)}" stroke-dashoffset="${formatSvgFraction(-startFraction)}" stroke-linecap="butt" stroke-linejoin="round" vector-effect="none" data-mt-mixed-ring-segment="${index}" data-mt-mixed-ring-width-radius-fraction="${MIXED_NODE_RING_WIDTH_RADIUS_FRACTION}"${transformAttribute}/>`;
+        return `<${elementName} ${geometryAttributes} pathLength="1" fill="none" stroke="${color}" stroke-opacity="${opacity}" stroke-width="${formatSvgFraction(ringStrokeWidth)}" stroke-dasharray="${formatSvgFraction(segmentLength)} ${formatSvgFraction(gapLength)}" stroke-dashoffset="${formatSvgFraction(-startFraction)}" stroke-linecap="butt" stroke-linejoin="round" vector-effect="none" data-mt-mixed-ring-segment="${index}" data-mt-segment-start-fraction="${formatSvgFraction(startFraction)}" data-mt-segment-end-fraction="${formatSvgFraction(endFraction)}" data-mt-mixed-ring-width-radius-fraction="${MIXED_NODE_RING_WIDTH_RADIUS_FRACTION}"${transformAttribute}/>`;
     }).join('');
 }
 

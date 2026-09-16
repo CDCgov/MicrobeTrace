@@ -8,6 +8,7 @@ export type StyleKeyTableSortColumn = 'value' | 'count' | 'frequency';
 export interface StyleKeyTableDuoSegment {
     color: string;
     opacity: number | string;
+    weight?: number;
     value?: any;
     displayName?: string;
     index?: number;
@@ -154,9 +155,11 @@ export interface StyleKeyTableShapePanelRequest {
                                                     type="color"
                                                     class="style-key-table__color-segment style-key-table__color-segment-input"
                                                     [attr.data-color-segment]="$index"
+                                                    [attr.data-segment-weight]="getSegmentFlexGrow(segment)"
                                                     [attr.aria-label]="'Change ' + getSegmentDisplayName(segment, $index) + ' color in ' + row.displayName"
                                                     [attr.title]="'Change ' + getSegmentDisplayName(segment, $index) + ' color'"
                                                     [value]="segment.color"
+                                                    [style.flex-grow]="getSegmentFlexGrow(segment)"
                                                     [style.opacity]="segment.opacity"
                                                     (change)="onSegmentColorInputChange(row, segment, $event)">
                                             } @else {
@@ -164,7 +167,10 @@ export interface StyleKeyTableShapePanelRequest {
                                                     class="style-key-table__color-segment duo-link-color-segment"
                                                     [attr.data-color-segment]="$index"
                                                     [attr.data-duo-index]="$index"
+                                                    [attr.data-segment-weight]="getSegmentFlexGrow(segment)"
+                                                    [attr.aria-label]="getSegmentDisplayName(segment, $index)"
                                                     [style.background]="segment.color"
+                                                    [style.flex-grow]="getSegmentFlexGrow(segment)"
                                                     [style.opacity]="segment.opacity">
                                                 </span>
                                             }
@@ -582,6 +588,11 @@ export class StyleKeyTableComponent {
 
     getSegmentDisplayName(segment: StyleKeyTableDuoSegment, segmentIndex: number): string {
         return String(segment.displayName ?? segment.value ?? `Color ${segmentIndex + 1}`);
+    }
+
+    getSegmentFlexGrow(segment: StyleKeyTableDuoSegment): number {
+        const weight = Number(segment.weight);
+        return Number.isFinite(weight) && weight > 0 ? weight : 1;
     }
 
     getSegmentAlphaControlId(row: StyleKeyTableRow, segmentIndex: number): string {

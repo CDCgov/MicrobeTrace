@@ -66,7 +66,7 @@ describe('mixed node shape SVG helpers', () => {
     { value: '3a', color: '#ffff00', alpha: 0.8, weight: 1 }
   ];
 
-  it('uses a white center and an evenly segmented outer ring for mixed values', () => {
+  it('uses a white center and a proportionally segmented outer ring for mixed values', () => {
     const svg = decodeSvgDataUri(getMixedNodeShapeDataUri('triangle', '#123456', '#000000', 4, 0.4, segments));
 
     expect(svg).not.toContain('<pattern');
@@ -74,10 +74,12 @@ describe('mixed node shape SVG helpers', () => {
     expect(svg).not.toContain('fill="#123456"');
     expect(svg).toContain('stroke="#00aa00"');
     expect(svg).toContain('stroke="#ffff00"');
-    expect(svg).toContain('stroke-dasharray="0.5 0.5"');
+    expect(svg).toContain('stroke-dasharray="0.75 0.25"');
+    expect(svg).toContain('stroke-dasharray="0.25 0.75"');
+    expect(svg).toContain('data-mt-segment-end-fraction="0.75"');
+    expect(svg).toContain('data-mt-segment-end-fraction="1"');
     expect(svg).toContain('data-mt-mixed-ring-segment="0"');
     expect(svg).toContain('data-mt-mixed-ring-width-radius-fraction="0.5"');
-    expect(svg).not.toContain('stroke-dasharray="0.75 0.25"');
     expect(svg).not.toContain('A 1 1 0');
   });
 
@@ -158,10 +160,12 @@ describe('mixed node shape SVG helpers', () => {
     expect(svg).toContain('data-mt-mixed-ring-segment="0"');
   });
 
-  it('clips equal angular sectors to custom silhouettes instead of dashing their paths', () => {
+  it('clips proportional angular sectors to custom silhouettes instead of dashing their paths', () => {
     const svg = decodeSvgDataUri(getMixedNodeShapeDataUri('virus', '#ffffff', '#000000', 8, 1, segments));
 
     expect(svg).toContain('data-mt-mixed-ring-segment="0"');
+    expect(svg).toContain('data-mt-segment-end-fraction="0.75"');
+    expect(svg).toContain('data-mt-segment-end-fraction="1"');
     expect(svg).toContain('fill="#00aa00"');
     expect(svg).toContain('fill="#ffff00"');
     expect(svg).toContain('data-mt-custom-mixed-ring="silhouette-sectors"');

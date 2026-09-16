@@ -710,6 +710,7 @@ export class CommonService extends AppComponentBase implements OnInit {
             style: {
                 linkAlphaMap: () => 1 - this.session.style.widgets['link-opacity'],
                 linkColorMap: () => this.session.style.widgets['link-color'],
+                nodeMixedColorInvalidWeightCount: 0,
                 nodeAlphaMap: () => 1,
                 nodeColorMap: () => this.session.style.widgets['node-color'],
                 nodeSymbolMap: () => this.session.style.widgets['node-symbol'],
@@ -4322,6 +4323,7 @@ align(params): Promise<any> {
         // 3) Store the results back into session & temp
         this.temp.style.nodeColorMap = result.colorMap;
         this.temp.style.nodeAlphaMap = result.alphaMap;
+        this.temp.style.nodeMixedColorInvalidWeightCount = result.invalidMixedWeightCount;
         
         // And also store the updated arrays/tables
         this.session.style.nodeColors          = result.updatedNodeColors;

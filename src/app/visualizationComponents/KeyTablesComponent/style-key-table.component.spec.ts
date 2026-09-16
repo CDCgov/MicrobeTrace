@@ -15,8 +15,8 @@ describe('StyleKeyTableComponent mixed color controls', () => {
       count: 1,
       frequency: 0.5,
       colorSegments: [
-        { value: '2a', displayName: '2a', color: '#ff0000', opacity: 1, index: 1 },
-        { value: '3a', displayName: '3a', color: '#0000ff', opacity: 0.8, index: 2 }
+        { value: '2a', displayName: '2a 75%', color: '#ff0000', opacity: 1, weight: 0.75, index: 1 },
+        { value: '3a', displayName: '3a 25%', color: '#0000ff', opacity: 0.8, weight: 0.25, index: 2 }
       ]
     };
   });
@@ -114,5 +114,9 @@ describe('StyleKeyTableComponent mixed color controls', () => {
     expect(getComputedStyle(swatchBar).borderStyle).toBe('solid');
     expect(getComputedStyle(swatchBar).borderRadius).toBe('0px');
     expect(stripes.every(stripe => getComputedStyle(stripe).borderRadius === '0px')).toBe(true);
+    expect(stripes.map(stripe => stripe.getAttribute('data-segment-weight'))).toEqual(['0.75', '0.25']);
+    expect(stripes.map(stripe => stripe.getAttribute('aria-label'))).toEqual(['2a 75%', '3a 25%']);
+    expect(component.getSegmentFlexGrow(mixedRow.colorSegments![0])).toBe(0.75);
+    expect(component.getSegmentFlexGrow(mixedRow.colorSegments![1])).toBe(0.25);
   });
 });

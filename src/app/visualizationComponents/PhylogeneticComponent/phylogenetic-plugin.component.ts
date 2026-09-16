@@ -478,11 +478,13 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
     const ringSegments = evenSegments.map(({ segment, startFraction, endFraction }, index) => ({
       color: String(segment.color || '#000000'),
       dashOffset: -startFraction,
+      endFraction,
       index,
       length: endFraction - startFraction,
       opacity: Number.isFinite(Number(segment.alpha))
         ? Math.min(1, Math.max(0, Number(segment.alpha)))
-        : Math.min(1, Math.max(0, Number(fallbackOpacity)))
+        : Math.min(1, Math.max(0, Number(fallbackOpacity))),
+      startFraction
     }));
 
     d3.select(parentNode)
@@ -507,6 +509,8 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
       .attr('stroke-width', ringWidth)
       .attr('stroke-dasharray', segment => `${segment.length} ${1 - segment.length}`)
       .attr('stroke-dashoffset', segment => segment.dashOffset)
+      .attr('data-mt-segment-start-fraction', segment => segment.startFraction)
+      .attr('data-mt-segment-end-fraction', segment => segment.endFraction)
       .attr('stroke-linecap', 'butt')
       .attr('transform', 'rotate(-90)');
   }

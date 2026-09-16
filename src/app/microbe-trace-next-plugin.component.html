@@ -600,13 +600,18 @@
                   </div>
 
                   @if (SelectedColorNodesByVariable !== 'None') {
-                    <div class="form-group row" title="Show mixed values such as 2a/3a as hollow rings divided evenly among their colors.">
+                    <div class="form-group row" title="Show mixed values as hollow, multi-color rings. Add inline weights such as 2a:70/3a:30; counts, decimals, and percentages are normalized automatically.">
                       <div class="col-5"><label for="node-mixed-colors-enabled">Mixed Values</label></div>
                       <div class="col-7 mixed-values-toggle">
                         <p-checkbox inputId="node-mixed-colors-enabled" [(ngModel)]="SelectedNodeMixedColorsEnabledVariable" (ngModelChange)="onNodeMixedColorsEnabledChanged()" binary="true"></p-checkbox>
                         <label for="node-mixed-colors-enabled" class="ml-2">Show mixed values as hollow, multi-color rings</label>
                       </div>
                     </div>
+                    @if (nodeMixedColorInvalidWeightCount > 0) {
+                      <div class="node-mixed-weight-warning" role="alert" data-testid="node-mixed-weight-warning">
+                        {{ nodeMixedColorInvalidWeightCount }} mixed {{ nodeMixedColorInvalidWeightCount === 1 ? 'value has' : 'values have' }} invalid or incomplete weights and {{ nodeMixedColorInvalidWeightCount === 1 ? 'is' : 'are' }} shown with equal proportions.
+                      </div>
+                    }
                   }
 
                   <div id="node-color-assignment-row" class="form-group row" title="Apply reusable colors and select the node variable declared by the file.">
