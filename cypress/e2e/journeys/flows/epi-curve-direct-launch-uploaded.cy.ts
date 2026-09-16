@@ -49,7 +49,8 @@ describe('Journey Flow - Epi Curve direct launch on uploaded data', () => {
     assertEpiCurveHasBars();
 
     cy.get('#epiCurveSVG text.x.label').should('contain.text', 'Date');
-    cy.get('#epiCurveSVG text.y.label').should('contain.text', 'Number of Cases');
+    cy.get('#epiCurveSVG text.y.label')
+      .should('have.text', 'Count of Date of symptom onset Date');
 
     cy.closeSettingsPane('Epi Curve Settings');
   });

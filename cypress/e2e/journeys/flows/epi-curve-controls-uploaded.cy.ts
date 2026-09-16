@@ -323,6 +323,11 @@ describe('Journey Flow - Epi Curve controls on uploaded data', () => {
     ensureEpiSettingsDialogOpen();
     selectEpiCurveDropdown('Bin Size', 'Day');
 
+    selectEpiCurveSettingsTab('Titles & Axes');
+    getEpiSettingsDialog().find('#epi-right-y-axis-label').should('not.exist');
+    cy.get('#epiCurveSVG .label--right').should('not.exist');
+    selectEpiCurveSettingsTab('Graph');
+
     cy.get('#epiCurveSVG text.x.label').should('contain.text', 'Date (Daily Bins)');
     readEpiCurveBars().then((bars) => {
       expect(bars.length, 'bar count after bin size change').to.be.greaterThan(0);
@@ -737,6 +742,10 @@ describe('Journey Flow - Epi Curve controls on uploaded data', () => {
     ensureEpiSettingsDialogOpen();
     selectEpiCurveDropdown('Date Field 3', 'Date symptoms resolved');
 
+    selectEpiCurveSettingsTab('Titles & Axes');
+    getEpiSettingsDialog().find('#epi-right-y-axis-label').should('not.exist');
+    selectEpiCurveSettingsTab('Graph');
+
     ensureEpiSettingsDialogOpen();
     setEpiCurveColor(0, '#aa0000');
     ensureEpiSettingsDialogOpen();
@@ -795,11 +804,11 @@ describe('Journey Flow - Epi Curve controls on uploaded data', () => {
           .to.deep.equal(['right', 'left', 'left']);
       });
     cy.get('#epiCurveSVG .label--left').should('have.text', 'Zip code');
-    cy.get('#epiCurveSVG .label--right').should('have.text', 'Number of Cases');
+    cy.get('#epiCurveSVG .label--right').should('have.text', 'Count of Collection Date');
 
     selectEpiCurveSettingsTab('Titles & Axes');
     getEpiSettingsDialog().find('#epi-left-y-axis-label').should('have.attr', 'placeholder', 'Zip code');
-    getEpiSettingsDialog().find('#epi-right-y-axis-label').should('have.attr', 'placeholder', 'Number of Cases');
+    getEpiSettingsDialog().find('#epi-right-y-axis-label').should('have.attr', 'placeholder', 'Count of Collection Date');
     selectEpiCurveSettingsTab('Graph');
 
     cy.get('#epiCurveSVG .epiCurve-legend-label')

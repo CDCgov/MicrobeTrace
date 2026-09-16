@@ -628,7 +628,7 @@ export class TimelineComponent extends BaseComponentDirective implements OnInit,
 
   getDefaultYAxisLabel(axis: EpiCurveAxis): string {
     if (this.selectedGraphType == 'Single Date Field') {
-      return 'Number of Cases';
+      return this.getSeriesAxisValueLabel(0);
     }
 
     const labels = this.visibleSeriesIndexes
@@ -636,16 +636,19 @@ export class TimelineComponent extends BaseComponentDirective implements OnInit,
       .map(index => this.getSeriesAxisValueLabel(index))
       .filter((label, index, allLabels) => allLabels.indexOf(label) == index);
 
-    return labels.join(' / ') || 'Number of Cases';
+    return labels.join(' / ') || 'Number of Records';
   }
 
   private getSeriesAxisValueLabel(index: number): string {
     const valueField = this.widgets['epiCurve-value-fields']?.[index];
-    if (this.getSeriesAggregation(index) == 'Count' || !valueField || valueField == 'None') {
-      return 'Number of Cases';
+    if (this.getSeriesAggregation(index) != 'Count' && valueField && valueField != 'None') {
+      return this.getTooltipLabel(valueField);
     }
 
-    return this.getTooltipLabel(valueField);
+    const dateField = this.widgets['epiCurve-date-fields']?.[index];
+    return dateField && dateField != 'None'
+      ? `Count of ${this.getTooltipLabel(dateField)}`
+      : 'Number of Records';
   }
 
   addSeries(): void {
@@ -1096,7 +1099,7 @@ private refreshMulti(): void {
   this.renderChartText();
 } 
 
-private isDualAxisMulti(): boolean {
+isDualAxisMulti(): boolean {
   if (this.selectedGraphType == 'Single Date Field') {
     return false;
   }
