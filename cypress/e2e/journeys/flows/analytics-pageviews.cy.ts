@@ -42,7 +42,7 @@ describe('Google Analytics virtual page views', () => {
   });
 
   it('tracks newly opened views without tracking tab switches', () => {
-    cy.visit('/?skipEula=1&skipDemoSession=1');
+    cy.visit('/?skipEula=1&skipDemoSession=1&enableAnalytics=1');
     cy.get('#fileDropRef', { timeout: 15000 }).should('exist');
 
     cy.window().should((rawWindow) => {

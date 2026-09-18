@@ -1,4 +1,4 @@
-import { Injector, Component, Output, EventEmitter, OnInit, ElementRef, ChangeDetectorRef, Inject, ViewChild, OnDestroy } from '@angular/core';
+import { Injector, Component, Output, EventEmitter, OnInit, ElementRef, ChangeDetectorRef, Inject, ViewChild, OnDestroy, ChangeDetectionStrategy } from '@angular/core';
 import { EventManager } from '@angular/platform-browser';
 import { CommonService } from '@app/contactTraceCommonServices/common.service';
 import { saveAs } from 'file-saver';
@@ -22,6 +22,7 @@ import { CommonStoreService } from '@app/contactTraceCommonServices/common-store
     selector: 'SankeyComponent',
     templateUrl: './sankey.component.html',
     styleUrls: ['./sankey.component.scss'],
+    changeDetection: ChangeDetectionStrategy.Eager,
     standalone: false
 })
 export class SankeyComponent extends BaseComponentDirective implements OnInit, OnDestroy {

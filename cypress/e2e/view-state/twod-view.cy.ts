@@ -442,7 +442,7 @@ describe('2D Network - Settings Pane Interactions', () => {
         
         cy.window().its('commonService.session.style.widgets.node-tooltip-variable').should('deep.equal', ['_id']);
         
-        cy.get('@dialogContainer').contains('.form-group', 'Tooltip').find('p-multiselect').click();
+        cy.get('@dialogContainer').contains('.form-group', 'Tooltip').find('p-multi-select').click();
         cy.contains('li[role="option"]', 'cluster').click();
         
         cy.window().its('commonService.session.style.widgets.node-tooltip-variable').should('include', '_id');
@@ -554,7 +554,7 @@ describe('2D Network - Settings Pane Interactions', () => {
       
       cy.window().its('commonService.session.style.widgets.link-tooltip-variable').should('be.empty');
       
-      cy.get('@dialogContainer').find('.tab-pane.active').contains('.form-group', 'Tooltip').find('p-multiselect').click();
+      cy.get('@dialogContainer').find('.tab-pane.active').contains('.form-group', 'Tooltip').find('p-multi-select').click();
       cy.contains('li[role="option"]', 'Distance').click();
       
       cy.window().its('commonService.session.style.widgets.link-tooltip-variable').should('include', 'distance');

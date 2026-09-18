@@ -15,19 +15,19 @@
           [scrollable]="true"
           [scrollHeight]="scrollHeight"
           [tableStyle]="{'border': '3px #e9ecef solid', 'overflow-x': 'visible'}">
-          <ng-template pTemplate="header">
+          <ng-template #header>
             <tr style="background-color: #d8dadd; font-size: 22px;">
               <th>Cluster</th>
               <th style="text-align: end;">Nodes</th>
             </tr>
           </ng-template>
-          <ng-template pTemplate="body" let-datarow>
+          <ng-template #body let-datarow>
             <tr class="ui-selectable-row" [pSelectableRow]="datarow">
               <td>{{datarow.id}}</td>
               <td style="text-align: end">{{datarow.nodeCount}}</td>
             </tr>
           </ng-template>
-          <ng-template pTemplate="expandedrow">
+          <ng-template #expandedrow>
             <tr><td colspan="2" class="rowExpansionContent" data-testid="waterfall-cluster-expansion">
               @for (data of expandedClusterRowData; track data) {
                 <div [style.width.px]="clusterTableWidth">{{data.key}}: {{data.value}}</div>
@@ -52,19 +52,19 @@
           [scrollable]="true"
           [scrollHeight]="scrollHeight"
           [tableStyle]="{'border': '3px #e9ecef solid', 'overflow-x': 'visible'}">
-          <ng-template pTemplate="header">
+          <ng-template #header>
             <tr style="background-color: #d8dadd; font-size: 22px;">
               <th>Nodes</th>
               <th style="text-align: end;">Degree</th>
             </tr>
           </ng-template>
-          <ng-template pTemplate="body" let-datarow>
+          <ng-template #body let-datarow>
             <tr class="ui-selectable-row" [pSelectableRow]="datarow">
               <td>{{datarow.id}}</td>
               <td style="text-align: end">{{datarow.degree}}</td>
             </tr>
           </ng-template>
-          <ng-template pTemplate="expandedrow">
+          <ng-template #expandedrow>
             @if (selectedNodeRow) {
               <tr><td colspan="2" class="rowExpansionContent" data-testid="waterfall-node-expansion">
                 @for (data of expandedNodeRowData; track data) {
@@ -91,19 +91,19 @@
           [scrollable]="true"
           [scrollHeight]="scrollHeight"
           [tableStyle]="{'border': '3px #e9ecef solid', 'overflow-x': 'visible'}">
-          <ng-template pTemplate="header">
+          <ng-template #header>
             <tr style="background-color: #d8dadd; font-size: 22px;">
               <th>Links</th>
               <th style="text-align: end;">Distance</th>
             </tr>
           </ng-template>
-          <ng-template pTemplate="body" let-datarow>
+          <ng-template #body let-datarow>
             <tr class="ui-selectable-row" [pSelectableRow]="datarow">
               <td>{{datarow.id}}</td>
               <td style="text-align: end">{{formatLinkTableDistance(datarow.distance)}}</td>
             </tr>
           </ng-template>
-          <ng-template pTemplate="expandedrow" let-datarow>
+          <ng-template #expandedrow let-datarow>
             @if (selectedLinkRow) {
               <tr><td colspan="2" class="rowExpansionContent" data-testid="waterfall-link-expansion">
                 @for (data of expandedLinkRowData; track data) {

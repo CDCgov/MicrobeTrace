@@ -1,4 +1,4 @@
-import { ChangeDetectorRef, Component, ElementRef, Inject, OnInit, Output, EventEmitter, ViewChild, OnDestroy } from '@angular/core';
+import { ChangeDetectorRef, Component, ElementRef, Inject, OnInit, Output, EventEmitter, ViewChild, OnDestroy, ChangeDetectionStrategy } from '@angular/core';
 import { SelectItem } from 'primeng/api';
 import { saveAs } from 'file-saver';
 
@@ -40,6 +40,7 @@ interface BubblePieSvgExportReplacement {
     selector: 'bubble-component',
     templateUrl: './bubble.component.html',
     styleUrls: ['./bubble.component.scss'],
+    changeDetection: ChangeDetectionStrategy.Eager,
     standalone: false
 })
 export class BubbleComponent extends BaseComponentDirective implements OnInit, MicobeTraceNextPluginEvents, OnDestroy {

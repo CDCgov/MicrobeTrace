@@ -1,4 +1,4 @@
-﻿import { Injector, Component, Output, OnChanges, SimpleChange, EventEmitter, OnInit, NgZone, InjectionToken, ElementRef, ViewChild, ViewContainerRef, ViewChildren, QueryList, ChangeDetectorRef, Renderer2, Inject, OnDestroy } from '@angular/core';
+﻿import { Injector, Component, Output, OnChanges, SimpleChange, EventEmitter, OnInit, NgZone, InjectionToken, ElementRef, ViewChild, ViewContainerRef, ViewChildren, QueryList, ChangeDetectorRef, Renderer2, Inject, OnDestroy, ChangeDetectionStrategy } from '@angular/core';
 import { EventManager } from '@angular/platform-browser';
 import { AppComponentBase } from '@shared/common/app-component-base';
 import { CommonService } from '../../contactTraceCommonServices/common.service';
@@ -87,6 +87,7 @@ const ESRI_WORLD_IMAGERY_ATTRIBUTION = 'Tiles &copy; Esri - Source: Esri, Maxar,
     selector: 'MapComponent',
     templateUrl: './map-plugin.component.html',
     styleUrls: ['./map-plugin.component.css'],
+    changeDetection: ChangeDetectionStrategy.Eager,
     standalone: false
 })
 

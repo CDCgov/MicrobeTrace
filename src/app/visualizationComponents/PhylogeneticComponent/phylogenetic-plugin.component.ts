@@ -1,6 +1,7 @@
 ﻿import {
   Injector, Component, Output, EventEmitter, OnInit,
-  ElementRef, ChangeDetectorRef, Inject, OnDestroy
+  ElementRef, ChangeDetectorRef, Inject, OnDestroy,
+  ChangeDetectionStrategy
 } from '@angular/core';
 import { EventManager } from '@angular/platform-browser';
 import { CommonService } from '@app/contactTraceCommonServices/common.service';
@@ -50,6 +51,7 @@ import { createGlobalSettingsDialogRequest, GlobalSettingsDialogRequest } from '
     templateUrl: './phylogenetic-plugin.component.html',
     styleUrls: ['./phylogenetic-plugin.component.scss'],
     standalone: false,
+    changeDetection: ChangeDetectionStrategy.Eager,
     providers: [ConfirmationService]
 })
 export class PhylogeneticComponent extends BaseComponentDirective implements OnInit, OnDestroy, MicobeTraceNextPluginEvents {

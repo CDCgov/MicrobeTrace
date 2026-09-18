@@ -71,8 +71,8 @@
                     </div>
                   </div>
                   @if (SankeyFieldNames.length > 0) {
-                    <p-table id="sankey-field-table" [value]="SankeyFieldNames" styleClass="p-datatable-striped" (onRowReorder)="reorderRows($event)">
-                      <ng-template pTemplate="header">
+                    <p-table id="sankey-field-table" [value]="SankeyFieldNames" class="p-datatable-striped" (onRowReorder)="reorderRows($event)">
+                      <ng-template #header>
                         <tr>
                           <th style="width: 3rem;"></th>
                           <th class='p-1 table-header-row'>Name</th>
@@ -80,7 +80,7 @@
                           <th>Remove</th>
                         </tr>
                       </ng-template>
-                      <ng-template pTemplate="body" let-rowData let-index="rowIndex">
+                      <ng-template #body let-rowData let-index="rowIndex">
                         <tr [pReorderableRow]="index" [attr.data-field]="rowData" [attr.data-index]="index">
                           <td><span class="pi pi-bars" pReorderableRowHandle></span></td>
                           <td>{{ rowData }}</td>

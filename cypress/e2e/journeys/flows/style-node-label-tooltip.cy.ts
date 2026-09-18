@@ -55,7 +55,7 @@ describe('Journey Flow - Uploaded node labels and tooltips coexist with style', 
     cy.contains('li[role="option"]', labelOrientation).click({ force: true });
     cy.window().its('commonService.session.style.widgets.node-label-orientation').should('equal', labelOrientation);
 
-    cy.get('@nodesTab').contains('.form-group', 'Tooltip').find('p-multiselect').click({ force: true });
+    cy.get('@nodesTab').contains('.form-group', 'Tooltip').find('p-multi-select').click({ force: true });
     cy.get('.p-multiselect-overlay:visible').should('exist').as('tooltipPanel');
     tooltipVariables.forEach((tooltipVariable) => {
       cy.get('@tooltipPanel').contains('li[role="option"]', tooltipVariable).click({ force: true });

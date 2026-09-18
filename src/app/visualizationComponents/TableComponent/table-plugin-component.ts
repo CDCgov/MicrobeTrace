@@ -1,17 +1,18 @@
 ﻿import {
-    Injector,
-    Component,
-    Output,
-    OnChanges,
-    SimpleChange,
-    EventEmitter,
-    OnInit,
-    ViewChild,
-    ChangeDetectorRef,
-    OnDestroy,
-    ElementRef,
-    Inject
-  } from '@angular/core';
+  Injector,
+  Component,
+  Output,
+  OnChanges,
+  SimpleChange,
+  EventEmitter,
+  OnInit,
+  ViewChild,
+  ChangeDetectorRef,
+  OnDestroy,
+  ElementRef,
+  Inject,
+  ChangeDetectionStrategy
+} from '@angular/core';
   import { AppComponentBase } from '@shared/common/app-component-base';
   import { EventManager } from '@angular/platform-browser';
   import { CommonService } from '../../contactTraceCommonServices/common.service';
@@ -33,6 +34,7 @@ import { sanitizeExportCell } from '@app/contactTraceCommonServices/export-sanit
     selector: 'TableComponent',
     templateUrl: './table-plugin-component.html',
     styleUrls: ['./table-plugin-component.less'],
+    changeDetection: ChangeDetectionStrategy.Eager,
     standalone: false
 })
   export class TableComponent
@@ -118,8 +120,8 @@ import { sanitizeExportCell } from '@app/contactTraceCommonServices/export-sanit
 
     private applySelectedRowsToTable(): void {
       if (this.dataTable) {
-        this.dataTable.rows = this.selectedRows;
-        this.dataTable.first = 0;
+        this.dataTable.rows.set(this.selectedRows);
+        this.dataTable.first.set(0);
       }
 
       this.cdref.detectChanges();

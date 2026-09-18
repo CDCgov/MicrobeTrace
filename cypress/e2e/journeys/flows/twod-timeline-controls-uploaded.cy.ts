@@ -40,8 +40,7 @@ const normalizeLogicalLinkId = (value: string): string => String(value || '').re
 const clickVisiblePrimeOption = (label: string): void => {
   cy.get('.p-select-overlay:visible', { timeout: 15000 })
     .last()
-    .find('p-selectitem')
-    .contains('li', new RegExp(`^${escapeRegExp(label)}$`))
+    .contains('.p-select-option', new RegExp(`^${escapeRegExp(label)}$`))
     .click({ force: true });
 };
 

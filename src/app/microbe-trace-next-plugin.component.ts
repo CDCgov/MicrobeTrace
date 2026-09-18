@@ -138,7 +138,7 @@ function buildNodeShapeTreeOptions(groups: NodeShapeOptionGroup[], defaultExpand
         expanded: group.key === defaultExpandedGroup,
         children: group.items.map(option => ({
             key: option.key,
-            label: option.name,
+            label: `${option.value}${option.name}`,
             type: 'shape',
             data: option,
             leaf: true,
