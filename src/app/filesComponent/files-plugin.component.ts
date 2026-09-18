@@ -131,6 +131,7 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
   displaySequenceSettings: boolean = false;
   displayloadingInformationModal: boolean = false;
   handoffError: string | null = null;
+  private smartLaunchRequested: boolean = false;
 
   get hasLaunchableFiles(): boolean {
     return !this.isLoadingFiles && (this.commonService.session?.files?.length ?? 0) > 0;
@@ -1434,7 +1435,9 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
    * or resets all settings when requested by the Files tab reset update action.
    * Calls creatLaunchSequences to process the data files loaded.
    */
-  launchClick(options: { resetSettings?: boolean; embedHandoff?: boolean } = {}) {
+  launchClick(options: { resetSettings?: boolean; smartThreshold?: boolean; embedHandoff?: boolean } = {}) {
+
+    this.smartLaunchRequested = options.smartThreshold === true;
 
     if (!options.embedHandoff) {
       this.pendingEmbedLaunchOptions = null;
@@ -2425,6 +2428,35 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
   }
 
   /**
+   * Applies the same highest Component Structure Score recommendation shown in
+   * Global Settings before the initial view is rendered.
+   */
+  private applySmartLaunchRecommendation(): void {
+    if (!this.smartLaunchRequested) {
+      return;
+    }
+
+    this.smartLaunchRequested = false;
+    const metric = this.commonService.session.style.widgets['link-sort-variable'] || 'distance';
+    const summary = this.commonService.getThresholdSweepSummary(metric);
+    const recommendedIndex = summary.recommendedIndex;
+    const threshold = Number(summary.thresholds[recommendedIndex]);
+
+    if (recommendedIndex < 0 || !Number.isFinite(threshold)) {
+      this.showMessage(' - Smart Launch found no genetic threshold recommendation; using the selected threshold.');
+      return;
+    }
+
+    const score = summary.componentStructureScores[recommendedIndex];
+    this.SelectedDefaultDistanceThresholdVariable = threshold;
+    this.commonService.session.style.widgets['link-threshold'] = threshold;
+    this.commonService.GlobalSettingsModel.SelectedLinkThresholdVariable = threshold;
+    this.store.setLinkThreshold(threshold);
+    $('#default-distance-threshold').val(threshold);
+    this.showMessage(` - Smart Launch selected threshold ${threshold} (Component Structure Score ${score.toFixed(1)}).`);
+  }
+
+  /**
    * If sequences are present, processes them by aligning if needed, computing consensus, consensus distances, ambiguity counts, and then links
    */
   async processSequence(loadGeneration: number = this.commonService.getDataLoadGeneration()) {
@@ -2439,6 +2471,7 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
         skipped: true,
         reason: 'no-sequences'
       });
+      this.applySmartLaunchRecommendation();
       return this.commonService.runHamsters();
     }
     this.commonService.session.data.nodeFields.push('seq');
@@ -2524,6 +2557,7 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
       generatedLinks: k
     });
     this.showMessage(` - Found ${k} New Links from Genomic Proximity`);
+    this.applySmartLaunchRecommendation();
     this.commonService.runHamsters();
 
 

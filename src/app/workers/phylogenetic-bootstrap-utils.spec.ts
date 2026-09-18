@@ -4,7 +4,7 @@ import {
   canonicalSplitKey,
   collectTreeSplitKeys,
   countMatchingTreeSplits,
-  formatBootstrapSupportPercent,
+  formatBootstrapSupportLabel,
   isSupportStable,
   normalizeBootstrapSupportThreshold,
   parseBootstrapSupportPercent,
@@ -42,10 +42,10 @@ describe('phylogenetic bootstrap utilities', () => {
     expect(countMatchingTreeSplits(tree, [key], ['A', 'B', 'C', 'D'])[key]).toBe(1);
   });
 
-  it('formats support percentages with a bounded decimal length', () => {
-    expect(formatBootstrapSupportPercent(85.234, 1)).toBe('85.2%');
-    expect(formatBootstrapSupportPercent(85.234, 10)).toBe('85.234%');
-    expect(formatBootstrapSupportPercent(120, 0)).toBe('100%');
+  it('formats support values without a percent sign and with a bounded decimal length', () => {
+    expect(formatBootstrapSupportLabel(85.234, 1)).toBe('85.2');
+    expect(formatBootstrapSupportLabel(85.234, 10)).toBe('85.234');
+    expect(formatBootstrapSupportLabel(120, 0)).toBe('100');
   });
 
   it('normalizes imported fractional and percentage support labels', () => {
@@ -88,6 +88,6 @@ describe('phylogenetic bootstrap utilities', () => {
 
     expect(tree.children[0].id).toBe('0.8095238095238095');
     expect(tree.children[1].id).toBe('0.8095238095238095');
-    expect(formatBootstrapSupportPercent(support[key], 1)).toBe('81.0%');
+    expect(formatBootstrapSupportLabel(support[key], 1)).toBe('81.0');
   });
 });

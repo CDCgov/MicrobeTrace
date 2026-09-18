@@ -961,7 +961,7 @@ describe('Map View', () => {
           });
         });
 
-      cy.contains('#link-color-table-row p-selectButton span', 'Hide').parent().click();
+      cy.contains('#link-color-table-row p-select-button span', 'Hide').parent().click();
       cy.closeGlobalSettings();
       cy.wait(250);
       if (takeScreenshots) cy.screenshot('map/node-color-red', { overwrite: true});

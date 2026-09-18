@@ -49,8 +49,7 @@ const closeVisiblePrimeOverlays = (): void => {
 const clickVisiblePrimeOption = (label: string): void => {
   cy.get(visibleSelectOverlay, { timeout: 15000 })
     .last()
-    .find('p-selectitem')
-    .contains('li', new RegExp(`^${escapeRegExp(label)}$`))
+    .contains('.p-select-option', new RegExp(`^${escapeRegExp(label)}$`))
     .click({ force: true });
   closeVisiblePrimeOverlays();
 };

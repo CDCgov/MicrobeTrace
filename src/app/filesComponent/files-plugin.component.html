@@ -1,4 +1,4 @@
-﻿<div class="m-content">
+<div class="m-content">
 
   <div id="file-panel" appDnd (fileDropped)="processFiles($event)" class="container-fluid files-drop-zone" style="padding-top: 60px;">
     <div id="file-table" [style.display]="isLoadingFiles ? 'none' : 'block'" class="container">
@@ -184,7 +184,7 @@
                   <div class="form-group row">
                     <div class="col-2" title="Should MicrobeTrace align your sequences?">Align</div>
                     <div class="col-10">
-                      <p-selectButton [options]="AlignTypes" [allowEmpty]="false" [(ngModel)]="SelectedAlignTypeVariable" (onChange)="IsReferenceSourceSelected=(SelectedAlignTypeVariable=='None' ? false : true)"></p-selectButton>
+                      <p-select-button [options]="AlignTypes" [allowEmpty]="false" [(ngModel)]="SelectedAlignTypeVariable" (onChange)="IsReferenceSourceSelected=(SelectedAlignTypeVariable=='None' ? false : true)"></p-select-button>
                     </div>
                   </div>
 
@@ -196,7 +196,7 @@
                           <div class="form-group row alignConfigRow">
                             <div class="col-2" title="What should MicrobeTrace use as a reference to align your sequences?">Reference Source</div>
                             <div class="col-10">
-                              <p-selectButton [options]="ReferenceTypes" [allowEmpty]="false" [(ngModel)]="SelectedReferenceTypeVariable" (onChange)="IsReferenceOptionsSelected=(SelectedReferenceTypeVariable=='LoadFrom FASTA' ? true : false)"></p-selectButton>
+                              <p-select-button [options]="ReferenceTypes" [allowEmpty]="false" [(ngModel)]="SelectedReferenceTypeVariable" (onChange)="IsReferenceOptionsSelected=(SelectedReferenceTypeVariable=='LoadFrom FASTA' ? true : false)"></p-select-button>
                             </div>
                           </div>
                           @if (IsReferenceOptionsSelected == true) {
@@ -329,6 +329,23 @@
       @if (!commonService.session?.network?.launched) {
         <span>
           <button id="launch" class="btn btn-success files-launch-action" (click)="launchClick({ resetSettings: true })" title="Please select a Network CSV or FASTA File" [disabled]="!hasLaunchableFiles">Launch</button>
+        </span>
+        <span class="files-smart-launch-wrap">
+          <span class="files-smart-launch-callout">
+            <span class="files-smart-launch-new">New!</span>
+            <span class="files-smart-launch-info">
+              <button type="button" class="files-smart-launch-info__trigger" data-testid="files-smart-launch-info" aria-label="About the Smart Launch composite threshold" aria-describedby="smart-launch-tooltip">
+                <i class="pi pi-info-circle" aria-hidden="true"></i>
+              </button>
+              <span id="smart-launch-tooltip" class="files-smart-launch-info__tooltip" data-testid="files-smart-launch-tooltip" role="tooltip">
+                Smart Launch evaluates the available genetic-distance thresholds and chooses the highest Component Structure Score. The composite rewards useful fragmentation, low dominance by one cluster, balanced cluster sizes, broad participation, and equality across clusters. Review the result with epidemiologic context.
+              </span>
+            </span>
+          </span>
+          <button id="smart-launch" data-testid="files-smart-launch-button" class="btn files-launch-action files-smart-launch" (click)="launchClick({ resetSettings: true, smartThreshold: true })" title="Launch using the threshold with the highest Component Structure Score" [disabled]="!hasLaunchableFiles">
+            <span class="files-smart-launch__sparkle" aria-hidden="true">&#10022;</span>
+            Smart Launch
+          </button>
         </span>
       } @else {
         <span>

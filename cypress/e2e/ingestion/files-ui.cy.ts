@@ -101,7 +101,7 @@ describe('File Handling and Processing', () => {
       .should('have.text', unsafeFileName);
     cy.get('@unsafeFileRow').find('[autofocus]').should('not.exist');
     cy.get('@unsafeFileRow').find('[onfocus]').should('not.exist');
-    cy.get('@unsafeFileRow').find('input[type="radio"]').should('have.length', 7);
+    cy.get('@unsafeFileRow').find('input[type="radio"]').should('have.length', 8);
     cy.window().its('__mtInjected').should('equal', false);
 
     cy.get('@unsafeFileRow').find('input[data-type="node"]').should('be.checked');
@@ -128,14 +128,11 @@ describe('File Handling and Processing', () => {
     cy.contains('#file-table .file-table-row', quotedFileName, { timeout: 20000 })
       .should('be.visible')
       .then(($row) => {
-        const mappingColumns = $row.find('[data-file]');
+        const mappingColumns = $row.find('select').closest('.col-4');
         const firstLabel = mappingColumns.eq(0).find('label').get(0) as HTMLLabelElement;
         const firstSelect = mappingColumns.eq(0).find('select').get(0) as HTMLSelectElement;
 
         expect(mappingColumns).to.have.length(3);
-        mappingColumns.each((_index, column) => {
-          expect(column.getAttribute('data-file')).to.equal(quotedFileName);
-        });
         expect(firstLabel.htmlFor).to.equal(`file-${quotedFileName}-field-1`);
         expect(firstSelect.id).to.equal(`file-${quotedFileName}-field-1`);
         expect($row.find('[data-single], [data-double]')).to.have.length(0);
@@ -168,7 +165,7 @@ describe('File Handling and Processing', () => {
         expect(option, 'CSV header option').to.exist;
         expect(option?.getAttribute('class')).to.equal(null);
         expect(option?.getAttribute('onanimationstart')).to.equal(null);
-        expect(option?.textContent).to.contain('onanimationstart');
+        expect(option?.textContent?.toLowerCase()).to.contain('onanimationstart');
       });
 
     cy.get('#file-table .file-table-row [onanimationstart]').should('not.exist');

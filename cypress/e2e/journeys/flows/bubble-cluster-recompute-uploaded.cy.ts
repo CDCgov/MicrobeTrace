@@ -62,8 +62,7 @@ const escapeRegExp = (value: string): string => value.replace(/[.*+?^${}()|[\]\\
 const clickVisiblePrimeOption = (label: string): void => {
   cy.get('.p-select-overlay', { timeout: 15000 })
     .last()
-    .find('p-selectitem')
-    .contains('li', new RegExp(`^${escapeRegExp(label)}$`))
+    .contains('.p-select-option', new RegExp(`^${escapeRegExp(label)}$`))
     .click({ force: true });
 };
 

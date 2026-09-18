@@ -1,4 +1,4 @@
-import { AfterViewInit, ChangeDetectorRef, Component, ElementRef, Inject, Injector, OnDestroy, OnInit, Renderer2, ViewChild } from '@angular/core';
+import { AfterViewInit, ChangeDetectorRef, Component, ElementRef, Inject, Injector, OnDestroy, OnInit, Renderer2, ViewChild, ChangeDetectionStrategy } from '@angular/core';
 import { EventManager } from '@angular/platform-browser';
 import { BaseComponentDirective } from '@app/base-component.directive';
 import { CommonService } from '@app/contactTraceCommonServices/common.service';
@@ -21,6 +21,7 @@ import { Subject, takeUntil } from 'rxjs';
     selector: 'AggregateComponent',
     templateUrl: './aggregate.component.html',
     styleUrls: ['./aggregate.component.scss'],
+    changeDetection: ChangeDetectionStrategy.Eager,
     standalone: false
 })
 export class AggregateComponent extends BaseComponentDirective implements OnInit, AfterViewInit, MicobeTraceNextPluginEvents, OnDestroy {

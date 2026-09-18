@@ -40,6 +40,8 @@
 !.vscode/extensions.json
 
 # misc
+/.env.local
+/src/environments/primeui-license.generated.ts
 /.playwright-cli/
 /.angular/cache
 /.sass-cache

@@ -223,4 +223,42 @@ export const FILTERING_PROFILES: DatasetProfile[] = [
       },
     },
   }),
+  P({
+    id: 'threshold-score-genetic-policy',
+    title: 'Threshold score: genetic-only policy with epi-only and mixed-origin links',
+    tags: ['filtering', 'threshold-score', 'mixed-origin', 'epi', 'tn93', 'load-to-twod'],
+    files: [
+      {
+        name: 'ThresholdScoreNodes.csv',
+        datatype: 'node',
+        field1: '_id',
+      },
+      {
+        name: 'ThresholdScoreGeneticLinks.csv',
+        datatype: 'link',
+        field1: 'source',
+        field2: 'target',
+        field3: 'distance',
+      },
+      {
+        name: 'ThresholdScoreEpiLinks.csv',
+        datatype: 'link',
+        field1: 'source',
+        field2: 'target',
+      },
+    ],
+    preLaunch: {
+      metric: 'tn93',
+      threshold: 1,
+      defaultView: '2D Network',
+    },
+    expectations: {
+      afterLaunch: {
+        nodes: 6,
+        visibleLinks: 3,
+        clusters: 1,
+        singletons: 2,
+      },
+    },
+  }),
 ];

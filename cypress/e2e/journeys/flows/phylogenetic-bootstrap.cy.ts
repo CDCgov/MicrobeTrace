@@ -83,7 +83,7 @@ const calculateSmallBootstrap = (): void => {
   cy.get('#bootstrap-status', { timeout: 60000 }).should('contain.text', 'Bootstrap support calculated');
 };
 
-const assertBootstrapLabelsVisible = (pattern: RegExp = /^\d+\.\d%$/): void => {
+const assertBootstrapLabelsVisible = (pattern: RegExp = /^\d+\.\d$/): void => {
   cy.get(SELECTORS.internalNodeLabels, { timeout: 15000 }).should(($labels) => {
     const texts = Array.from($labels).map(label => String(label.textContent || '').trim()).filter(Boolean);
     expect(texts.some(text => pattern.test(text)), 'bootstrap support labels').to.equal(true);
@@ -140,7 +140,7 @@ describe('Journey Flow - Phylogenetic bootstrap support', () => {
     });
 
     selectBootstrapDecimals('2');
-    assertBootstrapLabelsVisible(/^\d+\.\d{2}%$/);
+    assertBootstrapLabelsVisible(/^\d+\.\d{2}$/);
     cy.window().then((win: WinWithMT) => {
       expect(win.commonService.session.data.newickString).to.equal(newickAfterBootstrap);
     });
@@ -171,7 +171,7 @@ describe('Journey Flow - Phylogenetic bootstrap support', () => {
     assertBootstrapLabelsVisible();
     openBootstrapTab();
     selectBootstrapDecimals('2');
-    assertBootstrapLabelsVisible(/^\d+\.\d{2}%$/);
+    assertBootstrapLabelsVisible(/^\d+\.\d{2}$/);
 
     setBootstrapSupportThreshold('90');
     cy.get(SELECTORS.internalNodeLabels).should(($labels) => {

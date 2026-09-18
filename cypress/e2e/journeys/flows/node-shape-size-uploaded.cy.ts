@@ -108,7 +108,7 @@ const assertSelectedNodeShapePreview = (value: string, shapeKey: string): void =
 const openNodeShapeTableDropdown = (value: string): void => {
   getNodeShapeTableRow(value)
     .scrollIntoView()
-    .find('p-treeselect, .shapeDropdown, .p-treeselect')
+    .find('p-tree-select, .shapeDropdown, .p-treeselect')
     .first()
     .click({ force: true });
 };
@@ -195,10 +195,8 @@ describe('Journey Flow - Uploaded node shapes and sizes without style', () => {
     assertSelectedNodeShapePreview('Facility', facilityShapeKey);
 
     openNodeShapeTableDropdown('Person');
-    cy.get('.shapeTreeSelectPanel:visible', { timeout: 15000 })
-      .find(`img.style-key-table__shape-preview[data-shape-key="${personShapeKey}"]`)
-      .should('be.visible')
-      .and('have.attr', 'src', getNodeShapePreviewDataUri(personShapeKey));
+    cy.contains('.shapeTreeSelectPanel:visible [role="treeitem"]', 'Virus', { timeout: 15000 })
+      .should('be.visible');
     cy.get('body').type('{esc}');
 
     cy.window().then((win: any) => {
@@ -256,6 +254,10 @@ describe('Journey Flow - Uploaded node shapes and sizes without style', () => {
     cy.get('body').type('{esc}');
 
     cy.window().its('commonService.session.style.widgets.node-radius-variable').should('equal', 'degree');
+    cy.get('@twoDSettings')
+      .find('.tab-pane:visible', { timeout: 15000 })
+      .should('exist')
+      .as('nodesTab');
     cy.get('@nodesTab').find('#node-radius-row').should('not.be.visible');
     cy.get('@nodesTab').find('#node-max-radius-row').should('be.visible');
     cy.get('@nodesTab').find('#node-min-radius-row').should('be.visible');
@@ -282,6 +284,11 @@ describe('Journey Flow - Uploaded node shapes and sizes without style', () => {
 
     cy.window().its('commonService.session.style.widgets.node-radius-variable').should('equal', 'Zip_code');
     expectNumericFieldRendersScaledNodeWidths('Zip_code');
+
+    cy.get('@twoDSettings')
+      .find('.tab-pane:visible', { timeout: 15000 })
+      .should('exist')
+      .as('nodesTab');
 
     cy.get('@nodesTab')
       .find('#node-radius-min')

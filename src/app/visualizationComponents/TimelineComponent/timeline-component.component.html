@@ -212,8 +212,8 @@
               <div class="form-group row" title="Show data noncumulatively or cumulatively.">
                 <div class="col-4">Epi Curve</div>
                 <div class="col-8">
-                  <p-selectButton [allowEmpty]="false" fluid [(ngModel)]="widgets['epiCurve-cumulative']" (ngModelChange)="setCumulative()"
-                    [options]="[{'label': 'Noncumulative', 'value': false}, {'label': 'Cumulative', 'value': true}]"></p-selectButton>
+                  <p-select-button [allowEmpty]="false" fluid [(ngModel)]="widgets['epiCurve-cumulative']" (ngModelChange)="setCumulative()"
+                    [options]="[{'label': 'Noncumulative', 'value': false}, {'label': 'Cumulative', 'value': true}]"></p-select-button>
                 </div>
               </div>
             }
@@ -230,7 +230,7 @@
               <label>Legend Position</label>
             </div>
             <div class="col-8">
-              <p-selectButton [options]="legendPositionOptions" [allowEmpty]="false" [(ngModel)]="widgets['epiCurve-legendPosition']" (ngModelChange)="onLegendPositionChange()"></p-selectButton>
+              <p-select-button [options]="legendPositionOptions" [allowEmpty]="false" [(ngModel)]="widgets['epiCurve-legendPosition']" (ngModelChange)="onLegendPositionChange()"></p-select-button>
             </div>
           </div>
           @if (widgets['epiCurve-legendPosition'] != 'Hide') {
@@ -295,8 +295,8 @@
               </div>
               <div class="form-group row" title="Drag and drop stacked color groups to reorder them.">
                 <div class="col-12">
-                  <p-orderList id="epi-stack-order-list" [value]="customStackOrderItems" [dragdrop]="true" (onReorder)="onCustomStackOrderReorder()">
-                    <ng-template let-item pTemplate="item">
+                  <p-order-list id="epi-stack-order-list" [value]="customStackOrderItems" [dragdrop]="true" (onReorder)="onCustomStackOrderReorder()">
+                    <ng-template #item let-item>
                       <div class="d-flex align-items-center width-percent-100" style="gap: 8px;">
                         <span style="flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis;">{{ item.label }}</span>
                         @if (widgets['epiCurve-stackColorBy'] != 'Node Color') {
@@ -305,7 +305,7 @@
                         }
                       </div>
                     </ng-template>
-                  </p-orderList>
+                  </p-order-list>
                 </div>
               </div>
             }
