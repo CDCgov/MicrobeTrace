@@ -266,9 +266,11 @@
           </div>
         </section>
 
+      </tab>
+      <tab heading="{{'Order & Color' | localize}}" customClass="m-tabs__item">
         @if (selectedGraphType=='Single Date Field' || selectedGraphType=='Multi: Overlay') {
-          <section class="epi-appearance-section" aria-labelledby="epi-appearance-stack-colors-heading">
-            <h3 id="epi-appearance-stack-colors-heading" class="epi-appearance-section__heading">Stack Colors</h3>
+          <section class="epi-appearance-section" aria-labelledby="epi-order-color-stack-colors-heading">
+            <h3 id="epi-order-color-stack-colors-heading" class="epi-appearance-section__heading">Stack Colors</h3>
             @if (selectedGraphType=='Multi: Overlay') {
               <div class="epi-stack-colors-note" role="status">
                 {{ getOverlayStackAvailabilityMessage() }}
@@ -310,6 +312,10 @@
               </div>
             }
           </section>
+        } @else {
+          <div class="epi-stack-colors-note" role="status">
+            Order and color controls are available for Single Date Field and Multi: Overlay graphs.
+          </div>
         }
       </tab>
     </tabset>

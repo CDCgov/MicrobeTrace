@@ -39,7 +39,7 @@ type WinWithMT = Window & {
   commonService: any;
 };
 
-type EpiCurveSettingsTab = 'Graph' | 'Appearance';
+type EpiCurveSettingsTab = 'Graph' | 'Appearance' | 'Order & Color';
 type EpiCurveStackItem = {
   label: string;
   value: any;
@@ -90,7 +90,7 @@ export function selectEpiCurveSettingsTab(tab: EpiCurveSettingsTab): void {
 
 function selectEpiCurveFieldTab(field: EpiCurveFieldLabel): void {
   if (field === 'Color By' || field === 'Stack Order') {
-    selectEpiCurveSettingsTab('Appearance');
+    selectEpiCurveSettingsTab('Order & Color');
     return;
   }
 
@@ -120,7 +120,7 @@ function getEpiCurveRowByText(text: string): Cypress.Chainable<JQuery<HTMLElemen
 }
 
 function getEpiStackOptionByLabel(label: string): Cypress.Chainable<JQuery<HTMLElement>> {
-  selectEpiCurveSettingsTab('Appearance');
+  selectEpiCurveSettingsTab('Order & Color');
 
   return getEpiCurveSettingsDialog()
     .find('#epi-stack-order-list [role="option"]', { timeout: 10000 })
@@ -475,7 +475,7 @@ export function readEpiStackOrderItems(): Cypress.Chainable<EpiCurveStackItem[]>
 }
 
 export function readEpiStackOrderLabels(): Cypress.Chainable<string[]> {
-  selectEpiCurveSettingsTab('Appearance');
+  selectEpiCurveSettingsTab('Order & Color');
 
   return getEpiCurveSettingsDialog()
     .find('#epi-stack-order-list [role="option"]', { timeout: 10000 })
@@ -522,7 +522,7 @@ export function setEpiStackGroupOpacity(label: string, opacity: number): void {
 }
 
 export function reorderEpiStackGroups(dragIndex: number, dropIndex: number): void {
-  selectEpiCurveSettingsTab('Appearance');
+  selectEpiCurveSettingsTab('Order & Color');
 
   cy.window().then((win: unknown) => {
     const epiCurve = (win as WinWithMT).commonService.visuals.epiCurve as any;

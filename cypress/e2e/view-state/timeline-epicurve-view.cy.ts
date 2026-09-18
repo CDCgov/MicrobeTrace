@@ -32,13 +32,15 @@ describe('Epi Curve / Timeline View', () => {
         .within(() => {
           cy.get('.nav-link').then(($tabs) => {
             expect([...$tabs].map((tab) => String(tab.textContent || '').trim()))
-              .to.deep.equal(['Graph', 'Appearance']);
+              .to.deep.equal(['Graph', 'Appearance', 'Order & Color']);
           });
           cy.contains('.nav-link', /^Appearance$/).click({ force: true });
-          cy.get('.epi-appearance-section__heading').then(($headings) => {
+          cy.get('.epi-appearance-section__heading:visible').then(($headings) => {
             expect([...$headings].map((heading) => String(heading.textContent || '').trim()))
-              .to.deep.equal(['Legend', 'Labels', 'Stack Colors']);
+              .to.deep.equal(['Legend', 'Labels']);
           });
+          cy.contains('.nav-link', /^Order & Color$/).click({ force: true });
+          cy.get('.epi-appearance-section__heading:visible').should('have.text', 'Stack Colors');
         });
   
       cy.closeSettingsPane('Epi Curve Settings');
@@ -395,7 +397,7 @@ describe('Epi Curve / Timeline View', () => {
       })
     })
 
-    let selectEpiSettingsTab = (tab: 'Graph' | 'Appearance') => {
+    let selectEpiSettingsTab = (tab: 'Graph' | 'Appearance' | 'Order & Color') => {
       cy.contains('.p-dialog-title', 'Epi Curve Settings')
         .parents('.p-dialog')
         .within(() => {
