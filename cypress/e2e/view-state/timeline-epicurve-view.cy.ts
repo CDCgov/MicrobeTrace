@@ -318,6 +318,14 @@ describe('Epi Curve / Timeline View', () => {
         selectField('Series Type 2', 'Line')
         selectField('Series Type 3', 'Line')
 
+        selectEpiSettingsTab('Appearance')
+        cy.get('#epi-line-width')
+          .should('be.visible')
+          .parents('.epi-appearance-section')
+          .find('.epi-appearance-section__heading')
+          .should('have.text', 'Lines');
+        cy.get('[id^="epi-line-width-"]').should('not.exist');
+
         selectColor(0, '#aa0000', 0)
         selectOverlayLineColor(1, '#00aa00')
         selectOverlayLineColor(2, '#0300aa')

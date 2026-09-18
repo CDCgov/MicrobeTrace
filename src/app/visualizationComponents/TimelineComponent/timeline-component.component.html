@@ -186,20 +186,6 @@
                               (ngModelChange)="onLineStyleChange()"></p-select>
                           </div>
                         </div>
-                        <div class="form-group row" title="Choose the thickness of this line.">
-                          <div class="col-4">
-                            <label [for]="'epi-line-width-' + (seriesIndex + 1)">Line Thickness {{ seriesIndex + 1 }}</label>
-                          </div>
-                          <div class="col-6">
-                            <input type="range" class="custom-range" [id]="'epi-line-width-' + (seriesIndex + 1)"
-                              [min]="minLineWidth" [max]="maxLineWidth" step="1"
-                              [(ngModel)]="widgets['epiCurve-lineWidths'][seriesIndex]"
-                              (ngModelChange)="onLineWidthChange(seriesIndex)">
-                          </div>
-                          <div class="col-2 text-right">
-                            <output [attr.for]="'epi-line-width-' + (seriesIndex + 1)">{{ getLineWidth(seriesIndex) }} px</output>
-                          </div>
-                        </div>
                       }
                     </section>
                   }
@@ -254,6 +240,26 @@
             </div>
           }
         </section>
+
+        @if (hasVisibleLineSeries()) {
+          <section class="epi-appearance-section" aria-labelledby="epi-appearance-lines-heading">
+            <h3 id="epi-appearance-lines-heading" class="epi-appearance-section__heading">Lines</h3>
+            <div class="form-group row" title="Choose the thickness used by every line series.">
+              <div class="col-4">
+                <label for="epi-line-width">Line Thickness</label>
+              </div>
+              <div class="col-6">
+                <input type="range" class="custom-range" id="epi-line-width"
+                  [min]="minLineWidth" [max]="maxLineWidth" step="1"
+                  [(ngModel)]="widgets['epiCurve-lineWidth']"
+                  (ngModelChange)="onLineWidthChange()">
+              </div>
+              <div class="col-2 text-right">
+                <output for="epi-line-width">{{ getLineWidth() }} px</output>
+              </div>
+            </div>
+          </section>
+        }
 
         <section class="epi-appearance-section" aria-labelledby="epi-appearance-labels-heading">
           <h3 id="epi-appearance-labels-heading" class="epi-appearance-section__heading">Labels</h3>
@@ -343,9 +349,12 @@
               </div>
               <div class="form-group row" title="Drag and drop stacked color groups to reorder them.">
                 <div class="col-12">
-                  <p-order-list id="epi-stack-order-list" [value]="customStackOrderItems" [dragdrop]="true" (onReorder)="onCustomStackOrderReorder()">
+                  <p-order-list id="epi-stack-order-list" [(value)]="customStackOrderItems" [dragdrop]="true" (onReorder)="onCustomStackOrderReorder()">
                     <ng-template #item let-item>
                       <div class="d-flex align-items-center width-percent-100" style="gap: 8px;">
+                        <span class="epi-stack-drag-handle" title="Drag to reorder" aria-hidden="true">
+                          <i class="pi pi-bars"></i>
+                        </span>
                         <span style="flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis;">{{ item.label }}</span>
                         @if (widgets['epiCurve-stackColorBy'] != 'Node Color') {
                           <input type="color" class="form-control form-control-sm" style="width: 42px; padding: 2px;" [style.opacity]="1 - item.transparency" [ngModel]="item.color" (change)="onStackGroupColorChange(item, $any($event.target).value)" (click)="$event.stopPropagation()" (mousedown)="$event.stopPropagation()" (pointerdown)="$event.stopPropagation()" title="Color">

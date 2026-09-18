@@ -517,10 +517,15 @@ describe('Journey Flow - Epi Curve controls on uploaded data', () => {
 
       expect(renderableStackItems.length, 'renderable stack groups').to.be.greaterThan(1);
 
+      const moved = renderableStackItems[0];
+      const second = renderableStackItems[1];
+
       return {
-        moved: renderableStackItems[0],
-        second: renderableStackItems[1],
-        dropIndex: stackItems.length - 1,
+        moved,
+        second,
+        dropIndex: second.index,
+        internalIndex: stackItems.length - 1 - second.index,
+        renderIndex: renderableStackItems.length - 2,
       };
     }).as('stackCase');
 
@@ -556,11 +561,14 @@ describe('Journey Flow - Epi Curve controls on uploaded data', () => {
 
       cy.window().its('commonService.session.style.widgets').should((widgets) => {
         expect(widgets['epiCurve-stackOrder'], 'stack order mode').to.equal('Custom');
-        expect(widgets['epiCurve-customStackOrder'][0], 'internal bottom stack group').to.equal(stackCase.moved.value);
+        expect(
+          widgets['epiCurve-customStackOrder'][stackCase.internalIndex],
+          'moved group in internal stack order',
+        ).to.equal(stackCase.moved.value);
       });
 
       readUniqueEpiCurveFillsInRenderOrder().should((fills) => {
-        expect(fills[0], 'first rendered stack fill after custom reorder').to.equal(movedColor);
+        expect(fills[stackCase.renderIndex], 'moved rendered stack fill after custom reorder').to.equal(movedColor);
       });
     });
 
@@ -795,8 +803,7 @@ describe('Journey Flow - Epi Curve controls on uploaded data', () => {
       .should('be.visible');
     setEpiCurveLineStyle(1, 'Solid');
     setEpiCurveLineStyle(2, 'Dashed');
-    setEpiCurveLineWidth(1, 5);
-    setEpiCurveLineWidth(2, 8);
+    setEpiCurveLineWidth(7);
     selectEpiCurveDropdown('Value Field 2', 'Zipcode');
     selectEpiCurveDropdown('Value Field 3', 'Zipcode');
     selectEpiCurveDropdown('Aggregation 2', 'Last');
@@ -888,8 +895,8 @@ describe('Journey Flow - Epi Curve controls on uploaded data', () => {
         }));
 
         expect(lines).to.deep.equal([
-          { color: '#00aa00', dashArray: null, fieldIndex: '1', style: 'solid', width: '5' },
-          { color: '#0300aa', dashArray: '10 7', fieldIndex: '2', style: 'dashed', width: '8' },
+          { color: '#00aa00', dashArray: null, fieldIndex: '1', style: 'solid', width: '7' },
+          { color: '#0300aa', dashArray: '10 7', fieldIndex: '2', style: 'dashed', width: '7' },
         ]);
         expect($lines[0].querySelector('title')?.textContent)
           .to.equal('Cumulative doses 2025 (solid line)');
@@ -920,7 +927,7 @@ describe('Journey Flow - Epi Curve controls on uploaded data', () => {
       .should('have.length', 2)
       .then(($lines) => {
         expect([...$lines].map((line) => line.getAttribute('stroke-width')))
-          .to.deep.equal(['5', '8']);
+          .to.deep.equal(['7', '7']);
       });
 
     cy.closeSettingsPane('Epi Curve Settings');

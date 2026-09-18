@@ -230,12 +230,10 @@ export function setEpiCurveLineStyle(fieldIndex: 0 | 1 | 2 | 3, style: EpiCurveL
     .should('equal', style);
 }
 
-export function setEpiCurveLineWidth(fieldIndex: 0 | 1 | 2 | 3, width: number): void {
-  const inputId = `#epi-line-width-${fieldIndex + 1}`;
-
-  selectEpiCurveSettingsTab('Graph');
+export function setEpiCurveLineWidth(width: number): void {
+  selectEpiCurveSettingsTab('Appearance');
   getEpiCurveSettingsDialog()
-    .find(inputId)
+    .find('#epi-line-width')
     .scrollIntoView()
     .should('be.visible')
     .invoke('val', width)
@@ -244,7 +242,7 @@ export function setEpiCurveLineWidth(fieldIndex: 0 | 1 | 2 | 3, width: number): 
     .should('have.value', `${width}`);
 
   cy.window()
-    .its(`commonService.session.style.widgets.epiCurve-lineWidths.${fieldIndex}`)
+    .its('commonService.session.style.widgets.epiCurve-lineWidth')
     .should('equal', width);
 }
 
@@ -533,7 +531,7 @@ export function readEpiStackOrderLabels(): Cypress.Chainable<string[]> {
   return getEpiCurveSettingsDialog()
     .find('#epi-stack-order-list [role="option"]', { timeout: 10000 })
     .then(($options) => [...$options].map((option) => {
-      const label = option.querySelector('.d-flex > span');
+      const label = option.querySelector('.d-flex > span:not(.epi-stack-drag-handle)');
       return String(label?.textContent || '').replace(/\s+/g, ' ').trim();
     }).filter(Boolean));
 }
@@ -577,16 +575,64 @@ export function setEpiStackGroupOpacity(label: string, opacity: number): void {
 export function reorderEpiStackGroups(dragIndex: number, dropIndex: number): void {
   selectEpiCurveSettingsTab('Order & Color');
 
-  cy.window().then((win: unknown) => {
-    const epiCurve = (win as WinWithMT).commonService.visuals.epiCurve as any;
-    const items = [...(epiCurve.customStackOrderItems || [])];
-    const [movedItem] = items.splice(dragIndex, 1);
+  getEpiCurveSettingsDialog()
+    .find('#epi-stack-order-list [role="option"]')
+    .should('have.length.greaterThan', Math.max(dragIndex, dropIndex))
+    .then(($options) => {
+      const sourceOption = $options[dragIndex] as HTMLElement;
+      const source = (sourceOption.querySelector('.epi-stack-drag-handle') as HTMLElement | null)
+        ?? sourceOption;
+      const target = $options[dropIndex] as HTMLElement;
+      const sourceBounds = source.getBoundingClientRect();
+      const targetBounds = target.getBoundingClientRect();
+      const frameElement = ((Cypress as any).state('$autIframe') as JQuery<HTMLIFrameElement> | undefined)
+        ?.get(0);
+      const frameBounds = frameElement?.getBoundingClientRect();
+      const frameOffsetX = frameBounds?.left ?? 0;
+      const frameOffsetY = frameBounds?.top ?? 0;
+      const frameWindow = source.ownerDocument.defaultView;
+      const scaleX = frameBounds && frameWindow?.innerWidth
+        ? frameBounds.width / frameWindow.innerWidth
+        : 1;
+      const scaleY = frameBounds && frameWindow?.innerHeight
+        ? frameBounds.height / frameWindow.innerHeight
+        : 1;
+      const startX = frameOffsetX + (sourceBounds.left + sourceBounds.width / 2) * scaleX;
+      const startY = frameOffsetY + (sourceBounds.top + sourceBounds.height / 2) * scaleY;
+      const endX = frameOffsetX + (targetBounds.left + targetBounds.width / 2) * scaleX;
+      const targetY = dragIndex < dropIndex
+        ? targetBounds.bottom - 2
+        : targetBounds.top + 2;
+      const endY = frameOffsetY + targetY * scaleY;
+      const thresholdY = startY + (dragIndex < dropIndex ? 10 : -10);
+      const midpointY = startY + (endY - startY) / 2;
+      const dispatchMouseEvent = (
+        type: 'mouseMoved' | 'mousePressed' | 'mouseReleased',
+        x: number,
+        y: number,
+        buttons: number,
+      ): Cypress.Chainable<unknown> => cy.then(() => (Cypress as any).automation(
+        'remote:debugger:protocol',
+        {
+          command: 'Input.dispatchMouseEvent',
+          params: {
+            type,
+            x,
+            y,
+            button: 'left',
+            buttons,
+            clickCount: type == 'mouseMoved' ? 0 : 1,
+          },
+        },
+      ));
 
-    expect(movedItem, `stack group at index ${dragIndex}`).to.exist;
-
-    items.splice(dropIndex, 0, movedItem);
-    epiCurve.customStackOrderItems = items;
-    epiCurve.onCustomStackOrderReorder();
-    epiCurve.cdref?.detectChanges?.();
+      dispatchMouseEvent('mouseMoved', startX, startY, 0);
+      dispatchMouseEvent('mousePressed', startX, startY, 1);
+      dispatchMouseEvent('mouseMoved', startX, thresholdY, 1);
+      cy.wait(50, { log: false });
+      dispatchMouseEvent('mouseMoved', endX, midpointY, 1);
+      dispatchMouseEvent('mouseMoved', endX, endY, 1);
+      cy.wait(100, { log: false });
+      dispatchMouseEvent('mouseReleased', endX, endY, 0);
   });
 }

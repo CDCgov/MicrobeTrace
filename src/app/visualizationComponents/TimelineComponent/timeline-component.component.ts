@@ -461,9 +461,11 @@ export class TimelineComponent extends BaseComponentDirective implements OnInit,
     const savedLineWidths = Array.isArray(this.widgets['epiCurve-lineWidths'])
       ? this.widgets['epiCurve-lineWidths']
       : [];
-    this.widgets['epiCurve-lineWidths'] = Array.from(
-      { length: this.maxSeriesCount },
-      (_, index) => this.normalizeLineWidth(savedLineWidths[index]),
+    const legacyLineWidth = savedLineWidths.find(value =>
+      value != null && value !== '' && Number(value) != this.defaultLineWidth)
+      ?? savedLineWidths.find(value => value != null && value !== '');
+    this.widgets['epiCurve-lineWidth'] = this.normalizeLineWidth(
+      this.widgets['epiCurve-lineWidth'] ?? legacyLineWidth,
     );
 
     const savedSeriesTypes = Array.isArray(this.widgets['epiCurve-series-types'])
@@ -547,8 +549,13 @@ export class TimelineComponent extends BaseComponentDirective implements OnInit,
     return this.widgets['epiCurve-series-types']?.[index] == 'Line' ? 'Line' : 'Bar';
   }
 
-  getLineWidth(index: number): number {
-    return this.normalizeLineWidth(this.widgets['epiCurve-lineWidths']?.[index]);
+  getLineWidth(): number {
+    return this.normalizeLineWidth(this.widgets['epiCurve-lineWidth']);
+  }
+
+  hasVisibleLineSeries(): boolean {
+    return this.selectedGraphType != 'Single Date Field'
+      && this.visibleSeriesIndexes.some(index => this.getSeriesType(index) == 'Line');
   }
 
   getSeriesAxis(index: number): EpiCurveAxis {
@@ -673,7 +680,6 @@ export class TimelineComponent extends BaseComponentDirective implements OnInit,
     this.widgets['epiCurve-series-cumulative'][index] = false;
     this.widgets['epiCurve-series-types'][index] = 'Bar';
     this.widgets['epiCurve-lineStyles'][index] = 'Solid';
-    this.widgets['epiCurve-lineWidths'][index] = this.defaultLineWidth;
     this.widgets['epiCurve-colors'][index] = this.defaultSeriesColors[index];
     this.seriesCount += 1;
     this.widgets['epiCurve-series-count'] = this.seriesCount;
@@ -694,7 +700,6 @@ export class TimelineComponent extends BaseComponentDirective implements OnInit,
       'epiCurve-series-cumulative': false,
       'epiCurve-series-types': 'Bar',
       'epiCurve-lineStyles': 'Solid',
-      'epiCurve-lineWidths': this.defaultLineWidth,
     };
     Object.entries(defaults).forEach(([widgetName, defaultValue]) => {
       this.widgets[widgetName].splice(index, 1);
@@ -1063,7 +1068,7 @@ private refreshMulti(): void {
   lineSeriesIndexes.forEach(seriesIndex => {
     const fieldIndex = fieldIndexes[seriesIndex];
     const lineStyle = this.getLineStyle(fieldIndex);
-    const lineWidth = this.getLineWidth(fieldIndex);
+    const lineWidth = this.getLineWidth();
     const lineGenerator = d3.line<any>()
       .x((d: any) => this.x(new Date((d.x0.getTime() + d.x1.getTime()) / 2)))
       .y((d: any) => this.y(this.getBinCount(d)));
@@ -1092,7 +1097,6 @@ private refreshMulti(): void {
 
   this.updateAxes(useDualAxis);
   const lineStyles = fieldIndexes.map(fieldIndex => this.getLineStyle(fieldIndex));
-  const lineWidths = fieldIndexes.map(fieldIndex => this.getLineWidth(fieldIndex));
   if (overlayStackConfiguration) {
     const stackFieldLabel = this.getTooltipLabel(overlayStackConfiguration.colorVariable);
     const stackColors = overlayStackConfiguration.keys.map(key => this.getStackFill(key));
@@ -1102,7 +1106,6 @@ private refreshMulti(): void {
     const overlayLineColors = lineSeriesIndexes.map(index => colors[index]);
     const overlayLineLabels = lineSeriesIndexes.map(index => `Line: ${seriesLabels[index]}`);
     const overlayLineStyles = lineSeriesIndexes.map(index => lineStyles[index]);
-    const overlayLineWidths = lineSeriesIndexes.map(index => lineWidths[index]);
     this.generateLegend(
       epiCurve,
       [...stackColors, ...overlayLineColors],
@@ -1110,7 +1113,6 @@ private refreshMulti(): void {
       [...stackOpacities, ...overlayLineColors.map(() => 1)],
       [...stackLabels.map(() => 'bar'), ...overlayLineLabels.map(() => 'line')],
       [...stackLabels.map(() => 'Solid'), ...overlayLineStyles],
-      [...stackLabels.map(() => this.defaultLineWidth), ...overlayLineWidths],
       false);
   } else {
     this.generateLegend(
@@ -1120,7 +1122,6 @@ private refreshMulti(): void {
       [],
       seriesTypes.map(seriesType => seriesType.toLowerCase()),
       lineStyles,
-      lineWidths,
       false);
   }
 } 
@@ -1780,7 +1781,7 @@ private fitLegendTextToWidth(textSelection, fullLabel: string, maxWidth: number,
   return measureText();
 }
 
-generateLegend(epiCurve, colors, fieldNames, opacities = [], seriesTypes = [], lineStyles = [], lineWidths = [], formatLabels = true) {
+generateLegend(epiCurve, colors, fieldNames, opacities = [], seriesTypes = [], lineStyles = [], formatLabels = true) {
   const legendFontSize = Math.max(6, Number(this.legendLabelSize || 15));
   const legendFontSizePx = `${legendFontSize}px`;
   const markerRadius = Math.max(4, Math.round(legendFontSize * 0.35));
@@ -1816,7 +1817,7 @@ generateLegend(epiCurve, colors, fieldNames, opacities = [], seriesTypes = [], l
         baseX = 70;
       }
 
-      this.appendLegendMarker(epiCurve, baseX, y, markerRadius, colors[i], opacities[i] ?? 1, seriesTypes[i], lineStyles[i], lineWidths[i]);
+      this.appendLegendMarker(epiCurve, baseX, y, markerRadius, colors[i], opacities[i] ?? 1, seriesTypes[i], lineStyles[i]);
       const legendLabel = name == null
         ? '(Empty)'
         : formatLabels ? this.commonService.capitalize(name.toString()) : name.toString();
@@ -1888,7 +1889,7 @@ generateLegend(epiCurve, colors, fieldNames, opacities = [], seriesTypes = [], l
       const renderedTextWidth = this.fitLegendTextToWidth(text, legendLabel, maxTextWidth, legendFontSize);
       const markerX = legendRightX - renderedTextWidth - markerTextGap - markerHalfWidth;
 
-      this.appendLegendMarker(epiCurve, markerX, y, markerRadius, colors[i], opacities[i] ?? 1, seriesTypes[i], lineStyles[i], lineWidths[i]);
+      this.appendLegendMarker(epiCurve, markerX, y, markerRadius, colors[i], opacities[i] ?? 1, seriesTypes[i], lineStyles[i]);
       count += 1;
     });
     return;
@@ -1904,7 +1905,7 @@ generateLegend(epiCurve, colors, fieldNames, opacities = [], seriesTypes = [], l
   }
   fieldNames.forEach((name, i) => {
     const markerHalfWidth = seriesTypes[i] == 'line' ? markerRadius * 2 : markerRadius;
-    this.appendLegendMarker(epiCurve, xOffset, legendRowHeight * (count + 1), markerRadius, colors[i], opacities[i] ?? 1, seriesTypes[i], lineStyles[i], lineWidths[i]);
+    this.appendLegendMarker(epiCurve, xOffset, legendRowHeight * (count + 1), markerRadius, colors[i], opacities[i] ?? 1, seriesTypes[i], lineStyles[i]);
     const legendLabel = name == null
       ? '(Empty)'
       : formatLabels ? this.commonService.capitalize(name.toString()) : name.toString();
@@ -1929,10 +1930,9 @@ private appendLegendMarker(
   opacity,
   seriesType = 'bar',
   lineStyle = 'Solid',
-  lineWidth = this.defaultLineWidth,
 ): void {
   if (seriesType == 'line') {
-    const normalizedLineWidth = this.normalizeLineWidth(lineWidth);
+    const normalizedLineWidth = this.getLineWidth();
     epiCurve.append("line")
       .attr("class", "epiCurve-legend-line")
       .attr("data-line-style", lineStyle.toLowerCase())
@@ -2356,8 +2356,8 @@ onLineStyleChange() {
   this.refresh();
 }
 
-onLineWidthChange(index: number) {
-  this.widgets['epiCurve-lineWidths'][index] = this.getLineWidth(index);
+onLineWidthChange() {
+  this.widgets['epiCurve-lineWidth'] = this.getLineWidth();
   this.refresh();
 }
 
