@@ -33,6 +33,7 @@ export type EpiCurveAggregation = 'Count' | 'Sum' | 'Last' | 'Average';
 export type EpiCurveLineStyle = 'Solid' | 'Dashed';
 export type EpiCurveLegendPosition = 'Hide' | 'Left' | 'Top' | 'Right' | 'Bottom';
 export type EpiCurveRangeLabel = 'Label Size' | 'Legend Size';
+export type EpiCurveAxisTitle = 'X-axis Title' | 'Left Y-axis Title' | 'Right Y-axis Title';
 export type EpiCurveTickInterval = number;
 
 type WinWithMT = Window & {
@@ -227,6 +228,58 @@ export function setEpiCurveLineStyle(fieldIndex: 0 | 1 | 2 | 3, style: EpiCurveL
   cy.window()
     .its(`commonService.session.style.widgets.epiCurve-lineStyles.${fieldIndex}`)
     .should('equal', style);
+}
+
+export function setEpiCurveLineWidth(fieldIndex: 0 | 1 | 2 | 3, width: number): void {
+  const inputId = `#epi-line-width-${fieldIndex + 1}`;
+
+  selectEpiCurveSettingsTab('Graph');
+  getEpiCurveSettingsDialog()
+    .find(inputId)
+    .scrollIntoView()
+    .should('be.visible')
+    .invoke('val', width)
+    .trigger('input')
+    .trigger('change')
+    .should('have.value', `${width}`);
+
+  cy.window()
+    .its(`commonService.session.style.widgets.epiCurve-lineWidths.${fieldIndex}`)
+    .should('equal', width);
+}
+
+export function setEpiCurveAxisTitle(axis: EpiCurveAxisTitle, title: string): void {
+  const inputIdByAxis: Record<EpiCurveAxisTitle, string> = {
+    'X-axis Title': '#epi-x-axis-label',
+    'Left Y-axis Title': '#epi-left-y-axis-label',
+    'Right Y-axis Title': '#epi-right-y-axis-label',
+  };
+  const widgetPathByAxis: Record<EpiCurveAxisTitle, string> = {
+    'X-axis Title': 'commonService.session.style.widgets.epiCurve-xAxisLabel',
+    'Left Y-axis Title': 'commonService.session.style.widgets.epiCurve-leftYAxisLabel',
+    'Right Y-axis Title': 'commonService.session.style.widgets.epiCurve-rightYAxisLabel',
+  };
+  const inputId = inputIdByAxis[axis];
+
+  selectEpiCurveSettingsTab('Appearance');
+  getEpiCurveSettingsDialog()
+    .find(inputId)
+    .scrollIntoView()
+    .should('be.visible')
+    .clear();
+
+  if (title) {
+    getEpiCurveSettingsDialog()
+      .find(inputId)
+      .type(title);
+  }
+
+  getEpiCurveSettingsDialog()
+    .find(inputId)
+    .should('have.value', title);
+  cy.window()
+    .its(widgetPathByAxis[axis])
+    .should('equal', title);
 }
 
 export function setEpiCurveSeriesLabel(fieldIndex: 0 | 1 | 2 | 3, label: string): void {

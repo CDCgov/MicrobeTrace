@@ -18,10 +18,12 @@ import {
   removeEpiCurveSeries,
   selectEpiCurveDropdown,
   selectEpiCurveSettingsTab,
+  setEpiCurveAxisTitle,
   setEpiCurveColor,
   setEpiCurveCumulative,
   setEpiCurveLegendPosition,
   setEpiCurveLineStyle,
+  setEpiCurveLineWidth,
   setEpiCurveRange,
   setEpiCurveSeriesCumulative,
   setEpiCurveSeriesLabel,
@@ -334,6 +336,18 @@ describe('Journey Flow - Epi Curve controls on uploaded data', () => {
         'bin size change should update the rendered bar geometry',
       ).to.equal(true);
     });
+
+    ensureEpiSettingsDialogOpen();
+    setEpiCurveAxisTitle('X-axis Title', 'Symptom onset date');
+    setEpiCurveAxisTitle('Left Y-axis Title', 'Reported cases');
+    cy.get('#epiCurveSVG text.x.label').should('have.text', 'Symptom onset date');
+    cy.get('#epiCurveSVG .label--left').should('have.text', 'Reported cases');
+
+    ensureEpiSettingsDialogOpen();
+    setEpiCurveAxisTitle('X-axis Title', '');
+    setEpiCurveAxisTitle('Left Y-axis Title', '');
+    cy.get('#epiCurveSVG text.x.label').should('have.text', 'Date (Daily Bins)');
+    cy.get('#epiCurveSVG .label--left').should('have.text', 'Count of Date of symptom onset Date');
 
     ensureEpiSettingsDialogOpen();
     setEpiCurveLegendPosition('Left');
@@ -781,10 +795,15 @@ describe('Journey Flow - Epi Curve controls on uploaded data', () => {
       .should('be.visible');
     setEpiCurveLineStyle(1, 'Solid');
     setEpiCurveLineStyle(2, 'Dashed');
+    setEpiCurveLineWidth(1, 5);
+    setEpiCurveLineWidth(2, 8);
     selectEpiCurveDropdown('Value Field 2', 'Zipcode');
     selectEpiCurveDropdown('Value Field 3', 'Zipcode');
     selectEpiCurveDropdown('Aggregation 2', 'Last');
     selectEpiCurveDropdown('Aggregation 3', 'Average');
+    setEpiCurveAxisTitle('X-axis Title', 'Reporting week');
+    setEpiCurveAxisTitle('Left Y-axis Title', 'Dose total');
+    setEpiCurveAxisTitle('Right Y-axis Title', 'Reported cases');
 
     getEpiSettingsDialog().find('.epi-series-axis-badge')
       .should('have.length', 3)
@@ -794,8 +813,9 @@ describe('Journey Flow - Epi Curve controls on uploaded data', () => {
         expect([...$badges].map((badge) => badge.getAttribute('data-series-axis')))
           .to.deep.equal(['right', 'left', 'left']);
       });
-    cy.get('#epiCurveSVG .label--left').should('have.text', 'Zip code');
-    cy.get('#epiCurveSVG .label--right').should('have.text', 'Count of Collection Date');
+    cy.get('#epiCurveSVG text.x.label').should('have.text', 'Reporting week');
+    cy.get('#epiCurveSVG .label--left').should('have.text', 'Dose total');
+    cy.get('#epiCurveSVG .label--right').should('have.text', 'Reported cases');
 
     cy.get('#epiCurveSVG .epiCurve-legend-label')
       .then(($labels) => {
@@ -864,11 +884,12 @@ describe('Journey Flow - Epi Curve controls on uploaded data', () => {
           dashArray: line.getAttribute('stroke-dasharray'),
           fieldIndex: line.getAttribute('data-field-index'),
           style: line.getAttribute('data-line-style'),
+          width: line.getAttribute('stroke-width'),
         }));
 
         expect(lines).to.deep.equal([
-          { color: '#00aa00', dashArray: null, fieldIndex: '1', style: 'solid' },
-          { color: '#0300aa', dashArray: '10 7', fieldIndex: '2', style: 'dashed' },
+          { color: '#00aa00', dashArray: null, fieldIndex: '1', style: 'solid', width: '5' },
+          { color: '#0300aa', dashArray: '10 7', fieldIndex: '2', style: 'dashed', width: '8' },
         ]);
         expect($lines[0].querySelector('title')?.textContent)
           .to.equal('Cumulative doses 2025 (solid line)');
@@ -891,11 +912,16 @@ describe('Journey Flow - Epi Curve controls on uploaded data', () => {
     cy.get('#epiCurveSVG .epiCurve-line-overlay')
       .should('have.attr', 'data-series-axis', 'left');
     cy.get('#epiCurveSVG .axis--y-right').should('exist');
-    cy.get('#epiCurveSVG text.x.label').should('have.text', 'Date (Weekly Bins)');
-    cy.get('#epiCurveSVG .label--left').should('have.text', 'Zip code');
-    cy.get('#epiCurveSVG .label--right').should('have.text', 'Count of Collection Date');
+    cy.get('#epiCurveSVG text.x.label').should('have.text', 'Reporting week');
+    cy.get('#epiCurveSVG .label--left').should('have.text', 'Dose total');
+    cy.get('#epiCurveSVG .label--right').should('have.text', 'Reported cases');
     cy.get('#epiCurveSVG .epiCurve-legend-marker').should('have.length', 1);
-    cy.get('#epiCurveSVG .epiCurve-legend-line').should('have.length', 2);
+    cy.get('#epiCurveSVG .epiCurve-legend-line')
+      .should('have.length', 2)
+      .then(($lines) => {
+        expect([...$lines].map((line) => line.getAttribute('stroke-width')))
+          .to.deep.equal(['5', '8']);
+      });
 
     cy.closeSettingsPane('Epi Curve Settings');
   });

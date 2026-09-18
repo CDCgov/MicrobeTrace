@@ -31,7 +31,7 @@
                       <span id="epi-series-help-tooltip-content" class="epi-series-help-tooltip__content" role="tooltip">
                         Add up to four series. Map each series to a date field and choose whether it is displayed as a bar or a line.
                         Bar series are grouped in Side by Side mode and layered in Overlay mode.
-                        In Overlay, one Count or Sum bar series can also be stacked by category from Appearance.
+                        In Overlay, one Count or Sum bar series can also be stacked by category from Order &amp; Color.
                         Every series uses the left axis unless bars and lines are mixed; then bars use the right axis.
                       </span>
                     </span>
@@ -186,6 +186,20 @@
                               (ngModelChange)="onLineStyleChange()"></p-select>
                           </div>
                         </div>
+                        <div class="form-group row" title="Choose the thickness of this line.">
+                          <div class="col-4">
+                            <label [for]="'epi-line-width-' + (seriesIndex + 1)">Line Thickness {{ seriesIndex + 1 }}</label>
+                          </div>
+                          <div class="col-6">
+                            <input type="range" class="custom-range" [id]="'epi-line-width-' + (seriesIndex + 1)"
+                              [min]="minLineWidth" [max]="maxLineWidth" step="1"
+                              [(ngModel)]="widgets['epiCurve-lineWidths'][seriesIndex]"
+                              (ngModelChange)="onLineWidthChange(seriesIndex)">
+                          </div>
+                          <div class="col-2 text-right">
+                            <output [attr.for]="'epi-line-width-' + (seriesIndex + 1)">{{ getLineWidth(seriesIndex) }} px</output>
+                          </div>
+                        </div>
                       }
                     </section>
                   }
@@ -243,6 +257,38 @@
 
         <section class="epi-appearance-section" aria-labelledby="epi-appearance-labels-heading">
           <h3 id="epi-appearance-labels-heading" class="epi-appearance-section__heading">Labels</h3>
+          <div class="form-group row" title="Customize the x-axis title. Leave blank to use the automatic title.">
+            <div class="col-4">
+              <label for="epi-x-axis-label">X-axis Title</label>
+            </div>
+            <div class="col-8">
+              <input id="epi-x-axis-label" type="text" class="form-control form-control-sm" maxlength="120"
+                [placeholder]="getDefaultXAxisLabel()" [(ngModel)]="widgets['epiCurve-xAxisLabel']"
+                (ngModelChange)="onAxisTitleChange()">
+            </div>
+          </div>
+          <div class="form-group row" title="Customize the left y-axis title. Leave blank to use the automatic title.">
+            <div class="col-4">
+              <label for="epi-left-y-axis-label">Left Y-axis Title</label>
+            </div>
+            <div class="col-8">
+              <input id="epi-left-y-axis-label" type="text" class="form-control form-control-sm" maxlength="120"
+                [placeholder]="getDefaultYAxisLabel('Left')" [(ngModel)]="widgets['epiCurve-leftYAxisLabel']"
+                (ngModelChange)="onAxisTitleChange()">
+            </div>
+          </div>
+          @if (isDualAxisMulti()) {
+            <div class="form-group row" title="Customize the right y-axis title. Leave blank to use the automatic title.">
+              <div class="col-4">
+                <label for="epi-right-y-axis-label">Right Y-axis Title</label>
+              </div>
+              <div class="col-8">
+                <input id="epi-right-y-axis-label" type="text" class="form-control form-control-sm" maxlength="120"
+                  [placeholder]="getDefaultYAxisLabel('Right')" [(ngModel)]="widgets['epiCurve-rightYAxisLabel']"
+                  (ngModelChange)="onAxisTitleChange()">
+              </div>
+            </div>
+          }
           <div class="form-group row" title="Choose the time unit used between x-axis tick labels.">
             <div class="col-4">
               <label>Tick Unit</label>
