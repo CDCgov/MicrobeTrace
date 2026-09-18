@@ -39,7 +39,7 @@ type WinWithMT = Window & {
   commonService: any;
 };
 
-type EpiCurveSettingsTab = 'Graph' | 'Appearance' | 'Titles & Axes' | 'Annotations';
+type EpiCurveSettingsTab = 'Graph' | 'Appearance';
 type EpiCurveStackItem = {
   label: string;
   value: any;
@@ -282,31 +282,6 @@ export function setEpiCurveSeriesCumulative(
     .should('equal', cumulative);
 }
 
-export function addEpiCurveAnnotation(date: string, label: string): void {
-  selectEpiCurveSettingsTab('Annotations');
-
-  getEpiCurveSettingsDialog()
-    .find('#epi-add-annotation')
-    .click();
-
-  getEpiCurveSettingsDialog()
-    .find('.epi-annotation-editor')
-    .last()
-    .within(() => {
-      cy.get('input[type="date"]')
-        .clear()
-        .type(date);
-      cy.get('input[type="text"]')
-        .clear()
-        .type(label);
-    });
-
-  cy.window().should((win) => {
-    const annotations = Cypress._.get(win, 'commonService.session.style.widgets.epiCurve-annotations');
-    expect(annotations[annotations.length - 1]).to.deep.equal({ date, label });
-  });
-}
-
 export function addEpiCurveSeries(expectedCount: 2 | 3 | 4): void {
   selectEpiCurveSettingsTab('Graph');
 
@@ -446,36 +421,6 @@ export function setEpiCurveTickInterval(value: EpiCurveTickInterval): void {
     .should((tickInterval) => {
       expect(Number(tickInterval), 'epi curve tick interval').to.equal(value);
     });
-}
-
-export function setEpiCurveChartText(
-  field: 'Chart Title' | 'X-axis Label' | 'Left Y-axis Label' | 'Right Y-axis Label' | 'Footnote',
-  value: string,
-): void {
-  const inputByField = {
-    'Chart Title': '#epi-chart-title',
-    'X-axis Label': '#epi-x-axis-label',
-    'Left Y-axis Label': '#epi-left-y-axis-label',
-    'Right Y-axis Label': '#epi-right-y-axis-label',
-    Footnote: '#epi-chart-footnote',
-  };
-  const widgetByField = {
-    'Chart Title': 'epiCurve-chartTitle',
-    'X-axis Label': 'epiCurve-xAxisLabel',
-    'Left Y-axis Label': 'epiCurve-leftYAxisLabel',
-    'Right Y-axis Label': 'epiCurve-rightYAxisLabel',
-    Footnote: 'epiCurve-footnote',
-  };
-
-  selectEpiCurveSettingsTab('Titles & Axes');
-  getEpiCurveSettingsDialog()
-    .find(inputByField[field])
-    .clear()
-    .type(value)
-    .should('have.value', value);
-  cy.window()
-    .its(`commonService.session.style.widgets.${widgetByField[field]}`)
-    .should('equal', value);
 }
 
 export function readEpiCurveBars():

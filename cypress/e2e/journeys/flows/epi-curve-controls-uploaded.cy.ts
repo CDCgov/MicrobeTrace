@@ -7,7 +7,6 @@ import {
   openEpiCurveSettingsDialog,
 } from '../../../support/journey-helpers';
 import {
-  addEpiCurveAnnotation,
   addEpiCurveSeries,
   assertEpiCurveHasBars,
   assertEpiCurveColorPickerVisible,
@@ -20,7 +19,6 @@ import {
   selectEpiCurveDropdown,
   selectEpiCurveSettingsTab,
   setEpiCurveColor,
-  setEpiCurveChartText,
   setEpiCurveCumulative,
   setEpiCurveLegendPosition,
   setEpiCurveLineStyle,
@@ -323,10 +321,7 @@ describe('Journey Flow - Epi Curve controls on uploaded data', () => {
     ensureEpiSettingsDialogOpen();
     selectEpiCurveDropdown('Bin Size', 'Day');
 
-    selectEpiCurveSettingsTab('Titles & Axes');
-    getEpiSettingsDialog().find('#epi-right-y-axis-label').should('not.exist');
     cy.get('#epiCurveSVG .label--right').should('not.exist');
-    selectEpiCurveSettingsTab('Graph');
 
     cy.get('#epiCurveSVG text.x.label').should('contain.text', 'Date (Daily Bins)');
     readEpiCurveBars().then((bars) => {
@@ -742,10 +737,6 @@ describe('Journey Flow - Epi Curve controls on uploaded data', () => {
     ensureEpiSettingsDialogOpen();
     selectEpiCurveDropdown('Date Field 3', 'Date symptoms resolved');
 
-    selectEpiCurveSettingsTab('Titles & Axes');
-    getEpiSettingsDialog().find('#epi-right-y-axis-label').should('not.exist');
-    selectEpiCurveSettingsTab('Graph');
-
     ensureEpiSettingsDialogOpen();
     setEpiCurveColor(0, '#aa0000');
     ensureEpiSettingsDialogOpen();
@@ -806,11 +797,6 @@ describe('Journey Flow - Epi Curve controls on uploaded data', () => {
     cy.get('#epiCurveSVG .label--left').should('have.text', 'Zip code');
     cy.get('#epiCurveSVG .label--right').should('have.text', 'Count of Collection Date');
 
-    selectEpiCurveSettingsTab('Titles & Axes');
-    getEpiSettingsDialog().find('#epi-left-y-axis-label').should('have.attr', 'placeholder', 'Zip code');
-    getEpiSettingsDialog().find('#epi-right-y-axis-label').should('have.attr', 'placeholder', 'Count of Collection Date');
-    selectEpiCurveSettingsTab('Graph');
-
     cy.get('#epiCurveSVG .epiCurve-legend-label')
       .then(($labels) => {
         expect([...$labels].map((label) => String(label.textContent || '').trim()))
@@ -862,12 +848,6 @@ describe('Journey Flow - Epi Curve controls on uploaded data', () => {
     selectEpiCurveDropdown('Tick Unit', 'Day');
     setEpiCurveTickInterval(14);
 
-    setEpiCurveChartText('Chart Title', 'MMWR-style example');
-    setEpiCurveChartText('X-axis Label', 'Onset date');
-    setEpiCurveChartText('Left Y-axis Label', 'Cumulative doses');
-    setEpiCurveChartText('Right Y-axis Label', 'Measles cases');
-    setEpiCurveChartText('Footnote', 'Abbreviation: MMR vaccine.');
-
     readEpiCurveBars().then((bars) => {
       expect(bars[0].width, 'overlay bar width').to.be.greaterThan(sideBySideBarWidth);
       expect(
@@ -911,11 +891,9 @@ describe('Journey Flow - Epi Curve controls on uploaded data', () => {
     cy.get('#epiCurveSVG .epiCurve-line-overlay')
       .should('have.attr', 'data-series-axis', 'left');
     cy.get('#epiCurveSVG .axis--y-right').should('exist');
-    cy.get('#epiCurveSVG .epiCurve-chart-title').should('contain.text', 'MMWR-style example');
-    cy.get('#epiCurveSVG text.x.label').should('have.text', 'Onset date');
-    cy.get('#epiCurveSVG .label--left').should('have.text', 'Cumulative doses');
-    cy.get('#epiCurveSVG .label--right').should('have.text', 'Measles cases');
-    cy.get('#epiCurveSVG .epiCurve-footnote').should('contain.text', 'Abbreviation: MMR vaccine.');
+    cy.get('#epiCurveSVG text.x.label').should('have.text', 'Date (Weekly Bins)');
+    cy.get('#epiCurveSVG .label--left').should('have.text', 'Zip code');
+    cy.get('#epiCurveSVG .label--right').should('have.text', 'Count of Collection Date');
     cy.get('#epiCurveSVG .epiCurve-legend-marker').should('have.length', 1);
     cy.get('#epiCurveSVG .epiCurve-legend-line').should('have.length', 2);
 
@@ -1069,33 +1047,4 @@ describe('Journey Flow - Epi Curve controls on uploaded data', () => {
     cy.closeSettingsPane('Epi Curve Settings');
   });
 
-  it('adds, persists, renders, and removes dated plot annotations', () => {
-    const annotationDate = '2021-07-16';
-    const annotationLabel = 'Outbreak declared';
-
-    addEpiCurveAnnotation(annotationDate, annotationLabel);
-
-    cy.get('#epiCurveSVG .epiCurve-annotation')
-      .should('have.length', 1)
-      .and('have.attr', 'data-annotation-date', annotationDate);
-    cy.get('#epiCurveSVG .epiCurve-annotation-date')
-      .should('have.text', 'Jul 16, 2021:');
-    cy.get('#epiCurveSVG .epiCurve-annotation-label-line')
-      .should('have.text', annotationLabel);
-    cy.get('#epiCurveSVG .epiCurve-annotation-leader')
-      .should('have.attr', 'marker-end', 'url(#epiCurve-annotation-arrowhead)');
-
-    ensureEpiSettingsDialogOpen();
-    selectEpiCurveSettingsTab('Annotations');
-    getEpiSettingsDialog()
-      .find('.epi-remove-annotation')
-      .click();
-
-    cy.window()
-      .its('commonService.session.style.widgets.epiCurve-annotations')
-      .should('deep.equal', []);
-    cy.get('#epiCurveSVG .epiCurve-annotation').should('not.exist');
-
-    cy.closeSettingsPane('Epi Curve Settings');
-  });
 });

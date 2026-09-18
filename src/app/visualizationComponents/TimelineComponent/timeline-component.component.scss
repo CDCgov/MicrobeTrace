@@ -221,31 +221,6 @@
     display: block !important;
   }
 
-  .epi-annotation-toolbar {
-    align-items: flex-start;
-    display: flex;
-    gap: 16px;
-    justify-content: space-between;
-    margin-bottom: 14px;
-  }
-
-  .epi-annotation-heading {
-    color: #343a40;
-    font-weight: 600;
-    margin-bottom: 2px;
-  }
-
-  .epi-annotation-help,
-  .epi-annotation-empty,
-  .epi-chart-text-help {
-    color: #6c757d;
-    font-size: 0.85rem;
-  }
-
-  .epi-chart-text-help {
-    margin-bottom: 14px;
-  }
-
   .epi-appearance-section + .epi-appearance-section {
     border-top: 1px solid #dee2e6;
     margin-top: 14px;
@@ -272,54 +247,4 @@
     line-height: 1.35;
     margin-bottom: 10px;
     padding: 7px 9px;
-  }
-
-  #epi-add-annotation {
-    flex: 0 0 auto;
-    white-space: nowrap;
-  }
-
-  #epi-add-annotation .pi {
-    margin-right: 5px;
-  }
-
-  .epi-annotation-list {
-    max-height: 315px;
-    overflow-y: auto;
-    padding-right: 4px;
-  }
-
-  .epi-annotation-editor {
-    align-items: flex-end;
-    background: #f8f9fa;
-    border: 1px solid #dee2e6;
-    border-radius: 4px;
-    display: grid;
-    gap: 8px;
-    grid-template-columns: minmax(130px, 0.8fr) minmax(180px, 1.4fr) 34px;
-    margin-bottom: 10px;
-    padding: 10px;
-  }
-
-  .epi-annotation-editor label {
-    color: #495057;
-    display: block;
-    font-size: 0.8rem;
-    margin-bottom: 4px;
-  }
-
-  .epi-remove-annotation {
-    align-items: center;
-    color: #b42318;
-    display: flex;
-    height: 31px;
-    justify-content: center;
-    padding: 0;
-    width: 31px;
-  }
-
-  .epi-remove-annotation:hover,
-  .epi-remove-annotation:focus {
-    background: #fce8e6;
-    color: #8f1d14;
   }

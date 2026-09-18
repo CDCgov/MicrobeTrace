@@ -35,7 +35,7 @@ describe('Epi Curve / Timeline View', () => {
         .within(() => {
           cy.get('.nav-link').then(($tabs) => {
             expect([...$tabs].map((tab) => String(tab.textContent || '').trim()))
-              .to.deep.equal(['Graph', 'Appearance', 'Titles & Axes', 'Annotations']);
+              .to.deep.equal(['Graph', 'Appearance']);
           });
           cy.contains('.nav-link', /^Appearance$/).click({ force: true });
           cy.get('.epi-appearance-section__heading').then(($headings) => {
