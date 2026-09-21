@@ -21,7 +21,7 @@ import { CommonStoreService } from './contactTraceCommonServices/common-store.se
 import { ExportService, ExportOptions } from './contactTraceCommonServices/export.service';
 import { GraphMLService } from './contactTraceCommonServices/graphml.service';
 import { sanitizeExportRows } from './contactTraceCommonServices/export-sanitization';
-import { formatNodeColorWeightPercentage, getMixedNodeColorLegendEntries } from './contactTraceCommonServices/color-mapping.service';
+import { formatMixedNodeColorDisplayName, getMixedNodeColorLegendEntries } from './contactTraceCommonServices/color-mapping.service';
 import * as XLSX from 'xlsx';
 import { buildDate, commitHash, version as appVersion } from "src/environments/version";
 import { EmbedHandoffService } from './embed/embed-handoff.service';
@@ -4000,15 +4000,17 @@ ${warnings.join('\n')}`,
                     const fillStyle = this.commonService.getNodeFillStyle({
                         [this.SelectedColorNodesByVariable]: entry.value
                     });
-                    const displayName = entry.components
-                        .map((component, index) => {
-                            const componentName = this.getNodeValueDisplayName(
-                                component,
-                                this.SelectedColorNodesByVariable
-                            );
-                            return `${componentName} ${formatNodeColorWeightPercentage(entry.weights[index])}`;
-                        })
-                        .join(' / ');
+                    const componentDisplayNames = entry.components.map(component =>
+                        this.getNodeValueDisplayName(
+                            component,
+                            this.SelectedColorNodesByVariable
+                        )
+                    );
+                    const displayName = formatMixedNodeColorDisplayName(
+                        componentDisplayNames,
+                        entry.weights,
+                        entry.hasExplicitWeights
+                    );
 
                     return {
                         rawValue: entry.value,
@@ -4018,7 +4020,10 @@ ${warnings.join('\n')}`,
                         frequency: vnodes.length === 0 ? '' : (entry.count / vnodes.length).toLocaleString(),
                         colorSegments: fillStyle.segments?.map(segment => ({
                             value: segment.value,
-                            displayName: `${this.getNodeValueDisplayName(segment.value, this.SelectedColorNodesByVariable)} ${formatNodeColorWeightPercentage(segment.weight)}`,
+                            displayName: this.getNodeValueDisplayName(
+                                segment.value,
+                                this.SelectedColorNodesByVariable
+                            ),
                             color: segment.color,
                             opacity: segment.alpha,
                             weight: segment.weight,

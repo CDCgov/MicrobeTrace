@@ -58,6 +58,13 @@ interface CollapsedAggregatePositionAnchor {
     position: { x: number; y: number };
 }
 
+interface TwoDViewportBoundingBox {
+    x1: number;
+    y1: number;
+    x2: number;
+    y2: number;
+}
+
 @Component({
     selector: 'TwoDComponent',
     templateUrl: './twoD-plugin.component.html',
@@ -96,6 +103,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
     private collapsedAggregatePositionAnchors: CollapsedAggregatePositionAnchor[] = [];
     private timelineFinalCollapsedAggregatePositionAnchors: CollapsedAggregatePositionAnchor[] = [];
     private timelineFinalCollapsedLayoutReady = false;
+    private timelineCompleteFitBoundingBox: TwoDViewportBoundingBox | null = null;
     private nodeCollapseShapeWarningConfirmed = false;
     private nodeCollapseShapeWarningPending = false;
     private nodeCollapseRefreshPending = false;
@@ -806,6 +814,30 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
 
     private isTimelineFilteringActive(): boolean {
         return this.commonService.session.style.widgets["timeline-date-field"] !== 'None';
+    }
+
+    private captureTimelineCompleteFitBoundingBox(): void {
+        if (!this.cy || this.timelineCompleteFitBoundingBox || !this.isTimelineFilteringActive()) {
+            return;
+        }
+
+        // The first timeline visibility event arrives while Cytoscape still contains
+        // the complete, laid-out network. Preserve those bounds before the event
+        // replaces the elements with the initial-date subset.
+        const boundingBox = this.cy.nodes().boundingBox();
+        const coordinates = [boundingBox.x1, boundingBox.y1, boundingBox.x2, boundingBox.y2];
+        if (
+            coordinates.every(coordinate => Number.isFinite(coordinate))
+            && boundingBox.x2 > boundingBox.x1
+            && boundingBox.y2 > boundingBox.y1
+        ) {
+            this.timelineCompleteFitBoundingBox = {
+                x1: boundingBox.x1,
+                y1: boundingBox.y1,
+                x2: boundingBox.x2,
+                y2: boundingBox.y2
+            };
+        }
     }
 
     private getLinkEndpointId(endpoint: any): string {
@@ -5341,6 +5373,12 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             return;
         }
 
+        if (this.isTimelineFilteringActive()) {
+            this.captureTimelineCompleteFitBoundingBox();
+        } else {
+            this.timelineCompleteFitBoundingBox = null;
+        }
+
         if (!timelineTick) {
             // If the network is in the middle of rendering, don't rerender
             if(this.isNetworkRendering()) {
@@ -6519,7 +6557,13 @@ scaleLinkWidth() {
     fit() {
         if (this.cy) {
             this.cy.resize();
-            this.cy.fit(this.cy.nodes(), 30);
+            if (this.isTimelineFilteringActive() && this.timelineCompleteFitBoundingBox) {
+                // Cytoscape accepts a bounding box at runtime, although its public
+                // TypeScript signature only advertises an element collection here.
+                (this.cy as any).fit(this.timelineCompleteFitBoundingBox, 30);
+            } else {
+                this.cy.fit(this.cy.nodes(), 30);
+            }
         }
     };
 

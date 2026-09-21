@@ -1,0 +1,12 @@
+ID,Collection_Date,Genotype,Group,lat,long,seq,Expected
+jan-weighted-counts,2024-01-01,A:3/B:1,January,33.7490,-84.3880,AAAAAAAAAAAAAAAAAAAA,A/B (75%/25%)
+jan-weighted-decimals,2024-01-01,A:0.75/B:0.25,January,33.7590,-84.3780,AAAAAAAAAAAAAAAAAAAT,A/B (75%/25%)
+jan-solid-control,2024-01-01,C,January,33.7390,-84.3980,AAAAAAAAAAAAAAAAAATT,Solid C
+feb-weighted-percent,2024-02-01,A:75%/B:25%,February,33.7690,-84.3680,AAAAAAAAAAAAAAAAATTT,A/B (75%/25%)
+feb-weighted-reversed,2024-02-01,B:25/A:75,February,33.7290,-84.4080,AAAAAAAAAAAAAAAATTTT,A/B (75%/25%)
+feb-unweighted-control,2024-02-01,A/B,February,33.7790,-84.3580,AAAAAAAAAAAAAAATTTTT,A/B
+feb-invalid-partial,2024-02-01,A:3/B,February,33.7190,-84.4180,AAAAAAAAAAAAAATTTTTT,A/B (50%/50%) plus warning
+mar-weighted-duplicates,2024-03-01,A:2/A:1/B:1,March,33.7890,-84.3480,AAAAAAAAAAAAATTTTTTT,A/B (75%/25%)
+mar-weighted-comma,2024-03-01,"A:3,B:1",March,33.7090,-84.4280,AAAAAAAAAAAATTTTTTTT,A/B (75%/25%)
+mar-weighted-three-way,2024-03-01,A:50/B:30/C:20,March,33.7990,-84.3380,AAAAAAAAAAATTTTTTTTT,A/B/C (50%/30%/20%)
+mar-invalid-zero,2024-03-01,A:0/B:1,March,33.6990,-84.4380,AAAAAAAAAATTTTTTTTTT,A/B (50%/50%) plus warning

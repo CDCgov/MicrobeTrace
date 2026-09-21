@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, EventEmitter, Input, Output } from '@angular/core';
+import { ChangeDetectionStrategy, Component, EventEmitter, HostListener, Input, Output } from '@angular/core';
 import { getNodeShapePreviewDataUri } from '@app/contactTraceCommonServices/node-shapes';
 import { TreeNode } from 'primeng/api';
 
@@ -194,8 +194,7 @@ export interface StyleKeyTableShapePanelRequest {
                                         role="group"
                                         [style.top.px]="segmentAlphaEditorTop"
                                         [style.left.px]="segmentAlphaEditorLeft"
-                                        [attr.aria-label]="'Mixed color transparency for ' + row.displayName"
-                                        (click)="onSegmentAlphaEditorClick($event)">
+                                        [attr.aria-label]="'Mixed color transparency for ' + row.displayName">
                                         @for (segment of row.colorSegments; track $index) {
                                             <div class="style-key-table__segment-alpha-control">
                                                 <label
@@ -443,6 +442,7 @@ export class StyleKeyTableComponent {
 
     private readonly shapePreviewSrcCache = new Map<string, string>();
     private expandedSegmentAlphaRowKey: string | null = null;
+    private segmentAlphaEditorTrigger: HTMLElement | null = null;
     segmentAlphaEditorTop = 0;
     segmentAlphaEditorLeft = 0;
 
@@ -535,7 +535,6 @@ export class StyleKeyTableComponent {
             return;
         }
 
-        event.stopPropagation();
         this.toggleSegmentAlphaEditor(row, event.currentTarget as HTMLElement | null, event.clientX, event.clientY);
     }
 
@@ -549,8 +548,20 @@ export class StyleKeyTableComponent {
         this.toggleSegmentAlphaEditor(row, event.currentTarget as HTMLElement | null);
     }
 
-    onSegmentAlphaEditorClick(event: MouseEvent): void {
-        event.stopPropagation();
+    @HostListener('document:click', ['$event'])
+    onSegmentAlphaDocumentClick(event: MouseEvent): void {
+        if (!this.expandedSegmentAlphaRowKey) {
+            return;
+        }
+
+        const target = event.target instanceof Node ? event.target : null;
+        const editor = this.segmentAlphaEditorTrigger?.parentElement
+            ?.querySelector('.style-key-table__segment-alpha-editor');
+        if (target && (this.segmentAlphaEditorTrigger?.contains(target) || editor?.contains(target))) {
+            return;
+        }
+
+        this.closeSegmentAlphaEditor();
     }
 
     onSegmentAlphaInput(
@@ -603,7 +614,7 @@ export class StyleKeyTableComponent {
         clientY = 0
     ): void {
         if (this.isSegmentAlphaEditorOpen(row)) {
-            this.expandedSegmentAlphaRowKey = null;
+            this.closeSegmentAlphaEditor();
             return;
         }
 
@@ -621,7 +632,13 @@ export class StyleKeyTableComponent {
             ? preferredLeft
             : Math.max(8, anchorLeft - editorWidth - 8);
         this.segmentAlphaEditorTop = Math.max(8, Math.min(anchorTop - 72, viewportHeight - editorHeight - 8));
+        this.segmentAlphaEditorTrigger = anchor;
         this.expandedSegmentAlphaRowKey = row.trackKey;
+    }
+
+    private closeSegmentAlphaEditor(): void {
+        this.expandedSegmentAlphaRowKey = null;
+        this.segmentAlphaEditorTrigger = null;
     }
 
     onShapeSelectionChange(row: StyleKeyTableRow, selectedNode: TreeNode<any> | null): void {

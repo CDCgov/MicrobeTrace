@@ -30,6 +30,7 @@ export interface MixedNodeColorLegendEntry {
   components: string[];
   weights: number[];
   count: number;
+  hasExplicitWeights: boolean;
   invalidWeights: boolean;
 }
 
@@ -269,6 +270,17 @@ export function formatNodeColorWeightPercentage(weight: number): string {
   return `${percentage}%`;
 }
 
+export function formatMixedNodeColorDisplayName(
+  displayNames: string[],
+  weights: number[],
+  hasExplicitWeights: boolean
+): string {
+  const values = displayNames.join('/');
+  return hasExplicitWeights
+    ? `${values} (${weights.map(formatNodeColorWeightPercentage).join('/')})`
+    : values;
+}
+
 export function serializeWeightedMixedNodeColorComponents(
   components: ParsedMixedNodeColorComponent[]
 ): string {
@@ -393,6 +405,8 @@ export function getMixedNodeColorLegendEntries(
     const existingEntry = entries.get(key);
     if (existingEntry) {
       existingEntry.count += 1;
+      existingEntry.hasExplicitWeights ||= parsed.hasExplicitWeights;
+      existingEntry.invalidWeights ||= parsed.invalidWeights;
       return;
     }
 
@@ -401,6 +415,7 @@ export function getMixedNodeColorLegendEntries(
       components: parsed.components.map(component => component.value),
       weights: parsed.components.map(component => component.weight),
       count: 1,
+      hasExplicitWeights: parsed.hasExplicitWeights,
       invalidWeights: parsed.invalidWeights
     });
   });

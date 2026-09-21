@@ -128,13 +128,15 @@ describe('Journey Flow - mixed node coloring', () => {
         });
     });
     cy.get(`#key-tables-node-table td[data-value="${weightedMixedValue}"]`)
-      .should('have.text', '2a 75% / 3a 25%')
+      .should('have.text', '2a/3a (75%/25%)')
       .parents('tr')
       .find('[data-mixed-color-swatch="true"] [data-segment-weight]')
       .then(($segments) => {
         expect([...$segments].map(segment => segment.getAttribute('data-segment-weight')))
           .to.deep.equal(['0.75', '0.25']);
       });
+    cy.get(`#key-tables-node-table td[data-value="${legacyMixedValue}"]`)
+      .should('have.text', '6/7a');
 
     ['2a', '3a'].forEach((singleValue) => {
       cy.get(`#key-tables-node-table td[data-value="${singleValue}"]`)
@@ -150,7 +152,7 @@ describe('Journey Flow - mixed node coloring', () => {
       .parents('tr')
       .find('[data-mixed-alpha-trigger="true"]')
       .click({ force: true });
-    cy.get('#key-tables-node-table input[aria-label="2a 75% transparency"]')
+    cy.get('#key-tables-node-table input[aria-label="2a transparency"]')
       .should('have.value', '1')
       .invoke('val', '0.35')
       .trigger('input');

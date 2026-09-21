@@ -11,12 +11,12 @@ describe('StyleKeyTableComponent mixed color controls', () => {
     mixedRow = {
       rawValue: '2a/3a',
       trackKey: 'node-color-mixed-2a/3a',
-      displayName: '2a/3a',
+      displayName: '2a/3a (75%/25%)',
       count: 1,
       frequency: 0.5,
       colorSegments: [
-        { value: '2a', displayName: '2a 75%', color: '#ff0000', opacity: 1, weight: 0.75, index: 1 },
-        { value: '3a', displayName: '3a 25%', color: '#0000ff', opacity: 0.8, weight: 0.25, index: 2 }
+        { value: '2a', displayName: '2a', color: '#ff0000', opacity: 1, weight: 0.75, index: 1 },
+        { value: '3a', displayName: '3a', color: '#0000ff', opacity: 0.8, weight: 0.25, index: 2 }
       ]
     };
   });
@@ -29,6 +29,36 @@ describe('StyleKeyTableComponent mixed color controls', () => {
 
     component.onSegmentAlphaTriggerClick(mixedRow, clickEvent);
     expect(component.isSegmentAlphaEditorOpen(mixedRow)).toBe(false);
+  });
+
+  it('keeps the mixed transparency controls open for slider clicks and closes them on click-away', async () => {
+    await TestBed.configureTestingModule({
+      declarations: [StyleKeyTableComponent],
+      schemas: [NO_ERRORS_SCHEMA]
+    }).compileComponents();
+    const fixture: ComponentFixture<StyleKeyTableComponent> = TestBed.createComponent(StyleKeyTableComponent);
+    fixture.componentInstance.tableId = 'node-color-table';
+    fixture.componentInstance.controlType = 'color';
+    fixture.componentInstance.rows = [mixedRow];
+    fixture.detectChanges();
+
+    const trigger = fixture.nativeElement.querySelector('[data-mixed-alpha-trigger="true"]') as HTMLElement;
+    trigger.click();
+    fixture.detectChanges();
+
+    let editor = fixture.nativeElement.querySelector('.style-key-table__segment-alpha-editor') as HTMLElement | null;
+    expect(editor).not.toBeNull();
+
+    const slider = editor!.querySelector('.style-key-table__segment-alpha-slider') as HTMLElement;
+    slider.click();
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('.style-key-table__segment-alpha-editor')).not.toBeNull();
+
+    document.body.click();
+    fixture.detectChanges();
+    editor = fixture.nativeElement.querySelector('.style-key-table__segment-alpha-editor') as HTMLElement | null;
+    expect(editor).toBeNull();
+    expect(trigger.getAttribute('aria-expanded')).toBe('false');
   });
 
   it('emits the component value and domain index when its slider changes', () => {
@@ -115,7 +145,7 @@ describe('StyleKeyTableComponent mixed color controls', () => {
     expect(getComputedStyle(swatchBar).borderRadius).toBe('0px');
     expect(stripes.every(stripe => getComputedStyle(stripe).borderRadius === '0px')).toBe(true);
     expect(stripes.map(stripe => stripe.getAttribute('data-segment-weight'))).toEqual(['0.75', '0.25']);
-    expect(stripes.map(stripe => stripe.getAttribute('aria-label'))).toEqual(['2a 75%', '3a 25%']);
+    expect(stripes.map(stripe => stripe.getAttribute('aria-label'))).toEqual(['2a', '3a']);
     expect(component.getSegmentFlexGrow(mixedRow.colorSegments![0])).toBe(0.75);
     expect(component.getSegmentFlexGrow(mixedRow.colorSegments![1])).toBe(0.25);
   });

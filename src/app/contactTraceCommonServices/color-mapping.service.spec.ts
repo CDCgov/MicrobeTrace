@@ -1,4 +1,4 @@
-import { buildCanonicalNodeColorCounts, canonicalizeMixedNodeColorComponents, ColorMappingService, getMixedNodeColorLegendEntries, getMixedNodeColorSegments, normalizeNodeStyleCategoryValue, parseMixedNodeColorValue, parseWeightedMixedNodeColorValue } from './color-mapping.service';
+import { buildCanonicalNodeColorCounts, canonicalizeMixedNodeColorComponents, ColorMappingService, formatMixedNodeColorDisplayName, getMixedNodeColorLegendEntries, getMixedNodeColorSegments, normalizeNodeStyleCategoryValue, parseMixedNodeColorValue, parseWeightedMixedNodeColorValue } from './color-mapping.service';
 
 describe('mixed node color helpers', () => {
   it('normalizes null-like aliases to the shared empty category', () => {
@@ -125,8 +125,8 @@ describe('mixed node color helpers', () => {
       { Genotype: 'N/A' },
       { Genotype: null }
     ], 'Genotype')).toEqual([
-      { value: '2a:0.5/3a:0.5', components: ['2a', '3a'], weights: [0.5, 0.5], count: 2, invalidWeights: false },
-      { value: '6:0.5/7a:0.5', components: ['6', '7a'], weights: [0.5, 0.5], count: 1, invalidWeights: false }
+      { value: '2a:0.5/3a:0.5', components: ['2a', '3a'], weights: [0.5, 0.5], count: 2, hasExplicitWeights: false, invalidWeights: false },
+      { value: '6:0.5/7a:0.5', components: ['6', '7a'], weights: [0.5, 0.5], count: 1, hasExplicitWeights: false, invalidWeights: false }
     ]);
   });
 
@@ -135,7 +135,7 @@ describe('mixed node color helpers', () => {
       { Genotype: '3a/2a' },
       { Genotype: '2a, 3a' }
     ], 'Genotype', ['2a', '3a'])).toEqual([
-      { value: '2a:0.5/3a:0.5', components: ['2a', '3a'], weights: [0.5, 0.5], count: 2, invalidWeights: false }
+      { value: '2a:0.5/3a:0.5', components: ['2a', '3a'], weights: [0.5, 0.5], count: 2, hasExplicitWeights: false, invalidWeights: false }
     ]);
   });
 
@@ -145,9 +145,16 @@ describe('mixed node color helpers', () => {
       { Genotype: '2a:70%/3a:30%' },
       { Genotype: '2a:1/3a:1' }
     ], 'Genotype', ['2a', '3a'])).toEqual([
-      { value: '2a:0.5/3a:0.5', components: ['2a', '3a'], weights: [0.5, 0.5], count: 1, invalidWeights: false },
-      { value: '2a:0.7/3a:0.3', components: ['2a', '3a'], weights: [0.7, 0.3], count: 2, invalidWeights: false }
+      { value: '2a:0.5/3a:0.5', components: ['2a', '3a'], weights: [0.5, 0.5], count: 1, hasExplicitWeights: true, invalidWeights: false },
+      { value: '2a:0.7/3a:0.3', components: ['2a', '3a'], weights: [0.7, 0.3], count: 2, hasExplicitWeights: true, invalidWeights: false }
     ]);
+  });
+
+  it('appends one grouped percentage list only when mixed values explicitly include weights', () => {
+    expect(formatMixedNodeColorDisplayName(['A', 'B', 'C'], [0.2, 0.3, 0.5], false))
+      .toBe('A/B/C');
+    expect(formatMixedNodeColorDisplayName(['A', 'B', 'C'], [0.2, 0.3, 0.5], true))
+      .toBe('A/B/C (20%/30%/50%)');
   });
 
   it('uses the same case-sensitive category identity for domains, rings, and legends', () => {
