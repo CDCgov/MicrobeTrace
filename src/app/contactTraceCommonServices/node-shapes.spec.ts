@@ -97,6 +97,50 @@ describe('mixed node shape SVG helpers', () => {
     expect(svg).toContain('fill="#ffffff"');
   });
 
+  it('leaves translucent regular-node ring segments transparent to the visualization background', async () => {
+    const translucentSegments = [
+      { color: '#ff0000', alpha: 0.35, weight: 3 },
+      { color: '#0000ff', alpha: 1, weight: 1 }
+    ];
+    const renderCases = [
+      {
+        shape: 'ellipse',
+        options: { fillCanvas: true, includeStroke: false, renderedSize: 24 }
+      },
+      {
+        shape: 'virus',
+        options: { includeStroke: false, customShapePadding: 0, customShapeViewBoxPadding: 0, renderedSize: 24 }
+      }
+    ];
+
+    for (const renderCase of renderCases) {
+      const dataUri = getMixedNodeShapeDataUri(
+        renderCase.shape,
+        '#ffffff',
+        '#000000',
+        2,
+        1,
+        translucentSegments,
+        null,
+        renderCase.options
+      );
+      const svg = decodeSvgDataUri(dataUri);
+      const imageData = await rasterizeSvgDataUri(dataUri);
+      const translucentRedPixels = countPixels(
+        imageData,
+        (red, green, blue, alpha) => alpha > 40 && alpha < 180 && red > green + 40 && red > blue + 40
+      );
+
+      expect(svg).withContext(`${renderCase.shape} segment opacity`).toContain('opacity="0.35"');
+      expect(svg)
+        .withContext(`${renderCase.shape} has no opaque full-canvas backing`)
+        .not.toContain('<rect x="0" y="0" width="300" height="300" fill="#ffffff" fill-opacity="1"');
+      expect(translucentRedPixels)
+        .withContext(`${renderCase.shape} translucent ring pixels`)
+        .toBeGreaterThan(20);
+    }
+  });
+
   it('keeps the outer ring half a node radius wide across rendered node sizes', () => {
     const smallSvg = decodeSvgDataUri(getMixedNodeShapeDataUri(
       'ellipse',
@@ -125,7 +169,7 @@ describe('mixed node shape SVG helpers', () => {
     expect(largeSvg).toContain('stroke-width="75"');
   });
 
-  it('can provide a full-canvas fill without embedding an oversized Cytoscape border', () => {
+  it('can fit a mixed basic ring to the full canvas without an opaque backing or oversized Cytoscape border', () => {
     const svg = decodeSvgDataUri(getMixedNodeShapeDataUri(
       'ellipse',
       '#ffffff',
@@ -137,7 +181,8 @@ describe('mixed node shape SVG helpers', () => {
       { fillCanvas: true, includeStroke: false }
     ));
 
-    expect(svg).toContain('<rect x="0" y="0" width="300" height="300"');
+    expect(svg).not.toContain('<rect x="0" y="0" width="300" height="300"');
+    expect(svg).toContain('data-mt-mixed-ring-center="basic-shape"');
     expect(svg).toContain('viewBox="0 0 300 300"');
     expect(svg).toContain('data-mt-mixed-ring-segment="0"');
     expect(svg).not.toContain('stroke-width="48"');

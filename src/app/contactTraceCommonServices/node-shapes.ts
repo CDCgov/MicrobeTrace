@@ -1166,7 +1166,7 @@ function buildMixedBasicNodeShapeContent(
 ): string {
     const hasMixedRing = getEvenMixedNodeShapeSegments(segments).length > 1;
     const safeFill = sanitizeSvgColor(hasMixedRing ? MIXED_NODE_CENTER_COLOR : fillColor);
-    const safeFillOpacity = hasMixedRing ? 1 : sanitizeSvgOpacity(fillOpacity);
+    const safeFillOpacity = sanitizeSvgOpacity(fillOpacity);
     const viewBoxPadding = !options.fillCanvas
         ? Math.max(0, Number(options.basicShapeViewBoxPadding ?? 0))
         : 0;
@@ -1177,9 +1177,17 @@ function buildMixedBasicNodeShapeContent(
     const ringStrokeWidth = getMixedNodeRingStrokeWidth(coordinateSpan, renderedSize);
     const outlineAttributes = `fill="none" stroke="${outlineStroke}" stroke-width="${strokeWidth}" stroke-linecap="round" stroke-linejoin="round"`;
 
+    const buildBasicMixedCenterTransform = (transform: string = ''): string => [
+        transform,
+        `translate(150 150) scale(${formatSvgFraction(1 - MIXED_NODE_RING_WIDTH_RADIUS_FRACTION)}) translate(-150 -150)`
+    ].filter(Boolean).join(' ');
+
     const buildCircleContent = (radius: number, transform: string = ''): string => {
         const geometry = `cx="150" cy="150" r="${formatSvgFraction(radius)}"`;
-        const base = `<circle ${geometry} fill="${safeFill}" fill-opacity="${safeFillOpacity}" stroke="none"${transform ? ` transform="${transform}"` : ''}/>`;
+        const centerRadius = Math.max(0, radius - (ringStrokeWidth / 2));
+        const base = hasMixedRing
+            ? `<circle cx="150" cy="150" r="${formatSvgFraction(centerRadius)}" fill="${safeFill}" fill-opacity="1" stroke="none" data-mt-mixed-ring-center="basic-shape"${transform ? ` transform="${transform}"` : ''}/>`
+            : `<circle ${geometry} fill="${safeFill}" fill-opacity="${safeFillOpacity}" stroke="none"${transform ? ` transform="${transform}"` : ''}/>`;
         const ring = buildMixedNodeRingStrokeElements('circle', geometry, segments, safeFillOpacity, coordinateSpan, renderedSize, transform || 'rotate(-90 150 150)');
         const outline = includeStroke
             ? `<circle ${geometry} ${outlineAttributes}${transform ? ` transform="${transform}"` : ''}/>`
@@ -1190,7 +1198,10 @@ function buildMixedBasicNodeShapeContent(
     const buildPathContent = (path: string, transform: string = ''): string => {
         const geometry = `d="${path}"`;
         const transformAttribute = transform ? ` transform="${transform}"` : '';
-        const base = `<path ${geometry} fill="${safeFill}" fill-opacity="${safeFillOpacity}" stroke="none"${transformAttribute}/>`;
+        const centerTransform = buildBasicMixedCenterTransform(transform);
+        const base = hasMixedRing
+            ? `<path ${geometry} fill="${safeFill}" fill-opacity="1" stroke="none" transform="${centerTransform}" data-mt-mixed-ring-center="basic-shape"/>`
+            : `<path ${geometry} fill="${safeFill}" fill-opacity="${safeFillOpacity}" stroke="none"${transformAttribute}/>`;
         const ring = buildMixedNodeRingStrokeElements('path', geometry, segments, safeFillOpacity, coordinateSpan, renderedSize, transform);
         const outline = includeStroke
             ? `<path ${geometry} ${outlineAttributes}${transformAttribute}/>`
@@ -1199,23 +1210,20 @@ function buildMixedBasicNodeShapeContent(
     };
 
     if (options.fillCanvas) {
-        const canvasFill = `<rect x="0" y="0" width="300" height="300" fill="${safeFill}" fill-opacity="${safeFillOpacity}" stroke="none"/>`;
         if (normalizedShapeKey === 'ellipse') {
             const radius = Math.max(1, 150 - (ringStrokeWidth / 2));
-            const geometry = `cx="150" cy="150" r="${formatSvgFraction(radius)}"`;
-            const ring = buildMixedNodeRingStrokeElements('circle', geometry, segments, safeFillOpacity, coordinateSpan, renderedSize, 'rotate(-90 150 150)');
-            return `${canvasFill}${ring}`;
+            return buildCircleContent(radius);
         }
 
         const canvasPath = normalizedShapeKey === 'barrel'
             ? 'M 90 45 C 60 45 45 82 45 150 C 45 218 60 255 90 255 L 210 255 C 240 255 255 218 255 150 C 255 82 240 45 210 45 Z'
             : buildBasicNodeShapePath(normalizedShapeKey);
         if (!canvasPath) {
-            return `${canvasFill}${buildMixedNodeRingStrokeElements('circle', 'cx="150" cy="150" r="110"', segments, safeFillOpacity, coordinateSpan, renderedSize, 'rotate(-90 150 150)')}`;
+            return buildCircleContent(110);
         }
 
         const canvasTransform = 'translate(150 150) scale(1.28) translate(-150 -150)';
-        return `${canvasFill}${buildMixedNodeRingStrokeElements('path', `d="${canvasPath}"`, segments, safeFillOpacity, coordinateSpan, renderedSize, canvasTransform)}`;
+        return buildPathContent(canvasPath, canvasTransform);
     }
 
     if (normalizedShapeKey === 'ellipse') {
@@ -1244,7 +1252,7 @@ function buildMixedCustomNodeShapeContent(
 ): string {
     const hasMixedRing = getEvenMixedNodeShapeSegments(segments).length > 1;
     const safeFill = sanitizeSvgColor(hasMixedRing ? MIXED_NODE_CENTER_COLOR : fillColor);
-    const safeFillOpacity = hasMixedRing ? 1 : sanitizeSvgOpacity(fillOpacity);
+    const safeFillOpacity = sanitizeSvgOpacity(fillOpacity);
     const includeStroke = options.includeStroke !== false;
     const outlineStroke = sanitizeSvgColor(selectedStrokeColor ?? strokeColor);
     const customShapePadding = Math.min(100, Math.max(0, Number(options.customShapePadding ?? 40)));
@@ -1273,7 +1281,9 @@ function buildMixedCustomNodeShapeContent(
     return [
         `<svg x="${customShapePadding}" y="${customShapePadding}" width="${customShapeSize}" height="${customShapeSize}" viewBox="${buildPaddedViewBox(definition.viewBox, viewBoxPadding)}" preserveAspectRatio="xMidYMid meet">`,
         `<g transform="translate(0,${definition.height}) scale(1,-1)">`,
-        `<path d="${definition.fillPath ?? definition.path}" fill="${safeFill}" fill-opacity="${safeFillOpacity}" stroke="none"/>`,
+        hasMixedRing
+            ? ''
+            : `<path d="${definition.fillPath ?? definition.path}" fill="${safeFill}" fill-opacity="${safeFillOpacity}" stroke="none"/>`,
         ring,
         outlinePath,
         '</g>',

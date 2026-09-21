@@ -184,6 +184,9 @@ describe('Journey Flow - mixed node coloring', () => {
       expect(String(mixedNode.data('mixedColorImage') || '')).to.contain('data:image/svg+xml');
       const mixedNodeSvg = decodeURIComponent(String(mixedNode.data('mixedColorImage')).split(',')[1]);
       expect(mixedNodeSvg).to.contain('fill="#ffffff"');
+      expect(mixedNodeSvg).to.contain('stroke-opacity="0.35"');
+      expect(mixedNodeSvg).to.contain('data-mt-mixed-ring-center="basic-shape"');
+      expect(mixedNodeSvg).not.to.contain('<rect x="0" y="0" width="300" height="300" fill="#ffffff" fill-opacity="1"');
       expect(mixedNodeSvg).to.contain('stroke-dasharray="0.75 0.25"');
       expect(mixedNodeSvg).to.contain('stroke-dasharray="0.25 0.75"');
       expect(singleNode.data('mixedColorImage')).to.equal(undefined);

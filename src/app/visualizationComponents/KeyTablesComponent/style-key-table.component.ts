@@ -1,5 +1,6 @@
 import { ChangeDetectionStrategy, Component, EventEmitter, HostListener, Input, Output } from '@angular/core';
 import { getNodeShapePreviewDataUri } from '@app/contactTraceCommonServices/node-shapes';
+import { NODE_SHAPE_TREE_SELECT_PASS_THROUGH } from '@app/contactTraceCommonServices/node-shape-picker';
 import { TreeNode } from 'primeng/api';
 
 export type StyleKeyTableControlType = 'color' | 'shape';
@@ -241,6 +242,7 @@ export interface StyleKeyTableShapePanelRequest {
                                 [options]="shapeOptions"
                                 [panelStyle]="{ width: '23rem' }"
                                 panelStyleClass="shapeTreeSelectPanel"
+                                [pt]="shapeTreeSelectPassThrough"
                                 selectionMode="single"
                                 appendTo="body"
                                 class="width-percent-100 shapeDropdown"
@@ -418,6 +420,7 @@ export interface StyleKeyTableShapePanelRequest {
     `]
 })
 export class StyleKeyTableComponent {
+    readonly shapeTreeSelectPassThrough = NODE_SHAPE_TREE_SELECT_PASS_THROUGH;
     @Input() tableId = '';
     @Input() tableKey = '';
     @Input() controlType: StyleKeyTableControlType = 'color';

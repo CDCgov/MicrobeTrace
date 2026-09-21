@@ -919,6 +919,7 @@
                           [options]="symbolMappingTree"
                           [panelStyle]="{ width: '23rem' }"
                           panelStyleClass="shapeTreeSelectPanel"
+                          [pt]="shapeTreeSelectPassThrough"
                           selectionMode="single"
                           appendTo="body"
                           class="width-percent-100 shapeDropdown"
@@ -928,8 +929,13 @@
                           <ng-template #value let-node let-placeholder="placeholder">
                             @if (node?.data) {
                               <div class="shape-tree-value">
-                                <a [ngClass]="{'rhombus': node.data.key === 'rhomboid', 'tag': node.data.key === 'tag', 'barrel': node.data.key === 'barrel'}" [ngStyle]="{'font-weight': node.data.key === 'vee' ? 'bold' : 'normal'}" style="color: black;">{{ node.data.value }}</a>
-                                {{ node.data.name }}
+                                <img
+                                  class="shape-tree-preview"
+                                  [attr.data-shape-key]="node.data.key"
+                                  [src]="node.data.previewSrc"
+                                  alt=""
+                                  aria-hidden="true">
+                                <span>{{ node.data.name }}</span>
                               </div>
                             } @else {
                               <span>{{ placeholder }}</span>

@@ -3,6 +3,7 @@ import { ComponentContainer } from 'golden-layout';
 import { BaseComponentDirective } from '@app/base-component.directive';
 import { MicobeTraceNextPluginEvents } from '@app/helperClasses/interfaces';
 import { MicrobeTraceNextVisuals } from '@app/microbe-trace-next-plugin-visuals';
+import { NODE_SHAPE_TREE_SELECT_PASS_THROUGH } from '@app/contactTraceCommonServices/node-shape-picker';
 import { DOCKED_KEY_TABLES_VIEW_NAME, KeyTableName } from './key-tables.controller';
 import {
     StyleKeyTableAlphaRequest,
@@ -25,6 +26,7 @@ import {
 })
 export class KeyTablesComponent extends BaseComponentDirective implements OnInit, OnDestroy, MicobeTraceNextPluginEvents {
     static readonly componentTypeName = DOCKED_KEY_TABLES_VIEW_NAME;
+    readonly shapeTreeSelectPassThrough = NODE_SHAPE_TREE_SELECT_PASS_THROUGH;
 
     @Output() DisplayGlobalSettingsDialogEvent = new EventEmitter<string>();
 

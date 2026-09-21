@@ -61,6 +61,11 @@ import {
     resolveNodeShapeKey
 } from '@app/contactTraceCommonServices/node-shapes';
 import {
+    buildNodeShapeTreeLeaf,
+    NODE_SHAPE_TREE_SELECT_PASS_THROUGH,
+    NodeShapeTreeOption
+} from '@app/contactTraceCommonServices/node-shape-picker';
+import {
     DialogRectSnapshot,
     GlobalSettingsDialogRequest,
     NormalizedGlobalSettingsDialogRequest
@@ -135,20 +140,13 @@ function groupNodeShapeOptions(options: NodeShapeOption[]): NodeShapeOptionGroup
         .filter(group => group.items.length > 0);
 }
 
-function buildNodeShapeTreeOptions(groups: NodeShapeOptionGroup[], defaultExpandedGroup: NodeShapeGroupKey): TreeNode<NodeShapeOption>[] {
+function buildNodeShapeTreeOptions(groups: NodeShapeOptionGroup[], defaultExpandedGroup: NodeShapeGroupKey): TreeNode<NodeShapeTreeOption>[] {
     return groups.map(group => ({
         key: group.key,
         label: group.label,
         selectable: false,
         expanded: group.key === defaultExpandedGroup,
-        children: group.items.map(option => ({
-            key: option.key,
-            label: `${option.value}${option.name}`,
-            type: 'shape',
-            data: option,
-            leaf: true,
-            selectable: true
-        }))
+        children: group.items.map(buildNodeShapeTreeLeaf)
     }));
 }
 
@@ -166,6 +164,7 @@ function buildNodeShapeTreeOptions(groups: NodeShapeOptionGroup[], defaultExpand
 export class MicrobeTraceNextHomeComponent extends AppComponentBase implements AfterViewInit, OnInit, OnDestroy {
 
     colorTransparencyPercent = 100;
+    readonly shapeTreeSelectPassThrough = NODE_SHAPE_TREE_SELECT_PASS_THROUGH;
 
 
     // recommit original code
