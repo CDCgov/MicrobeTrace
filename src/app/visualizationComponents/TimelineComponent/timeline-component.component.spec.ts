@@ -65,6 +65,21 @@ describe('TimelineComponentComponent', () => {
     expect(component.widgets['epiCurve-legendPosition']).toBe('Bottom');
   });
 
+  it('should apply the app font family to the exported SVG and D3 axes', () => {
+    const svgElement = fixture.nativeElement.querySelector('#epiCurveSVG') as SVGSVGElement;
+    svgElement.style.fontFamily = 'Roboto, "Helvetica Neue", sans-serif';
+    d3.select(svgElement)
+      .append('g')
+      .attr('class', 'axis')
+      .attr('font-family', 'sans-serif');
+
+    component['applyEpiCurveFontFamily']();
+
+    expect(svgElement.getAttribute('font-family')).toContain('Roboto');
+    expect(svgElement.style.fontFamily).toContain('Roboto');
+    expect(svgElement.querySelector('.axis')?.getAttribute('font-family')).toContain('Roboto');
+  });
+
   it('should render stacked bars and lines in separate legend sections', () => {
     component.widgets['epiCurve-legendPosition'] = 'Bottom';
     component.selectedGraphType = 'Multi: Overlay';

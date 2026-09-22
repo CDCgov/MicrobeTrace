@@ -80,6 +80,8 @@ describe('Journey Flow - Epi Curve export on uploaded data', () => {
     cy.readFile(exportPath, 'utf8', { timeout: 30000 }).should((svgText) => {
       expect(svgText, 'exported SVG content').to.include('<svg');
       expect(svgText.length, 'exported SVG length').to.be.greaterThan(100);
+      expect(svgText, 'exported SVG font family').to.match(/font-family[^>]*Roboto/i);
+      expect(svgText, 'embedded Roboto font').to.match(/@font-face[\s\S]*Roboto/i);
     });
   });
 

@@ -7,10 +7,8 @@ import * as d3 from 'd3';
 import moment from 'moment';
 import { MicrobeTraceNextVisuals } from '@app/microbe-trace-next-plugin-visuals';
 
-import { saveAs } from 'file-saver';
-import { saveSvgAsPng } from 'save-svg-as-png';
+import { saveSvg, saveSvgAsPng } from 'save-svg-as-png';
 import { SelectItem } from 'primeng/api';
-import { ExportService } from '@app/contactTraceCommonServices/export.service';
 import { Subject, takeUntil } from 'rxjs';
 import { CommonStoreService } from '@app/contactTraceCommonServices/common-store.services';
 
@@ -131,6 +129,8 @@ export class TimelineComponent extends BaseComponentDirective implements OnInit,
   private localColorMap: any = (x) => undefined;
 
   private svg;
+  private readonly defaultEpiCurveFontFamily = 'Roboto, "Helvetica Neue", sans-serif';
+  private epiCurveFontFamily = this.defaultEpiCurveFontFamily;
   private margin = { top: 5, left: 45, right: 20, bottom: 50 };
   private width; // Default width, adjust as necessary
   private height; // Default height, adjust as necessary
@@ -165,8 +165,7 @@ export class TimelineComponent extends BaseComponentDirective implements OnInit,
     @Inject(BaseComponentDirective.GoldenLayoutContainerInjectionToken) private container: ComponentContainer,
     elRef: ElementRef,
     private cdref: ChangeDetectorRef,
-    private store: CommonStoreService,
-    private exportService: ExportService) {
+    private store: CommonStoreService) {
 
       super(elRef.nativeElement);
       this.visuals = commonService.visuals;
@@ -175,6 +174,26 @@ export class TimelineComponent extends BaseComponentDirective implements OnInit,
 
       this.setDefaultsWidgets();
 
+  }
+
+  private applyEpiCurveFontFamily(): void {
+    const svgElement = this.epiCurveSVGElement?.nativeElement as SVGSVGElement | undefined;
+    if (!svgElement) {
+      return;
+    }
+
+    const inheritedFontFamily = window.getComputedStyle(svgElement).fontFamily.trim();
+    this.epiCurveFontFamily = inheritedFontFamily || this.defaultEpiCurveFontFamily;
+
+    const svgSelection = d3.select(svgElement)
+      .attr('font-family', this.epiCurveFontFamily)
+      .style('font-family', this.epiCurveFontFamily);
+
+    // D3 axes set their own generic sans-serif family, so override it with the
+    // same font stack used by the rest of the application.
+    svgSelection.selectAll('.axis')
+      .attr('font-family', this.epiCurveFontFamily)
+      .style('font-family', this.epiCurveFontFamily);
   }
 
   private updateFieldLists(): void {
@@ -811,7 +830,8 @@ public refresh(): void {
     .attr("width", this.width + this.margin.left + this.margin.right)
     .attr("height", this.height + this.margin.top + this.margin.bottom)
     //.attr("transform", `translate(0, ${this.margin.top})`);
-    
+
+  this.applyEpiCurveFontFamily();
 
   const epiCurve = this.svg.append("g")
     .classed("epiCurve-epi-curve", true)
@@ -981,7 +1001,8 @@ private refreshMulti(): void {
   this.svg = d3.select(this.epiCurveSVGElement.nativeElement)
     .attr("width", this.width + this.margin.left + this.margin.right)
     .attr("height", this.height + this.margin.top + this.margin.bottom);
-    
+
+  this.applyEpiCurveFontFamily();
 
   const epiCurve = this.svg.append("g")
     .classed("epiCurve-epi-curve", true)
@@ -1783,6 +1804,8 @@ updateAxes(showRightAxis = false) {
       .attr("transform", `translate(${this.margin.left + this.width + this.margin.right - Math.max(10, Math.round(this.labelSize * 0.7))}, ${this.margin.top + this.height / 2}) rotate(90)`)
       .text(this.getAxisLabel('epiCurve-rightYAxisLabel', this.getDefaultYAxisLabel('Right')));
   }
+
+  this.applyEpiCurveFontFamily();
 }
 
 private fitLegendTextToWidth(textSelection, fullLabel: string, maxWidth: number, legendFontSize: number): number {
@@ -2924,9 +2947,10 @@ openExport() {
 
 exportVisualization() {
   if (this.EpiExportFileType == 'svg') {
-      let content = this.exportService.unparseSVG(this.epiCurveSVGElement.nativeElement);
-      let blob = new Blob([content], { type: 'image/svg+xml;charset=utf-8' });
-      saveAs(blob, this.EpiExportFileName + '.' + this.EpiExportFileType);
+      saveSvg(
+        this.epiCurveSVGElement.nativeElement,
+        this.EpiExportFileName + '.' + this.EpiExportFileType,
+      );
   } else {
       saveSvgAsPng(this.epiCurveSVGElement.nativeElement, this.EpiExportFileName + '.' + this.EpiExportFileType, {
           scale: this.SelectedNetworkExportScaleVariable,
