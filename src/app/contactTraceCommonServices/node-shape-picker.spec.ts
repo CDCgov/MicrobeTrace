@@ -27,4 +27,15 @@ describe('node shape picker previews', () => {
     expect(attributes['data-shape-key']).toBe('virus');
     expect(attributes.style.backgroundImage).toContain(leaf.data!.previewSrc);
   });
+
+  it('keeps tree labels text-only because the icon already renders the shape', () => {
+    for (const key of ['ellipse', 'tag', 'barrel', 'unknown', 'fly']) {
+      const option = NODE_SYMBOL_OPTIONS.find(candidate => candidate.key === key);
+      expect(option).withContext(`missing node shape option ${key}`).toBeDefined();
+
+      const leaf = buildNodeShapeTreeLeaf(option!);
+
+      expect(leaf.label).withContext(`duplicate preview for ${key}`).toBe(option!.name);
+    }
+  });
 });

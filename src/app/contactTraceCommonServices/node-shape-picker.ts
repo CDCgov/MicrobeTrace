@@ -19,7 +19,9 @@ interface ShapeTreePassThroughContext {
 export function buildNodeShapeTreeLeaf(option: NodeShapeOption): TreeNode<NodeShapeTreeOption> {
     return {
         key: option.key,
-        label: `${option.value}${option.name}`,
+        // The tree icon renders the shape preview. Keep the label text-only so
+        // basic shapes do not display both the preview and their legacy glyph.
+        label: option.name,
         type: 'shape',
         data: {
             ...option,

@@ -404,6 +404,8 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
     }
 
     private buildCytoscapeNodeData(node: any, shapeKey: string, parent: any): any {
+        const mixedColorImageCoversShape = !!node.mixedColorImage
+            && this.mixedColorImageShouldCoverShape(shapeKey);
         return {
             ...this.getCytoscapeNodeMetadata(node),
             id: node.id,
@@ -429,6 +431,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             nodeColor: node.nodeColor,
             bgOpacity: node.bgOpacity,
             mixedColorImage: node.mixedColorImage,
+            mixedColorImageCoversShape,
             pieBackgroundImage: node.pieBackgroundImage,
             borderWidth: node.borderWidth,
             selectedBorderColor: this.widgets['selected-color'],
@@ -437,6 +440,11 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             shapeKey,
             ...getCustomNodeShapeData(shapeKey, node.nodeColor)
         };
+    }
+
+    private mixedColorImageShouldCoverShape(shapeKey: string): boolean {
+        const normalizedShapeKey = resolveNodeShapeKey(shapeKey);
+        return normalizedShapeKey === 'star' || normalizedShapeKey === 'vee';
     }
 
     private getMixedColorNodeImage(
@@ -464,7 +472,8 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             null,
             {
                 fillCanvas: !isCustomShape,
-                includeStroke: false,
+                includeStroke: isCustomShape,
+                useNativeShapeClip: this.mixedColorImageShouldCoverShape(normalizedShapeKey),
                 customShapePadding: 0,
                 customShapeViewBoxPadding: 0,
                 renderedSize: renderedSize ?? this.mapNodeSize(Number(node?.nodeSize ?? this.widgets['node-radius']))
@@ -483,8 +492,10 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         const mixedColorImage = this.getMixedColorNodeImage(fullNode, shapeKey, fillColor, fillOpacity, renderedSize);
         if (mixedColorImage) {
             node.data('mixedColorImage', mixedColorImage);
+            node.data('mixedColorImageCoversShape', this.mixedColorImageShouldCoverShape(shapeKey));
         } else {
             node.removeData('mixedColorImage');
+            node.removeData('mixedColorImageCoversShape');
         }
     }
 
@@ -2011,6 +2022,14 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                 selector: 'node[!isParent][mixedColorImage][customIconKey]',
                 css: {
                     'border-width': 0
+                }
+            },
+            {
+                selector: 'node[!isParent][mixedColorImage][mixedColorImageCoversShape]',
+                css: {
+                    'background-image-containment': 'inside',
+                    'background-fit': 'cover',
+                    'background-clip': 'node'
                 }
             },
             {
@@ -7081,6 +7100,7 @@ scaleLinkWidth() {
         node.removeData('shapeKey');
         node.removeData('iconBackgroundImage');
         node.removeData('customIconKey');
+        node.removeData('mixedColorImageCoversShape');
     }
 
     /**

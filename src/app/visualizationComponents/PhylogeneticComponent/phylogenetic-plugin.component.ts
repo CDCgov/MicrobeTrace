@@ -501,18 +501,16 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
   getLeafSize = (node_id, variable): number => {
     let defaultSize = this.SelectedLeafNodeSize;
     let size = defaultSize, med = defaultSize, oldrng, min, max;
-    let nodes = this.visuals.phylogenetic.commonService.session.data.nodes;
-    const node = nodes.filter(x => {
-      if (x._id === node_id) {
-        return true;
-      }
-    });
 
     if (variable === 'None') {
       return defaultSize;
     } else {
+      const node = this.getLeafNodeData(node_id);
+      if (!node) {
+        return defaultSize;
+      }
 
-      let v = node[0][variable];
+      let v = node[variable];
       if (variable === "Cluster" || variable === "Cluster size") {
         return parseInt(v);
       }
@@ -539,10 +537,15 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
   }
 
   styleLeafNode = (node, data) => {
+    const leafId = this.getTreeLeafId(data);
+    if (leafId === null) {
+      return;
+    }
+
     let leafSize: number;
-    leafSize = this.getLeafSize(data.data.id, this.SelectedLeafNodeSizeVariable);
+    leafSize = this.getLeafSize(leafId, this.SelectedLeafNodeSizeVariable);
     const selectedColor = this.SelectedSelectedLeafNodeColorVariable;
-    const nodeData = this.getLeafNodeData(data.data.id);
+    const nodeData = this.getLeafNodeData(leafId);
     const isSelected = !!(nodeData && nodeData.selected);
     const fillStyle = this.getLeafNodeFillStyle(nodeData);
     const fillColor = fillStyle.color;
@@ -606,9 +609,23 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
     this.renderLeafCircleMixedRing(node, mixedSegments, fillOpacity, leafSize, parseFloat(strokeWidth));
   }
 
-  private getLeafNodeData(nodeId: string): any {
+  private getTreeLeafId(data: any): string | null {
+    const leafId = data?.data?.id ?? data?.id ?? data?.[0]?.data?.id ?? data?.[0]?.id;
+    return leafId === undefined || leafId === null ? null : String(leafId);
+  }
+
+  private getLeafNodeData(nodeId: unknown): any {
+    if (nodeId === undefined || nodeId === null) {
+      return undefined;
+    }
+
+    const normalizedNodeId = String(nodeId);
     return this.visuals.phylogenetic.commonService.session.data.nodes.find(
-      node => node._id === nodeId || node.id === nodeId
+      node => [node?._id, node?.id, node?.ID].some(
+        candidate => candidate !== undefined
+          && candidate !== null
+          && String(candidate) === normalizedNodeId
+      )
     );
   }
 

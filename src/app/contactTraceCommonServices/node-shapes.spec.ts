@@ -1,12 +1,7 @@
 import { aggregateNodeShapeCategories, getMixedNodeRingWidth, getMixedNodeShapeDataUri, resolveNodeShapeForNode } from './node-shapes';
-import { clearGeometryCenterMaskCache } from './geometry-center-mask';
 
 function decodeSvgDataUri(dataUri: string): string {
   return decodeURIComponent(dataUri.split(',')[1]);
-}
-
-function encodeSvgDataUri(svg: string): string {
-  return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`;
 }
 
 function countPixels(
@@ -81,6 +76,78 @@ describe('mixed node shape SVG helpers', () => {
     expect(svg).toContain('data-mt-mixed-ring-segment="0"');
     expect(svg).toContain('data-mt-mixed-ring-width-radius-fraction="0.5"');
     expect(svg).not.toContain('A 1 1 0');
+  });
+
+  it('fills Star and Vee silhouettes with mixed-color sectors instead of white centers', async () => {
+    const opaqueSegments = [
+      { color: '#ff0000', alpha: 1 },
+      { color: '#0000ff', alpha: 1 }
+    ];
+
+    for (const shape of ['star', 'vee']) {
+      const dataUri = getMixedNodeShapeDataUri(
+        shape,
+        '#ffffff',
+        '#000000',
+        2,
+        1,
+        opaqueSegments,
+        null,
+        { fillCanvas: true, includeStroke: false }
+      );
+      const svg = decodeSvgDataUri(dataUri);
+      const imageData = await rasterizeSvgDataUri(dataUri);
+
+      expect(svg).withContext(`${shape} full-silhouette marker`)
+        .toContain('data-mt-basic-mixed-fill="silhouette-sectors"');
+      expect(svg).withContext(`${shape} has no white center`)
+        .not.toContain('data-mt-mixed-ring-center="basic-shape"');
+      expect(svg).withContext(`${shape} uses filled sectors`).not.toContain('stroke-dasharray');
+      expect(countPixels(imageData, (r, g, b, a) => a > 240 && r > 220 && g < 40 && b < 40))
+        .withContext(`${shape} red sector`)
+        .toBeGreaterThan(20);
+      expect(countPixels(imageData, (r, g, b, a) => a > 240 && b > 220 && r < 40 && g < 40))
+        .withContext(`${shape} blue sector`)
+        .toBeGreaterThan(20);
+      expect(countPixels(imageData, (r, g, b, a) => a > 240 && r > 245 && g > 245 && b > 245))
+        .withContext(`${shape} white center pixels`)
+        .toBe(0);
+    }
+  });
+
+  it('lets Cytoscape clip 2D Star and Vee mixed colors to their native shapes', async () => {
+    const opaqueSegments = [
+      { color: '#ff0000', alpha: 1 },
+      { color: '#0000ff', alpha: 1 }
+    ];
+
+    for (const shape of ['star', 'vee']) {
+      const dataUri = getMixedNodeShapeDataUri(
+        shape,
+        '#ffffff',
+        '#000000',
+        2,
+        1,
+        opaqueSegments,
+        null,
+        { fillCanvas: true, includeStroke: false, useNativeShapeClip: true }
+      );
+      const svg = decodeSvgDataUri(dataUri);
+      const imageData = await rasterizeSvgDataUri(dataUri);
+      const cornerAlphaIndexes = [
+        0,
+        (imageData.width - 1) * 4,
+        (imageData.width * (imageData.height - 1)) * 4,
+        ((imageData.width * imageData.height) - 1) * 4
+      ];
+
+      expect(svg).withContext(`${shape} native clipping marker`)
+        .toContain('data-mt-basic-mixed-fill="native-shape-sectors"');
+      expect(svg).withContext(`${shape} has no SVG silhouette clip`).not.toContain('<clipPath');
+      cornerAlphaIndexes.forEach(index => {
+        expect(imageData.data[index + 3]).withContext(`${shape} covers the source canvas`).toBeGreaterThan(240);
+      });
+    }
   });
 
   it('does not emit a mixed ring when fewer than two segments are supplied', () => {
@@ -205,7 +272,7 @@ describe('mixed node shape SVG helpers', () => {
     expect(svg).toContain('data-mt-mixed-ring-segment="0"');
   });
 
-  it('clips proportional angular sectors to custom silhouettes instead of dashing their paths', () => {
+  it('clips proportional angular sectors across full custom silhouettes instead of dashing their paths', () => {
     const svg = decodeSvgDataUri(getMixedNodeShapeDataUri('virus', '#ffffff', '#000000', 8, 1, segments));
 
     expect(svg).toContain('data-mt-mixed-ring-segment="0"');
@@ -213,18 +280,10 @@ describe('mixed node shape SVG helpers', () => {
     expect(svg).toContain('data-mt-segment-end-fraction="1"');
     expect(svg).toContain('fill="#00aa00"');
     expect(svg).toContain('fill="#ffff00"');
-    expect(svg).toContain('data-mt-custom-mixed-ring="silhouette-sectors"');
-    expect(svg).toContain('data-mt-mixed-ring-width-radius-fraction="0.5"');
+    expect(svg).toContain('data-mt-custom-mixed-fill="silhouette-sectors"');
     expect(svg).toContain('<clipPath');
-    expect(svg).toContain('data-mt-mixed-ring-center-strategy="hole-filled-euclidean-distance-transform"');
-    expect(svg).toContain('data-mt-mixed-ring-center="geometry-distance-mask"');
-    expect(svg).toContain('data-mt-mixed-ring-center-radius-fraction="0.5"');
-    expect(svg).toContain('data-mt-mixed-ring-center-minimum-readable-area-fraction="0.25"');
-    expect(svg).toContain('data-mt-mixed-ring-center-threshold-policy="half-inradius-with-minimum-readable-center-area"');
-    expect(svg).toContain('data-mt-mixed-ring-center-rasterization="canvas-path2d"');
-    expect(Number(svg.match(/data-mt-mixed-ring-center-raster-width="(\d+)"/)?.[1] ?? 0))
-      .toBeGreaterThanOrEqual(600);
-    expect(svg).toContain('href="data:image/png;base64,');
+    expect(svg).toContain('fill="none" stroke="#000000" stroke-width="8"');
+    expect(svg).not.toContain('data-mt-mixed-ring-center=');
     expect(svg).not.toContain('<feMorphology');
     expect(svg).not.toContain('stroke-dasharray');
   });
@@ -243,31 +302,26 @@ describe('mixed node shape SVG helpers', () => {
 
     expect(svg).toContain('data-mt-mixed-ring-segment="0"');
     expect(svg).toContain('<svg x="0" y="0" width="300" height="300" viewBox="0 0 300 300"');
-    expect(svg).toContain('data-mt-custom-mixed-ring="silhouette-sectors"');
+    expect(svg).toContain('data-mt-custom-mixed-fill="silhouette-sectors"');
     expect(svg).not.toContain('stroke-width="8"');
     expect(svg).not.toContain('stroke-dasharray');
   });
 
-  it('derives hollow centers from each custom geometry without per-shape replacement geometry', () => {
+  it('fills each custom geometry with sectors without adding white center masks', () => {
     const manSvg = decodeSvgDataUri(getMixedNodeShapeDataUri('man', '#ffffff', '#000000', 2, 1, segments));
     const parasiteSvg = decodeSvgDataUri(getMixedNodeShapeDataUri('parasite', '#ffffff', '#000000', 2, 1, segments));
     const virusSvg = decodeSvgDataUri(getMixedNodeShapeDataUri('virus', '#ffffff', '#000000', 2, 1, segments));
 
     [manSvg, parasiteSvg, virusSvg].forEach(svg => {
-      expect(svg).toContain('data-mt-custom-mixed-ring="silhouette-sectors"');
-      expect(svg).toContain('data-mt-mixed-ring-center="geometry-distance-mask"');
-      expect(svg).toContain('data-mt-mixed-ring-center-strategy="hole-filled-euclidean-distance-transform"');
-      expect(svg).toContain('data-mt-mixed-ring-center-radius-fraction="0.5"');
-      expect(svg).toContain('data-mt-mixed-ring-center-minimum-readable-area-fraction="0.25"');
+      expect(svg).toContain('data-mt-custom-mixed-fill="silhouette-sectors"');
+      expect(svg).not.toContain('data-mt-mixed-ring-center=');
       expect((svg.match(/data-mt-mixed-ring-segment=/g) || []).length).toBe(2);
       expect(svg).not.toContain('<feMorphology');
       expect(svg).not.toContain('stroke-dasharray');
     });
-    const holesFilled = Number(virusSvg.match(/data-mt-mixed-ring-center-holes-filled="(\d+)"/)?.[1] ?? 0);
-    expect(holesFilled).toBeGreaterThan(0);
   });
 
-  it('rasterizes representative custom geometries with transparent backgrounds, all colors, and white centers', async () => {
+  it('rasterizes representative custom geometries with transparent backgrounds and full-silhouette colors', async () => {
     const opaqueSegments = [
       { color: '#ff0000', alpha: 1 },
       { color: '#0000ff', alpha: 1 },
@@ -295,7 +349,7 @@ describe('mixed node shape SVG helpers', () => {
       expect(colorCount(255, 0, 0)).withContext(`${shape} red sector`).toBeGreaterThan(20);
       expect(colorCount(0, 0, 255)).withContext(`${shape} blue sector`).toBeGreaterThan(20);
       expect(colorCount(0, 255, 0)).withContext(`${shape} green sector`).toBeGreaterThan(20);
-      expect(colorCount(255, 255, 255)).withContext(`${shape} white center`).toBeGreaterThan(20);
+      expect(colorCount(255, 255, 255)).withContext(`${shape} has no white center`).toBe(0);
       expect(countPixels(imageData, (_r, _g, _b, alpha) => alpha === 0))
         .withContext(`${shape} transparent background`)
         .toBeGreaterThan(20);
@@ -329,68 +383,7 @@ describe('mixed node shape SVG helpers', () => {
             renderedSize: renderCase.sourceRenderedSize
           }
         );
-        const smallSvg = decodeSvgDataUri(smallDataUri);
         const smallImageData = await rasterizeSvgDataUri(smallDataUri, renderCase.outputSize);
-        const withoutCenterSvg = smallSvg.replace(
-          /<image\b[^>]*data-mt-mixed-ring-center="geometry-distance-mask"[^>]*\/>/,
-          ''
-        );
-        expect(withoutCenterSvg)
-          .withContext(`${shape} removable hollow center for ${renderCase.context}`)
-          .not.toBe(smallSvg);
-        const withoutCenterImageData = await rasterizeSvgDataUri(
-          encodeSvgDataUri(withoutCenterSvg),
-          renderCase.outputSize
-        );
-        const readabilityExpansionMatch = smallSvg.match(
-          /data-mt-mixed-ring-center-readability-expansion-px="([\d.]+)"/
-        );
-        expect(readabilityExpansionMatch)
-          .withContext(`${shape} readability expansion metadata for ${renderCase.context}`)
-          .not.toBeNull();
-        const readabilityExpansion = Number(readabilityExpansionMatch?.[1]);
-        const requestedReadabilityExpansion = Math.min(
-          2,
-          Math.max(0, (24 - renderCase.sourceRenderedSize) / 4)
-        );
-        expect(readabilityExpansion)
-          .withContext(`${shape} readability expansion metadata for ${renderCase.context}`)
-          .toBeGreaterThanOrEqual(0);
-        expect(readabilityExpansion)
-          .withContext(`${shape} geometry-safe readability cap for ${renderCase.context}`)
-          .toBeLessThanOrEqual(requestedReadabilityExpansion);
-        let centerLightenedPixels = 0;
-        for (let index = 0; index < smallImageData.data.length; index += 4) {
-          const withCenter = smallImageData.data;
-          const withoutCenter = withoutCenterImageData.data;
-          const withCenterChannelMinimum = Math.min(
-            withCenter[index],
-            withCenter[index + 1],
-            withCenter[index + 2]
-          );
-          const withoutCenterChannelMinimum = Math.min(
-            withoutCenter[index],
-            withoutCenter[index + 1],
-            withoutCenter[index + 2]
-          );
-          const withCenterChannelSum = withCenter[index]
-            + withCenter[index + 1]
-            + withCenter[index + 2];
-          const withoutCenterChannelSum = withoutCenter[index]
-            + withoutCenter[index + 1]
-            + withoutCenter[index + 2];
-          if (
-            withCenter[index + 3] > 200
-            && withoutCenter[index + 3] > 100
-            && withCenterChannelMinimum - withoutCenterChannelMinimum > 20
-            && withCenterChannelSum - withoutCenterChannelSum > 60
-          ) {
-            centerLightenedPixels++;
-          }
-        }
-        expect(centerLightenedPixels)
-          .withContext(`${shape} visible hollow center for ${renderCase.context}`)
-          .toBeGreaterThan(0);
         const smallColorCount = (dominantChannel: 'red' | 'green' | 'blue') => countPixels(
           smallImageData,
           (r, g, b, a) => {
@@ -419,7 +412,7 @@ describe('mixed node shape SVG helpers', () => {
     }
   });
 
-  it('does not turn enclosed Virus details into additional colored mini-rings', async () => {
+  it('does not add white center bands around enclosed Virus details', async () => {
     const imageData = await rasterizeSvgDataUri(getMixedNodeShapeDataUri(
       'virus',
       '#ffffff',
@@ -461,8 +454,8 @@ describe('mixed node shape SVG helpers', () => {
       }
 
       expect(whitePixels / sampledPixels)
-        .withContext(`white center surrounding Virus detail at ${detail.x},${detail.y}`)
-        .toBeGreaterThan(0.6);
+        .withContext(`no white center surrounding Virus detail at ${detail.x},${detail.y}`)
+        .toBeLessThan(0.05);
     });
   });
 
@@ -484,7 +477,7 @@ describe('mixed node shape SVG helpers', () => {
     const imageData = await rasterizeSvgDataUri(wrapSvgImageDataUri(mixedVirus), 600);
 
     expect(countPixels(imageData, (r, g, b, a) => a > 240 && r > 245 && g > 245 && b > 245))
-      .toBeGreaterThan(100);
+      .toBeLessThan(100);
     expect(countPixels(imageData, (r, g, b, a) => a > 240 && r > 220 && g < 40 && b < 40))
       .toBeGreaterThan(100);
     expect(countPixels(imageData, (r, g, b, a) => a > 240 && b > 220 && r < 40 && g < 40))
@@ -494,142 +487,6 @@ describe('mixed node shape SVG helpers', () => {
     expect(countPixels(imageData, (_r, _g, _b, a) => a === 0)).toBeGreaterThan(100);
   });
 
-  it('uses SVG geometry hit testing when Path2D is unavailable', async () => {
-    const path2DDescriptor = Object.getOwnPropertyDescriptor(window, 'Path2D');
-    const originalPath2D = window.Path2D;
-    const fallbackDataUris: Array<{ shape: string; dataUri: string }> = [];
-    clearGeometryCenterMaskCache();
-
-    try {
-      Object.defineProperty(window, 'Path2D', {
-        configurable: true,
-        writable: true,
-        value: undefined
-      });
-
-      for (const shape of ['virus', 'parasite', 'man']) {
-        const dataUri = getMixedNodeShapeDataUri(
-          shape,
-          '#ffffff',
-          '#000000',
-          2,
-          1,
-          [
-            { color: '#ff0000', alpha: 1 },
-            { color: '#0000ff', alpha: 1 }
-          ],
-          null,
-          { includeStroke: false, customShapePadding: 0, customShapeViewBoxPadding: 0 }
-        );
-        const svg = decodeSvgDataUri(dataUri);
-        expect(svg).withContext(`${shape} fallback strategy`)
-          .toContain('data-mt-mixed-ring-center-strategy="hole-filled-euclidean-distance-transform"');
-        expect(svg).withContext(`${shape} fallback center`)
-          .toContain('data-mt-mixed-ring-center="geometry-distance-mask"');
-        expect(svg).withContext(`${shape} SVG geometry rasterizer`)
-          .toContain('data-mt-mixed-ring-center-rasterization="svg-is-point-in-fill"');
-        expect(svg).not.toContain('<feMorphology');
-        fallbackDataUris.push({ shape, dataUri });
-      }
-    } finally {
-      if (path2DDescriptor) {
-        Object.defineProperty(window, 'Path2D', path2DDescriptor);
-      } else {
-        Object.defineProperty(window, 'Path2D', {
-          configurable: true,
-          writable: true,
-          value: originalPath2D
-        });
-      }
-      clearGeometryCenterMaskCache();
-    }
-
-    for (const { shape, dataUri } of fallbackDataUris) {
-      const imageData = await rasterizeSvgDataUri(dataUri);
-      expect(countPixels(imageData, (r, g, b, a) => a > 220 && r > 235 && g > 235 && b > 235))
-        .withContext(`${shape} fallback white center`)
-        .toBeGreaterThan(10);
-      expect(countPixels(imageData, (r, g, b, a) => (
-        a > 220 && ((r > 180 && g < 90 && b < 90) || (b > 180 && r < 90 && g < 90))
-      )))
-        .withContext(`${shape} fallback colored ring`)
-        .toBeGreaterThan(10);
-
-      const smallImageData = await rasterizeSvgDataUri(dataUri, 32);
-      expect(countPixels(smallImageData, (r, g, b, a) => (
-        a > 180 && r > 215 && g > 215 && b > 215
-      )))
-        .withContext(`${shape} SVG fallback white center at 32px`)
-        .toBeGreaterThan(0);
-    }
-  });
-
-  it('keeps a visible hole-closing fallback when neither geometry API is available', async () => {
-    const path2DDescriptor = Object.getOwnPropertyDescriptor(window, 'Path2D');
-    const originalPath2D = window.Path2D;
-    const geometryPrototype = SVGGeometryElement.prototype;
-    const pointInFillDescriptor = Object.getOwnPropertyDescriptor(geometryPrototype, 'isPointInFill');
-    const originalPointInFill = geometryPrototype.isPointInFill;
-    let fallbackDataUri = '';
-    clearGeometryCenterMaskCache();
-
-    try {
-      Object.defineProperty(window, 'Path2D', {
-        configurable: true,
-        writable: true,
-        value: undefined
-      });
-      Object.defineProperty(geometryPrototype, 'isPointInFill', {
-        configurable: true,
-        writable: true,
-        value: undefined
-      });
-      fallbackDataUri = getMixedNodeShapeDataUri(
-        'virus',
-        '#ffffff',
-        '#000000',
-        2,
-        1,
-        [
-          { color: '#ff0000', alpha: 1 },
-          { color: '#0000ff', alpha: 1 }
-        ],
-        null,
-        { includeStroke: false, customShapePadding: 0, customShapeViewBoxPadding: 0 }
-      );
-      const svg = decodeSvgDataUri(fallbackDataUri);
-      expect(svg).toContain('data-mt-mixed-ring-center-strategy="morphological-closing-fallback"');
-      expect(svg).toContain('data-mt-mixed-ring-center="morphological-closing-fallback"');
-      expect((svg.match(/<feMorphology/g) || []).length).toBe(2);
-    } finally {
-      if (path2DDescriptor) {
-        Object.defineProperty(window, 'Path2D', path2DDescriptor);
-      } else {
-        Object.defineProperty(window, 'Path2D', {
-          configurable: true,
-          writable: true,
-          value: originalPath2D
-        });
-      }
-      if (pointInFillDescriptor) {
-        Object.defineProperty(geometryPrototype, 'isPointInFill', pointInFillDescriptor);
-      } else {
-        Object.defineProperty(geometryPrototype, 'isPointInFill', {
-          configurable: true,
-          writable: true,
-          value: originalPointInFill
-        });
-      }
-      clearGeometryCenterMaskCache();
-    }
-
-    const imageData = await rasterizeSvgDataUri(fallbackDataUri);
-    expect(countPixels(imageData, (r, g, b, a) => a > 220 && r > 235 && g > 235 && b > 235))
-      .toBeGreaterThan(10);
-    expect(countPixels(imageData, (r, g, b, a) => (
-      a > 220 && ((r > 180 && g < 90 && b < 90) || (b > 180 && r < 90 && g < 90))
-    ))).toBeGreaterThan(10);
-  });
 });
 
 describe('node shape category normalization', () => {
