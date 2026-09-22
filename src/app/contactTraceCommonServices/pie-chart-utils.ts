@@ -1,12 +1,108 @@
+import { MIXED_NODE_RING_WIDTH_RADIUS_FRACTION } from './node-shapes';
+import { buildNormalizedWeightedSegmentRanges } from './weighted-segments';
+
 export interface PieChartSlice {
   label: string;
   count: number;
   color: string;
   alpha?: number;
+  segments?: PieChartFillSegment[];
+}
+
+export interface PieChartFillSegment {
+  value?: any;
+  color: string;
+  alpha?: number;
+  weight?: number;
+}
+
+export interface SegmentedPieChartStyle {
+  color: string;
+  alpha?: number;
+  segments?: PieChartFillSegment[];
 }
 
 export interface PieChartPathSlice extends PieChartSlice {
   path: string;
+  startFraction: number;
+  endFraction: number;
+}
+
+export interface MixedPieChartRingPathSegment extends PieChartFillSegment {
+  path: string;
+  startFraction: number;
+  endFraction: number;
+}
+
+export const MIXED_AGGREGATE_RING_WIDTH_RADIUS_FRACTION = MIXED_NODE_RING_WIDTH_RADIUS_FRACTION;
+export const MIXED_AGGREGATE_HOLLOW_FILL = 'none';
+export const MIXED_AGGREGATE_HOLLOW_FILL_OPACITY = 0;
+export const PIE_CHART_SLICE_SEPARATOR_WIDTH_PX = 1;
+export const COLLAPSED_AGGREGATE_MIN_BORDER_WIDTH_PX = 4;
+export const COLLAPSED_AGGREGATE_BORDER_WIDTH_INCREMENT_PX = 2;
+export const COLLAPSED_AGGREGATE_MIN_CONTENT_DIAMETER_PX = 8;
+
+export function getCollapsedAggregateBorderWidth(normalBorderWidth: any): number {
+  const parsedBorderWidth = Number(normalBorderWidth);
+  const safeNormalBorderWidth = Number.isFinite(parsedBorderWidth)
+    ? Math.max(0, parsedBorderWidth)
+    : 0;
+  return Math.max(
+    COLLAPSED_AGGREGATE_MIN_BORDER_WIDTH_PX,
+    safeNormalBorderWidth + COLLAPSED_AGGREGATE_BORDER_WIDTH_INCREMENT_PX
+  );
+}
+
+export function getCollapsedAggregateMinimumRenderedSize(normalBorderWidth: any): number {
+  // A centered outline consumes half its width inside the node. This minimum
+  // leaves a 2px colored band visible within a half-radius mixed ring.
+  return (2 * getCollapsedAggregateBorderWidth(normalBorderWidth))
+    + COLLAPSED_AGGREGATE_MIN_CONTENT_DIAMETER_PX;
+}
+
+export function getMixedAggregateRingInnerRadius(outerRadius: number): number {
+  const safeOuterRadius = Math.max(0, Number(outerRadius) || 0);
+  return safeOuterRadius * (1 - MIXED_AGGREGATE_RING_WIDTH_RADIUS_FRACTION);
+}
+
+export function buildPieChartSlicesWithSegmentedFills(
+  counts: Array<{ label: any; count: number }>,
+  resolveStyle: (label: any) => SegmentedPieChartStyle
+): PieChartSlice[] {
+  const slices: PieChartSlice[] = [];
+
+  (counts || []).forEach(countEntry => {
+    const count = Number(countEntry?.count);
+    if (!Number.isFinite(count) || count <= 0) {
+      return;
+    }
+
+    const style = resolveStyle(countEntry.label);
+    const segments = (style?.segments || [])
+      .map(segment => {
+        const rawWeight = Number(segment?.weight);
+        return {
+          ...segment,
+          weight: Number.isFinite(rawWeight) && rawWeight > 0 ? rawWeight : 1
+        };
+      })
+      .filter(segment => typeof segment.color === 'string' && segment.color && segment.weight > 0);
+
+    slices.push({
+      label: String(countEntry.label ?? ''),
+      count,
+      color: style.color,
+      alpha: style.alpha,
+      segments: segments.length > 1
+        ? segments.map(segment => ({
+            ...segment,
+            alpha: segment.alpha ?? style.alpha
+          }))
+        : undefined
+    });
+  });
+
+  return slices;
 }
 
 export function getPieChartTotalCount(slices: PieChartSlice[]): number {
@@ -21,6 +117,12 @@ export function getValidPieChartSlices(slices: PieChartSlice[]): PieChartSlice[]
     const count = Number(slice?.count);
     return Number.isFinite(count) && count > 0;
   });
+}
+
+export function hasCompositePieChartFill(slices: PieChartSlice[]): boolean {
+  const validSlices = getValidPieChartSlices(slices);
+  return validSlices.length > 1
+    || validSlices.some(slice => (slice.segments || []).length > 1);
 }
 
 export function buildPieChartPathSlices(
@@ -42,6 +144,8 @@ export function buildPieChartPathSlices(
     const bottomY = centerY + safeRadius;
     return [{
       ...validSlices[0],
+      startFraction: 0,
+      endFraction: 1,
       path: `M ${centerX} ${topY} A ${safeRadius} ${safeRadius} 0 1 1 ${centerX} ${bottomY} A ${safeRadius} ${safeRadius} 0 1 1 ${centerX} ${topY} Z`
     }];
   }
@@ -50,6 +154,7 @@ export function buildPieChartPathSlices(
   let previousAngle = -Math.PI / 2;
 
   return validSlices.map(slice => {
+    const startFraction = cumulative;
     const proportion = Number(slice.count) / totalCount;
     cumulative += proportion;
     const endAngle = (-Math.PI / 2) + (2 * Math.PI * cumulative);
@@ -62,56 +167,195 @@ export function buildPieChartPathSlices(
 
     return {
       ...slice,
+      startFraction,
+      endFraction: cumulative,
       path: `M ${centerX} ${centerY} L ${startX} ${startY} A ${safeRadius} ${safeRadius} 0 ${largeArcFlag} 1 ${endX} ${endY} Z`
     };
   });
 }
 
-export function buildPieChartPatternDef(patternId: string, slices: PieChartSlice[]): string {
-  const totalCount = getPieChartTotalCount(slices);
-  const validSlices = getValidPieChartSlices(slices);
+function formatPieChartNumber(value: number): string {
+  return Number(value.toFixed(6)).toString();
+}
 
-  if (!patternId || totalCount <= 0 || validSlices.length < 2) {
+export function buildPieChartSliceSeparatorPaths(
+  slices: PieChartSlice[],
+  centerX: number,
+  centerY: number,
+  radius: number
+): string[] {
+  const pathSlices = buildPieChartPathSlices(slices, centerX, centerY, radius);
+  if (pathSlices.length <= 1) {
+    return [];
+  }
+
+  return pathSlices.map(slice => {
+    const angle = -Math.PI / 2 + slice.startFraction * 2 * Math.PI;
+    const outerX = centerX + radius * Math.cos(angle);
+    const outerY = centerY + radius * Math.sin(angle);
+    return `M ${formatPieChartNumber(centerX)} ${formatPieChartNumber(centerY)} L ${formatPieChartNumber(outerX)} ${formatPieChartNumber(outerY)}`;
+  });
+}
+
+export function buildAnnularPieChartSlicePath(
+  centerX: number,
+  centerY: number,
+  outerRadius: number,
+  innerRadius: number,
+  startFraction: number,
+  endFraction: number
+): string {
+  const safeOuterRadius = Math.max(0, Number(outerRadius) || 0);
+  const safeInnerRadius = Math.max(0, Math.min(safeOuterRadius, Number(innerRadius) || 0));
+  const safeStartFraction = Math.max(0, Math.min(1, Number(startFraction) || 0));
+  const safeEndFraction = Math.max(safeStartFraction, Math.min(1, Number(endFraction) || 0));
+  const fraction = safeEndFraction - safeStartFraction;
+
+  if (safeOuterRadius <= 0 || fraction <= 0) {
     return '';
   }
 
-  const coordinates: Array<[number, number]> = [];
-  const proportions: number[] = [];
-  let cumulative = 0;
-
-  validSlices.forEach(slice => {
-    const proportion = Number(slice.count) / totalCount;
-    cumulative += proportion;
-    proportions.push(proportion);
-    coordinates.push([
-      Math.cos(2 * Math.PI * cumulative),
-      Math.sin(2 * Math.PI * cumulative)
-    ]);
-  });
-
-  let patternString = `<pattern id='${patternId}' viewBox='-1 -1 2 2' style='transform: rotate(-.25turn)' width='100%' height='100%'>`;
-
-  for (let i = 0; i < coordinates.length; i++) {
-    const arcStart = i === 0 ? '1 0' : `${coordinates[i - 1][0]} ${coordinates[i - 1][1]}`;
-    const largeArcFlag = proportions[i] > 0.5 ? 1 : 0;
-    const arcEnd = i === coordinates.length - 1 ? '1 0' : `${coordinates[i][0]} ${coordinates[i][1]}`;
-    const alpha = Number(validSlices[i].alpha);
-    const fillOpacity = Number.isFinite(alpha) ? Math.max(0, Math.min(1, alpha)) : 1;
-    patternString += `<path d='M 0 0 L ${arcStart} A 1 1 0 ${largeArcFlag} 1 ${arcEnd} L 0 0' fill='${validSlices[i].color}' fill-opacity='${fillOpacity}' />`;
+  if (safeInnerRadius <= 0) {
+    const startAngle = -Math.PI / 2 + safeStartFraction * 2 * Math.PI;
+    const endAngle = -Math.PI / 2 + safeEndFraction * 2 * Math.PI;
+    const startX = centerX + safeOuterRadius * Math.cos(startAngle);
+    const startY = centerY + safeOuterRadius * Math.sin(startAngle);
+    const endX = centerX + safeOuterRadius * Math.cos(endAngle);
+    const endY = centerY + safeOuterRadius * Math.sin(endAngle);
+    const largeArcFlag = fraction > 0.5 ? 1 : 0;
+    return `M ${formatPieChartNumber(centerX)} ${formatPieChartNumber(centerY)} L ${formatPieChartNumber(startX)} ${formatPieChartNumber(startY)} A ${formatPieChartNumber(safeOuterRadius)} ${formatPieChartNumber(safeOuterRadius)} 0 ${largeArcFlag} 1 ${formatPieChartNumber(endX)} ${formatPieChartNumber(endY)} Z`;
   }
 
-  patternString += '</pattern>';
-  return patternString;
+  if (fraction >= 1 - Number.EPSILON) {
+    const outerTopY = centerY - safeOuterRadius;
+    const outerBottomY = centerY + safeOuterRadius;
+    const innerTopY = centerY - safeInnerRadius;
+    const innerBottomY = centerY + safeInnerRadius;
+    return [
+      `M ${formatPieChartNumber(centerX)} ${formatPieChartNumber(outerTopY)}`,
+      `A ${formatPieChartNumber(safeOuterRadius)} ${formatPieChartNumber(safeOuterRadius)} 0 1 1 ${formatPieChartNumber(centerX)} ${formatPieChartNumber(outerBottomY)}`,
+      `A ${formatPieChartNumber(safeOuterRadius)} ${formatPieChartNumber(safeOuterRadius)} 0 1 1 ${formatPieChartNumber(centerX)} ${formatPieChartNumber(outerTopY)}`,
+      `L ${formatPieChartNumber(centerX)} ${formatPieChartNumber(innerTopY)}`,
+      `A ${formatPieChartNumber(safeInnerRadius)} ${formatPieChartNumber(safeInnerRadius)} 0 1 0 ${formatPieChartNumber(centerX)} ${formatPieChartNumber(innerBottomY)}`,
+      `A ${formatPieChartNumber(safeInnerRadius)} ${formatPieChartNumber(safeInnerRadius)} 0 1 0 ${formatPieChartNumber(centerX)} ${formatPieChartNumber(innerTopY)}`,
+      'Z'
+    ].join(' ');
+  }
+
+  const startAngle = -Math.PI / 2 + safeStartFraction * 2 * Math.PI;
+  const endAngle = -Math.PI / 2 + safeEndFraction * 2 * Math.PI;
+  const outerStartX = centerX + safeOuterRadius * Math.cos(startAngle);
+  const outerStartY = centerY + safeOuterRadius * Math.sin(startAngle);
+  const outerEndX = centerX + safeOuterRadius * Math.cos(endAngle);
+  const outerEndY = centerY + safeOuterRadius * Math.sin(endAngle);
+  const innerStartX = centerX + safeInnerRadius * Math.cos(startAngle);
+  const innerStartY = centerY + safeInnerRadius * Math.sin(startAngle);
+  const innerEndX = centerX + safeInnerRadius * Math.cos(endAngle);
+  const innerEndY = centerY + safeInnerRadius * Math.sin(endAngle);
+  const largeArcFlag = fraction > 0.5 ? 1 : 0;
+
+  return [
+    `M ${formatPieChartNumber(outerStartX)} ${formatPieChartNumber(outerStartY)}`,
+    `A ${formatPieChartNumber(safeOuterRadius)} ${formatPieChartNumber(safeOuterRadius)} 0 ${largeArcFlag} 1 ${formatPieChartNumber(outerEndX)} ${formatPieChartNumber(outerEndY)}`,
+    `L ${formatPieChartNumber(innerEndX)} ${formatPieChartNumber(innerEndY)}`,
+    `A ${formatPieChartNumber(safeInnerRadius)} ${formatPieChartNumber(safeInnerRadius)} 0 ${largeArcFlag} 0 ${formatPieChartNumber(innerStartX)} ${formatPieChartNumber(innerStartY)}`,
+    'Z'
+  ].join(' ');
+}
+
+export function buildEvenMixedPieChartRingSegments(
+  segments: PieChartFillSegment[],
+  startFraction: number,
+  endFraction: number,
+  centerX: number,
+  centerY: number,
+  outerRadius: number,
+  innerRadius: number
+): MixedPieChartRingPathSegment[] {
+  const weightedSegments = buildNormalizedWeightedSegmentRanges(
+    segments,
+    segment => typeof segment?.color === 'string' && !!segment.color
+  );
+  if (weightedSegments.length < 2) {
+    return [];
+  }
+
+  const sliceFraction = Math.max(0, endFraction - startFraction);
+  return weightedSegments.map(({ segment, startFraction: weightedStart, endFraction: weightedEnd }, index) => {
+    const segmentStartFraction = startFraction + sliceFraction * weightedStart;
+    const segmentEndFraction = index === weightedSegments.length - 1
+      ? endFraction
+      : startFraction + sliceFraction * weightedEnd;
+    return {
+      ...segment,
+      startFraction: segmentStartFraction,
+      endFraction: segmentEndFraction,
+      path: buildAnnularPieChartSlicePath(
+        centerX,
+        centerY,
+        outerRadius,
+        innerRadius,
+        segmentStartFraction,
+        segmentEndFraction
+      )
+    };
+  });
+}
+
+export function buildPieChartPatternDef(patternId: string, slices: PieChartSlice[], renderedSize: number = 24): string {
+  const totalCount = getPieChartTotalCount(slices);
+  const validSlices = getValidPieChartSlices(slices);
+
+  if (!patternId || totalCount <= 0 || validSlices.length === 0) {
+    return '';
+  }
+
+  const pathSlices = buildPieChartPathSlices(validSlices, 0, 0, 1);
+  const mixedRingInnerRadius = getMixedAggregateRingInnerRadius(1);
+  const paths = pathSlices.map((slice) => {
+    const alpha = Number(slice.alpha);
+    const fillOpacity = Number.isFinite(alpha) ? Math.max(0, Math.min(1, alpha)) : 1;
+    const mixedRingSegments = buildEvenMixedPieChartRingSegments(
+      slice.segments || [],
+      slice.startFraction,
+      slice.endFraction,
+      0,
+      0,
+      1,
+      mixedRingInnerRadius
+    );
+
+    if (mixedRingSegments.length < 2) {
+      return `<path d='${slice.path}' fill='${slice.color}' fill-opacity='${fillOpacity}' data-mt-solid-aggregate-slice='true' />`;
+    }
+
+    const hollowSlice = `<path d='${slice.path}' fill='${MIXED_AGGREGATE_HOLLOW_FILL}' fill-opacity='${MIXED_AGGREGATE_HOLLOW_FILL_OPACITY}' data-mt-contains-mixed-infection='true' data-mt-mixed-hollow-slice='true' />`;
+    const ringSegments = mixedRingSegments.map((segment, index) => {
+      const segmentAlpha = Number(segment.alpha ?? slice.alpha);
+      const segmentOpacity = Number.isFinite(segmentAlpha) ? Math.max(0, Math.min(1, segmentAlpha)) : 1;
+      return `<path d='${segment.path}' fill='${segment.color}' fill-opacity='${segmentOpacity}' data-mt-mixed-ring-segment='${index}' data-mt-segment-start-fraction='${formatPieChartNumber(segment.startFraction)}' data-mt-segment-end-fraction='${formatPieChartNumber(segment.endFraction)}' />`;
+    }).join('');
+    return `${hollowSlice}${ringSegments}`;
+  }).join('');
+
+  const safeRenderedSize = Math.max(1, Number(renderedSize) || 1);
+  const separatorStrokeWidth = 2 * PIE_CHART_SLICE_SEPARATOR_WIDTH_PX / safeRenderedSize;
+  const sliceSeparators = buildPieChartSliceSeparatorPaths(validSlices, 0, 0, 1)
+    .map((path, index) => `<path d='${path}' fill='none' stroke='#000000' stroke-width='${formatPieChartNumber(separatorStrokeWidth)}' stroke-linecap='butt' data-mt-aggregate-slice-separator='${index}' />`)
+    .join('');
+
+  return `<pattern id='${patternId}' viewBox='-1 -1 2 2' width='100%' height='100%'>${paths}${sliceSeparators}</pattern>`;
 }
 
 export function buildPieChartSvgDataUri(patternId: string, size: number, slices: PieChartSlice[]): string {
   const safeSize = Math.max(1, Number(size) || 1);
-  const patternDef = buildPieChartPatternDef(patternId, slices);
+  const patternDef = buildPieChartPatternDef(patternId, slices, safeSize);
 
   if (!patternDef) {
     return '';
   }
 
-  const svgPattern = `<svg width='${safeSize}' height='${safeSize}' xmlns='http://www.w3.org/2000/svg'><defs>${patternDef}</defs><circle fill="url(#${patternId})" cx='${safeSize / 2}' cy='${safeSize / 2}' r='${safeSize / 2}'/></svg>`;
+  const center = safeSize / 2;
+  const svgPattern = `<svg width='${safeSize}' height='${safeSize}' xmlns='http://www.w3.org/2000/svg'><defs>${patternDef}</defs><circle fill="url(#${patternId})" cx='${center}' cy='${center}' r='${center}'/></svg>`;
   return 'data:image/svg+xml;base64,' + btoa(svgPattern);
 }

@@ -113,6 +113,23 @@ const openNodeShapeTableDropdown = (value: string): void => {
     .click({ force: true });
 };
 
+const assertOpenNodeShapeDropdownPreview = (label: string, shapeKey: string): void => {
+  const expectedPreview = getNodeShapePreviewDataUri(shapeKey);
+
+  cy.contains('.shapeTreeSelectPanel:visible [role="treeitem"]', label, { timeout: 15000 })
+    .should('be.visible')
+    .find(`.shape-tree-preview[data-shape-key="${shapeKey}"]`)
+    .should('be.visible')
+    .should(($preview) => {
+      const element = $preview.get(0) as HTMLElement;
+      const computed = element.ownerDocument.defaultView!.getComputedStyle(element);
+
+      expect(computed.backgroundImage, `${label} preview image`).to.contain(expectedPreview);
+      expect(element.getBoundingClientRect().width, `${label} preview width`).to.be.greaterThan(0);
+      expect(element.getBoundingClientRect().height, `${label} preview height`).to.be.greaterThan(0);
+    });
+};
+
 const getVisibleLeafNodeWidths = (): Cypress.Chainable<number[]> => {
   return cy.window().then((win: any) => {
     const cyInstance = win.cytoscapeInstance;
@@ -235,6 +252,42 @@ describe('Journey Flow - Uploaded node shapes and sizes without style', () => {
     cy.window().its('commonService.session.style.widgets.node-symbol-table-visible').should('equal', 'Show');
     assertNodeSymbolTableVisibility(true);
 
+    cy.closeGlobalSettings();
+  });
+
+  it('shows custom shape previews inside the open node shape dropdown', () => {
+    launchProfileToTwoD(profile);
+    assertAfterLaunchCounts(profile);
+
+    openNodeShapesPanel();
+    openGlobalShapeSettingsFromTwoD();
+
+    cy.get('@globalSettings').find('#node-symbol-variable').click({ force: true });
+    cy.contains('li[role="option"]', 'Node type').click({ force: true });
+    cy.get('body').type('{esc}');
+
+    cy.window().then((win: any) => {
+      const app = win.commonService.visuals.microbeTrace;
+      const virusShape = app.getNodeShapeTreeSelection('virus');
+
+      expect(virusShape, 'virus shape selection').to.exist;
+      app.onNodeShapeTableTreeChange(virusShape, 'Person');
+    });
+
+    openNodeShapeTableDropdown('Person');
+    assertOpenNodeShapeDropdownPreview('Virus', 'virus');
+
+    cy.contains(
+      '.shapeTreeSelectPanel:visible [role="treeitem"]',
+      /^\s*People\s*$/,
+      { timeout: 15000 }
+    )
+      .find('button')
+      .first()
+      .click({ force: true });
+
+    assertOpenNodeShapeDropdownPreview('Man', 'man');
+    cy.get('body').type('{esc}');
     cy.closeGlobalSettings();
   });
 

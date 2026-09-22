@@ -1096,14 +1096,22 @@ export function waitForProcessingDialogToClear(timeout = 30000): void {
 
 export function openGlobalFilteringTab(): void {
   cy.openGlobalSettings();
-  cy.contains('.nav-link:visible', 'Filtering').click({ force: true });
-  cy.get('#filtering-config', { timeout: 15000 }).should('exist');
+  cy.contains('.p-dialog-title:visible', 'Global Settings')
+    .closest('.p-dialog')
+    .within(() => {
+      cy.contains('.nav-link', 'Filtering').click({ force: true });
+      cy.get('#filtering-config', { timeout: 15000 }).should('exist');
+    });
 }
 
 export function openGlobalStylingTab(): void {
   cy.openGlobalSettings();
-  cy.contains('.nav-link:visible', 'Styling').click({ force: true });
-  cy.get('#style-config', { timeout: 15000 }).should('exist');
+  cy.contains('.p-dialog-title:visible', 'Global Settings')
+    .closest('.p-dialog')
+    .within(() => {
+      cy.contains('.nav-link', 'Styling').click({ force: true });
+      cy.get('#style-config', { timeout: 15000 }).should('exist');
+    });
 }
 
 export function setFilteringPruneWith(value: PruneWith): void {

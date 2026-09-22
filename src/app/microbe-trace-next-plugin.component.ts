@@ -1,5 +1,6 @@
 ﻿import { ChangeDetectionStrategy, Component, OnInit, Injector, ViewChild, ViewChildren, AfterViewInit, ComponentRef, ViewContainerRef, QueryList, ElementRef, Output, EventEmitter, ChangeDetectorRef, OnDestroy, ViewEncapsulation, Renderer2 } from '@angular/core';
 import { CommonService } from './contactTraceCommonServices/common.service';
+import { HostListener } from '@angular/core';
 import * as d3 from 'd3';
 import { AppComponentBase } from '@shared/common/app-component-base';
 import { SelectItem, TreeNode, ConfirmationService } from 'primeng/api';
@@ -20,6 +21,7 @@ import { CommonStoreService } from './contactTraceCommonServices/common-store.se
 import { ExportService, ExportOptions } from './contactTraceCommonServices/export.service';
 import { GraphMLService } from './contactTraceCommonServices/graphml.service';
 import { sanitizeExportRows } from './contactTraceCommonServices/export-sanitization';
+import { formatMixedNodeColorDisplayName, getMixedNodeColorLegendEntries } from './contactTraceCommonServices/color-mapping.service';
 import * as XLSX from 'xlsx';
 import { buildDate, commitHash, version as appVersion } from "src/environments/version";
 import { EmbedHandoffService } from './embed/embed-handoff.service';
@@ -39,22 +41,30 @@ import {
     StyleKeyTableColumnNameChange,
     StyleKeyTableRow,
     StyleKeyTableRowNameChange,
+    StyleKeyTableSegmentAlphaChange,
     StyleKeyTableShapeChange,
     StyleKeyTableShapePanelRequest,
     StyleKeyTableSortColumn
 } from './visualizationComponents/KeyTablesComponent/style-key-table.component';
+import { hideColorTransparencyPicker, showColorTransparencyPicker } from './visualizationComponents/KeyTablesComponent/color-transparency-picker';
 import {
     ColorAssignmentService,
     NodeColorAssignmentParseError,
     ParsedNodeColorAssignments
 } from './contactTraceCommonServices/color-assignment.service';
 import {
+    aggregateNodeShapeCategories,
     NODE_SHAPE_GROUPS,
     NODE_SYMBOL_OPTIONS,
     NodeShapeGroupKey,
     NodeShapeOption,
     resolveNodeShapeKey
 } from '@app/contactTraceCommonServices/node-shapes';
+import {
+    buildNodeShapeTreeLeaf,
+    NODE_SHAPE_TREE_SELECT_PASS_THROUGH,
+    NodeShapeTreeOption
+} from '@app/contactTraceCommonServices/node-shape-picker';
 import {
     DialogRectSnapshot,
     GlobalSettingsDialogRequest,
@@ -130,20 +140,13 @@ function groupNodeShapeOptions(options: NodeShapeOption[]): NodeShapeOptionGroup
         .filter(group => group.items.length > 0);
 }
 
-function buildNodeShapeTreeOptions(groups: NodeShapeOptionGroup[], defaultExpandedGroup: NodeShapeGroupKey): TreeNode<NodeShapeOption>[] {
+function buildNodeShapeTreeOptions(groups: NodeShapeOptionGroup[], defaultExpandedGroup: NodeShapeGroupKey): TreeNode<NodeShapeTreeOption>[] {
     return groups.map(group => ({
         key: group.key,
         label: group.label,
         selectable: false,
         expanded: group.key === defaultExpandedGroup,
-        children: group.items.map(option => ({
-            key: option.key,
-            label: `${option.value}${option.name}`,
-            type: 'shape',
-            data: option,
-            leaf: true,
-            selectable: true
-        }))
+        children: group.items.map(buildNodeShapeTreeLeaf)
     }));
 }
 
@@ -159,6 +162,9 @@ function buildNodeShapeTreeOptions(groups: NodeShapeOptionGroup[], defaultExpand
 })
 
 export class MicrobeTraceNextHomeComponent extends AppComponentBase implements AfterViewInit, OnInit, OnDestroy {
+
+    colorTransparencyPercent = 100;
+    readonly shapeTreeSelectPassThrough = NODE_SHAPE_TREE_SELECT_PASS_THROUGH;
 
 
     // recommit original code
@@ -354,6 +360,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
     SelectedStatisticsTypesVariable: string = 'Show';
 
     SelectedColorNodesByVariable: string = 'None';
+    SelectedNodeMixedColorsEnabledVariable: boolean = false;
     SelectedNodeSymbolVariable: string = 'None';
     SelectedNodeColorVariable: string = '#1f77b4';
     SelectedLinkColorVariable: string = '#1f77b4';
@@ -689,6 +696,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         this.SelectedStatisticsTypesVariable = this.commonService.GlobalSettingsModel.SelectedStatisticsTypesVariable;
 
         this.SelectedColorNodesByVariable = this.commonService.GlobalSettingsModel.SelectedColorNodesByVariable;
+        this.SelectedNodeMixedColorsEnabledVariable = this.commonService.session.style.widgets['node-mixed-colors-enabled'] === true;
         this.SelectedNodeSymbolVariable = this.commonService.GlobalSettingsModel.SelectedNodeSymbolVariable ?? this.commonService.session.style.widgets['node-symbol-variable'];
         this.SelectedNodeColorVariable = this.commonService.session.style.widgets['node-color'];
         this.SelectedColorLinksByVariable = this.commonService.GlobalSettingsModel.SelectedColorLinksByVariable;
@@ -1649,7 +1657,6 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         this.onSearch();
     }
 
-
     /**
      * Convert Files list to normal array list
      * @param files (Files List)
@@ -2080,6 +2087,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
             this.getGlobalSettingsData();
             this.onColorNodesByChanged();
         }
+        this.SelectedNodeMixedColorsEnabledVariable = this.widgets['node-mixed-colors-enabled'] === true;
         
         if (this.SelectedColorLinksByVariable != this.widgets['link-color-variable']){
             this.SelectedColorLinksByVariable = this.widgets['link-color-variable'];
@@ -2303,6 +2311,7 @@ ${warnings.join('\n')}`,
         if(!silent) this.publishUpdateNodeColors();
         
     }
+
 
     /**
      * calls updateNodeColors() for each view
@@ -2645,32 +2654,34 @@ ${warnings.join('\n')}`,
         }
 
         const style = this.commonService.session.style;
-        const values = [...(style.nodeSymbolsTableKeys[variable] ?? [])];
-        const previousKeys = [...values];
-        const aggregateMap = new Map<any, number>();
-        let visibleNodeCount = 0;
+        const rawPreviousKeys = [...(style.nodeSymbolsTableKeys[variable] ?? [])];
+        const rawPreviousSymbols = this.normalizeNodeShapeState(variable);
+        const previousKeys: string[] = [];
+        const previousSymbols: string[] = [];
 
-        for (const node of this.commonService.session.data.nodes) {
-            if (!node || typeof node !== 'object' || !node.visible) {
-                continue;
+        rawPreviousKeys.forEach((key, index) => {
+            const normalizedKey = this.commonService.normalizeNodeStyleCategoryValue(key);
+            if (this.findNodeShapeValueIndex(previousKeys, normalizedKey) !== -1) {
+                return;
             }
 
-            visibleNodeCount++;
+            previousKeys.push(normalizedKey);
+            previousSymbols.push(rawPreviousSymbols[index] ?? this.getDefaultNodeShape());
+        });
 
-            const groupValue = node[variable];
-            if (groupValue === undefined) {
-                continue;
-            }
+        const values = [...previousKeys];
+        const { counts: aggregateMap, visibleNodeCount } = aggregateNodeShapeCategories(
+            this.commonService.session.data.nodes,
+            variable
+        );
 
+        aggregateMap.forEach((_count, groupValue) => {
             if (this.findNodeShapeValueIndex(values, groupValue) === -1) {
                 values.push(groupValue);
             }
-
-            aggregateMap.set(groupValue, (aggregateMap.get(groupValue) ?? 0) + 1);
-        }
+        });
 
         const baseNodeShapes = this.getBaseNodeShapes();
-        const previousSymbols = this.normalizeNodeShapeState(variable);
 
         values.sort((a, b) => (aggregateMap.get(b) ?? 0) - (aggregateMap.get(a) ?? 0));
 
@@ -2915,12 +2926,15 @@ ${warnings.join('\n')}`,
         this.SelectedColorNodesByVariable = 'None';
         this.SelectedColorLinksByVariable = 'origin';
         this.SelectedNodeSymbolVariable = 'None';
+        this.SelectedNodeMixedColorsEnabledVariable = false;
 
         this.commonService.GlobalSettingsModel.SelectedColorNodesByVariable = 'None';
         this.commonService.GlobalSettingsModel.SelectedColorLinksByVariable = 'origin';
         this.commonService.GlobalSettingsModel.SelectedNodeSymbolVariable = 'None';
+        this.commonService.GlobalSettingsModel.SelectedNodeMixedColorsEnabledVariable = false;
 
         widgets['node-color-variable'] = 'None';
+        widgets['node-mixed-colors-enabled'] = false;
         widgets['link-color-variable'] = 'origin';
         widgets['node-symbol-variable'] = 'None';
 
@@ -3800,6 +3814,25 @@ ${warnings.join('\n')}`,
         }
     }
 
+    private normalizeSelectValue(value: any, fallback: string = 'None'): string {
+        if (value && typeof value === 'object' && 'value' in value) {
+            return String(value.value ?? fallback);
+        }
+
+        if (value === undefined || value === null || value === '') {
+            return fallback;
+        }
+
+        return String(value);
+    }
+
+    public hasNodeColorVariableSelected(): boolean {
+        const selected = this.normalizeSelectValue(
+            this.SelectedColorNodesByVariable ?? this.commonService.session?.style?.widgets?.['node-color-variable']
+        );
+        return selected !== 'None';
+    }
+
     showLinkColorTable() {
         console.log('onLinkColorTableChanged - show');
         if (this.isKeyTableDocked('link-color')) {
@@ -3837,8 +3870,11 @@ ${warnings.join('\n')}`,
      * Called when SelectedColorNodesByVariable (keeps track of what variable to use to color nodes by) is changed.
      */
     onColorNodesByChanged(silent: boolean = false) {
+        this.SelectedColorNodesByVariable = this.normalizeSelectValue(this.SelectedColorNodesByVariable);
         this.nodeColorAssignmentStatus = null;
         this.commonService.GlobalSettingsModel.SelectedColorNodesByVariable = this.SelectedColorNodesByVariable;
+        this.commonService.GlobalSettingsModel.SelectedNodeMixedColorsEnabledVariable = this.SelectedNodeMixedColorsEnabledVariable;
+        this.commonService.session.style.widgets['node-mixed-colors-enabled'] = this.SelectedNodeMixedColorsEnabledVariable === true;
         if (this.SelectedColorNodesByVariable !== 'None' && this.getKeyTableDisplayMode('node-color') === 'Dock') {
             this.keyTablesController.setDocked('node-color', true);
             this.ensureKeyTablesViewOpen(false);
@@ -3903,6 +3939,24 @@ ${warnings.join('\n')}`,
         }
     }
 
+    onNodeMixedColorsEnabledChanged(silent: boolean = false) {
+        this.commonService.GlobalSettingsModel.SelectedNodeMixedColorsEnabledVariable = this.SelectedNodeMixedColorsEnabledVariable === true;
+        this.commonService.session.style.widgets['node-mixed-colors-enabled'] = this.SelectedNodeMixedColorsEnabledVariable === true;
+
+        if (this.SelectedColorNodesByVariable === 'None') {
+            return;
+        }
+
+        this.onColorNodesByChanged(silent);
+    }
+
+    get nodeMixedColorInvalidWeightCount(): number {
+        if (!this.SelectedNodeMixedColorsEnabledVariable || this.SelectedColorNodesByVariable === 'None') {
+            return 0;
+        }
+        return Number(this.commonService.temp.style.nodeMixedColorInvalidWeightCount || 0);
+    }
+
     generateNodeColorTable(tableId: string, isEditable: boolean = true) {
         this.nodeColorTableEditable = isEditable;
         this.nodeColorTableHeaders = {
@@ -3915,12 +3969,15 @@ ${warnings.join('\n')}`,
 
         const aggregates = this.commonService.createNodeColorMap();
         const vnodes = this.commonService.getVisibleNodes();
-        const aggregateValues = Object.keys(aggregates);
+        const aggregateValues = (
+            this.commonService.session.style.nodeColorsTableKeys?.[this.SelectedColorNodesByVariable]
+            || Object.keys(aggregates)
+        ).filter(value => Object.prototype.hasOwnProperty.call(aggregates, value));
         this.nodeColorDomain = aggregateValues;
 
-        this.nodeColorRows = aggregateValues
+        const componentRows: StyleKeyTableRow[] = aggregateValues
             .map((value, i) => ({ value, i }))
-            .filter(({ value }) => aggregates[value] >= 1)
+            .filter(({ value }) => Number(aggregates[value] ?? 0) > 0)
             .map(({ value, i }) => ({
                 rawValue: value,
                 trackKey: `node-color-${String(value)}`,
@@ -3932,6 +3989,51 @@ ${warnings.join('\n')}`,
                 index: i
             }));
 
+        const mixedRows: StyleKeyTableRow[] = this.SelectedNodeMixedColorsEnabledVariable
+            ? getMixedNodeColorLegendEntries(
+                vnodes,
+                this.SelectedColorNodesByVariable,
+                this.commonService.session.style.nodeColorsTableKeys?.[this.SelectedColorNodesByVariable] || []
+            )
+                .map(entry => {
+                    const fillStyle = this.commonService.getNodeFillStyle({
+                        [this.SelectedColorNodesByVariable]: entry.value
+                    });
+                    const componentDisplayNames = entry.components.map(component =>
+                        this.getNodeValueDisplayName(
+                            component,
+                            this.SelectedColorNodesByVariable
+                        )
+                    );
+                    const displayName = formatMixedNodeColorDisplayName(
+                        componentDisplayNames,
+                        entry.weights,
+                        entry.hasExplicitWeights
+                    );
+
+                    return {
+                        rawValue: entry.value,
+                        trackKey: `node-color-mixed-${entry.value}`,
+                        displayName,
+                        count: entry.count,
+                        frequency: vnodes.length === 0 ? '' : (entry.count / vnodes.length).toLocaleString(),
+                        colorSegments: fillStyle.segments?.map(segment => ({
+                            value: segment.value,
+                            displayName: this.getNodeValueDisplayName(
+                                segment.value,
+                                this.SelectedColorNodesByVariable
+                            ),
+                            color: segment.color,
+                            opacity: segment.alpha,
+                            weight: segment.weight,
+                            index: aggregateValues.findIndex(value => value === segment.value)
+                        }))
+                    };
+                })
+                .filter(row => (row.colorSegments?.length ?? 0) > 1)
+            : [];
+
+        this.nodeColorRows = [...componentRows, ...mixedRows];
         this.applyStyleKeyTableSort('node-color');
         $('#nodeColorTableSettings').on('mouseleave', () => $('#nodeColorTableSettings').delay(500).css('display', 'none'));
         this.cdref.markForCheck();
@@ -4019,21 +4121,43 @@ ${warnings.join('\n')}`,
     }
 
     onNodeColorAlphaRequested(request: StyleKeyTableAlphaRequest): void {
+        const index = this.resolveNodeColorAlphaIndex(request.value, request.row.index);
         this.showColorAlphaPicker(
             request,
-            this.commonService.session.style.nodeAlphas[request.row.index ?? 0],
-            alphaValue => {
-                const aggregateValues = this.nodeColorDomain.length ? this.nodeColorDomain : this.nodeColorRows.map(row => row.rawValue);
-                const index = request.row.index ?? 0;
-                const alpha = this.commonService.clampStyleAlpha(alphaValue);
-                this.commonService.session.style.nodeAlphas.splice(index, 1, alpha);
-                this.commonService.temp.style.nodeAlphaMap = d3
-                    .scaleOrdinal(this.commonService.session.style.nodeAlphas)
-                    .domain(aggregateValues);
-                this.generateNodeColorTable('', true);
-                this.publishUpdateNodeColors();
-            }
+            this.commonService.session.style.nodeAlphas[index] ?? 1,
+            alphaValue => this.updateNodeColorAlpha(request.value, index, alphaValue)
         );
+    }
+
+    onNodeColorSegmentAlphaChange(change: StyleKeyTableSegmentAlphaChange): void {
+        const index = this.resolveNodeColorAlphaIndex(change.value, change.segment.index);
+        this.updateNodeColorAlpha(change.value, index, change.alpha);
+    }
+
+    private resolveNodeColorAlphaIndex(value: any, fallbackIndex?: number): number {
+        const aggregateValues = this.nodeColorDomain.length
+            ? this.nodeColorDomain
+            : this.commonService.session.style.nodeColorsTableKeys?.[this.SelectedColorNodesByVariable] ?? [];
+        const valueIndex = aggregateValues.findIndex(domainValue => domainValue === value);
+        if (valueIndex >= 0) {
+            return valueIndex;
+        }
+
+        return Math.max(0, Number(fallbackIndex) || 0);
+    }
+
+    private updateNodeColorAlpha(value: any, fallbackIndex: number, alphaValue: number): void {
+        const aggregateValues = this.nodeColorDomain.length
+            ? this.nodeColorDomain
+            : this.commonService.session.style.nodeColorsTableKeys?.[this.SelectedColorNodesByVariable] ?? [];
+        const index = this.resolveNodeColorAlphaIndex(value, fallbackIndex);
+        const alpha = this.commonService.clampStyleAlpha(alphaValue);
+        this.commonService.session.style.nodeAlphas.splice(index, 1, alpha);
+        this.commonService.temp.style.nodeAlphaMap = d3
+            .scaleOrdinal(this.commonService.session.style.nodeAlphas)
+            .domain(aggregateValues);
+        this.generateNodeColorTable('', true);
+        this.publishUpdateNodeColors();
     }
 
     onLinkColorAlphaRequested(request: StyleKeyTableAlphaRequest): void {
@@ -4103,20 +4227,39 @@ ${warnings.join('\n')}`,
     }
 
     private showColorAlphaPicker(request: StyleKeyTableAlphaRequest, currentAlpha: number, onChange: (alphaValue: number) => void): void {
-        $("#color-transparency-wrapper").css({
-            top: request.event.clientY + 129,
-            left: request.event.clientX,
-            display: "block"
-        });
+        const input = showColorTransparencyPicker(request.event, currentAlpha);
+        if (!input) {
+            return;
+        }
 
-        $("#color-transparency")
+        $(input)
             .off("change")
-            .val(currentAlpha)
             .one("change", event => {
                 onChange(parseFloat((event.target['value'] as string)));
                 $("#color-transparency-wrapper").fadeOut();
                 this.cdref.markForCheck();
             });
+    }
+
+    onColorTransparencyInput(event: Event): void {
+        const value = Number((event.target as HTMLInputElement | null)?.value);
+        const opacity = Number.isFinite(value) ? Math.min(1, Math.max(0, value)) : 1;
+        this.colorTransparencyPercent = Math.round(opacity * 100);
+        this.cdref.markForCheck();
+    }
+
+    onColorTransparencyWrapperClick(event: MouseEvent): void {
+        event.stopPropagation();
+    }
+
+    @HostListener('document:click', ['$event'])
+    onColorTransparencyDocumentClick(event: MouseEvent): void {
+        const target = event.target instanceof Element ? event.target : null;
+        if (target?.closest('#color-transparency-wrapper') || target?.closest('.transparency-symbol')) {
+            return;
+        }
+
+        hideColorTransparencyPicker();
     }
 
     /**
@@ -4360,6 +4503,7 @@ ${warnings.join('\n')}`,
         this.commonService.session.style.widgets['link-color'] = this.SelectedLinkColorVariable;
 
         this.commonService.session.style.widgets['node-color-variable'] = this.SelectedColorNodesByVariable;
+        this.commonService.session.style.widgets['node-mixed-colors-enabled'] = this.SelectedNodeMixedColorsEnabledVariable === true;
         this.commonService.session.style.widgets['node-symbol-variable'] = this.SelectedNodeSymbolVariable;
         this.commonService.session.style.widgets['node-symbol-table-visible'] = this.SelectedNodeShapeTableTypesVariable;
         this.commonService.session.style.widgets['link-threshold-variable'] = this.SelectedDistanceMetricVariable;
@@ -4373,6 +4517,7 @@ ${warnings.join('\n')}`,
         this.commonService.GlobalSettingsModel.SelectedLinkThresholdVariable = this.SelectedLinkThresholdVariable;
         this.commonService.GlobalSettingsModel.SelectedDistanceMetricVariable = this.SelectedDistanceMetricVariable;
         this.commonService.GlobalSettingsModel.SelectedNodeSymbolVariable = this.SelectedNodeSymbolVariable;
+        this.commonService.GlobalSettingsModel.SelectedNodeMixedColorsEnabledVariable = this.SelectedNodeMixedColorsEnabledVariable === true;
         this.commonService.GlobalSettingsModel.SelectedNodeShapeTableTypesVariable = this.SelectedNodeShapeTableTypesVariable;
         this.commonService.session.style.widgets['selected-color'] = this.SelectedColorVariable;
         this.commonService.session.style.widgets['selected-node-stroke-color'] = this.SelectedColorVariable;
@@ -6140,6 +6285,7 @@ ${warnings.join('\n')}`,
 
         //Styling|Color Nodes By
          this.SelectedColorNodesByVariable = this.commonService.session.style.widgets["node-color-variable"];
+         this.SelectedNodeMixedColorsEnabledVariable = this.commonService.session.style.widgets['node-mixed-colors-enabled'] === true;
          this.onColorNodesByChanged(false);
 
          //Styling|Nodes

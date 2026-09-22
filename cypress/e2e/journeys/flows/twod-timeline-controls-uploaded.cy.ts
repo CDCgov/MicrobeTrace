@@ -18,6 +18,13 @@ type WinWithCy = Window & {
   cytoscapeInstance?: any;
 };
 
+type ViewportBoundingBox = {
+  x1: number;
+  y1: number;
+  x2: number;
+  y2: number;
+};
+
 const normalizeColor = (value: string): string => String(value || '').replace(/\s+/g, '').toLowerCase();
 
 const hexToRgbString = (hex: string): string => {
@@ -189,6 +196,7 @@ describe('Journey Flow - 2D uploaded timeline controls', () => {
 
   it('keeps 2D timeline play/pause and manual slider checkpoints aligned on uploaded data', () => {
     let initialTime = 0;
+    let completeTimelineBounds: ViewportBoundingBox | null = null;
 
     const oracleSteps: OracleStep[] = [
       {
@@ -213,7 +221,31 @@ describe('Journey Flow - 2D uploaded timeline controls', () => {
     launchProfileToTwoD(profile);
     assertAfterLaunchCounts(profile);
 
+    cy.window().then((win: unknown) => {
+      const cyInstance = (win as WinWithCy).cytoscapeInstance;
+      expect(cyInstance, 'cytoscapeInstance').to.exist;
+      const boundingBox = cyInstance.nodes().boundingBox();
+      completeTimelineBounds = {
+        x1: boundingBox.x1,
+        y1: boundingBox.y1,
+        x2: boundingBox.x2,
+        y2: boundingBox.y2,
+      };
+    });
+
     setTimelineField(timeline.field);
+    waitForTwoDRenderIdle();
+
+    cy.window().should((win: unknown) => {
+      expect(completeTimelineBounds, 'complete timeline layout bounds').to.exist;
+      const viewport = (win as WinWithCy).cytoscapeInstance.extent();
+      const bounds = completeTimelineBounds!;
+
+      expect(viewport.x1, 'timeline viewport includes the complete layout left edge').to.be.at.most(bounds.x1);
+      expect(viewport.y1, 'timeline viewport includes the complete layout top edge').to.be.at.most(bounds.y1);
+      expect(viewport.x2, 'timeline viewport includes the complete layout right edge').to.be.at.least(bounds.x2);
+      expect(viewport.y2, 'timeline viewport includes the complete layout bottom edge').to.be.at.least(bounds.y2);
+    });
 
     getOracleSnapshot('oracleResult', 'timeline-enabled').then((snapshot) => {
       assertNetworkMatchesOracleSnapshot(snapshot);
