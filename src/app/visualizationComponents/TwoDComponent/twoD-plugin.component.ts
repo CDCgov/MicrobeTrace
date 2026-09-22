@@ -14,8 +14,8 @@ import { saveSvgAsPng } from 'save-svg-as-png';
 import { ComponentContainer } from 'golden-layout';
 import { GraphData } from './data';
 import { getCustomNodeShapeData, getCustomNodeShapeVectorData, isCustomNodeShape as isCustomNodeIconShape, resolveNodeShapeCytoscapeShape as resolveCustomNodeIconCytoscapeShape, resolveNodeShapeForNode, resolveNodeShapeKey } from '@app/contactTraceCommonServices/node-shapes';
-import cytoscape, { Core, Style } from 'cytoscape';
-import svg from 'cytoscape-svg';
+import type cytoscape from 'cytoscape';
+import type { Core, Style } from 'cytoscape';
 import { Subject, Subscription, takeUntil } from 'rxjs';
 //import fcose from 'cytoscape-fcose';
 import * as d3f from 'd3-force';
@@ -111,6 +111,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
     private sigmaRendering = false;
     private sigmaRenderQueued = false;
     private readonly sigmaLayoutGroupByNodeId = new Map<string, string>();
+    private cytoscapeFactoryPromise: Promise<typeof cytoscape> | null = null;
     vizLoaded = true;
     nodePositions: Map<string, { x: number; y: number }> = new Map();
     private nodeDataById: Map<string, any> = new Map();
@@ -775,11 +776,25 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
 
         this.widgets['node-symbol'] = this.mapPreviousShapeNameToCurrent(this.widgets['node-symbol']);
 
-        cytoscape.use(svg);
-
     }
 
     private destroy$ = new Subject<void>();
+
+    private loadCytoscapeRenderer(): Promise<typeof cytoscape> {
+        if (!this.cytoscapeFactoryPromise) {
+            this.cytoscapeFactoryPromise = Promise.all([
+                import('cytoscape'),
+                import('cytoscape-svg')
+            ]).then(([cytoscapeModule, svgModule]) => {
+                const cytoscapeFactory = (cytoscapeModule as any).default || cytoscapeModule;
+                const svgExtension = (svgModule as any).default || svgModule;
+                cytoscapeFactory.use(svgExtension);
+                return cytoscapeFactory;
+            });
+        }
+
+        return this.cytoscapeFactoryPromise;
+    }
 
     private isCytoscapeContainerReady(): boolean {
         const element = (
@@ -5699,7 +5714,9 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             if (this.debugMode) {
                 console.log(this.cyContainer);
             }
-            this.cy = cytoscape({
+            const cytoscapeFactory = await this.loadCytoscapeRenderer();
+            if (this.isDestroyed || this.sigmaActive) return;
+            this.cy = cytoscapeFactory({
               container: this.cyContainer.nativeElement,
               elements: el,
               style: this.getCytoscapeStyles(),

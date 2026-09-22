@@ -29,6 +29,12 @@ describe('Sigma renderer migration', () => {
       .should('have.class', 'active');
     cy.get('[data-testid="sigma-migration-banner"]')
       .should('not.contain.text', 'fallback');
+    cy.window().then(win => {
+      const rendererResources = win.performance.getEntriesByType('resource')
+        .map(entry => entry.name)
+        .filter(name => /cytoscape(?:\.esm|-svg)/i.test(name));
+      expect(rendererResources, 'Cytoscape resources on the Sigma path').to.deep.equal([]);
+    });
   });
 
   it('uses the Cytoscape Canvas fallback when WebGL2 is unavailable', () => {
@@ -55,5 +61,12 @@ describe('Sigma renderer migration', () => {
       .and('contain.text', 'WebGL 2 is unavailable');
     cy.get('#cy').should('be.visible');
     cy.get('[data-testid="sigma-network"]').should('not.exist');
+    cy.window().then(win => {
+      const rendererResources = win.performance.getEntriesByType('resource')
+        .map(entry => entry.name)
+        .filter(name => /cytoscape(?:\.esm|-svg)/i.test(name));
+      expect(rendererResources.length, 'Cytoscape resources on the fallback path')
+        .to.be.greaterThan(0);
+    });
   });
 });

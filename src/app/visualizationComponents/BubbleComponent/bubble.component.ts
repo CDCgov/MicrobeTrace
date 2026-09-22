@@ -7,8 +7,8 @@ import { CommonService } from '@app/contactTraceCommonServices/common.service';
 import { MicobeTraceNextPluginEvents } from '@app/helperClasses/interfaces';
 import { MicrobeTraceNextVisuals } from '@app/microbe-trace-next-plugin-visuals';
 import { ComponentContainer } from 'golden-layout';
-import cytoscape, { Core } from 'cytoscape';
-import svg from 'cytoscape-svg';
+import type cytoscape from 'cytoscape';
+import type { Core } from 'cytoscape';
 import { ExportService, ExportOptions } from '@app/contactTraceCommonServices/export.service';
 import { Subject, Subscription, takeUntil } from 'rxjs';
 import { CommonStoreService } from '@app/contactTraceCommonServices/common-store.services';
@@ -95,6 +95,7 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
   SelectedNodeCollapsingTypeVariable: boolean;
 
   private suppressCySelectionEvents: boolean = false;
+  private cytoscapeFactoryPromise: Promise<typeof cytoscape> | null = null;
 
   private destroy$ = new Subject<void>();
 
@@ -112,7 +113,22 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
     this.visuals.bubble = this;
     this.widgets = this.commonService.session.style.widgets;
 
-    cytoscape.use(svg);
+  }
+
+  private loadCytoscapeRenderer(): Promise<typeof cytoscape> {
+    if (!this.cytoscapeFactoryPromise) {
+      this.cytoscapeFactoryPromise = Promise.all([
+        import('cytoscape'),
+        import('cytoscape-svg')
+      ]).then(([cytoscapeModule, svgModule]) => {
+        const cytoscapeFactory = (cytoscapeModule as any).default || cytoscapeModule;
+        const svgExtension = (svgModule as any).default || svgModule;
+        cytoscapeFactory.use(svgExtension);
+        return cytoscapeFactory;
+      });
+    }
+
+    return this.cytoscapeFactoryPromise;
   }
 
   ngOnInit(): void {
@@ -188,8 +204,8 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
     });
   }
 
-  ngAfterViewInit(): void {
-    this.generateCytoscape();
+  async ngAfterViewInit(): Promise<void> {
+    await this.generateCytoscape();
     if (this.SelectedNodeCollapsingTypeVariable) {
       this.refreshCollapsedData();
     }
@@ -483,8 +499,10 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
     ]
   }
 
-  generateCytoscape() {
-    this.cy = cytoscape({
+  async generateCytoscape(): Promise<void> {
+    const cytoscapeFactory = await this.loadCytoscapeRenderer();
+    if (!this.cyContainer?.nativeElement) return;
+    this.cy = cytoscapeFactory({
       container: this.cyContainer.nativeElement,
       elements: this.mapDataToCytoscapElements(this.visibleData),
       style: this.getCytoscapeStyle(),
