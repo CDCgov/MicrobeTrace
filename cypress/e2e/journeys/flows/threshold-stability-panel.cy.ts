@@ -46,6 +46,21 @@ describe('Journey Flow - Threshold Stability Panel', () => {
     waitForProcessingDialogToClear();
     ensureTwoDNetworkView();
 
+    cy.window().should((win: any) => {
+      const app = win.commonService.visuals.microbeTrace;
+      const openTabs = app.homepageTabs.map((tab: any) => tab.label);
+
+      expect(openTabs, 'Smart Launch opens the docked key-table view')
+        .to.include('Docked Key Tables');
+      expect(app.isKeyTableDocked('node-color'), 'node color table remains absent').to.equal(false);
+      expect(app.isKeyTableDocked('link-color'), 'link origin table is docked').to.equal(true);
+      expect(app.isKeyTableDocked('node-shape'), 'node shape table remains absent').to.equal(false);
+    });
+
+    cy.get('#key-tables-link-table', { timeout: 15000 }).should('be.visible');
+    cy.contains('section.key-table-card', 'Node Colors').should('not.be.visible');
+    cy.contains('section.key-table-card', 'Node Shapes').should('not.be.visible');
+
     cy.window().then((win: any) => {
       const commonService = win.commonService;
       const metric = commonService.session.style.widgets['link-sort-variable'];
