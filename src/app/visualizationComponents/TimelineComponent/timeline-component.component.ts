@@ -32,6 +32,20 @@ type EpiCurveDataInclusionSummary = {
   text: string;
 };
 
+type EpiCurveLegendItem = {
+  color: string;
+  label: string;
+  opacity?: number;
+  seriesType?: 'bar' | 'line';
+  lineStyle?: string;
+};
+
+type EpiCurveLegendSection = {
+  id: string;
+  title: string;
+  items: EpiCurveLegendItem[];
+};
+
 @Component({
     selector: 'app-timeline-component',
     templateUrl: './timeline-component.component.html',
@@ -510,7 +524,7 @@ export class TimelineComponent extends BaseComponentDirective implements OnInit,
 
     // legendPosition
     if (this.widgets['epiCurve-legendPosition'] == undefined) {
-      this.widgets['epiCurve-legendPosition'] = 'Left';
+      this.widgets['epiCurve-legendPosition'] = 'Bottom';
     }
     if (this.widgets['epiCurve-tickUnit'] == undefined) {
       this.widgets['epiCurve-tickUnit'] = 'Automatic';
@@ -900,13 +914,59 @@ private refreshMulti(): void {
   const seriesTypes = configuredSeries.map(series => series.type);
   const seriesLabels = fieldIndexes.map(fieldIndex => this.getSeriesLabel(fieldIndex));
   const useDualAxis = this.isDualAxisMulti();
-  this.updateSizes();
-  if (this.height < 0) {
-    return;
-  }
+  const barSeriesIndexes = fields
+    .map((_, index) => index)
+    .filter(index => seriesTypes[index] == 'Bar');
+  const lineSeriesIndexes = fields
+    .map((_, index) => index)
+    .filter(index => seriesTypes[index] == 'Line');
+  const lineStyles = fieldIndexes.map(fieldIndex => this.getLineStyle(fieldIndex));
 
   // current implementation of times is only used to calculate min and max time of all data given when setting up x axis and bins; there isn't a current need to link times by datapoint with times
   let times = this.getTimes(fields);
+
+  const overlayStackBarFieldIndex = this.isOverlayStackEligible()
+    ? this.getOverlayStackBarIndex()
+    : null;
+  const overlayStackSeriesIndex = overlayStackBarFieldIndex == null
+    ? -1
+    : fieldIndexes.indexOf(overlayStackBarFieldIndex);
+  const overlayStackConfiguration = overlayStackSeriesIndex >= 0
+    ? this.getMultiStackColorConfiguration(overlayStackBarFieldIndex)
+    : null;
+  const overlayLegendSections: EpiCurveLegendSection[] = [];
+  if (overlayStackConfiguration) {
+    overlayLegendSections.push({
+      id: 'stacked-bars',
+      title: `Stacked bars — ${seriesLabels[overlayStackSeriesIndex]} by ${this.getTooltipLabel(overlayStackConfiguration.colorVariable)} (${this.getSeriesAxis(fieldIndexes[overlayStackSeriesIndex])} axis)`,
+      items: overlayStackConfiguration.keys.map(key => ({
+        color: this.getStackFill(key),
+        label: this.getTooltipLabel(key),
+        opacity: this.getStackOpacity(key),
+        seriesType: 'bar',
+        lineStyle: 'Solid',
+      })),
+    });
+
+    if (lineSeriesIndexes.length > 0) {
+      overlayLegendSections.push({
+        id: 'lines',
+        title: `Lines (${this.getSeriesAxis(fieldIndexes[lineSeriesIndexes[0]])} axis)`,
+        items: lineSeriesIndexes.map(seriesIndex => ({
+          color: colors[seriesIndex],
+          label: seriesLabels[seriesIndex],
+          opacity: 1,
+          seriesType: 'line',
+          lineStyle: lineStyles[seriesIndex],
+        })),
+      });
+    }
+  }
+
+  this.updateSizes(overlayLegendSections);
+  if (this.height < 0) {
+    return;
+  }
 
   // updates this.timeDomainStart and this.timeDomainInterval and returns the bin interval
   let binInterval = this.calculateBinInterval(times);
@@ -951,15 +1011,6 @@ private refreshMulti(): void {
     }
   })
 
-  const overlayStackBarFieldIndex = this.isOverlayStackEligible()
-    ? this.getOverlayStackBarIndex()
-    : null;
-  const overlayStackSeriesIndex = overlayStackBarFieldIndex == null
-    ? -1
-    : fieldIndexes.indexOf(overlayStackBarFieldIndex);
-  const overlayStackConfiguration = overlayStackSeriesIndex >= 0
-    ? this.getMultiStackColorConfiguration(overlayStackBarFieldIndex)
-    : null;
   if (overlayStackConfiguration) {
     const stackMax = this.updateMultiStackBins(
       bins[overlayStackSeriesIndex],
@@ -977,12 +1028,6 @@ private refreshMulti(): void {
     this.y.domain([0, Math.max(1, maxCount)]).nice();
   }
 
-  const barSeriesIndexes = fields
-    .map((_, index) => index)
-    .filter(index => seriesTypes[index] == 'Bar');
-  const lineSeriesIndexes = fields
-    .map((_, index) => index)
-    .filter(index => seriesTypes[index] == 'Line');
   const barScale = useDualAxis ? this.yRight : this.y;
   const layerBars = this.selectedGraphType == 'Multi: Overlay';
 
@@ -1096,24 +1141,8 @@ private refreshMulti(): void {
   });
 
   this.updateAxes(useDualAxis);
-  const lineStyles = fieldIndexes.map(fieldIndex => this.getLineStyle(fieldIndex));
   if (overlayStackConfiguration) {
-    const stackFieldLabel = this.getTooltipLabel(overlayStackConfiguration.colorVariable);
-    const stackColors = overlayStackConfiguration.keys.map(key => this.getStackFill(key));
-    const stackOpacities = overlayStackConfiguration.keys.map(key => this.getStackOpacity(key));
-    const stackLabels = overlayStackConfiguration.keys
-      .map(key => `${stackFieldLabel}: ${this.getTooltipLabel(key)}`);
-    const overlayLineColors = lineSeriesIndexes.map(index => colors[index]);
-    const overlayLineLabels = lineSeriesIndexes.map(index => `Line: ${seriesLabels[index]}`);
-    const overlayLineStyles = lineSeriesIndexes.map(index => lineStyles[index]);
-    this.generateLegend(
-      epiCurve,
-      [...stackColors, ...overlayLineColors],
-      [...stackLabels, ...overlayLineLabels],
-      [...stackOpacities, ...overlayLineColors.map(() => 1)],
-      [...stackLabels.map(() => 'bar'), ...overlayLineLabels.map(() => 'line')],
-      [...stackLabels.map(() => 'Solid'), ...overlayLineStyles],
-      false);
+    this.generateLegendSections(epiCurve, overlayLegendSections);
   } else {
     this.generateLegend(
       epiCurve,
@@ -1505,9 +1534,9 @@ private getStackOrderWeight(node, fieldIndex: number | null): number {
   return Number.isFinite(numericValue) ? numericValue : 0;
 }
 
-updateSizes() {
+updateSizes(legendSections: EpiCurveLegendSection[] = []) {
   const wrapper = $(this.epiCurveElement.nativeElement).parent();
-  this.updateBottomMargin();
+  this.updateBottomMargin(legendSections, wrapper.width(), wrapper.height());
   $('#epiCurve').height(wrapper.height() - 50);
   this.width = wrapper.width() - this.margin.left - this.margin.right;
   // height represents the height of y axis
@@ -1515,7 +1544,11 @@ updateSizes() {
   this.middle = this.height / 2;
 }
 
-private updateBottomMargin() {
+private updateBottomMargin(
+  legendSections: EpiCurveLegendSection[] = [],
+  wrapperWidth = 0,
+  wrapperHeight = 0,
+) {
   const baseBottomMargin = this.widgets['epiCurve-legendPosition'] == 'Bottom' ? 100 : 50;
   const labelSizePadding = Math.max(0, this.labelSize - 12) * 2;
   const legendSizePadding = this.widgets['epiCurve-legendPosition'] == 'Bottom' ? Math.max(0, this.legendLabelSize - 15) * 2 : 0;
@@ -1524,6 +1557,20 @@ private updateBottomMargin() {
   this.margin.right = Math.max(30, Math.round(this.labelSize * 2) + 10, dualAxisPadding);
   this.margin.top = Math.max(8, Math.round(this.labelSize * 0.75));
   this.margin.bottom = baseBottomMargin + labelSizePadding + legendSizePadding;
+
+  if (this.widgets['epiCurve-legendPosition'] == 'Bottom' && legendSections.length > 1 && wrapperWidth > 0) {
+    const plotWidth = Math.max(1, wrapperWidth - this.margin.left - this.margin.right);
+    const axisSpace = Math.max(58, Math.round(this.labelSize * 4.2));
+    const sectionHeight = this.getBottomLegendSectionsHeight(legendSections, plotWidth);
+    const desiredBottomMargin = axisSpace + sectionHeight + 12;
+    const maxBottomMargin = wrapperHeight > 0
+      ? Math.max(100, wrapperHeight - this.margin.top - 160)
+      : desiredBottomMargin;
+    this.margin.bottom = Math.max(
+      this.margin.bottom,
+      Math.min(desiredBottomMargin, maxBottomMargin),
+    );
+  }
 }
 
 getTimes(fields) {
@@ -1779,6 +1826,278 @@ private fitLegendTextToWidth(textSelection, fullLabel: string, maxWidth: number,
     .text(longestFit)
     .attr('aria-label', fullLabel);
   return measureText();
+}
+
+private getLegendLayoutMetrics() {
+  const fontSize = Math.max(6, Number(this.legendLabelSize || 15));
+  return {
+    fontSize,
+    fontSizePx: `${fontSize}px`,
+    markerRadius: Math.max(4, Math.round(fontSize * 0.35)),
+    markerTextGap: Math.max(8, Math.round(fontSize * 0.65)),
+    rowHeight: Math.max(22, Math.round(fontSize * 1.9)),
+    charWidth: Math.max(5.5, fontSize * 0.55),
+    itemGap: Math.max(24, Math.round(fontSize * 1.8)),
+    sectionGap: Math.max(12, Math.round(fontSize * 0.9)),
+    horizontalPadding: Math.max(12, Math.round(fontSize * 0.8)),
+  };
+}
+
+private getLegendItemWidth(
+  item: EpiCurveLegendItem,
+  metrics: ReturnType<TimelineComponent['getLegendLayoutMetrics']>,
+): number {
+  const markerHalfWidth = item.seriesType == 'line'
+    ? metrics.markerRadius * 2
+    : metrics.markerRadius;
+  return markerHalfWidth * 2
+    + metrics.markerTextGap
+    + String(item.label || '(Empty)').length * metrics.charWidth
+    + metrics.itemGap;
+}
+
+private getBottomLegendSectionRowCount(
+  section: EpiCurveLegendSection,
+  availableWidth: number,
+  metrics: ReturnType<TimelineComponent['getLegendLayoutMetrics']>,
+): number {
+  let rowCount = 0;
+  let usedWidth = 0;
+
+  section.items.forEach(item => {
+    const itemWidth = Math.min(availableWidth, this.getLegendItemWidth(item, metrics));
+    if (rowCount == 0 || (usedWidth > 0 && usedWidth + itemWidth > availableWidth)) {
+      rowCount += 1;
+      usedWidth = itemWidth;
+    } else {
+      usedWidth += itemWidth;
+    }
+  });
+
+  return rowCount;
+}
+
+private getBottomLegendSectionsHeight(
+  sections: EpiCurveLegendSection[],
+  plotWidth: number,
+): number {
+  const metrics = this.getLegendLayoutMetrics();
+  const availableWidth = Math.max(1, plotWidth - metrics.horizontalPadding * 2);
+
+  return sections.reduce((height, section, sectionIndex) => {
+    const itemRows = this.getBottomLegendSectionRowCount(section, availableWidth, metrics);
+    return height
+      + (sectionIndex > 0 ? metrics.sectionGap : 0)
+      + metrics.rowHeight
+      + itemRows * metrics.rowHeight;
+  }, 0);
+}
+
+private generateLegendSections(epiCurve, sections: EpiCurveLegendSection[]): void {
+  if (this.widgets['epiCurve-legendPosition'] == 'Hide' || sections.length == 0) {
+    return;
+  }
+
+  const metrics = this.getLegendLayoutMetrics();
+  const position = this.widgets['epiCurve-legendPosition'];
+
+  if (position == 'Bottom') {
+    const availableWidth = Math.max(1, this.width - metrics.horizontalPadding * 2);
+    const axisSpace = Math.max(58, Math.round(this.labelSize * 4.2));
+    let nextY = this.height + axisSpace;
+
+    sections.forEach((section, sectionIndex) => {
+      const sectionGroup = epiCurve.append('g')
+        .attr('class', `epiCurve-legend-section epiCurve-legend-section--${section.id}`)
+        .attr('data-legend-section', section.id)
+        .attr('role', 'group')
+        .attr('aria-label', section.title);
+
+      if (sectionIndex > 0) {
+        nextY += Math.floor(metrics.sectionGap / 2);
+        sectionGroup.append('line')
+          .attr('class', 'epiCurve-legend-section-divider')
+          .attr('x1', metrics.horizontalPadding)
+          .attr('x2', this.width - metrics.horizontalPadding)
+          .attr('y1', nextY)
+          .attr('y2', nextY)
+          .attr('stroke', '#d8dde3')
+          .attr('stroke-width', 1);
+        nextY += Math.ceil(metrics.sectionGap / 2);
+      }
+
+      const title = sectionGroup.append('text')
+        .attr('class', 'epiCurve-legend-section-title')
+        .attr('x', metrics.horizontalPadding)
+        .attr('y', nextY)
+        .style('font-size', metrics.fontSizePx)
+        .style('font-weight', '600')
+        .attr('alignment-baseline', 'middle');
+      this.fitLegendTextToWidth(title, section.title, availableWidth, metrics.fontSize);
+
+      nextY += metrics.rowHeight;
+      let rowY = nextY;
+      let itemX = metrics.horizontalPadding;
+      let rowHasItems = false;
+
+      section.items.forEach((item, itemIndex) => {
+        const itemWidth = Math.min(availableWidth, this.getLegendItemWidth(item, metrics));
+        if (rowHasItems && itemX + itemWidth > this.width - metrics.horizontalPadding) {
+          itemX = metrics.horizontalPadding;
+          rowY += metrics.rowHeight;
+          rowHasItems = false;
+        }
+
+        const markerHalfWidth = item.seriesType == 'line'
+          ? metrics.markerRadius * 2
+          : metrics.markerRadius;
+        const markerX = itemX + markerHalfWidth;
+        const textX = markerX + markerHalfWidth + metrics.markerTextGap;
+        const maxTextWidth = Math.max(
+          0,
+          itemWidth - markerHalfWidth * 2 - metrics.markerTextGap - metrics.itemGap,
+        );
+
+        this.appendLegendMarker(
+          sectionGroup,
+          markerX,
+          rowY,
+          metrics.markerRadius,
+          item.color,
+          item.opacity ?? 1,
+          item.seriesType,
+          item.lineStyle,
+        );
+        const label = sectionGroup.append('text')
+          .attr('class', 'epiCurve-legend-label')
+          .attr('data-legend-section', section.id)
+          .attr('data-series-index', itemIndex)
+          .attr('x', textX)
+          .attr('y', rowY)
+          .style('font-size', metrics.fontSizePx)
+          .attr('alignment-baseline', 'middle');
+        this.fitLegendTextToWidth(label, item.label || '(Empty)', maxTextWidth, metrics.fontSize);
+
+        itemX += itemWidth;
+        rowHasItems = true;
+      });
+
+      nextY = rowY + metrics.rowHeight;
+    });
+    return;
+  }
+
+  const longestLabelLength = sections.reduce((longest, section) => Math.max(
+    longest,
+    section.title.length,
+    ...section.items.map(item => String(item.label || '(Empty)').length),
+  ), 0);
+  const estimatedLegendWidth = longestLabelLength * metrics.charWidth
+    + metrics.markerRadius * 4
+    + metrics.markerTextGap;
+  const rightAligned = position == 'Right';
+  const legendRightX = this.width - Math.max(12, Math.round(this.labelSize * 0.75));
+  let xOffset = 50;
+  if (position == 'Top') {
+    const centeredX = Math.round((this.width - estimatedLegendWidth) / 2);
+    const referenceStyleX = Math.round(this.width * 0.42);
+    const rightSafeX = Math.max(metrics.markerRadius * 2 + 6, this.width - estimatedLegendWidth - 8);
+    xOffset = Math.max(metrics.markerRadius * 2 + 6, Math.min(Math.max(centeredX, referenceStyleX), rightSafeX));
+  }
+
+  let nextY = metrics.rowHeight;
+  sections.forEach((section, sectionIndex) => {
+    if (sectionIndex > 0) {
+      nextY += metrics.sectionGap;
+    }
+
+    const sectionGroup = epiCurve.append('g')
+      .attr('class', `epiCurve-legend-section epiCurve-legend-section--${section.id}`)
+      .attr('data-legend-section', section.id)
+      .attr('role', 'group')
+      .attr('aria-label', section.title);
+    const titleX = rightAligned ? legendRightX : xOffset;
+    const titleMaxWidth = rightAligned
+      ? Math.max(0, legendRightX - 8)
+      : Math.max(0, this.width - xOffset - 8);
+    const title = sectionGroup.append('text')
+      .attr('class', 'epiCurve-legend-section-title')
+      .attr('x', titleX)
+      .attr('y', nextY)
+      .attr('text-anchor', rightAligned ? 'end' : 'start')
+      .style('font-size', metrics.fontSizePx)
+      .style('font-weight', '600')
+      .attr('alignment-baseline', 'middle');
+    this.fitLegendTextToWidth(title, section.title, titleMaxWidth, metrics.fontSize);
+    nextY += metrics.rowHeight;
+
+    section.items.forEach((item, itemIndex) => {
+      const markerHalfWidth = item.seriesType == 'line'
+        ? metrics.markerRadius * 2
+        : metrics.markerRadius;
+      const labelText = item.label || '(Empty)';
+
+      if (rightAligned) {
+        const maxTextWidth = Math.max(
+          0,
+          legendRightX - metrics.markerTextGap - markerHalfWidth * 2 - 8,
+        );
+        const label = sectionGroup.append('text')
+          .attr('class', 'epiCurve-legend-label')
+          .attr('data-legend-section', section.id)
+          .attr('data-series-index', itemIndex)
+          .attr('x', legendRightX)
+          .attr('y', nextY)
+          .attr('text-anchor', 'end')
+          .style('font-size', metrics.fontSizePx)
+          .attr('alignment-baseline', 'middle');
+        const renderedTextWidth = this.fitLegendTextToWidth(
+          label,
+          labelText,
+          maxTextWidth,
+          metrics.fontSize,
+        );
+        const markerX = legendRightX - renderedTextWidth - metrics.markerTextGap - markerHalfWidth;
+        this.appendLegendMarker(
+          sectionGroup,
+          markerX,
+          nextY,
+          metrics.markerRadius,
+          item.color,
+          item.opacity ?? 1,
+          item.seriesType,
+          item.lineStyle,
+        );
+      } else {
+        this.appendLegendMarker(
+          sectionGroup,
+          xOffset,
+          nextY,
+          metrics.markerRadius,
+          item.color,
+          item.opacity ?? 1,
+          item.seriesType,
+          item.lineStyle,
+        );
+        const label = sectionGroup.append('text')
+          .attr('class', 'epiCurve-legend-label')
+          .attr('data-legend-section', section.id)
+          .attr('data-series-index', itemIndex)
+          .attr('x', xOffset + markerHalfWidth + metrics.markerTextGap)
+          .attr('y', nextY)
+          .style('font-size', metrics.fontSizePx)
+          .attr('alignment-baseline', 'middle');
+        this.fitLegendTextToWidth(
+          label,
+          labelText,
+          Math.max(0, this.width - xOffset - markerHalfWidth - metrics.markerTextGap - 8),
+          metrics.fontSize,
+        );
+      }
+
+      nextY += metrics.rowHeight;
+    });
+  });
 }
 
 generateLegend(epiCurve, colors, fieldNames, opacities = [], seriesTypes = [], lineStyles = [], formatLabels = true) {

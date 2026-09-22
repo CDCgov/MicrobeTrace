@@ -673,13 +673,22 @@ describe('Journey Flow - Epi Curve controls on uploaded data', () => {
       .should('contain.text', 'State —')
       .and('contain.text', 'Reported cases total:')
       .and('contain.text', 'Onset trend:');
-    cy.get('#epiCurveSVG .epiCurve-legend-label')
+    cy.get('#epiCurveSVG .epiCurve-legend-section')
+      .should('have.length', 2);
+    cy.get('#epiCurveSVG [data-legend-section="stacked-bars"]')
+      .should('have.attr', 'aria-label', 'Stacked bars — Reported cases by State (Right axis)')
+      .find('.epiCurve-legend-label')
       .then(($labels) => {
         const labels = [...$labels].map(label => String(label.textContent || '').trim());
-        expect(labels.filter(label => label.startsWith('State: ')).length, 'category legend entries')
-          .to.be.greaterThan(1);
-        expect(labels[labels.length - 1], 'line legend entry').to.equal('Line: Onset trend');
+        expect(labels.length, 'category legend entries').to.be.greaterThan(1);
+        expect(labels.some(label => label.startsWith('State: ')), 'repeated category prefixes')
+          .to.equal(false);
       });
+    cy.get('#epiCurveSVG [data-legend-section="lines"]')
+      .should('have.attr', 'aria-label', 'Lines (Left axis)')
+      .find('.epiCurve-legend-label')
+      .should('have.length', 1)
+      .and('have.text', 'Onset trend');
 
     ensureEpiSettingsDialogOpen();
     setEpiCurveLegendPosition('Right');
