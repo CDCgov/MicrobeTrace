@@ -400,12 +400,13 @@ export function assertDashboardViewReady(viewName: string): void {
 
   switch (normalizedViewName) {
     case '2D Network':
-      cy.get('#cy', { timeout: 30000 }).should('be.visible');
+      cy.get('#cy, [data-testid="sigma-network"]', { timeout: 30000 }).should('be.visible');
       cy.window({ timeout: 30000 }).should((win: any) => {
-        expect(win.commonService?.visuals?.twoD, '2D component instance').to.exist;
+        const twoD = win.commonService?.visuals?.twoD;
+        expect(twoD, '2D component instance').to.exist;
         expect(
-          win.commonService?.visuals?.twoD?.cy || win.cytoscapeInstance,
-          '2D cytoscape handle',
+          twoD?.sigmaRenderer || twoD?.cy || win.cytoscapeInstance,
+          'active 2D renderer handle',
         ).to.exist;
       });
       break;
