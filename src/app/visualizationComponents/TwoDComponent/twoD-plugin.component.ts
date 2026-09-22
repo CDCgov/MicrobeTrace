@@ -116,6 +116,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
     sigmaFallbackReason: string | null = this.sigmaRequested && !this.sigmaActive
         ? 'WebGL 2 is unavailable; using the Cytoscape Canvas compatibility renderer.'
         : null;
+    sigmaRecoveryMessage: string | null = null;
     sigmaLoading = false;
     sigmaLoadingMessage = 'Preparing the network';
     rendererAccessibleFeatureSummary = 'No renderer feature data is available.';
@@ -124,6 +125,8 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         description: string;
         selected: boolean;
     }> = [];
+    rendererKeyboardFocusedNodeId: string | null = null;
+    rendererKeyboardLiveStatus = 'Use the arrow keys to move through network nodes. Press Enter to select a node and Escape to clear selection.';
     sigmaSummary: SigmaPocRenderSummary = {
         residentNodeCount: 0,
         residentLinkCount: 0,
@@ -135,6 +138,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
     private sigmaRenderer: SigmaNetworkRendererAdapter | null = null;
     private sigmaRendering = false;
     private sigmaRenderQueued = false;
+    private sigmaRecoveryInProgress = false;
     private readonly sigmaLayoutGroupByNodeId = new Map<string, string>();
     private cytoscapeFactoryPromise: Promise<typeof cytoscape> | null = null;
     private rendererViewStateTimer: ReturnType<typeof setTimeout> | null = null;
@@ -949,6 +953,112 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         }));
     }
 
+    private getRendererKeyboardNodeIds(): string[] {
+        const ids = this.sigmaActive
+            ? this.sigmaRenderer?.getNodeIds() || []
+            : this.cy?.nodes(':visible')
+                .filter(node => !node.isParent())
+                .map(node => node.id()) || [];
+        return ids.map(String).sort((left, right) => left.localeCompare(right));
+    }
+
+    private isRendererNodeSelected(nodeId: string): boolean {
+        return this.sigmaActive
+            ? Boolean(this.sigmaRenderer?.getSelectedNodeIds().includes(nodeId))
+            : Boolean(this.cy?.getElementById(nodeId).selected());
+    }
+
+    private describeRendererKeyboardNode(nodeId: string): string {
+        if (this.sigmaActive && this.sigmaRenderer?.getGraph().hasNode(nodeId)) {
+            const attributes: any = this.sigmaRenderer.getGraph().getNodeAttributes(nodeId);
+            const featureDescription = attributes.features?.accessibleLabel;
+            return featureDescription
+                ? `${attributes.label || nodeId}; ${featureDescription}`
+                : String(attributes.label || nodeId);
+        }
+        const node = this.cy?.getElementById(nodeId);
+        return node && !node.empty() ? String(node.data('label') || nodeId) : nodeId;
+    }
+
+    private focusRendererKeyboardNode(nodeId: string, announce = true): void {
+        const nodeIds = this.getRendererKeyboardNodeIds();
+        if (!nodeIds.includes(nodeId)) return;
+        this.rendererKeyboardFocusedNodeId = nodeId;
+        if (this.sigmaActive) {
+            this.sigmaRenderer?.setKeyboardFocusedNode(nodeId);
+        } else if (this.cy) {
+            this.cy.elements().removeClass('renderer-keyboard-focus');
+            this.cy.getElementById(nodeId).addClass('renderer-keyboard-focus');
+        }
+        if (announce) {
+            const position = nodeIds.indexOf(nodeId) + 1;
+            const selected = this.isRendererNodeSelected(nodeId) ? '; selected' : '';
+            this.rendererKeyboardLiveStatus = `Node ${position} of ${nodeIds.length}: ${nodeId}; ${this.describeRendererKeyboardNode(nodeId)}${selected}.`;
+        }
+        this.cdref.markForCheck();
+    }
+
+    onRendererKeyboardFocus(): void {
+        const nodeIds = this.getRendererKeyboardNodeIds();
+        if (!nodeIds.length) return;
+        this.focusRendererKeyboardNode(
+            this.rendererKeyboardFocusedNodeId && nodeIds.includes(this.rendererKeyboardFocusedNodeId)
+                ? this.rendererKeyboardFocusedNodeId
+                : nodeIds[0]
+        );
+    }
+
+    onRendererKeydown(event: KeyboardEvent): void {
+        const nodeIds = this.getRendererKeyboardNodeIds();
+        if (!nodeIds.length) return;
+        const currentIndex = this.rendererKeyboardFocusedNodeId
+            ? nodeIds.indexOf(this.rendererKeyboardFocusedNodeId)
+            : -1;
+        let targetIndex: number | null = null;
+        if (event.key === 'ArrowRight' || event.key === 'ArrowDown') {
+            targetIndex = (Math.max(0, currentIndex) + 1) % nodeIds.length;
+        } else if (event.key === 'ArrowLeft' || event.key === 'ArrowUp') {
+            targetIndex = (currentIndex <= 0 ? nodeIds.length : currentIndex) - 1;
+        } else if (event.key === 'Home') {
+            targetIndex = 0;
+        } else if (event.key === 'End') {
+            targetIndex = nodeIds.length - 1;
+        }
+
+        if (targetIndex !== null) {
+            event.preventDefault();
+            this.focusRendererKeyboardNode(nodeIds[targetIndex]);
+            return;
+        }
+
+        if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault();
+            const nodeId = this.rendererKeyboardFocusedNodeId || nodeIds[0];
+            const shouldSelect = !this.isRendererNodeSelected(nodeId);
+            if (this.sigmaActive) {
+                const selectedIds = new Set(this.sigmaRenderer?.getSelectedNodeIds() || []);
+                if (shouldSelect) selectedIds.add(nodeId);
+                else selectedIds.delete(nodeId);
+                this.sigmaRenderer?.selectNodes(selectedIds);
+            } else {
+                const node = this.cy?.getElementById(nodeId);
+                if (shouldSelect) node?.select();
+                else node?.unselect();
+            }
+            this.rendererKeyboardLiveStatus = `${nodeId} ${shouldSelect ? 'selected' : 'deselected'}.`;
+            this.cdref.markForCheck();
+            return;
+        }
+
+        if (event.key === 'Escape') {
+            event.preventDefault();
+            if (this.sigmaActive) this.sigmaRenderer?.clearSelection();
+            else this.cy?.elements().unselect();
+            this.rendererKeyboardLiveStatus = 'Network selection cleared.';
+            this.cdref.markForCheck();
+        }
+    }
+
     private isRendererGeographicOverlayEnabled(): boolean {
         const setting = this.widgets?.['network-geographic-overlay'];
         const enabled = setting === true || String(setting).toLowerCase() === 'true' || setting === 'On';
@@ -1317,6 +1427,17 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         }
     }
 
+    private getSigmaLabelPosition(): 'left' | 'right' | 'above' | 'below' | 'over' {
+        switch (String(this.widgets['node-label-orientation'] || 'Right').toLowerCase()) {
+            case 'left': return 'left';
+            case 'top': return 'above';
+            case 'bottom': return 'below';
+            case 'middle':
+            case 'center': return 'over';
+            default: return 'right';
+        }
+    }
+
     private syncSigmaSelection(selectedIds: ReadonlySet<string>): void {
         let selectionChanged = false;
         const syncNodes = (nodes: any[]) => {
@@ -1351,6 +1472,32 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         this.store.setNetworkRendered(false);
         this.cdref.detectChanges();
         setTimeout(() => this.onLoadNewData(), 0);
+    }
+
+    private recoverSigmaWebglContext(): void {
+        if (!this.sigmaRenderer || this.sigmaRecoveryInProgress || this.isDestroyed) return;
+        this.sigmaRecoveryInProgress = true;
+        const viewState = this.sigmaRenderer.getViewState();
+        this.sigmaRecoveryMessage = 'Recreating the Sigma WebGL renderer';
+        this.cdref.markForCheck();
+
+        setTimeout(() => {
+            const recovered = this.sigmaRenderer?.recoverWebglContext() || false;
+            if (recovered) {
+                if (viewState) this.sigmaRenderer?.setViewState(viewState);
+                this.sigmaRecoveryMessage = 'Sigma recovered from a WebGL context loss.';
+                this.sigmaSummary = this.sigmaRenderer?.getSummary() || this.sigmaSummary;
+                this.sigmaRecoveryInProgress = false;
+                this.cdref.markForCheck();
+                return;
+            }
+
+            this.sigmaRecoveryInProgress = false;
+            this.sigmaRecoveryMessage = null;
+            this.fallbackFromSigma(
+                'The WebGL context was lost and could not be recreated; continuing with the Cytoscape Canvas compatibility renderer.'
+            );
+        }, 0);
     }
 
     private async renderSigma(timelineTick = false): Promise<void> {
@@ -1439,6 +1586,8 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                     x: Number(node.x) || 0,
                     y: Number(node.y) || 0,
                     label: String(this.getNodeLabel(node) || nodeId),
+                    labelSize: Math.max(6, Number(this.widgets['node-label-size']) || 12),
+                    labelPosition: this.getSigmaLabelPosition(),
                     color: String(color || '#2563eb'),
                     opacity: Number.isFinite(Number(opacity)) ? Number(opacity) : 1,
                     size: Math.max(2.5, Math.min(12, Number(node.nodeSize || this.widgets['node-radius']) / 5)),
@@ -1459,6 +1608,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                     opacity: Math.max(0.05, Math.min(1, Number(linkColor.opacity) || 0.25)),
                     size: Math.max(0.25, Math.min(2.5, Number(this.getLinkWidth(link)) || 0.75)),
                     distance: Number.isFinite(Number(link.distance)) ? Number(link.distance) : undefined,
+                    label: String(this.getLinkLabel(link).text || ''),
                     raw: link
                 };
             });
@@ -1491,9 +1641,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                             this.scheduleRendererViewStatePersistence(state);
                         }),
                         onWebglContextLost: () => this.zone.run(() => {
-                            this.fallbackFromSigma(
-                                'The WebGL context was lost; continuing with the Cytoscape Canvas compatibility renderer.'
-                            );
+                            this.recoverSigmaWebglContext();
                         })
                     }
                 );
@@ -1503,8 +1651,12 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                 nodes: sigmaNodes,
                 links: sigmaLinks,
                 showGroupHulls,
+                showGroupLabels: this.widgets['polygons-label-show'] !== false,
+                groupLabelSize: Number(this.widgets['polygons-label-size']) || 12,
                 geographicOverlay: this.rendererGeographicProjection
             }, Boolean(this.sigmaRenderer.getRenderer()));
+            this.sigmaRenderer.setNodeDraggingEnabled(!this.commonService.session.network.allPinned);
+            this.sigmaRenderer.setNeighborHighlighting(Boolean(this.widgets['node-highlight']));
             if (creatingSigmaRenderer) {
                 if (!this.restoreRendererViewState()) {
                     this.sigmaRenderer.setEdgeDetailMode(this.resolveSavedSigmaEdgeDetailMode());
@@ -1545,6 +1697,26 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         this.widgets['network-edge-detail-mode'] = mode;
         this.persistRendererViewState();
         this.cdref.markForCheck();
+    }
+
+    private refreshSigmaForStyleChange(recomputeLayout = false): boolean {
+        if (!this.sigmaActive) return false;
+        if (recomputeLayout) {
+            this.sigmaRenderer?.destroy();
+            this.sigmaRenderer = null;
+            this.sigmaLayoutGroupByNodeId.clear();
+        }
+        void this.renderSigma(false);
+        return true;
+    }
+
+    onRendererFeatureFieldChange(widgetKey: string, value: string): void {
+        this.widgets[widgetKey] = value || 'None';
+        this.refreshSigmaForStyleChange();
+    }
+
+    onRendererGeographicSettingsChange(): void {
+        this.refreshSigmaForStyleChange(true);
     }
 
     private ensureNodeCollapseWidgetDefaults(): void {
@@ -4210,6 +4382,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         }
 
         this.syncPolygonColorTableVisibility();
+        this.refreshSigmaForStyleChange(true);
     }
 
     /**
@@ -4394,6 +4567,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                 if (this.commonService.session.style.widgets['polygons-show']) this.updateNodeGrouping(true);
             }, 200);
         }
+        this.refreshSigmaForStyleChange();
     }
 
     /**
@@ -4406,6 +4580,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
      */
     onPolygonColorChanged(e) {
         this.widgets["polygon-color"] = e;
+        if (this.refreshSigmaForStyleChange()) return;
         this.updateGroupNodeColors();
     }
 
@@ -4863,6 +5038,10 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
     async centerPolygons(e, updateLayout: boolean = true, refreshCollapse: boolean = true) {
 
         this.widgets['polygons-foci'] = e;
+        if (this.sigmaActive) {
+            this.refreshSigmaForStyleChange(updateLayout);
+            return;
+        }
         if (refreshCollapse && this.isNodeCollapseEnabled()) {
             this.refreshNodeCollapseRender();
             return;
@@ -4892,9 +5071,20 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
 
     pinNodes() {
         this.commonService.session.network.allPinned = !this.commonService.session.network.allPinned;
+        if (this.sigmaActive) {
+            this.sigmaRenderer?.setNodeDraggingEnabled(!this.commonService.session.network.allPinned);
+        }
     }
 
     async updateLayout(): Promise<void> {
+        if (this.sigmaActive) {
+            if (this.commonService.session.network.allPinned) return;
+            this.sigmaRenderer?.destroy();
+            this.sigmaRenderer = null;
+            this.sigmaLayoutGroupByNodeId.clear();
+            await this.renderSigma(false);
+            return;
+        }
         if (this.commonService.session.style.widgets['polygons-show'] == false || this.commonService.session.style.widgets['polygons-foci'] == 'None') {
             await this._partialUpdate();
         } else if (this.getRenderedLayoutLinks().length === 0) {
@@ -5290,6 +5480,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
      */
     onPolygonLabelSizeChange(e) {
         this.widgets['polygons-label-size'] = parseFloat(e);
+        if (this.refreshSigmaForStyleChange()) return;
         this.applyPolygonLabelStyle();
     }
 
@@ -5301,6 +5492,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         else if (e == 'middle') e = 'Middle'
         else if (e == 'bottom') e = 'Bottom'
         this.widgets['polygon-label-orientation'] = e;
+        if (this.refreshSigmaForStyleChange()) return;
         this.applyPolygonLabelStyle();
     }
 
@@ -5316,6 +5508,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         }
         this.SelectedPolygonLabelShowVariable = this.widgets['polygons-label-show'] ? 'Show' : 'Hide';
 
+        if (this.refreshSigmaForStyleChange()) return;
         this.applyPolygonLabelStyle();
         
     }
@@ -5350,7 +5543,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             $('.node-label-row').css('display', 'flex');
         }
 
-        this.updateNodeLabels();
+        if (!this.refreshSigmaForStyleChange()) this.updateNodeLabels();
         
     }
 
@@ -5614,6 +5807,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
      */
     setNodeLabelSize(size) {
         this.widgets['node-label-size'] = parseFloat(size);
+        if (this.refreshSigmaForStyleChange()) return;
         this.updateNodeLabelSizes(); // Update label sizes without rerendering the entire network
         // document.documentElement.style.setProperty('--vis-graph-node-label-font-size', `${this.SelectedNodeLabelSizeVariable}pt`);
     }
@@ -5630,6 +5824,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
      */
     setLinkLabelSize(size) {
         this.widgets['link-label-size'] = parseFloat(size);
+        if (this.refreshSigmaForStyleChange()) return;
         this.updateLinkLabelSizes(); // Update label sizes without rerendering the entire network
         // document.documentElement.style.setProperty('--vis-graph-node-label-font-size', `${this.SelectedNodeLabelSizeVariable}pt`);
     }
@@ -5641,6 +5836,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
      */
     onNodeLabelOrientationChange(e) {
         this.widgets['node-label-orientation'] = e;
+        if (this.refreshSigmaForStyleChange()) return;
         if (this.cy) {
             type TextAlignment = 'left' | 'center' | 'right';
             type VerticalAlignment = 'top' | 'bottom' | 'center';
@@ -5716,7 +5912,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             $('#node-radius-row').slideUp();
         }
 
-        this.updateNodeSizes();
+        if (!this.refreshSigmaForStyleChange()) this.updateNodeSizes();
         
 
     }
@@ -5731,7 +5927,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
     public onNodeRadiusMaxChange(e) {
         //this.widgets['node-radius-max'] = e;
         this.updateMinMaxNode();
-        this.updateNodeSizes();
+        if (!this.refreshSigmaForStyleChange()) this.updateNodeSizes();
         
     }
 
@@ -5741,7 +5937,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
     public onNodeRadiusMinChange(e) {
         //this.widgets['node-radius-min'] = e;
         this.updateMinMaxNode();
-        this.updateNodeSizes();
+        if (!this.refreshSigmaForStyleChange()) this.updateNodeSizes();
         
     }
 
@@ -5751,6 +5947,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
     public onNodeBorderWidthChange(e) {
         this.widgets['node-border-width'] = e;
         this.updateMinMaxNode()
+        if (this.refreshSigmaForStyleChange()) return;
         this.updateNodeBorders(); // Update border widths without rerendering the entire network
     }
 
@@ -5760,6 +5957,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
     public onNodeRadiusChange(e) {
 
         this.widgets['node-radius'] = this.SelectedNodeRadiusSizeVariable;
+        if (this.refreshSigmaForStyleChange()) return;
         if (this.isNodeCollapseEnabled() && this.cy) {
             this.refreshNodeCollapseRender();
             return;
@@ -6422,6 +6620,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
     onLinkLabelVariableChange(e) {
         let label: any = e;
         this.widgets['link-label-variable'] = label;
+        if (this.refreshSigmaForStyleChange()) return;
         this.updateLinkLabels();
     }
 
@@ -6455,6 +6654,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
      */
     onLinkDecimalVariableChange(e) {
         this.widgets['link-label-decimal-length'] = e;
+        if (this.refreshSigmaForStyleChange()) return;
         this.updateLinkLabels();
         
     }
@@ -6465,6 +6665,10 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
     onLinkOpacityChange(e) {
         this.widgets['link-opacity'] = e;
         this.overideTransparency = true;
+        if (this.refreshSigmaForStyleChange()) {
+            this.overideTransparency = false;
+            return;
+        }
         this.updateLinkColor();
         this.overideTransparency = false;
         
@@ -6495,6 +6699,8 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         this.updateLinkWidthRows(e);
         this.widgets['link-width-variable'] = e;
         this.updateMinMaxLink();
+
+        if (this.refreshSigmaForStyleChange()) return;
 
         if (e === 'None') {
             this.scaleLinkWidth();
@@ -6615,10 +6821,12 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         this.SelectedLinkReciprocalTypeVariable = e;
         if (e == "Reciprocal") {
             this.widgets['link-width-reciprocal'] = true;
+            if (this.refreshSigmaForStyleChange()) return;
             this.scaleLinkWidth();
         }
         else {
             this.widgets['link-width-reciprocal'] = false;
+            if (this.refreshSigmaForStyleChange()) return;
             this.scaleLinkWidth();
         }
     }
@@ -6628,6 +6836,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
      */
     onLinkWidthChange(e) {
         this.widgets['link-width'] = e;
+        if (this.refreshSigmaForStyleChange()) return;
         this.scaleLinkWidth();        
     }
 
@@ -6637,6 +6846,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
     onLinkWidthMaxChange(e) {
         this.widgets['link-width-max'] = e;
         this.updateMinMaxLink();
+        if (this.refreshSigmaForStyleChange()) return;
         this.scaleLinkWidth();
     }
 
@@ -6646,6 +6856,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
     onLinkWidthMinChange(e) {
         this.widgets['link-width-min'] = e;
         this.updateMinMaxLink();
+        if (this.refreshSigmaForStyleChange()) return;
         this.scaleLinkWidth();
         
     }
@@ -6724,7 +6935,7 @@ private updateArrowStyles(): void {
           this.widgets['link-directed'] = false;
           $("#link-bidirectional-row").slideUp();
         }
-      
+        if (this.refreshSigmaForStyleChange()) return;
         this.updateArrowStyles();
       }
 
@@ -6732,6 +6943,7 @@ private updateArrowStyles(): void {
 
       onLinkBidirectionalChange(e: string) {
         this.widgets['link-bidirectional'] = (e === "Show");
+        if (this.refreshSigmaForStyleChange()) return;
         this.updateArrowStyles();
       }
 
@@ -6744,6 +6956,9 @@ private updateArrowStyles(): void {
         }
         else {
             this.widgets['node-highlight'] = true;
+        }
+        if (this.sigmaActive) {
+            this.sigmaRenderer?.setNeighborHighlighting(Boolean(this.widgets['node-highlight']));
         }
     }
 

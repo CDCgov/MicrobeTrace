@@ -8,7 +8,7 @@ const loadSampleDataset = (): void => {
 
 describe('Sigma renderer migration', () => {
   it('renders the sample network with Sigma when WebGL2 is available', () => {
-    cy.visit('/?renderer=sigma');
+    cy.visit('/?renderer=sigma&skipEula=1');
     loadSampleDataset();
 
     cy.get('[data-testid="sigma-migration-banner"]', { timeout: 20000 })
@@ -51,6 +51,65 @@ describe('Sigma renderer migration', () => {
       expect(composite.canvasLayerCount).to.be.greaterThan(0);
       expect(composite.pngDataUrl).to.match(/^data:image\/png/);
     });
+    cy.get('[data-testid="twod-pin-all-button"]').click({ force: true });
+    cy.window().its('commonService.session.network.allPinned').should('equal', true);
+    cy.get('[data-testid="twod-recalculate-layout-button"]').should('have.class', 'disabled');
+    cy.get('[data-testid="twod-pin-all-button"]').click({ force: true });
+    cy.window().its('commonService.session.network.allPinned').should('equal', false);
+    cy.get('[data-testid="twod-recalculate-layout-button"]')
+      .should('not.have.class', 'disabled')
+      .click({ force: true });
+    cy.get('[data-testid="sigma-renderer-summary"]', { timeout: 20000 })
+      .should('contain.text', '33 nodes')
+      .and('contain.text', '74 links resident');
+    cy.get('[data-testid="sigma-network"]').focus().trigger('keydown', { key: 'ArrowRight' });
+    cy.get('[data-testid="network-renderer-live-status"]').should('contain.text', 'Node 2 of 33');
+    cy.get('[data-testid="sigma-network"]').trigger('keydown', { key: 'Enter' });
+    cy.window().then(win => {
+      const selectedNodes = (win as any).commonService.session.data.nodes
+        .filter((node: any) => node.selected === true);
+      expect(selectedNodes).to.have.length(1);
+    });
+    cy.get('[data-testid="sigma-network"]').trigger('keydown', { key: 'Escape' });
+    cy.window().then(win => {
+      const selectedNodes = (win as any).commonService.session.data.nodes
+        .filter((node: any) => node.selected === true);
+      expect(selectedNodes).to.have.length(0);
+    });
+    cy.get('[data-testid="sigma-network"] canvas.sigma-stage').then($canvas => {
+      $canvas[0].dispatchEvent(new Event('webglcontextlost', { cancelable: true }));
+    });
+    cy.get('[data-testid="sigma-recovery-status"]', { timeout: 10000 })
+      .should('contain.text', 'recovered from a WebGL context loss');
+    cy.get('[data-testid="sigma-network"] canvas.sigma-stage').should('exist');
+    cy.get('#cy').should('not.exist');
+    cy.get('[data-testid="twod-settings-button"]').click({ force: true });
+    cy.contains('.p-dialog-title', '2D Network Settings').should('be.visible');
+    cy.window().then(win => {
+      const twoD = (win as any).commonService.visuals.twoD;
+      twoD.SelectedNodeRadiusSizeVariable = 80;
+      twoD.onNodeRadiusChange(80);
+      twoD.onNodeLabelOrientationChange('Top');
+      twoD.onLinkWidthChange(3);
+      twoD.onRendererFeatureFieldChange('node-qc-status-variable', 'Lineage');
+    });
+    cy.get('[data-testid="sigma-renderer-summary"]', { timeout: 20000 })
+      .should('contain.text', '33 nodes');
+    cy.window().then(win => {
+      const twoD = (win as any).commonService.visuals.twoD;
+      const renderer = twoD.sigmaRenderer;
+      const firstNode = renderer.getGraph().nodes()[0];
+      const firstEdge = renderer.getGraph().edges()[0];
+      expect(renderer.getGraph().getNodeAttribute(firstNode, 'size')).to.equal(12);
+      expect(renderer.getGraph().getNodeAttribute(firstNode, 'labelPosition')).to.equal('above');
+      expect(renderer.getGraph().getNodeAttribute(firstNode, 'features').qc).to.not.equal(null);
+      expect(renderer.getGraph().getEdgeAttribute(firstEdge, 'size')).to.equal(2.5);
+      const expectedQcOverlays = (win as any).commonService.session.data.nodes
+        .filter((node: any) => String(node.Lineage ?? '').trim().length > 0)
+        .length;
+      expect(twoD.exportRendererComposite(1).metadata.qcOverlayNodeCount)
+        .to.equal(expectedQcOverlays);
+    });
     cy.window().then(win => {
       const rendererResources = win.performance.getEntriesByType('resource')
         .map(entry => entry.name)
@@ -60,7 +119,7 @@ describe('Sigma renderer migration', () => {
   });
 
   it('uses the Cytoscape Canvas fallback when WebGL2 is unavailable', () => {
-    cy.visit('/?renderer=sigma', {
+    cy.visit('/?renderer=sigma&skipEula=1', {
       onBeforeLoad(win) {
         const originalGetContext = win.HTMLCanvasElement.prototype.getContext;
         (win.HTMLCanvasElement.prototype as any).getContext = function (

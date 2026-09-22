@@ -3,29 +3,25 @@
 <span id="tooltip" style="background-color: white;"></span>
 
 <div id="tool-btn-container" class="m-portlet">
-  @if (!sigmaActive) {
-    <span style="overflow: visible; position: relative; width: 110px;">
-      <a title="Settings" data-testid="twod-settings-button" class="btn btn-sm btn-clean btn-icon btn-icon-md" style="float:left" (click)="openSettings()"><i class="flaticon-settings primary"></i></a>
-    </span>
-  }
+  <span style="overflow: visible; position: relative; width: 110px;">
+    <a title="Settings" data-testid="twod-settings-button" class="btn btn-sm btn-clean btn-icon btn-icon-md" style="float:left" (click)="openSettings()"><i class="flaticon-settings primary"></i></a>
+  </span>
   <span style="overflow: visible; position: relative; width: 110px;">
     <a title="Export Screen" data-testid="twod-export-button" class="btn btn-sm btn-clean btn-icon btn-icon-md" style="float:left" (click)="openExport()"><i class="flaticon-download primary"></i></a>
   </span>
   <span style="overflow: visible; position: relative; width: 110px;">
     <a title="Center Screen" class="btn btn-sm btn-clean btn-icon btn-icon-md" style="float:left" (click)="openCenter()"><i class="flaticon-eye primary"></i></a>
   </span>
-  @if (!sigmaActive) {
+  <span style="overflow: visible; position: relative; width: 110px;">
+    <a title="Pin All Nodes" data-testid="twod-pin-all-button" class="btn btn-sm btn-clean btn-icon btn-icon-md" style="float:left" (click)="pinNodes()"
+      [style.background]="commonService.session.network.allPinned ? 'lightblue': null"
+      ><i class="flaticon-pin primary"></i></a>
+    </span>
     <span style="overflow: visible; position: relative; width: 110px;">
-      <a title="Pin All Nodes" data-testid="twod-pin-all-button" class="btn btn-sm btn-clean btn-icon btn-icon-md" style="float:left" (click)="pinNodes()"
-        [style.background]="commonService.session.network.allPinned ? 'lightblue': null"
-        ><i class="flaticon-pin primary"></i></a>
+      <a title="Recalculate Layout. Disabled when nodes are pinned." data-testid="twod-recalculate-layout-button" class="btn btn-sm btn-clean btn-icon btn-icon-md" style="float:left" (click)="updateLayout()"
+        [ngClass]="commonService.session.network.allPinned ? 'disabled' : ''">
+        <i class="flaticon-refresh primary"></i></a>
       </span>
-      <span style="overflow: visible; position: relative; width: 110px;">
-        <a title="Recalculate Layout. Disabled when nodes are pinned." data-testid="twod-recalculate-layout-button" class="btn btn-sm btn-clean btn-icon btn-icon-md" style="float:left" (click)="updateLayout()"
-          [ngClass]="commonService.session.network.allPinned ? 'disabled' : ''">
-          <i class="flaticon-refresh primary"></i></a>
-        </span>
-  }
 </div>
 
 @if (sigmaRequested) {
@@ -40,6 +36,9 @@
           {{ sigmaSummary.residentLinkCount.toLocaleString() }} links resident;
           {{ sigmaSummary.drawnLinkCount.toLocaleString() }} links drawn
         </span>
+      }
+      @if (sigmaRecoveryMessage) {
+        <span class="sigma-migration-status" data-testid="sigma-recovery-status">{{ sigmaRecoveryMessage }}</span>
       }
       <span class="sigma-detail-controls" aria-label="Sigma edge detail">
         <button type="button" [class.active]="sigmaSummary.edgeDetailMode === 'overview'" (click)="setSigmaEdgeDetailMode('overview')">Overview</button>
@@ -57,15 +56,26 @@
 
     <div #exportContainer class="cytoscape-container" style="position: relative;">
       @if (sigmaActive) {
-        <div #sigmaNetwork id="sigma-network" data-testid="sigma-network"></div>
+        <div #sigmaNetwork id="sigma-network" data-testid="sigma-network" tabindex="0"
+          role="application" aria-label="Sigma network visualization"
+          aria-describedby="network-renderer-keyboard-instructions network-renderer-live-status"
+          (focus)="onRendererKeyboardFocus()" (keydown)="onRendererKeydown($event)"></div>
       } @else {
-        <div #cy id="cy" style="width: 100%; height: 100%; position: relative;"></div>
+        <div #cy id="cy" tabindex="0" role="application" aria-label="Cytoscape network visualization"
+          aria-describedby="network-renderer-keyboard-instructions network-renderer-live-status"
+          style="width: 100%; height: 100%; position: relative;"
+          (focus)="onRendererKeyboardFocus()" (keydown)="onRendererKeydown($event)"></div>
       }
       <div class="grid-overlay" [class.hidden]="!widgets['network-gridlines-show']"></div>
 
       <!-- Static Watermark (Optional) -->
       <div id="watermark" class="watermark"></div>
     </div>
+    <div id="network-renderer-keyboard-instructions" class="sr-only">
+      Use arrow keys, Home, or End to move through nodes. Press Enter or Space to toggle selection. Press Escape to clear selection.
+    </div>
+    <p id="network-renderer-live-status" class="sr-only" aria-live="polite" aria-atomic="true"
+      data-testid="network-renderer-live-status">{{ rendererKeyboardLiveStatus }}</p>
     <section class="sr-only" data-testid="renderer-accessible-feature-summary"
       aria-label="Network feature summary">
       <p aria-live="polite">{{ rendererAccessibleFeatureSummary }}</p>
@@ -233,6 +243,28 @@
                 <p-accordion-content><button pButton type="button" class="ui-button-raised" (click)="showGlobalSettings($event)" [style]="{'background-color': '#2196f3', 'border': '1px solid #2196f3'}"><span class="p-button-label">Show Colors</span></button>
                 </p-accordion-content>
               </p-accordion-panel>
+              <p-accordion-panel value="node-features" style="color:#495057">
+                <p-accordion-header>Scientific Overlays</p-accordion-header>
+                <p-accordion-content>
+                  <p class="small">Mixed values in the active Color By field render as donut segments.</p>
+                  <div class="form-group row">
+                    <div class="col-4"><label for="node-qc-status-variable">QC Status</label></div>
+                    <div class="col-8"><p-select id="node-qc-status-variable" [options]="FieldList" appendTo="body" class="width-percent-100" [ngModel]="widgets['node-qc-status-variable']" (ngModelChange)="onRendererFeatureFieldChange('node-qc-status-variable', $event)"></p-select></div>
+                  </div>
+                  <div class="form-group row">
+                    <div class="col-4"><label for="node-qc-severity-variable">QC Severity</label></div>
+                    <div class="col-8"><p-select id="node-qc-severity-variable" [options]="FieldList" appendTo="body" class="width-percent-100" [ngModel]="widgets['node-qc-severity-variable']" (ngModelChange)="onRendererFeatureFieldChange('node-qc-severity-variable', $event)"></p-select></div>
+                  </div>
+                  <div class="form-group row">
+                    <div class="col-4"><label for="node-qc-reason-variable">QC Reason</label></div>
+                    <div class="col-8"><p-select id="node-qc-reason-variable" [options]="FieldList" appendTo="body" class="width-percent-100" [ngModel]="widgets['node-qc-reason-variable']" (ngModelChange)="onRendererFeatureFieldChange('node-qc-reason-variable', $event)"></p-select></div>
+                  </div>
+                  <div class="form-group row">
+                    <div class="col-4"><label for="node-uncertainty-variable">Uncertainty</label></div>
+                    <div class="col-8"><p-select id="node-uncertainty-variable" [options]="FieldList" appendTo="body" class="width-percent-100" [ngModel]="widgets['node-uncertainty-variable']" (ngModelChange)="onRendererFeatureFieldChange('node-uncertainty-variable', $event)"></p-select></div>
+                  </div>
+                </p-accordion-content>
+              </p-accordion-panel>
             </p-accordion>
           </tab>
           <tab heading="{{'Links' | localize}}" customClass="m-tabs__item">
@@ -345,6 +377,23 @@
               <p-select-button id="network-gridlines-show-hide" [options]="hideShowOptionsString" [allowEmpty]="false" fluid [(ngModel)]="SelectedNetworkGridLineTypeVariable" (ngModelChange)="onNetworkGridlinesShowHideChange($event)"></p-select-button>
             </div>
           </div>
+          <div class="form-group row" title="Position network nodes using the selected latitude and longitude fields.">
+            <div class="col-3">Geographic Layout</div>
+            <div class="col-9">
+              <p-select-button id="network-geographic-overlay" [options]="hideShowOptions" [allowEmpty]="false" fluid
+                [(ngModel)]="widgets['network-geographic-overlay']" (ngModelChange)="onRendererGeographicSettingsChange()"></p-select-button>
+            </div>
+          </div>
+          @if (widgets['network-geographic-overlay']) {
+            <div class="form-group row">
+              <div class="col-3"><label for="network-geographic-latitude">Latitude</label></div>
+              <div class="col-9"><p-select id="network-geographic-latitude" [options]="FieldList" appendTo="body" class="width-percent-100" [(ngModel)]="widgets['map-field-lat']" (ngModelChange)="onRendererGeographicSettingsChange()"></p-select></div>
+            </div>
+            <div class="form-group row">
+              <div class="col-3"><label for="network-geographic-longitude">Longitude</label></div>
+              <div class="col-9"><p-select id="network-geographic-longitude" [options]="FieldList" appendTo="body" class="width-percent-100" [(ngModel)]="widgets['map-field-lon']" (ngModelChange)="onRendererGeographicSettingsChange()"></p-select></div>
+            </div>
+          }
         </div>
       </p-accordion-content>
     </p-accordion-panel>

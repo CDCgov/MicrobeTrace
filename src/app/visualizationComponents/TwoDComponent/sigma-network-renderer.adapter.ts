@@ -25,6 +25,8 @@ export interface SigmaPocNode {
   x: number;
   y: number;
   label: string;
+  labelSize?: number;
+  labelPosition?: 'left' | 'right' | 'above' | 'below' | 'over';
   color: string;
   opacity: number;
   size: number;
@@ -43,6 +45,7 @@ export interface SigmaPocLink {
   opacity: number;
   size: number;
   distance?: number;
+  label?: string;
   raw: any;
 }
 
@@ -50,6 +53,8 @@ export interface SigmaPocGraphData {
   nodes: SigmaPocNode[];
   links: SigmaPocLink[];
   showGroupHulls: boolean;
+  showGroupLabels?: boolean;
+  groupLabelSize?: number;
   geographicOverlay?: NetworkGeographicProjection | null;
 }
 
@@ -80,6 +85,8 @@ interface SigmaNodeAttributes extends Record<string, unknown>, SigmaNetworkFeatu
   x: number;
   y: number;
   label: string;
+  labelSize: number;
+  labelPosition: 'left' | 'right' | 'above' | 'below' | 'over';
   color: string;
   opacity: number;
   size: number;
@@ -91,6 +98,7 @@ interface SigmaNodeAttributes extends Record<string, unknown>, SigmaNetworkFeatu
 }
 
 interface SigmaEdgeAttributes extends Record<string, unknown> {
+  label: string;
   color: string;
   opacity: number;
   size: number;
@@ -493,6 +501,8 @@ export class SigmaNetworkRendererAdapter {
   private baseEdgeStride = 1;
   private effectiveEdgeStride = 1;
   private showGroupHulls = false;
+  private showGroupLabels = true;
+  private groupLabelSize = 12;
   private geographicOverlay: NetworkGeographicProjection | null = null;
   private rankedEdges: SigmaRankedEdge[] = [];
   private incidentEdgeIdsByNode = new Map<string, string[]>();
@@ -509,6 +519,9 @@ export class SigmaNetworkRendererAdapter {
   private suppressStageClickTimer: ReturnType<typeof setTimeout> | null = null;
   private webglLayers: HTMLCanvasElement[] = [];
   private customWebglNodeFeaturesActive = false;
+  private nodeDraggingEnabled = true;
+  private renderEdgeLabels = false;
+  private highlightNeighbors = true;
 
   private readonly handleWebglContextLost = (event: Event): void => {
     event.preventDefault();
@@ -582,6 +595,8 @@ export class SigmaNetworkRendererAdapter {
         x: Number.isFinite(node.x) ? node.x : 0,
         y: Number.isFinite(node.y) ? node.y : 0,
         label: node.label || node.id,
+        labelSize: Math.max(6, Number(node.labelSize) || 12),
+        labelPosition: node.labelPosition || 'right',
         color: node.color || '#2563eb',
         opacity: Number.isFinite(node.opacity) ? node.opacity : 1,
         size: Math.max(2, Number(node.size) || 6),
@@ -600,6 +615,7 @@ export class SigmaNetworkRendererAdapter {
       let duplicate = 1;
       while (graph.hasEdge(edgeId)) edgeId = `${link.id}--${duplicate++}`;
       graph.addEdgeWithKey(edgeId, link.source, link.target, {
+        label: link.label || '',
         color: link.color || '#94a3b8',
         opacity: Number.isFinite(link.opacity) ? link.opacity : 0.35,
         size: Math.max(0.25, Number(link.size) || 0.75),
@@ -612,11 +628,14 @@ export class SigmaNetworkRendererAdapter {
     }
 
     this.graph = graph;
+    this.renderEdgeLabels = data.links.some(link => Boolean(link.label));
     if (this.keyboardFocusedNodeId && !this.graph.hasNode(this.keyboardFocusedNodeId)) {
       this.keyboardFocusedNodeId = null;
     }
     this.rebuildActiveNeighborhood();
     this.showGroupHulls = data.showGroupHulls;
+    this.showGroupLabels = data.showGroupLabels !== false;
+    this.groupLabelSize = Math.max(6, Number(data.groupLabelSize) || 12);
     this.geographicOverlay = data.geographicOverlay || null;
     this.baseEdgeStride = this.resolveBaseEdgeStride(graph.size);
     this.updateEffectiveEdgeStride(this.renderer?.getCamera().getState().ratio || 1);
@@ -631,6 +650,7 @@ export class SigmaNetworkRendererAdapter {
     }
     if (existingRenderer) {
       this.renderer.setGraph(this.displayGraph);
+      this.renderer.setSetting('renderEdgeLabels', this.renderEdgeLabels);
     }
 
     this.renderer.setCustomBBox(stableGraphBounds);
@@ -665,6 +685,17 @@ export class SigmaNetworkRendererAdapter {
     this.drawNodeFeatures();
     this.drawSelectionBox();
     this.scheduleProjectionRefresh();
+  }
+
+  setNodeDraggingEnabled(enabled: boolean): void {
+    this.nodeDraggingEnabled = enabled;
+    this.renderer?.setSetting('enableNodeDrag', enabled);
+  }
+
+  setNeighborHighlighting(enabled: boolean): void {
+    this.highlightNeighbors = enabled;
+    this.rebuildActiveNeighborhood();
+    this.renderer?.refresh();
   }
 
   getGraph(): Graph<SigmaNodeAttributes, SigmaEdgeAttributes> {
@@ -835,7 +866,7 @@ export class SigmaNetworkRendererAdapter {
     const rendererOptions = {
       settings: {
         autoRescaleContent: 'nodes' as const,
-        enableNodeDrag: true,
+        enableNodeDrag: this.nodeDraggingEnabled,
         getDraggedNodes: draggedNode => [draggedNode],
         // Sigma v4's drag manager retains the graph supplied at construction.
         // Edge LOD swaps the display graph, so the adapter applies pointer
@@ -848,12 +879,13 @@ export class SigmaNetworkRendererAdapter {
         labelDensity: 0.55,
         labelGridCellSize: 140,
         labelRenderedSizeThreshold: 6,
+        renderEdgeLabels: this.renderEdgeLabels,
         minEdgeThickness: 0.35,
         nodePickingPadding: 6,
         stagePadding: 48,
       },
       nodeReducer: (_key, displayData, attributes, state) => {
-        const activeNodeId = this.hoveredNodeId || this.keyboardFocusedNodeId;
+        const activeNodeId = this.keyboardFocusedNodeId || (this.highlightNeighbors ? this.hoveredNodeId : null);
         const focused = this.keyboardFocusedNodeId === String(attributes.raw.id);
         const inActiveNeighborhood = !activeNodeId || this.hoveredNeighborhood.has(String(attributes.raw.id));
         const selected = this.selectedNodeIds.has(String(attributes.raw.id));
@@ -870,7 +902,7 @@ export class SigmaNetworkRendererAdapter {
         };
       },
       edgeReducer: (_key, displayData, attributes, state) => {
-        const activeNodeId = this.hoveredNodeId || this.keyboardFocusedNodeId;
+        const activeNodeId = this.keyboardFocusedNodeId || (this.highlightNeighbors ? this.hoveredNodeId : null);
         const incidentToHover = Boolean(
           activeNodeId &&
           (attributes.sourceId === activeNodeId || attributes.targetId === activeNodeId),
@@ -1298,7 +1330,7 @@ export class SigmaNetworkRendererAdapter {
 
   private rebuildActiveNeighborhood(): void {
     this.hoveredNeighborhood.clear();
-    const activeNodeId = this.hoveredNodeId || this.keyboardFocusedNodeId;
+    const activeNodeId = this.keyboardFocusedNodeId || (this.highlightNeighbors ? this.hoveredNodeId : null);
     if (!activeNodeId || !this.graph.hasNode(activeNodeId)) return;
     this.hoveredNeighborhood.add(activeNodeId);
     this.graph.forEachNeighbor(activeNodeId, neighbor => this.hoveredNeighborhood.add(neighbor));
@@ -1724,10 +1756,10 @@ export class SigmaNetworkRendererAdapter {
       context.lineWidth = 1.5;
       context.stroke();
 
-      if (this.groupHulls.length <= 20) {
+      if (this.showGroupLabels && this.groupHulls.length <= 20) {
         context.globalAlpha = 0.8;
         context.fillStyle = group.color;
-        context.font = '600 12px sans-serif';
+        context.font = `600 ${this.groupLabelSize}px sans-serif`;
         context.fillText(group.label, center.x + 6, center.y - 6);
       }
     }
