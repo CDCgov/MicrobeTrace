@@ -606,9 +606,9 @@ export class SigmaNetworkRendererAdapter {
   };
 
   constructor(
-    private readonly container: HTMLElement,
+    private container: HTMLElement,
     private readonly selectedColor: string,
-    private readonly callbacks: SigmaPocCallbacks = {},
+    private callbacks: SigmaPocCallbacks = {},
   ) {}
 
   render(data: SigmaPocGraphData, preserveCamera = false): void {
@@ -897,12 +897,23 @@ export class SigmaNetworkRendererAdapter {
     this.suppressStageClickTimer = null;
     this.suppressStageClick = false;
     this.groupHulls = [];
+    this.selectedNodeIds.clear();
+    this.hoveredNodeId = null;
+    this.hoveredNeighborhood.clear();
     this.rankedEdges = [];
     this.incidentEdgeIdsByNode.clear();
     this.iconPathCache.clear();
+    this.webglLayers = [];
+    this.customWebglNodeFeaturesActive = false;
     this.graph.clear();
     this.displayGraph.clear();
     this.geographicOverlay = null;
+    this.callbacks = {};
+    this.container.replaceChildren();
+    // A retired adapter can remain reachable briefly from browser tooling or
+    // lifecycle assertions. Do not let that reference retain the former view's
+    // DOM tree after Sigma has been destroyed.
+    this.container = document.createElement('div');
   }
 
   private createRenderer(): void {

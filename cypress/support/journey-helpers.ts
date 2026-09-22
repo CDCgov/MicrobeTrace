@@ -684,16 +684,23 @@ export function launchAndWaitForProcessing(timeout = 60000): void {
     .should('equal', true);
 }
 
-export function goTo2DNetworkView(): void {
+export function goTo2DNetworkView(timeout = 30000): void {
   cy.get(byTestId(testIds.appViewMenuButton), { timeout: 15000 }).click({ force: true });
   cy.get(byTestId(testIds.appViewMenuTwoD), { timeout: 15000 }).click({ force: true });
 
-  assertTwoDNetworkReady();
+  assertTwoDNetworkReady(timeout);
 }
 
 export function assertTwoDNetworkReady(timeout = 30000): void {
-  cy.get('#cy', { timeout }).should('be.visible');
-  cy.window({ timeout }).should('have.property', 'cytoscapeInstance');
+  cy.get('#cy, [data-testid="sigma-network"]', { timeout }).should('be.visible');
+  cy.window({ timeout }).should((win: any) => {
+    const twoD = win.commonService?.visuals?.twoD;
+    expect(twoD, '2D component instance').to.exist;
+    expect(
+      twoD?.sigmaRenderer || twoD?.cy || win.cytoscapeInstance,
+      'active 2D renderer handle',
+    ).to.exist;
+  });
 }
 
 export function assertPhyloTreeReady(timeout = 30000): void {
@@ -965,14 +972,14 @@ export function ensureCrosstabView(): void {
   });
 }
 
-export function ensureTwoDNetworkView(): void {
+export function ensureTwoDNetworkView(timeout = 30000): void {
   cy.get('body', { timeout: 15000 }).then(($body) => {
-    if ($body.find('#cy:visible').length) {
-      assertTwoDNetworkReady();
+    if ($body.find('#cy:visible, [data-testid="sigma-network"]:visible').length) {
+      assertTwoDNetworkReady(timeout);
       return;
     }
 
-    goTo2DNetworkView();
+    goTo2DNetworkView(timeout);
   });
 }
 

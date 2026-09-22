@@ -145,6 +145,8 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
     private readonly sigmaLayoutGroupByNodeId = new Map<string, string>();
     private cytoscapeFactoryPromise: Promise<typeof cytoscape> | null = null;
     private rendererViewStateTimer: ReturnType<typeof setTimeout> | null = null;
+    private containerResizeTimer: ReturnType<typeof setTimeout> | null = null;
+    private containerShowTimer: ReturnType<typeof setTimeout> | null = null;
     private rendererGeographicProjection: NetworkGeographicProjection | null = null;
     vizLoaded = true;
     nodePositions: Map<string, { x: number; y: number }> = new Map();
@@ -170,6 +172,38 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
     private nodeCollapseShapeWarningPending = false;
     private nodeCollapseRefreshPending = false;
     private nodeCollapseRefreshScheduled = false;
+
+    private readonly handleContainerResize = (): void => {
+        if (this.containerResizeTimer) clearTimeout(this.containerResizeTimer);
+        this.containerResizeTimer = setTimeout(() => {
+            this.containerResizeTimer = null;
+            if (!this.isDestroyed) this.resizeActiveRenderer();
+        }, 200);
+    };
+
+    private readonly handleContainerHide = (): void => {
+        if (this.isDestroyed) return;
+        this.viewActive = false;
+        this.cdref.detectChanges();
+    };
+
+    private readonly handleContainerShow = (): void => {
+        if (this.isDestroyed) return;
+        this.viewActive = true;
+        this.cdref.detectChanges();
+        if (this.containerShowTimer) clearTimeout(this.containerShowTimer);
+        this.containerShowTimer = setTimeout(() => {
+            this.containerShowTimer = null;
+            if (this.isDestroyed) return;
+            if (this.rerenderOnActive) {
+                this._rerender();
+                this.rerenderOnActive = false;
+            }
+            this.resizeActiveRenderer();
+            this.commonService.onStatisticsChanged("Show");
+            this.syncPolygonColorTableVisibility();
+        }, 50);
+    };
 
     private getPerformanceNow(): number {
         return typeof performance !== 'undefined' && performance.now
@@ -789,24 +823,9 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         this.widgets = this.commonService.session.style.widgets;
         this.ensureNodeCollapseWidgetDefaults();
 
-        this.container.on('resize', () => { setTimeout(() => this.resizeActiveRenderer(), 200)})
-        this.container.on('hide', () => { 
-            this.viewActive = false; 
-            this.cdref.detectChanges();
-        })
-        this.container.on('show', () => { 
-            this.viewActive = true; 
-            this.cdref.detectChanges();
-            setTimeout(() => {
-                if (this.rerenderOnActive) {
-                    this._rerender()
-                    this.rerenderOnActive = false;
-                }
-                this.resizeActiveRenderer()
-                this.commonService.onStatisticsChanged("Show");
-                this.syncPolygonColorTableVisibility();
-            }, 50)
-        })
+        this.container.on('resize', this.handleContainerResize);
+        this.container.on('hide', this.handleContainerHide);
+        this.container.on('show', this.handleContainerShow);
 
         this.widgets['node-symbol'] = this.mapPreviousShapeNameToCurrent(this.widgets['node-symbol']);
 
@@ -7579,16 +7598,25 @@ scaleLinkWidth() {
 
         console.log("calling destroy");
         this.isDestroyed = true;
+        this.container.off('resize', this.handleContainerResize);
+        this.container.off('hide', this.handleContainerHide);
+        this.container.off('show', this.handleContainerShow);
         if (this.rendererViewStateTimer) clearTimeout(this.rendererViewStateTimer);
         this.rendererViewStateTimer = null;
+        if (this.containerResizeTimer) clearTimeout(this.containerResizeTimer);
+        this.containerResizeTimer = null;
+        if (this.containerShowTimer) clearTimeout(this.containerShowTimer);
+        this.containerShowTimer = null;
+        if (this.rerenderTimeout) clearTimeout(this.rerenderTimeout);
+        this.rerenderTimeout = null;
         this.pendingPartialUpdate = false;
         this.destroy$.next();
         this.destroy$.complete();
         this.setNetworkRendering(false);
 
-        this.styleFileSub.unsubscribe();
+        this.styleFileSub?.unsubscribe();
 
-        this.settingsLoadedSubscription.unsubscribe();
+        this.settingsLoadedSubscription?.unsubscribe();
 
         this.sigmaRenderer?.destroy();
         this.sigmaRenderer = null;
@@ -7605,6 +7633,15 @@ scaleLinkWidth() {
             (this.commonService.visuals as any).twoD = null;
         }
         $('#cy').off('contextmenu.twod');
+        this.nodePositions.clear();
+        this.nodeDataById.clear();
+        this.sigmaLayoutGroupByNodeId.clear();
+        this.collapsedAggregatePositionAnchors = [];
+        this.timelineFinalCollapsedAggregatePositionAnchors = [];
+        this.rendererAccessibleFeatureItems = [];
+        this.ContextSelectedNodeAttributes = [];
+        this.graphData = { nodes: [], links: [] };
+        this.rendererGeographicProjection = null;
         this.cyContainer = null;
         this.sigmaContainer = null;
 

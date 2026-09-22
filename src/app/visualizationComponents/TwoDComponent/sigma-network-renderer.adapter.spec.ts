@@ -1,4 +1,8 @@
-import { assignSigmaOverviewPositions, selectSigmaLayoutBackbone } from './sigma-network-renderer.adapter';
+import {
+  assignSigmaOverviewPositions,
+  selectSigmaLayoutBackbone,
+  SigmaNetworkRendererAdapter,
+} from './sigma-network-renderer.adapter';
 
 describe('Sigma network renderer adapter', () => {
   it('keeps small graph layouts exact while returning safe link copies', () => {
@@ -73,5 +77,25 @@ describe('Sigma network renderer adapter', () => {
     expect(organicRadii.size).toBeGreaterThan(8);
     expect(nodes.length).toBe(100);
     expect(links.length).toBe(4950);
+  });
+
+  it('severs view callbacks and DOM references when destroyed', () => {
+    const container = document.createElement('div');
+    container.appendChild(document.createElement('canvas'));
+    const owner = { selectedNodeIds: new Set(['node-1']) };
+    const adapter = new SigmaNetworkRendererAdapter(container, '#ff2d55', {
+      onNodeSelectionChange: selectedNodeIds => {
+        owner.selectedNodeIds = new Set(selectedNodeIds);
+      },
+    });
+
+    adapter.destroy();
+
+    expect(container.childElementCount).toBe(0);
+    expect((adapter as any).callbacks).toEqual({});
+    expect((adapter as any).container).not.toBe(container);
+    expect(adapter.getRenderer()).toBeNull();
+    expect(adapter.getGraph().order).toBe(0);
+    expect(adapter.getDisplayGraph().order).toBe(0);
   });
 });
