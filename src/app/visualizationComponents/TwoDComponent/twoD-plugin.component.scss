@@ -83,6 +83,61 @@
   z-index: 0;
 }
 
+#sigma-network {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  min-height: 320px;
+  top: 0;
+  left: 0;
+  z-index: 0;
+  background: #ffffff;
+}
+
+.sigma-migration-banner {
+  position: absolute;
+  top: 46px;
+  right: 14px;
+  z-index: 12;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  max-width: min(620px, calc(100% - 28px));
+  padding: 8px 10px;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.12);
+  color: #334155;
+  font-size: 12px;
+}
+
+.sigma-migration-status {
+  color: #475569;
+}
+
+.sigma-detail-controls {
+  display: inline-flex;
+  gap: 4px;
+}
+
+.sigma-detail-controls button {
+  padding: 2px 7px;
+  border: 1px solid #cbd5e1;
+  border-radius: 4px;
+  background: #f8fafc;
+  color: #475569;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.sigma-detail-controls button.active {
+  border-color: #2563eb;
+  background: #2563eb;
+  color: #ffffff;
+}
+
 #tool-btn-container,
 #network-statistics-wrapper,
 .view-controls {
