@@ -4818,6 +4818,12 @@ ${warnings.join('\n')}`,
 
         if (this.commonService.pendingDashboardRestore?.dashboardLayout?.root) {
             setTimeout(() => this.schedulePendingDashboardRestore(), 0);
+        } else {
+            // UI settings can be applied before the launch view is opened. In that
+            // order, resetLayout removes the newly docked key-table panel while the
+            // controller still records its tables as docked. Reconcile the panel
+            // after the launch layout has finished opening.
+            setTimeout(() => this.ensureDockedKeyTablesViewOpenIfNeeded(), 0);
         }
         // }, 500);
         
