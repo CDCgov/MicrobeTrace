@@ -6,39 +6,41 @@
   <span style="overflow: visible; position: relative; width: 110px;">
     <a title="Settings" data-testid="twod-settings-button" class="btn btn-sm btn-clean btn-icon btn-icon-md" style="float:left" (click)="openSettings()"><i class="flaticon-settings primary"></i></a>
   </span>
-  <span style="overflow: visible; position: relative; width: 110px;">
-    <a title="Export Screen" data-testid="twod-export-button" class="btn btn-sm btn-clean btn-icon btn-icon-md" style="float:left" (click)="openExport()"><i class="flaticon-download primary"></i></a>
-  </span>
-  <span style="overflow: visible; position: relative; width: 110px;">
-    <a title="Center Screen" class="btn btn-sm btn-clean btn-icon btn-icon-md" style="float:left" (click)="openCenter()"><i class="flaticon-eye primary"></i></a>
-  </span>
-  <span style="overflow: visible; position: relative; width: 110px;">
-    <a title="Pin All Nodes" data-testid="twod-pin-all-button" class="btn btn-sm btn-clean btn-icon btn-icon-md" style="float:left" (click)="pinNodes()"
-      [style.background]="commonService.session.network.allPinned ? 'lightblue': null"
-      ><i class="flaticon-pin primary"></i></a>
+  @if (!canvasFallbackSuppressed) {
+    <span style="overflow: visible; position: relative; width: 110px;">
+      <a title="Export Screen" data-testid="twod-export-button" class="btn btn-sm btn-clean btn-icon btn-icon-md" style="float:left" (click)="openExport()"><i class="flaticon-download primary"></i></a>
+    </span>
+    <span style="overflow: visible; position: relative; width: 110px;">
+      <a title="Center Screen" class="btn btn-sm btn-clean btn-icon btn-icon-md" style="float:left" (click)="openCenter()"><i class="flaticon-eye primary"></i></a>
+    </span>
+    <span style="overflow: visible; position: relative; width: 110px;">
+      <a title="Pin All Nodes" data-testid="twod-pin-all-button" class="btn btn-sm btn-clean btn-icon btn-icon-md" style="float:left" (click)="pinNodes()"
+        [style.background]="commonService.session.network.allPinned ? 'lightblue': null"
+        ><i class="flaticon-pin primary"></i></a>
     </span>
     <span style="overflow: visible; position: relative; width: 110px;">
       <a title="Recalculate Layout. Disabled when nodes are pinned." data-testid="twod-recalculate-layout-button" class="btn btn-sm btn-clean btn-icon btn-icon-md" style="float:left" (click)="updateLayout()"
         [ngClass]="commonService.session.network.allPinned ? 'disabled' : ''">
         <i class="flaticon-refresh primary"></i></a>
-      </span>
+    </span>
+  }
 </div>
 
 @if (sigmaRequested) {
-  <div class="sigma-migration-banner" data-testid="sigma-migration-banner">
+  <div class="network-renderer-banner" data-testid="network-renderer-banner">
     @if (sigmaActive) {
       <strong>Sigma WebGL renderer</strong>
       @if (sigmaLoading) {
-        <span class="sigma-migration-status">{{ sigmaLoadingMessage }}</span>
+        <span class="network-renderer-status">{{ sigmaLoadingMessage }}</span>
       } @else {
-        <span class="sigma-migration-status" data-testid="sigma-renderer-summary">
+        <span class="network-renderer-status" data-testid="sigma-renderer-summary">
           {{ sigmaSummary.residentNodeCount.toLocaleString() }} nodes and
           {{ sigmaSummary.residentLinkCount.toLocaleString() }} links resident;
           {{ sigmaSummary.drawnLinkCount.toLocaleString() }} links drawn
         </span>
       }
       @if (sigmaRecoveryMessage) {
-        <span class="sigma-migration-status" data-testid="sigma-recovery-status">{{ sigmaRecoveryMessage }}</span>
+        <span class="network-renderer-status" data-testid="sigma-recovery-status">{{ sigmaRecoveryMessage }}</span>
       }
       <span class="sigma-detail-controls" aria-label="Sigma edge detail">
         <button type="button" [class.active]="sigmaSummary.edgeDetailMode === 'overview'" (click)="setSigmaEdgeDetailMode('overview')">Overview</button>
@@ -46,8 +48,8 @@
         <button type="button" [class.active]="sigmaSummary.edgeDetailMode === 'all'" (click)="setSigmaEdgeDetailMode('all')">All</button>
       </span>
     } @else {
-      <strong>Cytoscape Canvas fallback</strong>
-      <span class="sigma-migration-status">{{ sigmaFallbackReason }}</span>
+      <strong>{{ canvasFallbackSuppressed ? 'Table-only network safety mode' : 'Cytoscape Canvas fallback' }}</strong>
+      <span class="network-renderer-status">{{ sigmaFallbackReason }}</span>
     }
   </div>
 }
@@ -60,11 +62,17 @@
           role="application" aria-label="Sigma network visualization"
           aria-describedby="network-renderer-keyboard-instructions network-renderer-live-status"
           (focus)="onRendererKeyboardFocus()" (keydown)="onRendererKeydown($event)"></div>
-      } @else {
+      } @else if (!canvasFallbackSuppressed) {
         <div #cy id="cy" tabindex="0" role="application" aria-label="Cytoscape network visualization"
           aria-describedby="network-renderer-keyboard-instructions network-renderer-live-status"
           style="width: 100%; height: 100%; position: relative;"
           (focus)="onRendererKeyboardFocus()" (keydown)="onRendererKeydown($event)"></div>
+      } @else {
+        <section class="network-canvas-safety-message" data-testid="network-canvas-safety-message"
+          aria-label="Network renderer safety mode">
+          <h3>Network visualization paused</h3>
+          <p>{{ sigmaFallbackReason }}</p>
+        </section>
       }
       <div class="grid-overlay" [class.hidden]="!widgets['network-gridlines-show']"></div>
 

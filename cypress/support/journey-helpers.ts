@@ -45,6 +45,13 @@ function buildJourneyUrl(options: JourneyVisitOptions = {}): string {
   const skipDemoSession = options.skipDemoSession ?? true;
   const skipEula = options.skipEula ?? true;
 
+  // The established journey suite contains renderer-specific Cytoscape
+  // assertions. Keep those compatibility contracts explicit while dedicated
+  // Sigma/default-renderer contracts exercise the production path.
+  if (!Object.prototype.hasOwnProperty.call(options.extraQuery || {}, 'renderer')) {
+    params.set('renderer', 'cytoscape-canvas');
+  }
+
   if (skipDemoSession) {
     params.set('skipDemoSession', '1');
   }

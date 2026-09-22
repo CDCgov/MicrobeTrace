@@ -47,6 +47,7 @@ import { createGlobalSettingsDialogRequest, GlobalSettingsDialogRequest } from '
 import {
     canCreateWebGL2Context,
     resolveNetworkRendererMode,
+    shouldUseTableOnlyCanvasFallback,
     type NetworkRendererMode
 } from './network-renderer-comparison';
 import {
@@ -54,6 +55,7 @@ import {
     selectSigmaLayoutBackbone,
     SigmaNetworkRendererAdapter,
     type SigmaEdgeDetailMode,
+    type SigmaNodeShape,
     type SigmaPocRenderSummary
 } from './sigma-network-renderer.adapter';
 import {
@@ -108,7 +110,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
     cy: Core;
     readonly requestedRendererMode: NetworkRendererMode = typeof window !== 'undefined'
         ? resolveNetworkRendererMode(window.location.href)
-        : 'cytoscape-canvas';
+        : 'sigma';
     readonly sigmaRequested = this.requestedRendererMode === 'sigma';
     sigmaActive = this.sigmaRequested
         && typeof document !== 'undefined'
@@ -116,6 +118,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
     sigmaFallbackReason: string | null = this.sigmaRequested && !this.sigmaActive
         ? 'WebGL 2 is unavailable; using the Cytoscape Canvas compatibility renderer.'
         : null;
+    canvasFallbackSuppressed = false;
     sigmaRecoveryMessage: string | null = null;
     sigmaLoading = false;
     sigmaLoadingMessage = 'Preparing the network';
@@ -1438,6 +1441,52 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         }
     }
 
+    private getSigmaNodeShape(shapeKey: string): SigmaNodeShape {
+        switch (resolveNodeShapeKey(shapeKey)) {
+            case 'triangle':
+            case 'tag':
+            case 'vee':
+                return 'triangle';
+            case 'rectangle':
+            case 'barrel':
+                return 'square';
+            case 'rhomboid':
+            case 'diamond':
+                return 'diamond';
+            default: {
+                const cytoscapeShape = resolveCustomNodeIconCytoscapeShape(shapeKey);
+                if (cytoscapeShape.includes('triangle')) return 'triangle';
+                if (cytoscapeShape.includes('diamond') || cytoscapeShape.includes('rhomboid')) return 'diamond';
+                if (cytoscapeShape.includes('rectangle') || cytoscapeShape.includes('square') || cytoscapeShape === 'barrel') {
+                    return 'square';
+                }
+                return 'circle';
+            }
+        }
+    }
+
+    private isTruthyNetworkFlag(value: any): boolean {
+        if (value === true) return true;
+        if (value === false || value === null || value === undefined) return false;
+        if (typeof value === 'number') return value !== 0;
+        if (typeof value === 'string') {
+            return ['true', '1', 'yes', 'y'].includes(value.trim().toLowerCase());
+        }
+        return false;
+    }
+
+    private getSigmaLinkExtremities(link: any): { head: 'arrow' | 'none'; tail: 'arrow' | 'none' } {
+        const directed = this.isTruthyNetworkFlag(this.widgets['link-directed'])
+            && this.isTruthyNetworkFlag(link?.directed);
+        const bidirectional = directed
+            && this.isTruthyNetworkFlag(this.widgets['link-bidirectional'])
+            && this.isTruthyNetworkFlag(link?.bidirectional);
+        return {
+            head: directed ? 'arrow' : 'none',
+            tail: bidirectional ? 'arrow' : 'none'
+        };
+    }
+
     private syncSigmaSelection(selectedIds: ReadonlySet<string>): void {
         let selectionChanged = false;
         const syncNodes = (nodes: any[]) => {
@@ -1472,6 +1521,34 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         this.store.setNetworkRendered(false);
         this.cdref.detectChanges();
         setTimeout(() => this.onLoadNewData(), 0);
+    }
+
+    private suppressUnsafeCanvasFallbackIfNeeded(): boolean {
+        if (!this.sigmaRequested || this.sigmaActive) {
+            this.canvasFallbackSuppressed = false;
+            return false;
+        }
+
+        const nodeCount = this.commonService.getVisibleNodes().length;
+        const edgeCount = this.commonService.getVisibleLinks(true).length;
+        const shouldSuppress = shouldUseTableOnlyCanvasFallback(nodeCount, edgeCount);
+        this.canvasFallbackSuppressed = shouldSuppress;
+        if (!shouldSuppress) return false;
+
+        this.sigmaFallbackReason = [
+            'WebGL 2 is unavailable.',
+            `The ${nodeCount.toLocaleString()}-node, ${edgeCount.toLocaleString()}-link network is above the safe Canvas fallback limit,`,
+            'so the graph remains available through the data tables without allocating a second in-memory renderer.'
+        ].join(' ');
+        this.rendererAccessibleFeatureSummary = [
+            `${nodeCount.toLocaleString()} network nodes`,
+            `${edgeCount.toLocaleString()} network links`,
+            'table-only Canvas safety mode'
+        ].join('; ');
+        this.setNetworkRendering(false);
+        this.store.setNetworkRendered(true);
+        this.cdref.markForCheck();
+        return true;
     }
 
     private recoverSigmaWebglContext(): void {
@@ -1578,6 +1655,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             const sigmaNodes = networkData.nodes.map(node => {
                 const [color, opacity] = this.getNodeColor(node);
                 const nodeId = this.getNodeId(node);
+                const shapeKey = this.getNodeShape(node);
                 const group = groupField
                     ? this.normalizeGroupingValue(node[groupField])
                     : this.sigmaLayoutGroupByNodeId.get(nodeId) || null;
@@ -1588,6 +1666,11 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                     label: String(this.getNodeLabel(node) || nodeId),
                     labelSize: Math.max(6, Number(this.widgets['node-label-size']) || 12),
                     labelPosition: this.getSigmaLabelPosition(),
+                    shape: this.getSigmaNodeShape(shapeKey),
+                    shapeKey,
+                    iconVectorData: getCustomNodeShapeVectorData(shapeKey),
+                    borderColor: String(node.borderColor || '#111827'),
+                    borderWidth: this.getNodeBorderWidth(node),
                     color: String(color || '#2563eb'),
                     opacity: Number.isFinite(Number(opacity)) ? Number(opacity) : 1,
                     size: Math.max(2.5, Math.min(12, Number(node.nodeSize || this.widgets['node-radius']) / 5)),
@@ -1600,6 +1683,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             });
             const sigmaLinks = networkData.links.map((link, index) => {
                 const linkColor = this.getLinkColor(link);
+                const extremities = this.getSigmaLinkExtremities(link);
                 return {
                     id: String(link.id ?? `${this.getLinkEndpointId(link.source)}--${this.getLinkEndpointId(link.target)}--${index}`),
                     source: this.getLinkEndpointId(link.source),
@@ -1609,6 +1693,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                     size: Math.max(0.25, Math.min(2.5, Number(this.getLinkWidth(link)) || 0.75)),
                     distance: Number.isFinite(Number(link.distance)) ? Number(link.distance) : undefined,
                     label: String(this.getLinkLabel(link).text || ''),
+                    ...extremities,
                     raw: link
                 };
             });
@@ -7534,6 +7619,10 @@ scaleLinkWidth() {
         this.IsDataAvailable = (this.commonService.session.data.nodes.length > 0);
 
         if (!this.IsDataAvailable) {
+            return;
+        }
+
+        if (this.suppressUnsafeCanvasFallbackIfNeeded()) {
             return;
         }
 

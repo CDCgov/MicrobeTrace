@@ -94,7 +94,7 @@
   background: #ffffff;
 }
 
-.sigma-migration-banner {
+.network-renderer-banner {
   position: absolute;
   top: 46px;
   right: 14px;
@@ -113,8 +113,26 @@
   font-size: 12px;
 }
 
-.sigma-migration-status {
+.network-renderer-status {
   color: #475569;
+}
+
+.network-canvas-safety-message {
+  display: grid;
+  place-content: center;
+  width: 100%;
+  height: 100%;
+  min-height: 320px;
+  padding: 32px;
+  border: 1px dashed #94a3b8;
+  background: #f8fafc;
+  color: #334155;
+  text-align: center;
+}
+
+.network-canvas-safety-message h3 {
+  margin-bottom: 8px;
+  color: #0f172a;
 }
 
 .sigma-detail-controls {

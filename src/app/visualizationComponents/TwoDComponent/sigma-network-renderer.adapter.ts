@@ -1,5 +1,7 @@
 import Graph from 'graphology';
 import Sigma from 'sigma';
+import { extremityArrow, layerPlain, pathLine, pathLoop } from 'sigma/rendering';
+import type { EdgePrimitives } from 'sigma/primitives';
 import {
   EMPTY_NETWORK_NODE_VISUAL_FEATURES,
   hasNetworkNodeVisualFeatures,
@@ -19,6 +21,22 @@ import {
 } from './sigma-network-node-program';
 
 export type SigmaEdgeDetailMode = 'overview' | 'detail' | 'all';
+export type SigmaNodeShape = 'circle' | 'square' | 'triangle' | 'diamond';
+
+export interface SigmaNodeIconVectorData {
+  width: number;
+  height: number;
+  path: string;
+  fillPath: string;
+}
+
+const MICROBETRACE_SIGMA_EDGE_PRIMITIVES: EdgePrimitives = {
+  paths: [pathLine(), pathLoop()],
+  extremities: [extremityArrow({ lengthRatio: 2.5, widthRatio: 2.2, margin: 2 })],
+  layers: [layerPlain()],
+  defaultHead: 'none',
+  defaultTail: 'none',
+};
 
 export interface SigmaPocNode {
   id: string;
@@ -27,6 +45,11 @@ export interface SigmaPocNode {
   label: string;
   labelSize?: number;
   labelPosition?: 'left' | 'right' | 'above' | 'below' | 'over';
+  shape?: SigmaNodeShape;
+  shapeKey?: string;
+  iconVectorData?: SigmaNodeIconVectorData | null;
+  borderColor?: string;
+  borderWidth?: number;
   color: string;
   opacity: number;
   size: number;
@@ -46,6 +69,8 @@ export interface SigmaPocLink {
   size: number;
   distance?: number;
   label?: string;
+  head?: 'arrow' | 'none';
+  tail?: 'arrow' | 'none';
   raw: any;
 }
 
@@ -87,6 +112,11 @@ interface SigmaNodeAttributes extends Record<string, unknown>, SigmaNetworkFeatu
   label: string;
   labelSize: number;
   labelPosition: 'left' | 'right' | 'above' | 'below' | 'over';
+  shape: SigmaNodeShape;
+  shapeKey: string;
+  iconVectorData: SigmaNodeIconVectorData | null;
+  borderColor: string;
+  borderWidth: number;
   color: string;
   opacity: number;
   size: number;
@@ -99,6 +129,8 @@ interface SigmaNodeAttributes extends Record<string, unknown>, SigmaNetworkFeatu
 
 interface SigmaEdgeAttributes extends Record<string, unknown> {
   label: string;
+  head: 'arrow' | 'none';
+  tail: 'arrow' | 'none';
   color: string;
   opacity: number;
   size: number;
@@ -522,6 +554,7 @@ export class SigmaNetworkRendererAdapter {
   private nodeDraggingEnabled = true;
   private renderEdgeLabels = false;
   private highlightNeighbors = true;
+  private iconPathCache = new Map<string, Path2D>();
 
   private readonly handleWebglContextLost = (event: Event): void => {
     event.preventDefault();
@@ -597,6 +630,11 @@ export class SigmaNetworkRendererAdapter {
         label: node.label || node.id,
         labelSize: Math.max(6, Number(node.labelSize) || 12),
         labelPosition: node.labelPosition || 'right',
+        shape: node.shape || 'circle',
+        shapeKey: node.shapeKey || node.shape || 'ellipse',
+        iconVectorData: node.iconVectorData || null,
+        borderColor: node.borderColor || '#111827',
+        borderWidth: Math.max(0, Number(node.borderWidth) || 0),
         color: node.color || '#2563eb',
         opacity: Number.isFinite(node.opacity) ? node.opacity : 1,
         size: Math.max(2, Number(node.size) || 6),
@@ -616,6 +654,8 @@ export class SigmaNetworkRendererAdapter {
       while (graph.hasEdge(edgeId)) edgeId = `${link.id}--${duplicate++}`;
       graph.addEdgeWithKey(edgeId, link.source, link.target, {
         label: link.label || '',
+        head: link.head || 'none',
+        tail: link.tail || 'none',
         color: link.color || '#94a3b8',
         opacity: Number.isFinite(link.opacity) ? link.opacity : 0.35,
         size: Math.max(0.25, Number(link.size) || 0.75),
@@ -857,6 +897,7 @@ export class SigmaNetworkRendererAdapter {
     this.groupHulls = [];
     this.rankedEdges = [];
     this.incidentEdgeIdsByNode.clear();
+    this.iconPathCache.clear();
     this.graph.clear();
     this.displayGraph.clear();
     this.geographicOverlay = null;
@@ -891,12 +932,23 @@ export class SigmaNetworkRendererAdapter {
         const selected = this.selectedNodeIds.has(String(attributes.raw.id));
         return {
           ...displayData,
-          color: selected ? this.selectedColor : String(attributes.color),
+          color: attributes.iconVectorData
+            ? 'rgba(0,0,0,0)'
+            : selected ? this.selectedColor : String(attributes.color),
           opacity: inActiveNeighborhood ? Number(attributes.opacity) : 0.12,
           size: Number(attributes.size) * Number(attributes.mtFeatureScale || 1) *
             (selected || state.isHovered || focused ? 1.35 : 1),
+          shape: attributes.shape,
           label: inActiveNeighborhood ? String(attributes.label) : null,
+          labelSize: attributes.labelSize,
+          labelPosition: attributes.labelPosition,
           labelVisibility: selected || state.isHovered || focused ? 'visible' : 'auto',
+          backdropVisibility: attributes.borderWidth > 0 || selected ? 'visible' : 'hidden',
+          backdropArea: 'node',
+          backdropColor: 'rgba(0,0,0,0)',
+          backdropPadding: 0,
+          backdropBorderColor: selected ? this.selectedColor : attributes.borderColor,
+          backdropBorderWidth: selected ? Math.max(3, attributes.borderWidth) : attributes.borderWidth,
           highlighted: selected || state.isHovered || focused,
           zIndex: selected || state.isHovered || focused ? 20 : 1,
         };
@@ -917,35 +969,28 @@ export class SigmaNetworkRendererAdapter {
           color: incidentToHover || incidentToSelection ? this.selectedColor : String(attributes.color),
           opacity: incidentToHover || incidentToSelection ? 0.9 : Number(attributes.opacity),
           size: Number(attributes.size) * (incidentToHover || incidentToSelection || state.isHovered ? 1.75 : 1),
+          head: attributes.head,
+          tail: attributes.tail,
           zIndex: incidentToHover || incidentToSelection ? 10 : 0,
         };
       },
     };
 
-    let needsCustomNodeFeatures = false;
-    this.graph.forEachNode((_nodeId, attributes) => {
-      needsCustomNodeFeatures ||= hasNetworkNodeVisualFeatures(attributes.features);
-    });
-
-    if (needsCustomNodeFeatures) {
-      try {
-        this.renderer = new Sigma(this.displayGraph, this.container, {
-          ...rendererOptions,
-          primitives: {
-            nodes: MICROBETRACE_SIGMA_NODE_PRIMITIVES,
-          },
-        });
-        this.customWebglNodeFeaturesActive = true;
-      } catch (error) {
-        // A custom shader can fail on an older/limited GPU even when WebGL2 is
-        // available. Keep Sigma usable and preserve feature semantics through
-        // the existing Canvas glyph layer in that case.
-        console.warn('Sigma custom node feature program unavailable; using Canvas glyphs.', error);
-        this.container.replaceChildren();
-        this.renderer = new Sigma(this.displayGraph, this.container, rendererOptions);
-        this.customWebglNodeFeaturesActive = false;
-      }
-    } else {
+    try {
+      this.renderer = new Sigma(this.displayGraph, this.container, {
+        ...rendererOptions,
+        primitives: {
+          nodes: MICROBETRACE_SIGMA_NODE_PRIMITIVES,
+          edges: MICROBETRACE_SIGMA_EDGE_PRIMITIVES,
+        },
+      });
+      this.customWebglNodeFeaturesActive = true;
+    } catch (error) {
+      // A custom shader can fail on an older/limited GPU even when WebGL2 is
+      // available. Keep Sigma usable and preserve feature semantics through
+      // the existing Canvas glyph layer in that case.
+      console.warn('Sigma custom renderer programs unavailable; using the base renderer.', error);
+      this.container.replaceChildren();
       this.renderer = new Sigma(this.displayGraph, this.container, rendererOptions);
       this.customWebglNodeFeaturesActive = false;
     }
@@ -1687,11 +1732,12 @@ export class SigmaNetworkRendererAdapter {
 
     this.graph.forEachNode((nodeId, attributes) => {
       const focused = nodeId === this.keyboardFocusedNodeId;
-      if (!focused && !hasNetworkNodeVisualFeatures(attributes.features)) return;
+      if (!focused && !attributes.iconVectorData && !hasNetworkNodeVisualFeatures(attributes.features)) return;
       const point = this.renderer!.graphToViewport({
         x: Number(attributes.x),
         y: Number(attributes.y),
       });
+      const baseRadius = this.renderer!.scaleSize(Number(attributes.size));
       const radius = this.renderer!.scaleSize(
         Number(attributes.size) * Number(attributes.mtFeatureScale || 1),
       );
@@ -1700,6 +1746,30 @@ export class SigmaNetworkRendererAdapter {
         point.x < -margin || point.x > width + margin ||
         point.y < -margin || point.y > height + margin
       ) return;
+      if (attributes.iconVectorData) {
+        const icon = attributes.iconVectorData;
+        const fillPath = this.getIconPath(icon.fillPath);
+        const outlinePath = icon.path === icon.fillPath ? fillPath : this.getIconPath(icon.path);
+        const iconScale = Math.min(
+          (baseRadius * 2) / Math.max(1, icon.width),
+          (baseRadius * 2) / Math.max(1, icon.height),
+        );
+        const activeNodeId = this.keyboardFocusedNodeId || (this.highlightNeighbors ? this.hoveredNodeId : null);
+        const inActiveNeighborhood = !activeNodeId || this.hoveredNeighborhood.has(nodeId);
+        context.save();
+        context.globalAlpha = inActiveNeighborhood ? Number(attributes.opacity) : 0.12;
+        context.translate(point.x, point.y);
+        context.scale(iconScale, iconScale);
+        context.translate(-icon.width / 2, -icon.height / 2);
+        context.fillStyle = String(attributes.color);
+        context.fill(fillPath);
+        if (outlinePath !== fillPath) {
+          context.strokeStyle = String(attributes.color);
+          context.lineWidth = Math.max(1, 1.5 / Math.max(iconScale, 0.01));
+          context.stroke(outlinePath);
+        }
+        context.restore();
+      }
       if (!this.customWebglNodeFeaturesActive && hasNetworkNodeVisualFeatures(attributes.features)) {
         drawNetworkNodeFeatureGlyph(context, {
           x: point.x,
@@ -1719,6 +1789,15 @@ export class SigmaNetworkRendererAdapter {
         context.restore();
       }
     });
+  }
+
+  private getIconPath(pathData: string): Path2D {
+    let path = this.iconPathCache.get(pathData);
+    if (!path) {
+      path = new Path2D(pathData);
+      this.iconPathCache.set(pathData, path);
+    }
+    return path;
   }
 
   private drawGeographicOverlay(): void {

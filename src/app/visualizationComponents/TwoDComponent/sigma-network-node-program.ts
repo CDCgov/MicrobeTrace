@@ -1,5 +1,11 @@
 import type { NetworkNodeVisualFeatures } from '@app/contactTraceCommonServices/network-node-features';
-import { sdfCircle, type FragmentLayer } from 'sigma/rendering';
+import {
+  sdfCircle,
+  sdfDiamond,
+  sdfSquare,
+  sdfTriangle,
+  type FragmentLayer,
+} from 'sigma/rendering';
 import type { NodePrimitives } from 'sigma/primitives';
 
 export interface SigmaNetworkFeatureAttributes extends Record<string, unknown> {
@@ -108,7 +114,9 @@ vec4 layer_mt_features(
   bool hasFeatures = hasDonut || v_mtUncertainty > 0.0 || v_mtQcVisible > 0.5;
   float baseRadius = hasFeatures ? 0.57 : 0.96;
   float distanceFromCenter = length(context.uv);
-  vec4 result = mtMaskColor(v_mtBaseColor, mtCircleMask(context.uv, vec2(0.0), baseRadius));
+  vec4 result = hasFeatures
+    ? mtMaskColor(v_mtBaseColor, mtCircleMask(context.uv, vec2(0.0), baseRadius))
+    : v_mtBaseColor;
 
   if (hasDonut) {
     float outerMask = smoothstep(0.90 + context.aaWidth, 0.90 - context.aaWidth, distanceFromCenter);
@@ -149,7 +157,7 @@ vec4 layer_mt_features(
 };
 
 export const MICROBETRACE_SIGMA_NODE_PRIMITIVES: NodePrimitives = {
-  shapes: [sdfCircle()],
+  shapes: [sdfCircle(), sdfSquare(), sdfTriangle(), sdfDiamond()],
   variables: {
     mtDonutCount: { type: 'number', default: 0 },
     mtDonutStops: { type: 'number', default: 0 },
