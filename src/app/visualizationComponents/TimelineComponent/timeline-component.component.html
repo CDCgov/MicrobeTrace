@@ -13,57 +13,190 @@
 
 @if (viewActive) {
   <p-dialog id="epiCurve-settings-pane" [(visible)]="ShowEpiSettingsPane" header="Epi Curve Settings"
-    [style]="{width: '500px', height:'490px'}" appendTo="body">
+    [style]="{width: '640px', height:'560px'}" appendTo="body">
     <tabset class="tab-container tabbable-line">
       <tab heading="{{'Graph' | localize}}" [active]="true" customClass="m-tabs__item">
         <div class="tab-pane fade show active" id="table-node-settings" role="tabpanel" aria-labelledby="nodes-tab">
           <div class="tab-content">
             <div class="tab-pane fade show active" role="tabpanel">
-              <div class="form-group row" title="Select the type of graph based on the number of date field you wish to display.">
+              <div class="form-group row" title="Choose how one or more series are arranged in the chart.">
                 <div class="col-4">
                   <label>Graph Type</label>
+                  @if (selectedGraphType!='Single Date Field') {
+                    <span class="epi-series-help-tooltip">
+                      <button type="button" class="epi-series-help-tooltip__trigger"
+                        aria-label="About multi-series charts" aria-describedby="epi-series-help-tooltip-content">
+                        <i class="pi pi-info-circle" aria-hidden="true"></i>
+                      </button>
+                      <span id="epi-series-help-tooltip-content" class="epi-series-help-tooltip__content" role="tooltip">
+                        Add up to four series. Map each series to a date field and choose whether it is displayed as a bar or a line.
+                        Bar series are grouped in Side by Side mode and layered in Overlay mode.
+                        In Overlay, one Count or Sum bar series can also be stacked by category from Order &amp; Color.
+                        Every series uses the left axis unless bars and lines are mixed; then bars use the right axis.
+                      </span>
+                    </span>
+                  }
                 </div>
                 <div class="col-8">
                   <p-select [options]="graphTypes" appendTo="body" class="width-percent-100" [(ngModel)]="selectedGraphType" (ngModelChange)="onGraphTypeChange()"></p-select>
                 </div>
               </div>
-              <div class="form-group row" title="Select a date field from your data. One is required to generate graph.">
-                <div class="col-4">
-                  <label>Date Field</label>
-                </div>
-                <div class="col-6" style="padding-right: 5px">
-                  <p-select [options]="FieldList" appendTo="body" class="width-percent-100" [(ngModel)]="SelectedDateFieldVariable" (ngModelChange)="onDateFieldChange(0)"></p-select>
-                </div>
-                @if (selectedGraphType!='Single Date Field' || widgets['epiCurve-stackColorBy'] == 'None') {
-                  <div class="col-2" style="padding: 0px 15px 0px 10px" title="Select a color for this date field.">
-                    <input type="color" id="epi-color-select" class="form-control" style="padding: 5px 8px;" [(ngModel)]="widgets['epiCurve-colors'][0]" (change)="onNodeColorChanged()">
-                  </div>
-                }
-              </div>
-              @if (selectedGraphType!='Single Date Field') {
-                <div class="form-group row additionalDateField" title="Select an additional date field.">
-                  <div class="col-4">
-                    <label>Date Field 2</label>
-                  </div>
-                  <div class="col-6" style="padding-right: 5px">
-                    <p-select [options]="FieldList" appendTo="body" class="width-percent-100" [(ngModel)]="SelectedDateFieldVariable2" (ngModelChange)="onDateFieldChange(1)"></p-select>
-                  </div>
-                  <div class="col-2" style="padding: 0px 15px 0px 10px" title="Select a color for this date field.">
-                    <input type="color" id="epi-color-select-2" class="form-control" style="padding: 5px 8px;" [(ngModel)]="widgets['epiCurve-colors'][1]" (change)="onNodeColorChanged()">
-                  </div>
+              @if (FieldList.length == 1) {
+                <div class="epi-field-empty" role="status">
+                  No compatible date fields were found. Date fields need at least one populated calendar date.
                 </div>
               }
-              @if (selectedGraphType!='Single Date Field') {
-                <div class="form-group row additionalDateField" title="Select an additional date field.">
+              @if (selectedGraphType=='Single Date Field') {
+                <div class="form-group row" title="Select a date field from your data. One is required to generate the graph.">
                   <div class="col-4">
-                    <label>Date Field 3</label>
+                    <label for="epi-date-field-select-1">Date Field</label>
                   </div>
                   <div class="col-6" style="padding-right: 5px">
-                    <p-select [options]="FieldList" appendTo="body" class="width-percent-100" [(ngModel)]="SelectedDateFieldVariable3" (ngModelChange)="onDateFieldChange(2)"></p-select>
+                    <p-select inputId="epi-date-field-select-1" [options]="FieldList" appendTo="body" class="width-percent-100"
+                      [(ngModel)]="widgets['epiCurve-date-fields'][0]" (ngModelChange)="onDateFieldChange(0)"></p-select>
                   </div>
-                  <div class="col-2" style="padding: 0px 15px 0px 10px" title="Select a color for this date field.">
-                    <input type="color" id="epi-color-select-3" class="form-control" style="padding: 5px 8px;" [(ngModel)]="widgets['epiCurve-colors'][2]" (change)="onNodeColorChanged()">
+                  @if (widgets['epiCurve-stackColorBy'] == 'None') {
+                    <div class="col-2" style="padding: 0px 15px 0px 10px" title="Select a color for this date field.">
+                      <input type="color" id="epi-color-select" class="form-control" style="padding: 5px 8px;"
+                        [(ngModel)]="widgets['epiCurve-colors'][0]" (change)="onNodeColorChanged()">
+                    </div>
+                  }
+                </div>
+                @if (getDateFieldValidationMessage(0)) {
+                  <div class="epi-field-validation" role="alert">{{ getDateFieldValidationMessage(0) }}</div>
+                }
+                @if (seriesDataInclusionSummaries[0]; as summary) {
+                  <div id="epi-data-inclusion-summary-1" class="epi-data-inclusion-summary" role="status">
+                    <i class="pi pi-info-circle" aria-hidden="true"></i>
+                    <span>{{ summary.text }}</span>
                   </div>
+                }
+              } @else {
+                <div class="epi-series-list">
+                  @for (seriesIndex of visibleSeriesIndexes; track seriesIndex) {
+                    <section class="epi-series-card" [attr.data-series-index]="seriesIndex">
+                      <div class="epi-series-card__header">
+                        <span>Series {{ seriesIndex + 1 }}</span>
+                        <div class="epi-series-card__actions">
+                          <span class="epi-series-axis-badge"
+                            [class.epi-series-axis-badge--right]="getSeriesAxis(seriesIndex) == 'Right'"
+                            [attr.data-series-axis]="getSeriesAxis(seriesIndex).toLowerCase()"
+                            [attr.aria-label]="'Series ' + (seriesIndex + 1) + ' uses the ' + getSeriesAxis(seriesIndex) + ' axis'"
+                            title="Lines use the left axis. Bars use the right axis when combined with lines; otherwise bars use the left axis.">
+                            Axis: {{ getSeriesAxis(seriesIndex) }}
+                          </span>
+                          @if (seriesIndex > 0) {
+                            <button type="button" class="btn btn-sm epi-remove-series"
+                              [id]="'epi-remove-series-' + (seriesIndex + 1)"
+                              [attr.aria-label]="'Remove series ' + (seriesIndex + 1)"
+                              [title]="'Remove series ' + (seriesIndex + 1)"
+                              (click)="removeSeries(seriesIndex)">
+                              <i class="pi pi-trash" aria-hidden="true"></i>
+                            </button>
+                          }
+                        </div>
+                      </div>
+                      <div class="form-group row" title="Select a date field from your data.">
+                        <div class="col-4">
+                          <label [for]="'epi-date-field-select-' + (seriesIndex + 1)">{{ getSeriesDateLabel(seriesIndex) }}</label>
+                        </div>
+                        <div class="col-6" style="padding-right: 5px">
+                          <p-select [inputId]="'epi-date-field-select-' + (seriesIndex + 1)" [options]="FieldList" appendTo="body"
+                            class="width-percent-100" [(ngModel)]="widgets['epiCurve-date-fields'][seriesIndex]"
+                            (ngModelChange)="onDateFieldChange(seriesIndex)"></p-select>
+                        </div>
+                        <div class="col-2" style="padding: 0px 15px 0px 10px" title="Select a color for this series.">
+                          <input type="color" [id]="getSeriesColorInputId(seriesIndex)" class="form-control" style="padding: 5px 8px;"
+                            [(ngModel)]="widgets['epiCurve-colors'][seriesIndex]" (change)="onNodeColorChanged()">
+                        </div>
+                      </div>
+                      @if (getDateFieldValidationMessage(seriesIndex)) {
+                        <div class="epi-field-validation" role="alert">{{ getDateFieldValidationMessage(seriesIndex) }}</div>
+                      }
+                      <div class="form-group row" title="Select the numeric field used by Sum, Last, or Average. Count does not require a value field.">
+                        <div class="col-4">
+                          <label [for]="'epi-value-field-select-' + (seriesIndex + 1)">Value Field {{ seriesIndex + 1 }}</label>
+                        </div>
+                        <div class="col-8">
+                          <p-select [inputId]="'epi-value-field-select-' + (seriesIndex + 1)" [options]="ValueFieldList" appendTo="body"
+                            class="width-percent-100" [(ngModel)]="widgets['epiCurve-value-fields'][seriesIndex]"
+                            (ngModelChange)="onValueFieldChange(seriesIndex)"></p-select>
+                        </div>
+                      </div>
+                      @if (getValueFieldValidationMessage(seriesIndex)) {
+                        <div class="epi-field-validation" role="alert">{{ getValueFieldValidationMessage(seriesIndex) }}</div>
+                      }
+                      <div class="form-group row" title="Choose how records within each date bin are reduced to one value. Last uses the value from the latest dated record in the bin.">
+                        <div class="col-4">
+                          <label [for]="'epi-aggregation-select-' + (seriesIndex + 1)">Aggregation {{ seriesIndex + 1 }}</label>
+                        </div>
+                        <div class="col-8">
+                          <p-select [inputId]="'epi-aggregation-select-' + (seriesIndex + 1)" [options]="aggregationOptions" appendTo="body"
+                            class="width-percent-100" [disabled]="widgets['epiCurve-value-fields'][seriesIndex] == 'None'"
+                            [(ngModel)]="widgets['epiCurve-series-aggregations'][seriesIndex]"
+                            (ngModelChange)="onSeriesAggregationChange(seriesIndex)"></p-select>
+                        </div>
+                      </div>
+                      @if (seriesDataInclusionSummaries[seriesIndex]; as summary) {
+                        <div [id]="'epi-data-inclusion-summary-' + (seriesIndex + 1)"
+                          class="epi-data-inclusion-summary" role="status">
+                          <i class="pi pi-info-circle" aria-hidden="true"></i>
+                          <span>{{ summary.text }}</span>
+                        </div>
+                      }
+                      <div class="form-group row" title="Optionally apply a running total after aggregation. Leave this off when the value field already contains cumulative values.">
+                        <div class="col-4">
+                          <label [for]="'epi-series-cumulative-select-' + (seriesIndex + 1)">Cumulative {{ seriesIndex + 1 }}</label>
+                        </div>
+                        <div class="col-8">
+                          <p-select [inputId]="'epi-series-cumulative-select-' + (seriesIndex + 1)" [options]="seriesCumulativeOptions" appendTo="body"
+                            class="width-percent-100" [(ngModel)]="widgets['epiCurve-series-cumulative'][seriesIndex]"
+                            (ngModelChange)="onSeriesCumulativeChange()"></p-select>
+                        </div>
+                      </div>
+                      <div class="form-group row" title="Customize the legend and tooltip label. Leave blank to use the selected value field, or the date field when counting records.">
+                        <div class="col-4">
+                          <label [for]="'epi-series-label-' + (seriesIndex + 1)">Series Label {{ seriesIndex + 1 }}</label>
+                        </div>
+                        <div class="col-8">
+                          <input type="text" [id]="'epi-series-label-' + (seriesIndex + 1)" class="form-control form-control-sm"
+                            maxlength="160" [placeholder]="getDefaultSeriesLabel(seriesIndex)"
+                            [(ngModel)]="widgets['epiCurve-series-labels'][seriesIndex]"
+                            (ngModelChange)="onSeriesLabelChange()">
+                        </div>
+                      </div>
+                      <div class="form-group row" title="Display this date field as a bar or a line.">
+                        <div class="col-4">
+                          <label [for]="'epi-series-type-select-' + (seriesIndex + 1)">Series Type {{ seriesIndex + 1 }}</label>
+                        </div>
+                        <div class="col-8">
+                          <p-select [inputId]="'epi-series-type-select-' + (seriesIndex + 1)" [options]="seriesTypeOptions" appendTo="body"
+                            class="width-percent-100" [(ngModel)]="widgets['epiCurve-series-types'][seriesIndex]"
+                            (ngModelChange)="onSeriesTypeChange(seriesIndex)"></p-select>
+                        </div>
+                      </div>
+                      @if (getSeriesType(seriesIndex) == 'Line') {
+                        <div class="form-group row" title="Choose a solid or dashed line for this date field.">
+                          <div class="col-4">
+                            <label [for]="'epi-line-style-select-' + (seriesIndex + 1)">Line Style {{ seriesIndex + 1 }}</label>
+                          </div>
+                          <div class="col-8">
+                            <p-select [inputId]="'epi-line-style-select-' + (seriesIndex + 1)" [options]="lineStyleOptions" appendTo="body"
+                              class="width-percent-100" [(ngModel)]="widgets['epiCurve-lineStyles'][seriesIndex]"
+                              (ngModelChange)="onLineStyleChange()"></p-select>
+                          </div>
+                        </div>
+                      }
+                    </section>
+                  }
+                </div>
+                <div class="epi-series-toolbar">
+                  <span>{{ seriesCount }} of {{ maxSeriesCount }} series</span>
+                  <button type="button" id="epi-add-series" class="btn btn-primary btn-sm"
+                    [disabled]="seriesCount >= maxSeriesCount" (click)="addSeries()">
+                    <i class="pi pi-plus" aria-hidden="true"></i>
+                    Add series
+                  </button>
                 </div>
               }
               <div class="form-group row" title="Select the size to bin the data by.">
@@ -75,84 +208,169 @@
                 </div>
               </div>
 
-            <div class="form-group row" title="Show data noncumulatively or cumulatively.">
+            @if (selectedGraphType == 'Single Date Field') {
+              <div class="form-group row" title="Show data noncumulatively or cumulatively.">
                 <div class="col-4">Epi Curve</div>
                 <div class="col-8">
                   <p-select-button [allowEmpty]="false" fluid [(ngModel)]="widgets['epiCurve-cumulative']" (ngModelChange)="setCumulative()"
                     [options]="[{'label': 'Noncumulative', 'value': false}, {'label': 'Cumulative', 'value': true}]"></p-select-button>
                 </div>
               </div>
+            }
 
           </div>
           </div>
         </div>
       </tab>
-      <tab heading="{{'Legend & Labels' | localize}}" customClass="m-tabs__item">
-        <div class="form-group row" title="What interval to display ticks on x axis" id="epi-tick-size">
-          <div class="col-4">
-            <label for="cluster-minimum-size">X-axis Interval</label>
-          </div>
-          <div class="col-8">
-            <input type="number" class="form-control form-control-sm" min="1" max="4" step="1" [(ngModel)]="tickInterval" (ngModelChange)="onTickIntevalChange()">
-          </div>
-        </div>
-        <div class="form-group row node-label-row" title="Select a font Size for axis labels.">
-          <div class="col-4 padding-right-5"><label>Label Size</label></div>
-          <div class="col-8"><input type="range" class="custom-range" min="10" step="2" max="28" [(ngModel)]="labelSize" (ngModelChange)="onLabelSizeChange()"></div>
-        </div>
-        <div class="form-group row" title="Select where to display the legend.">
-          <div class="col-4">
-            <label>Legend Position</label>
-          </div>
-          <div class="col-8">
-            <p-select-button [options]="legendPositionOptions" [allowEmpty]="false" [(ngModel)]="widgets['epiCurve-legendPosition']" (ngModelChange)="onLegendPositionChange()"></p-select-button>
-          </div>
-        </div>
-        @if (widgets['epiCurve-legendPosition'] != 'Hide') {
-          <div class="form-group row node-label-row" title="Select a font size for legend labels.">
-            <div class="col-4 padding-right-5"><label>Legend Size</label></div>
-            <div class="col-8"><input type="range" class="custom-range" min="10" step="2" max="28" [(ngModel)]="legendLabelSize" (ngModelChange)="onLegendLabelSizeChange()"></div>
-          </div>
-        }
-      </tab>
-      <tab customClass="m-tabs__item" [disabled]="selectedGraphType!='Single Date Field'">
-        <ng-template tabHeading>
-          <span title="Only available with a Single Date Field EpiCurve" style="pointer-events: auto;">{{'Order & Color' | localize}}</span>
-        </ng-template>
-        @if (selectedGraphType=='Single Date Field') {
-          <div class="form-group row" id="useNodeColorRow" title="Select a field to use to color the graph. Optional">
+      <tab heading="{{'Appearance' | localize}}" customClass="m-tabs__item">
+        <section class="epi-appearance-section" aria-labelledby="epi-appearance-legend-heading">
+          <h3 id="epi-appearance-legend-heading" class="epi-appearance-section__heading">Legend</h3>
+          <div class="form-group row" title="Select where to display the legend.">
             <div class="col-4">
-              <label>Color By</label>
+              <label>Legend Position</label>
             </div>
             <div class="col-8">
-              <p-select [options]="FieldListStack" appendTo="body" class="width-percent-100" [(ngModel)]="this.widgets['epiCurve-stackColorBy']" (ngModelChange)="onUseNodeColorChange()"></p-select>
+              <p-select-button [options]="legendPositionOptions" [allowEmpty]="false" [(ngModel)]="widgets['epiCurve-legendPosition']" (ngModelChange)="onLegendPositionChange()"></p-select-button>
             </div>
           </div>
-          @if (widgets['epiCurve-stackColorBy'] != 'None') {
-            <div class="form-group row" title="Select the order for stacked color groups.">
+          @if (widgets['epiCurve-legendPosition'] != 'Hide') {
+            <div class="form-group row node-label-row" title="Select a font size for legend labels.">
+              <div class="col-4 padding-right-5"><label>Legend Size</label></div>
+              <div class="col-8"><input type="range" class="custom-range" min="10" step="2" max="28" [(ngModel)]="legendLabelSize" (ngModelChange)="onLegendLabelSizeChange()"></div>
+            </div>
+          }
+        </section>
+
+        @if (hasVisibleLineSeries()) {
+          <section class="epi-appearance-section" aria-labelledby="epi-appearance-lines-heading">
+            <h3 id="epi-appearance-lines-heading" class="epi-appearance-section__heading">Lines</h3>
+            <div class="form-group row" title="Choose the thickness used by every line series.">
               <div class="col-4">
-                <label>Stack Order</label>
+                <label for="epi-line-width">Line Thickness</label>
               </div>
-              <div class="col-8">
-                <p-select [options]="stackOrderOptions" appendTo="body" class="width-percent-100" [(ngModel)]="widgets['epiCurve-stackOrder']" (ngModelChange)="onStackOrderChange()"></p-select>
+              <div class="col-6">
+                <input type="range" class="custom-range" id="epi-line-width"
+                  [min]="minLineWidth" [max]="maxLineWidth" step="1"
+                  [(ngModel)]="widgets['epiCurve-lineWidth']"
+                  (ngModelChange)="onLineWidthChange()">
+              </div>
+              <div class="col-2 text-right">
+                <output for="epi-line-width">{{ getLineWidth() }} px</output>
               </div>
             </div>
-            <div class="form-group row" title="Drag and drop stacked color groups to reorder them.">
-              <div class="col-12">
-                <p-order-list id="epi-stack-order-list" [value]="customStackOrderItems" [dragdrop]="true" (onReorder)="onCustomStackOrderReorder()">
-                  <ng-template #item let-item>
-                    <div class="d-flex align-items-center width-percent-100" style="gap: 8px;">
-                      <span style="flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis;">{{ item.label }}</span>
-                      @if (widgets['epiCurve-stackColorBy'] != 'Node Color') {
-                        <input type="color" class="form-control form-control-sm" style="width: 42px; padding: 2px;" [style.opacity]="1 - item.transparency" [ngModel]="item.color" (change)="onStackGroupColorChange(item, $any($event.target).value)" (click)="$event.stopPropagation()" (mousedown)="$event.stopPropagation()" (pointerdown)="$event.stopPropagation()" title="Color">
-                        <a class="transparency-symbol" style="cursor: pointer;" title="Transparency" (click)="openStackGroupTransparencyPicker($event, item)" (mousedown)="$event.stopPropagation()" (pointerdown)="$event.stopPropagation()">&#8691;</a>
-                      }
-                    </div>
-                  </ng-template>
-                </p-order-list>
+          </section>
+        }
+
+        <section class="epi-appearance-section" aria-labelledby="epi-appearance-labels-heading">
+          <h3 id="epi-appearance-labels-heading" class="epi-appearance-section__heading">Labels</h3>
+          <div class="form-group row" title="Customize the x-axis title. Leave blank to use the automatic title.">
+            <div class="col-4">
+              <label for="epi-x-axis-label">X-axis Title</label>
+            </div>
+            <div class="col-8">
+              <input id="epi-x-axis-label" type="text" class="form-control form-control-sm" maxlength="120"
+                [placeholder]="getDefaultXAxisLabel()" [(ngModel)]="widgets['epiCurve-xAxisLabel']"
+                (ngModelChange)="onAxisTitleChange()">
+            </div>
+          </div>
+          <div class="form-group row" title="Customize the left y-axis title. Leave blank to use the automatic title.">
+            <div class="col-4">
+              <label for="epi-left-y-axis-label">Left Y-axis Title</label>
+            </div>
+            <div class="col-8">
+              <input id="epi-left-y-axis-label" type="text" class="form-control form-control-sm" maxlength="120"
+                [placeholder]="getDefaultYAxisLabel('Left')" [(ngModel)]="widgets['epiCurve-leftYAxisLabel']"
+                (ngModelChange)="onAxisTitleChange()">
+            </div>
+          </div>
+          @if (isDualAxisMulti()) {
+            <div class="form-group row" title="Customize the right y-axis title. Leave blank to use the automatic title.">
+              <div class="col-4">
+                <label for="epi-right-y-axis-label">Right Y-axis Title</label>
+              </div>
+              <div class="col-8">
+                <input id="epi-right-y-axis-label" type="text" class="form-control form-control-sm" maxlength="120"
+                  [placeholder]="getDefaultYAxisLabel('Right')" [(ngModel)]="widgets['epiCurve-rightYAxisLabel']"
+                  (ngModelChange)="onAxisTitleChange()">
               </div>
             </div>
           }
+          <div class="form-group row" title="Choose the time unit used between x-axis tick labels.">
+            <div class="col-4">
+              <label>Tick Unit</label>
+            </div>
+            <div class="col-8">
+              <p-select inputId="epi-tick-unit-select" [options]="tickUnitOptions" appendTo="body" class="width-percent-100"
+                [(ngModel)]="widgets['epiCurve-tickUnit']" (ngModelChange)="onTickUnitChange()"></p-select>
+            </div>
+          </div>
+          <div class="form-group row" title="What interval to display ticks on x axis" id="epi-tick-size">
+            <div class="col-4">
+              <label for="cluster-minimum-size">X-axis Interval</label>
+            </div>
+            <div class="col-8">
+              <input type="number" class="form-control form-control-sm" min="1" max="90" step="1" [(ngModel)]="tickInterval" (ngModelChange)="onTickIntevalChange()">
+            </div>
+          </div>
+          <div class="form-group row node-label-row" title="Select a font Size for axis labels.">
+            <div class="col-4 padding-right-5"><label>Label Size</label></div>
+            <div class="col-8"><input type="range" class="custom-range" min="10" step="2" max="28" [(ngModel)]="labelSize" (ngModelChange)="onLabelSizeChange()"></div>
+          </div>
+        </section>
+
+      </tab>
+      <tab heading="{{'Order & Color' | localize}}" customClass="m-tabs__item">
+        @if (selectedGraphType=='Single Date Field' || selectedGraphType=='Multi: Overlay') {
+          <section class="epi-appearance-section" aria-labelledby="epi-order-color-stack-colors-heading">
+            <h3 id="epi-order-color-stack-colors-heading" class="epi-appearance-section__heading">Stack Colors</h3>
+            @if (selectedGraphType=='Multi: Overlay') {
+              <div class="epi-stack-colors-note" role="status">
+                {{ getOverlayStackAvailabilityMessage() }}
+              </div>
+            }
+            <div class="form-group row" id="useNodeColorRow" title="Select a field to use to color the graph. Optional">
+              <div class="col-4">
+                <label>Color By</label>
+              </div>
+              <div class="col-8">
+                <p-select inputId="epi-stack-color-by-select" [options]="FieldListStack" appendTo="body" class="width-percent-100"
+                  [disabled]="selectedGraphType=='Multi: Overlay' && !isOverlayStackEligible()"
+                  [(ngModel)]="this.widgets['epiCurve-stackColorBy']" (ngModelChange)="onUseNodeColorChange()"></p-select>
+              </div>
+            </div>
+            @if (widgets['epiCurve-stackColorBy'] != 'None' && (selectedGraphType=='Single Date Field' || isOverlayStackEligible())) {
+              <div class="form-group row" title="Select the order for stacked color groups.">
+                <div class="col-4">
+                  <label>Stack Order</label>
+                </div>
+                <div class="col-8">
+                  <p-select [options]="stackOrderOptions" appendTo="body" class="width-percent-100" [(ngModel)]="widgets['epiCurve-stackOrder']" (ngModelChange)="onStackOrderChange()"></p-select>
+                </div>
+              </div>
+              <div class="form-group row" title="Drag and drop stacked color groups to reorder them.">
+                <div class="col-12">
+                  <p-order-list id="epi-stack-order-list" [(value)]="customStackOrderItems" [dragdrop]="true" (onReorder)="onCustomStackOrderReorder()">
+                    <ng-template #item let-item>
+                      <div class="d-flex align-items-center width-percent-100" style="gap: 8px;">
+                        <span class="epi-stack-drag-handle" title="Drag to reorder" aria-hidden="true">
+                          <i class="pi pi-bars"></i>
+                        </span>
+                        <span style="flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis;">{{ item.label }}</span>
+                        @if (widgets['epiCurve-stackColorBy'] != 'Node Color') {
+                          <input type="color" class="form-control form-control-sm" style="width: 42px; padding: 2px;" [style.opacity]="1 - item.transparency" [ngModel]="item.color" (change)="onStackGroupColorChange(item, $any($event.target).value)" (click)="$event.stopPropagation()" (mousedown)="$event.stopPropagation()" (pointerdown)="$event.stopPropagation()" title="Color">
+                          <a class="transparency-symbol" style="cursor: pointer;" title="Transparency" (click)="openStackGroupTransparencyPicker($event, item)" (mousedown)="$event.stopPropagation()" (pointerdown)="$event.stopPropagation()">&#8691;</a>
+                        }
+                      </div>
+                    </ng-template>
+                  </p-order-list>
+                </div>
+              </div>
+            }
+          </section>
+        } @else {
+          <div class="epi-stack-colors-note" role="status">
+            Order and color controls are available for Single Date Field and Multi: Overlay graphs.
+          </div>
         }
       </tab>
     </tabset>

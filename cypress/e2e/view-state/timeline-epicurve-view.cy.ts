@@ -1,3 +1,11 @@
+import {
+  addEpiCurveSeries,
+  EpiCurveFieldLabel,
+  selectEpiCurveDropdown,
+  setEpiCurveSeriesCumulative,
+} from '../../support/epi-curve-helpers';
+import { visitAppAndAcceptEula } from '../../support/journey-helpers';
+
 describe('Epi Curve / Timeline View', () => {
     const selectors = {
       container: '#epiCurve',
@@ -6,11 +14,7 @@ describe('Epi Curve / Timeline View', () => {
     };
   
     beforeEach(() => {
-      cy.visit('/');
-      cy.wait(6000);
-  
-      cy.contains('button', 'Continue with Sample Dataset', { timeout: 10000 }).click({ force: true });
-      cy.get('#overlay').should('not.be.visible', { timeout: 10000 });
+      visitAppAndAcceptEula({ skipDemoSession: false, dismissWelcomeOverlay: true });
   
       cy.contains('button', 'View').click();
       cy.contains('button[mat-menu-item]', 'Epi Curve').click();
@@ -21,6 +25,23 @@ describe('Epi Curve / Timeline View', () => {
     it('renders the epi curve canvas for the sample dataset', () => {
       cy.get('#epiCurveSVG').should('exist');
       cy.contains('.p-dialog-title', 'Epi Curve Settings').should('be.visible');
+
+      cy.contains('.p-dialog-title', 'Epi Curve Settings')
+        .parents('.p-dialog')
+        .first()
+        .within(() => {
+          cy.get('.nav-link').then(($tabs) => {
+            expect([...$tabs].map((tab) => String(tab.textContent || '').trim()))
+              .to.deep.equal(['Graph', 'Appearance', 'Order & Color']);
+          });
+          cy.contains('.nav-link', /^Appearance$/).click({ force: true });
+          cy.get('.epi-appearance-section__heading:visible').then(($headings) => {
+            expect([...$headings].map((heading) => String(heading.textContent || '').trim()))
+              .to.deep.equal(['Legend', 'Labels']);
+          });
+          cy.contains('.nav-link', /^Order & Color$/).click({ force: true });
+          cy.get('.epi-appearance-section__heading:visible').should('have.text', 'Stack Colors');
+        });
   
       cy.closeSettingsPane('Epi Curve Settings');
     });
@@ -195,11 +216,21 @@ describe('Epi Curve / Timeline View', () => {
         cy.get('#node-color-variable').click()
         cy.get('li[role="option"]').contains('Cluster').click()
         cy.get('#node-color-table-row', { timeout: 10000 }).should('be.visible');
-        cy.get('#node-color-table-row').contains('.p-selectbutton .p-togglebutton-label', 'Show').click({ force: true });
+        cy.get('#node-color-table-row').contains('.p-selectbutton .p-togglebutton-label', 'Dock').click({ force: true });
 
         cy.window()
           .its('commonService.GlobalSettingsModel.SelectedNodeColorTableTypesVariable')
-          .should('equal', 'Show');
+          .should('equal', 'Dock');
+        cy.get('body').then(($body) => {
+          const expandButton = $body
+            .find('#key-tables-node-table')
+            .closest('.key-table-card')
+            .find('button[title="Expand table"]');
+
+          if (expandButton.length) {
+            cy.wrap(expandButton).click({ force: true });
+          }
+        });
         cy.get('#key-tables-node-table').should('be.visible');
 
         cy.contains('#global-settings-modal .nav-link', 'Filtering').click();
@@ -260,9 +291,11 @@ describe('Epi Curve / Timeline View', () => {
       })
     })
 
-    context('Multi Date Field Tests', () => {
+    context('Multi-series tests', () => {
       beforeEach(() => {
         selectField('Graph Type', 'Multi: Side by Side')
+        addEpiCurveSeries(2)
+        addEpiCurveSeries(3)
 
         selectField('Date Field', 'CollectionDate')
         selectField('Date Field 2', 'Date of symptom onset Date')
@@ -282,10 +315,20 @@ describe('Epi Curve / Timeline View', () => {
 
       it("test multi overlay", () => { 
         selectField('Graph Type', 'Multi: Overlay')
+        selectField('Series Type 2', 'Line')
+        selectField('Series Type 3', 'Line')
+
+        selectEpiSettingsTab('Appearance')
+        cy.get('#epi-line-width')
+          .should('be.visible')
+          .parents('.epi-appearance-section')
+          .find('.epi-appearance-section__heading')
+          .should('have.text', 'Lines');
+        cy.get('[id^="epi-line-width-"]').should('not.exist');
 
         selectColor(0, '#aa0000', 0)
-        selectColor(1, '#00aa00', 4)
-        selectColor(2, '#0300aa', 8)
+        selectOverlayLineColor(1, '#00aa00')
+        selectOverlayLineColor(2, '#0300aa')
 
         selectBinSize('Quarter')
 
@@ -362,7 +405,7 @@ describe('Epi Curve / Timeline View', () => {
       })
     })
 
-    let selectEpiSettingsTab = (tab: 'Graph' | 'Legend & Labels' | 'Order & Color') => {
+    let selectEpiSettingsTab = (tab: 'Graph' | 'Appearance' | 'Order & Color') => {
       cy.contains('.p-dialog-title', 'Epi Curve Settings')
         .parents('.p-dialog')
         .within(() => {
@@ -372,24 +415,10 @@ describe('Epi Curve / Timeline View', () => {
         });
     }
 
-    let selectField = (field, value) => {
-      selectEpiSettingsTab(field == 'Color By' ? 'Order & Color' : 'Graph');
+    let selectField = (field: EpiCurveFieldLabel, value: string) => {
+      selectEpiCurveDropdown(field, value);
 
-      cy.contains('.p-dialog-title', 'Epi Curve Settings')
-      .parents('.p-dialog')
-      .within(() => {
-        cy.contains('label', field)
-          .parents('.form-group.row')
-          .first()
-          .find('p-select')
-          .click();
-      });
-
-      cy.get('.p-select-option')
-        .contains(value)
-        .click();
-
-      const normalize = (s: string) => s.replace(/_/g, '').toLowerCase();
+      const normalize = (s: string) => s.replace(/[_\s]/g, '').toLowerCase();
       let widgetLocation: string;
       if (field == 'Graph Type') {
         widgetLocation = 'commonService.session.style.widgets.epiCurve-graphType'
@@ -399,6 +428,10 @@ describe('Epi Curve / Timeline View', () => {
         widgetLocation = 'commonService.session.style.widgets.epiCurve-date-fields.1'
       } else if (field == 'Date Field 3') {
         widgetLocation = 'commonService.session.style.widgets.epiCurve-date-fields.2'
+      } else if (field == 'Series Type 2') {
+        widgetLocation = 'commonService.session.style.widgets.epiCurve-series-types.1'
+      } else if (field == 'Series Type 3') {
+        widgetLocation = 'commonService.session.style.widgets.epiCurve-series-types.2'
       } else if (field == 'Color By') {
         widgetLocation = 'commonService.session.style.widgets.epiCurve-stackColorBy'
       } else if (field == 'Bin Size') {
@@ -409,7 +442,7 @@ describe('Epi Curve / Timeline View', () => {
 
       cy.window()
         .its(widgetLocation)
-        .then(widgetValue =>
+        .should(widgetValue =>
           expect(normalize(widgetValue)).to.equal(normalize(value))
         )
 
@@ -421,9 +454,8 @@ describe('Epi Curve / Timeline View', () => {
 
         cy.get('#epiCurveSVG .epiCurve-epi-curve text')
           .eq(textBoxNumber)
-          .invoke('text')
-          .then((textValue) => {
-            expect(normalize(textValue)).to.equal(normalize(value));
+          .should(($text) => {
+            expect(normalize($text.text())).to.equal(normalize(value));
           });
       }
     }
@@ -456,8 +488,27 @@ describe('Epi Curve / Timeline View', () => {
         .should('have.attr', 'fill', color);
     }
 
+    let selectOverlayLineColor = (fieldNumber: 1 | 2, color: string) => {
+      const selector = `#epi-color-select-${fieldNumber + 1}`;
+
+      selectEpiSettingsTab('Graph');
+
+      cy.get(selector)
+        .invoke('val', color)
+        .trigger('input')
+        .trigger('change');
+
+      cy.window()
+        .its(`commonService.session.style.widgets.epiCurve-colors.${fieldNumber}`)
+        .should('equal', color);
+
+      cy.get(`#epiCurveSVG .epiCurve-line-overlay[data-field-index="${fieldNumber}"]`)
+        .should('have.length', 1)
+        .and('have.attr', 'stroke', color);
+    }
+
     let updateRangeSetting = (settingLabel: 'Label Size' | 'Legend Size', size: number) => {
-      selectEpiSettingsTab('Legend & Labels');
+      selectEpiSettingsTab('Appearance');
 
       cy.contains('.p-dialog-title', 'Epi Curve Settings')
         .parents('.p-dialog')
@@ -518,7 +569,6 @@ describe('Epi Curve / Timeline View', () => {
     }
 
     let selectCumulative = (cumulative: boolean, dateFieldCounts: 1 | 2 | 3 = 1) => {
-      const toggleLabel = cumulative ? 'Cumulative' : 'Noncumulative';
       let previousHeights: number[] = [];
       const splitByField = (heights: number[]) => {
         expect(
@@ -538,20 +588,27 @@ describe('Epi Curve / Timeline View', () => {
         previousHeights = [...$rects].map((rect) => Number(rect.getAttribute('height') || 0));
       });
 
-      selectEpiSettingsTab('Graph');
+      if (dateFieldCounts == 1) {
+        const toggleLabel = cumulative ? 'Cumulative' : 'Noncumulative';
+        selectEpiSettingsTab('Graph');
 
-      cy.contains('.p-dialog-title', 'Epi Curve Settings')
-        .parents('.p-dialog')
-        .within(() => {
-          cy.contains('.form-group.row', 'Epi Curve')
-            .find('.p-selectbutton .p-togglebutton-label')
-            .contains(toggleLabel)
-            .click({ force: true });
-        });
+        cy.contains('.p-dialog-title', 'Epi Curve Settings')
+          .parents('.p-dialog')
+          .within(() => {
+            cy.contains('.form-group.row', 'Epi Curve')
+              .find('.p-selectbutton .p-togglebutton-label')
+              .contains(toggleLabel)
+              .click({ force: true });
+          });
 
-      cy.window()
-        .its('commonService.session.style.widgets.epiCurve-cumulative')
-        .should('equal', cumulative);
+        cy.window()
+          .its('commonService.session.style.widgets.epiCurve-cumulative')
+          .should('equal', cumulative);
+      } else {
+        for (let fieldIndex = 0; fieldIndex < dateFieldCounts; fieldIndex += 1) {
+          setEpiCurveSeriesCumulative(fieldIndex as 0 | 1 | 2, cumulative);
+        }
+      }
 
       cy.get('#epiCurveSVG .epiCurve-epi-curve rect').then(($rects) => {
         const nextHeights = [...$rects].map((rect) => Number(rect.getAttribute('height') || 0));
@@ -576,7 +633,7 @@ describe('Epi Curve / Timeline View', () => {
     }
 
     let selectLegendPosition = (pos: 'Hide' | 'Left' | 'Right' | 'Bottom') => {
-      selectEpiSettingsTab('Legend & Labels');
+      selectEpiSettingsTab('Appearance');
 
       cy.contains('.p-dialog-title', 'Epi Curve Settings')
         .parents('.p-dialog')

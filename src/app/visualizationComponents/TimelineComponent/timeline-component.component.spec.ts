@@ -1,5 +1,6 @@
 import { NO_ERRORS_SCHEMA, Pipe, PipeTransform } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import * as d3 from 'd3';
 import { of } from 'rxjs';
 
 import { BaseComponentDirective } from '@app/base-component.directive';
@@ -58,5 +59,64 @@ describe('TimelineComponentComponent', () => {
 
   it('should create', () => {
     expect(component).toBeTruthy();
+  });
+
+  it('should default the legend position to the bottom', () => {
+    expect(component.widgets['epiCurve-legendPosition']).toBe('Bottom');
+  });
+
+  it('should apply the app font family to the exported SVG and D3 axes', () => {
+    const svgElement = fixture.nativeElement.querySelector('#epiCurveSVG') as SVGSVGElement;
+    svgElement.style.fontFamily = 'Roboto, "Helvetica Neue", sans-serif';
+    d3.select(svgElement)
+      .append('g')
+      .attr('class', 'axis')
+      .attr('font-family', 'sans-serif');
+
+    component['applyEpiCurveFontFamily']();
+
+    expect(svgElement.getAttribute('font-family')).toContain('Roboto');
+    expect(svgElement.style.fontFamily).toContain('Roboto');
+    expect(svgElement.querySelector('.axis')?.getAttribute('font-family')).toContain('Roboto');
+  });
+
+  it('should render stacked bars and lines in separate legend sections', () => {
+    component.widgets['epiCurve-legendPosition'] = 'Bottom';
+    component.selectedGraphType = 'Multi: Overlay';
+    component['height'] = 300;
+    component['width'] = 600;
+
+    const svgElement = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    const epiCurve = d3.select(svgElement).append('g');
+    component['generateLegendSections'](epiCurve, [
+      {
+        id: 'stacked-bars',
+        title: 'Stacked bars — Cases by State (Right axis)',
+        items: [
+          { color: '#f22020', label: 'Texas', seriesType: 'bar' },
+          { color: '#0ec434', label: 'Florida', seriesType: 'bar' },
+        ],
+      },
+      {
+        id: 'lines',
+        title: 'Lines (Left axis)',
+        items: [
+          { color: '#b79ecc', label: 'Onset trend', seriesType: 'line', lineStyle: 'Solid' },
+        ],
+      },
+    ]);
+
+    const sections = svgElement.querySelectorAll('.epiCurve-legend-section');
+    expect(sections.length).toBe(2);
+    expect(sections[0].getAttribute('data-legend-section')).toBe('stacked-bars');
+    expect(sections[1].getAttribute('data-legend-section')).toBe('lines');
+    expect(sections[0].querySelector('.epiCurve-legend-section-title')?.textContent)
+      .toContain('Stacked bars');
+    expect(sections[1].querySelector('.epiCurve-legend-section-title')?.textContent)
+      .toContain('Lines');
+    expect([...sections[0].querySelectorAll('.epiCurve-legend-label')]
+      .map(label => label.textContent)).toEqual(['Texas', 'Florida']);
+    expect([...sections[1].querySelectorAll('.epiCurve-legend-label')]
+      .map(label => label.textContent)).toEqual(['Onset trend']);
   });
 });

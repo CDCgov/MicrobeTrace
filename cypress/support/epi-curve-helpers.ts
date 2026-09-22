@@ -10,20 +10,37 @@ export type EpiCurveFieldLabel =
   | 'Date Field'
   | 'Date Field 2'
   | 'Date Field 3'
+  | 'Date Field 4'
+  | 'Value Field 1'
+  | 'Value Field 2'
+  | 'Value Field 3'
+  | 'Value Field 4'
+  | 'Aggregation 1'
+  | 'Aggregation 2'
+  | 'Aggregation 3'
+  | 'Aggregation 4'
+  | 'Series Type 1'
+  | 'Series Type 2'
+  | 'Series Type 3'
+  | 'Series Type 4'
   | 'Color By'
   | 'Stack Order'
-  | 'Bin Size';
+  | 'Bin Size'
+  | 'Tick Unit';
 
 export type EpiCurveBinSize = 'Day' | 'Week' | 'Month' | 'Quarter' | 'Year';
-export type EpiCurveLegendPosition = 'Hide' | 'Left' | 'Right' | 'Bottom';
+export type EpiCurveAggregation = 'Count' | 'Sum' | 'Last' | 'Average';
+export type EpiCurveLineStyle = 'Solid' | 'Dashed';
+export type EpiCurveLegendPosition = 'Hide' | 'Left' | 'Top' | 'Right' | 'Bottom';
 export type EpiCurveRangeLabel = 'Label Size' | 'Legend Size';
-export type EpiCurveTickInterval = 1 | 2 | 3 | 4;
+export type EpiCurveAxisTitle = 'X-axis Title' | 'Left Y-axis Title' | 'Right Y-axis Title';
+export type EpiCurveTickInterval = number;
 
 type WinWithMT = Window & {
   commonService: any;
 };
 
-type EpiCurveSettingsTab = 'Graph' | 'Legend & Labels' | 'Order & Color';
+type EpiCurveSettingsTab = 'Graph' | 'Appearance' | 'Order & Color';
 type EpiCurveStackItem = {
   label: string;
   value: any;
@@ -78,6 +95,11 @@ function selectEpiCurveFieldTab(field: EpiCurveFieldLabel): void {
     return;
   }
 
+  if (field === 'Tick Unit') {
+    selectEpiCurveSettingsTab('Appearance');
+    return;
+  }
+
   selectEpiCurveSettingsTab('Graph');
 }
 
@@ -119,9 +141,23 @@ const widgetPathByField: Record<EpiCurveFieldLabel, string> = {
   'Date Field': 'commonService.session.style.widgets.epiCurve-date-fields.0',
   'Date Field 2': 'commonService.session.style.widgets.epiCurve-date-fields.1',
   'Date Field 3': 'commonService.session.style.widgets.epiCurve-date-fields.2',
+  'Date Field 4': 'commonService.session.style.widgets.epiCurve-date-fields.3',
+  'Value Field 1': 'commonService.session.style.widgets.epiCurve-value-fields.0',
+  'Value Field 2': 'commonService.session.style.widgets.epiCurve-value-fields.1',
+  'Value Field 3': 'commonService.session.style.widgets.epiCurve-value-fields.2',
+  'Value Field 4': 'commonService.session.style.widgets.epiCurve-value-fields.3',
+  'Aggregation 1': 'commonService.session.style.widgets.epiCurve-series-aggregations.0',
+  'Aggregation 2': 'commonService.session.style.widgets.epiCurve-series-aggregations.1',
+  'Aggregation 3': 'commonService.session.style.widgets.epiCurve-series-aggregations.2',
+  'Aggregation 4': 'commonService.session.style.widgets.epiCurve-series-aggregations.3',
+  'Series Type 1': 'commonService.session.style.widgets.epiCurve-series-types.0',
+  'Series Type 2': 'commonService.session.style.widgets.epiCurve-series-types.1',
+  'Series Type 3': 'commonService.session.style.widgets.epiCurve-series-types.2',
+  'Series Type 4': 'commonService.session.style.widgets.epiCurve-series-types.3',
   'Color By': 'commonService.session.style.widgets.epiCurve-stackColorBy',
   'Stack Order': 'commonService.session.style.widgets.epiCurve-stackOrder',
   'Bin Size': 'commonService.session.style.widgets.epiCurve-binSize',
+  'Tick Unit': 'commonService.session.style.widgets.epiCurve-tickUnit',
 };
 
 export function selectEpiCurveDropdown(field: EpiCurveFieldLabel, value: string): void {
@@ -132,17 +168,18 @@ export function selectEpiCurveDropdown(field: EpiCurveFieldLabel, value: string)
   getEpiCurveRowByLabel(field)
     .scrollIntoView()
     .find('.p-select')
+    .first()
     .should('exist')
     .click({ force: true });
 
   cy.get(visibleOverlaySelector, { timeout: 10000 })
-    .should('have.length.greaterThan', 0)
-    .last()
-    .within(() => {
-      cy.contains('li[role="option"]', new RegExp(`^${escapeRegExp(value)}$`), { timeout: 10000 })
-        .scrollIntoView()
-        .click({ force: true });
-    });
+    .should('have.length.greaterThan', 0);
+
+  cy.contains(
+    `${visibleOverlaySelector} li[role="option"]`,
+    new RegExp(`^${escapeRegExp(value)}$`),
+    { timeout: 10000 },
+  ).click({ force: true });
 
   cy.get('body', { timeout: 10000 })
     .find(visibleOverlaySelector)
@@ -159,13 +196,175 @@ export function selectEpiCurveDropdown(field: EpiCurveFieldLabel, value: string)
 
   getEpiCurveRowByLabel(field)
     .find('.p-select-label')
+    .first()
     .should(($label) => {
       expect(normalizeValue($label.text()), `${field} select label`)
         .to.equal(normalizeValue(value));
     });
 }
 
-export function setEpiCurveColor(index: 0 | 1 | 2, color: string): void {
+export function setEpiCurveLineStyle(fieldIndex: 0 | 1 | 2 | 3, style: EpiCurveLineStyle): void {
+  const inputId = `#epi-line-style-select-${fieldIndex + 1}`;
+
+  selectEpiCurveSettingsTab('Graph');
+
+  getEpiCurveSettingsDialog()
+    .find(inputId)
+    .should('exist')
+    .click({ force: true });
+
+  cy.get('.p-select-overlay:visible', { timeout: 10000 })
+    .should('have.length.greaterThan', 0);
+
+  cy.contains(
+    '.p-select-overlay:visible li[role="option"]',
+    new RegExp(`^${escapeRegExp(style)}$`),
+    { timeout: 10000 },
+  ).click({ force: true });
+
+  cy.get('.p-select-overlay:visible', { timeout: 10000 })
+    .should('have.length', 0);
+
+  cy.window()
+    .its(`commonService.session.style.widgets.epiCurve-lineStyles.${fieldIndex}`)
+    .should('equal', style);
+}
+
+export function setEpiCurveLineWidth(width: number): void {
+  selectEpiCurveSettingsTab('Appearance');
+  getEpiCurveSettingsDialog()
+    .find('#epi-line-width')
+    .scrollIntoView()
+    .should('be.visible')
+    .invoke('val', width)
+    .trigger('input')
+    .trigger('change')
+    .should('have.value', `${width}`);
+
+  cy.window()
+    .its('commonService.session.style.widgets.epiCurve-lineWidth')
+    .should('equal', width);
+}
+
+export function setEpiCurveAxisTitle(axis: EpiCurveAxisTitle, title: string): void {
+  const inputIdByAxis: Record<EpiCurveAxisTitle, string> = {
+    'X-axis Title': '#epi-x-axis-label',
+    'Left Y-axis Title': '#epi-left-y-axis-label',
+    'Right Y-axis Title': '#epi-right-y-axis-label',
+  };
+  const widgetPathByAxis: Record<EpiCurveAxisTitle, string> = {
+    'X-axis Title': 'commonService.session.style.widgets.epiCurve-xAxisLabel',
+    'Left Y-axis Title': 'commonService.session.style.widgets.epiCurve-leftYAxisLabel',
+    'Right Y-axis Title': 'commonService.session.style.widgets.epiCurve-rightYAxisLabel',
+  };
+  const inputId = inputIdByAxis[axis];
+
+  selectEpiCurveSettingsTab('Appearance');
+  getEpiCurveSettingsDialog()
+    .find(inputId)
+    .scrollIntoView()
+    .should('be.visible')
+    .clear();
+
+  if (title) {
+    getEpiCurveSettingsDialog()
+      .find(inputId)
+      .type(title);
+  }
+
+  getEpiCurveSettingsDialog()
+    .find(inputId)
+    .should('have.value', title);
+  cy.window()
+    .its(widgetPathByAxis[axis])
+    .should('equal', title);
+}
+
+export function setEpiCurveSeriesLabel(fieldIndex: 0 | 1 | 2 | 3, label: string): void {
+  const inputId = `#epi-series-label-${fieldIndex + 1}`;
+
+  selectEpiCurveSettingsTab('Graph');
+  getEpiCurveSettingsDialog()
+    .find(inputId)
+    .scrollIntoView()
+    .should('be.visible')
+    .clear();
+
+  if (label) {
+    getEpiCurveSettingsDialog()
+      .find(inputId)
+      .type(label);
+  }
+
+  getEpiCurveSettingsDialog()
+    .find(inputId)
+    .should('have.value', label);
+  cy.window()
+    .its(`commonService.session.style.widgets.epiCurve-series-labels.${fieldIndex}`)
+    .should('equal', label);
+}
+
+export function setEpiCurveSeriesCumulative(
+  fieldIndex: 0 | 1 | 2 | 3,
+  cumulative: boolean,
+): void {
+  const inputId = `#epi-series-cumulative-select-${fieldIndex + 1}`;
+  const optionLabel = cumulative ? 'On (running total)' : 'Off (per bin)';
+
+  selectEpiCurveSettingsTab('Graph');
+  getEpiCurveSettingsDialog()
+    .find(inputId)
+    .scrollIntoView()
+    .should('exist')
+    .click({ force: true });
+
+  cy.contains(
+    '.p-select-overlay:visible li[role="option"]',
+    new RegExp(`^${escapeRegExp(optionLabel)}$`),
+    { timeout: 10000 },
+  ).click({ force: true });
+
+  cy.get('body', { timeout: 10000 })
+    .find('.p-select-overlay:visible')
+    .should('have.length', 0);
+
+  cy.window()
+    .its(`commonService.session.style.widgets.epiCurve-series-cumulative.${fieldIndex}`)
+    .should('equal', cumulative);
+}
+
+export function addEpiCurveSeries(expectedCount: 2 | 3 | 4): void {
+  selectEpiCurveSettingsTab('Graph');
+
+  getEpiCurveSettingsDialog()
+    .find('#epi-add-series')
+    .should('be.enabled')
+    .click();
+
+  getEpiCurveSettingsDialog()
+    .find('.epi-series-card')
+    .should('have.length', expectedCount);
+  cy.window()
+    .its('commonService.session.style.widgets.epiCurve-series-count')
+    .should('equal', expectedCount);
+}
+
+export function removeEpiCurveSeries(fieldIndex: 1 | 2 | 3, expectedCount: 1 | 2 | 3): void {
+  selectEpiCurveSettingsTab('Graph');
+
+  getEpiCurveSettingsDialog()
+    .find(`#epi-remove-series-${fieldIndex + 1}`)
+    .click();
+
+  getEpiCurveSettingsDialog()
+    .find('.epi-series-card')
+    .should('have.length', expectedCount);
+  cy.window()
+    .its('commonService.session.style.widgets.epiCurve-series-count')
+    .should('equal', expectedCount);
+}
+
+export function setEpiCurveColor(index: 0 | 1 | 2 | 3, color: string): void {
   const inputId = index === 0
     ? '#epi-color-select'
     : `#epi-color-select-${index + 1}`;
@@ -187,7 +386,7 @@ export function setEpiCurveColor(index: 0 | 1 | 2, color: string): void {
     .should('equal', color);
 }
 
-export function assertEpiCurveColorPickerVisible(index: 0 | 1 | 2): void {
+export function assertEpiCurveColorPickerVisible(index: 0 | 1 | 2 | 3): void {
   const inputId = index === 0
     ? '#epi-color-select'
     : `#epi-color-select-${index + 1}`;
@@ -207,7 +406,7 @@ export function assertEpiCurveColorPickerVisible(index: 0 | 1 | 2): void {
 }
 
 export function setEpiCurveRange(label: EpiCurveRangeLabel, value: number): void {
-  selectEpiCurveSettingsTab('Legend & Labels');
+  selectEpiCurveSettingsTab('Appearance');
 
   getEpiCurveRowByLabel(label)
     .find('input[type="range"]')
@@ -224,7 +423,7 @@ export function setEpiCurveRange(label: EpiCurveRangeLabel, value: number): void
 }
 
 export function setEpiCurveLegendPosition(position: EpiCurveLegendPosition): void {
-  selectEpiCurveSettingsTab('Legend & Labels');
+  selectEpiCurveSettingsTab('Appearance');
 
   getEpiCurveRowByLabel('Legend Position')
     .contains('.p-selectbutton .p-togglebutton-label', position)
@@ -251,7 +450,7 @@ export function setEpiCurveCumulative(cumulative: boolean): void {
 }
 
 export function setEpiCurveTickInterval(value: EpiCurveTickInterval): void {
-  selectEpiCurveSettingsTab('Legend & Labels');
+  selectEpiCurveSettingsTab('Appearance');
 
   getEpiCurveSettingsDialog()
     .find('#epi-tick-size input[type="number"]')
@@ -332,7 +531,7 @@ export function readEpiStackOrderLabels(): Cypress.Chainable<string[]> {
   return getEpiCurveSettingsDialog()
     .find('#epi-stack-order-list [role="option"]', { timeout: 10000 })
     .then(($options) => [...$options].map((option) => {
-      const label = option.querySelector('.d-flex > span');
+      const label = option.querySelector('.d-flex > span:not(.epi-stack-drag-handle)');
       return String(label?.textContent || '').replace(/\s+/g, ' ').trim();
     }).filter(Boolean));
 }
@@ -376,16 +575,64 @@ export function setEpiStackGroupOpacity(label: string, opacity: number): void {
 export function reorderEpiStackGroups(dragIndex: number, dropIndex: number): void {
   selectEpiCurveSettingsTab('Order & Color');
 
-  cy.window().then((win: unknown) => {
-    const epiCurve = (win as WinWithMT).commonService.visuals.epiCurve as any;
-    const items = [...(epiCurve.customStackOrderItems || [])];
-    const [movedItem] = items.splice(dragIndex, 1);
+  getEpiCurveSettingsDialog()
+    .find('#epi-stack-order-list [role="option"]')
+    .should('have.length.greaterThan', Math.max(dragIndex, dropIndex))
+    .then(($options) => {
+      const sourceOption = $options[dragIndex] as HTMLElement;
+      const source = (sourceOption.querySelector('.epi-stack-drag-handle') as HTMLElement | null)
+        ?? sourceOption;
+      const target = $options[dropIndex] as HTMLElement;
+      const sourceBounds = source.getBoundingClientRect();
+      const targetBounds = target.getBoundingClientRect();
+      const frameElement = ((Cypress as any).state('$autIframe') as JQuery<HTMLIFrameElement> | undefined)
+        ?.get(0);
+      const frameBounds = frameElement?.getBoundingClientRect();
+      const frameOffsetX = frameBounds?.left ?? 0;
+      const frameOffsetY = frameBounds?.top ?? 0;
+      const frameWindow = source.ownerDocument.defaultView;
+      const scaleX = frameBounds && frameWindow?.innerWidth
+        ? frameBounds.width / frameWindow.innerWidth
+        : 1;
+      const scaleY = frameBounds && frameWindow?.innerHeight
+        ? frameBounds.height / frameWindow.innerHeight
+        : 1;
+      const startX = frameOffsetX + (sourceBounds.left + sourceBounds.width / 2) * scaleX;
+      const startY = frameOffsetY + (sourceBounds.top + sourceBounds.height / 2) * scaleY;
+      const endX = frameOffsetX + (targetBounds.left + targetBounds.width / 2) * scaleX;
+      const targetY = dragIndex < dropIndex
+        ? targetBounds.bottom - 2
+        : targetBounds.top + 2;
+      const endY = frameOffsetY + targetY * scaleY;
+      const thresholdY = startY + (dragIndex < dropIndex ? 10 : -10);
+      const midpointY = startY + (endY - startY) / 2;
+      const dispatchMouseEvent = (
+        type: 'mouseMoved' | 'mousePressed' | 'mouseReleased',
+        x: number,
+        y: number,
+        buttons: number,
+      ): Cypress.Chainable<unknown> => cy.then(() => (Cypress as any).automation(
+        'remote:debugger:protocol',
+        {
+          command: 'Input.dispatchMouseEvent',
+          params: {
+            type,
+            x,
+            y,
+            button: 'left',
+            buttons,
+            clickCount: type == 'mouseMoved' ? 0 : 1,
+          },
+        },
+      ));
 
-    expect(movedItem, `stack group at index ${dragIndex}`).to.exist;
-
-    items.splice(dropIndex, 0, movedItem);
-    epiCurve.customStackOrderItems = items;
-    epiCurve.onCustomStackOrderReorder();
-    epiCurve.cdref?.detectChanges?.();
+      dispatchMouseEvent('mouseMoved', startX, startY, 0);
+      dispatchMouseEvent('mousePressed', startX, startY, 1);
+      dispatchMouseEvent('mouseMoved', startX, thresholdY, 1);
+      cy.wait(50, { log: false });
+      dispatchMouseEvent('mouseMoved', endX, midpointY, 1);
+      dispatchMouseEvent('mouseMoved', endX, endY, 1);
+      cy.wait(100, { log: false });
+      dispatchMouseEvent('mouseReleased', endX, endY, 0);
   });
 }

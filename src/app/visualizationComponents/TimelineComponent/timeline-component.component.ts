@@ -7,12 +7,42 @@ import * as d3 from 'd3';
 import moment from 'moment';
 import { MicrobeTraceNextVisuals } from '@app/microbe-trace-next-plugin-visuals';
 
-import { saveAs } from 'file-saver';
-import { saveSvgAsPng } from 'save-svg-as-png';
+import { saveSvg, saveSvgAsPng } from 'save-svg-as-png';
 import { SelectItem } from 'primeng/api';
-import { ExportService } from '@app/contactTraceCommonServices/export.service';
 import { Subject, takeUntil } from 'rxjs';
 import { CommonStoreService } from '@app/contactTraceCommonServices/common-store.services';
+
+type EpiCurveSeriesType = 'Bar' | 'Line';
+type EpiCurveAggregation = 'Count' | 'Sum' | 'Last' | 'Average';
+type EpiCurveAxis = 'Left' | 'Right';
+
+type EpiCurveStackSegment = {
+  value: number;
+  y0: number;
+  y1: number;
+};
+
+type EpiCurveDataInclusionSummary = {
+  totalRecords: number;
+  plottedRecords: number;
+  invalidDateRecords: number;
+  invalidValueRecords: number;
+  text: string;
+};
+
+type EpiCurveLegendItem = {
+  color: string;
+  label: string;
+  opacity?: number;
+  seriesType?: 'bar' | 'line';
+  lineStyle?: string;
+};
+
+type EpiCurveLegendSection = {
+  id: string;
+  title: string;
+  items: EpiCurveLegendItem[];
+};
 
 @Component({
     selector: 'app-timeline-component',
@@ -35,17 +65,56 @@ export class TimelineComponent extends BaseComponentDirective implements OnInit,
 
   FieldList: SelectItem[] = [];
   FieldListStack: SelectItem[] = [];
+  ValueFieldList: SelectItem[] = [];
   SelectedDateFieldVariable;
   SelectedDateFieldVariable2;
   SelectedDateFieldVariable3;
+  SelectedDateFieldVariable4;
   binSizes = ['Day', 'Week', 'Month', 'Quarter', 'Year']
   tickInterval;
   labelSize = 12;
   legendLabelSize = 15;
 
   graphTypes = ['Single Date Field', 'Multi: Side by Side', 'Multi: Overlay']
+  seriesTypeOptions: EpiCurveSeriesType[] = ['Bar', 'Line'];
+  aggregationOptions: EpiCurveAggregation[] = ['Count', 'Sum', 'Last', 'Average'];
+  seriesCumulativeOptions = [
+    { label: 'Off (per bin)', value: false },
+    { label: 'On (running total)', value: true },
+  ];
+  lineStyleOptions = ['Solid', 'Dashed'];
+  readonly minLineWidth = 1;
+  readonly maxLineWidth = 10;
+  readonly defaultLineWidth = 3;
+  readonly maxSeriesCount = 4;
+  seriesCount = 1;
+  seriesDataInclusionSummaries: Array<EpiCurveDataInclusionSummary | null> = [];
+  private readonly defaultSeriesColors = ['#C6D8EB', '#B79ECC', '#F3BF79', '#80B1D3'];
+  private readonly internalEpiCurveFields = new Set([
+    'seq',
+    'sequence',
+    '_seq',
+    '_seqint',
+    '_cigar',
+    'data',
+    'index',
+    '_id',
+    'id',
+    'selected',
+    'cluster',
+    'visible',
+    'degree',
+    'origin',
+    'hasdistance',
+    'x',
+    'y',
+    'vx',
+    'vy',
+    'foci',
+  ]);
   selectedGraphType = 'Single Date Field';
-  legendPositionOptions = ['Hide', 'Left', 'Right', 'Bottom']
+  legendPositionOptions = ['Hide', 'Left', 'Top', 'Right', 'Bottom']
+  tickUnitOptions = ['Automatic', 'Day', 'Week', 'Month', 'Year'];
   stackOrderOptions = ['Largest at Bottom', 'Smallest at Bottom', 'Custom']
   customStackOrderItems = [];
 
@@ -60,12 +129,15 @@ export class TimelineComponent extends BaseComponentDirective implements OnInit,
   private localColorMap: any = (x) => undefined;
 
   private svg;
+  private readonly defaultEpiCurveFontFamily = 'Roboto, "Helvetica Neue", sans-serif';
+  private epiCurveFontFamily = this.defaultEpiCurveFontFamily;
   private margin = { top: 5, left: 45, right: 20, bottom: 50 };
   private width; // Default width, adjust as necessary
   private height; // Default height, adjust as necessary
   private middle;
   private x;
   private y;
+  private yRight;
   private histogram;
   private brush;
   private brushG;
@@ -93,8 +165,7 @@ export class TimelineComponent extends BaseComponentDirective implements OnInit,
     @Inject(BaseComponentDirective.GoldenLayoutContainerInjectionToken) private container: ComponentContainer,
     elRef: ElementRef,
     private cdref: ChangeDetectorRef,
-    private store: CommonStoreService,
-    private exportService: ExportService) {
+    private store: CommonStoreService) {
 
       super(elRef.nativeElement);
       this.visuals = commonService.visuals;
@@ -105,27 +176,219 @@ export class TimelineComponent extends BaseComponentDirective implements OnInit,
 
   }
 
+  private applyEpiCurveFontFamily(): void {
+    const svgElement = this.epiCurveSVGElement?.nativeElement as SVGSVGElement | undefined;
+    if (!svgElement) {
+      return;
+    }
+
+    const inheritedFontFamily = window.getComputedStyle(svgElement).fontFamily.trim();
+    this.epiCurveFontFamily = inheritedFontFamily || this.defaultEpiCurveFontFamily;
+
+    const svgSelection = d3.select(svgElement)
+      .attr('font-family', this.epiCurveFontFamily)
+      .style('font-family', this.epiCurveFontFamily);
+
+    // D3 axes set their own generic sans-serif family, so override it with the
+    // same font stack used by the rest of the application.
+    svgSelection.selectAll('.axis')
+      .attr('font-family', this.epiCurveFontFamily)
+      .style('font-family', this.epiCurveFontFamily);
+  }
+
   private updateFieldLists(): void {
-    this.FieldList = [];
-    this.FieldListStack = [];
-    this.FieldList.push({ label: "None", value: "None" });
-    this.FieldListStack.push({ label: "None", value: 'None'}, { label: "Node Color", value: "Node Color"});
+    this.FieldList = [{ label: "None", value: "None" }];
+    this.FieldListStack = [
+      { label: "None", value: 'None'},
+      { label: "Node Color", value: "Node Color"},
+    ];
+    this.ValueFieldList = [{ label: "None", value: "None" }];
 
     const nodeFields = this.commonService.session.data['nodeFields'] || [];
+    const nodes = this.commonService.session.data.nodes || [];
     nodeFields.forEach((d) => {
-        if (d != 'seq' && d != 'sequence') {
-            this.FieldList.push(
-                {
-                    label: this.commonService.capitalize(d.replace("_", "")),
-                    value: d
-                });
-            this.FieldListStack.push(
-                {
-                    label: this.commonService.capitalize(d.replace("_", "")),
-                    value: d
-                });
+        const label = this.getFieldLabel(d);
+        if (!this.isInternalEpiCurveField(d)) {
+          const populatedValues = nodes
+            .map(node => node?.[d])
+            .filter(value => !this.isMissingFieldValue(value));
+
+          if (populatedValues.length > 0 && populatedValues.every(value => this.parseEpiCurveDate(value) != null)) {
+            this.FieldList.push({ label, value: d });
+          }
+
+          if (populatedValues.length > 0 && populatedValues.every(value => this.isEpiCurveNumericValue(value))) {
+            this.ValueFieldList.push({ label, value: d });
+          }
+        }
+
+        if (`${d}`.toLowerCase() != 'seq' && `${d}`.toLowerCase() != 'sequence') {
+          this.FieldListStack.push({ label, value: d });
         }
     });
+  }
+
+  private getFieldLabel(field): string {
+    return this.commonService.capitalize(String(field || '').replace("_", ""));
+  }
+
+  private isInternalEpiCurveField(field): boolean {
+    const normalizedField = String(field || '').trim().toLowerCase();
+    return normalizedField == '' || normalizedField.startsWith('_') || this.internalEpiCurveFields.has(normalizedField);
+  }
+
+  private isMissingFieldValue(value): boolean {
+    if (value == null) {
+      return true;
+    }
+
+    const normalizedValue = String(value).trim().toLowerCase();
+    return ['', 'null', 'undefined', 'na', 'n/a', 'nan', 'unknown'].includes(normalizedValue);
+  }
+
+  private parseEpiCurveDate(value): any | null {
+    if (value instanceof Date) {
+      const parsedDate = moment(value);
+      return parsedDate.isValid() ? parsedDate : null;
+    }
+
+    if (typeof value != 'string') {
+      return null;
+    }
+
+    const normalizedValue = value.trim();
+    if (this.isMissingFieldValue(normalizedValue) || /^[-+]?\d+(\.\d+)?$/.test(normalizedValue)) {
+      return null;
+    }
+
+    const parsedDate = moment(normalizedValue, [
+      moment.ISO_8601,
+      'M/D/YYYY',
+      'M/D/YY',
+      'M-D-YYYY',
+      'M-D-YY',
+      'YYYY/M/D',
+      'MMM D, YYYY',
+      'MMMM D, YYYY',
+      'MMM D YYYY',
+      'MMMM D YYYY',
+      'D MMM YYYY',
+      'D MMMM YYYY',
+      'D-MMM-YYYY',
+    ], true);
+    return parsedDate.isValid() ? parsedDate : null;
+  }
+
+  private isEpiCurveNumericValue(value): boolean {
+    if (typeof value == 'boolean' || value instanceof Date || this.parseEpiCurveDate(value) != null) {
+      return false;
+    }
+
+    return Number.isFinite(Number(value));
+  }
+
+  private hasSelectOption(options: SelectItem[], value): boolean {
+    return options.some(option => option.value == value);
+  }
+
+  private isDateFieldCompatible(field): boolean {
+    return field != 'None' && this.hasSelectOption(this.FieldList, field);
+  }
+
+  private isValueFieldCompatible(field): boolean {
+    return field == 'None' || this.hasSelectOption(this.ValueFieldList, field);
+  }
+
+  private isSeriesConfigurationValid(index: number): boolean {
+    const dateField = this.widgets['epiCurve-date-fields']?.[index];
+    const valueField = this.widgets['epiCurve-value-fields']?.[index] || 'None';
+    return this.isDateFieldCompatible(dateField) && this.isValueFieldCompatible(valueField);
+  }
+
+  getDateFieldValidationMessage(index: number): string {
+    const field = this.widgets['epiCurve-date-fields']?.[index];
+    if (!field || field == 'None' || this.isDateFieldCompatible(field)) {
+      return '';
+    }
+
+    return `${this.getFieldLabel(field)} is not a compatible date field. Choose a field containing calendar dates.`;
+  }
+
+  getValueFieldValidationMessage(index: number): string {
+    const field = this.widgets['epiCurve-value-fields']?.[index];
+    if (!field || field == 'None' || this.isValueFieldCompatible(field)) {
+      return '';
+    }
+
+    return `${this.getFieldLabel(field)} is not a compatible numeric value field. Choose another field or None.`;
+  }
+
+  private updateSeriesDataInclusionSummaries(): void {
+    const nodes = Array.isArray(this.commonService.session.data.nodes)
+      ? this.commonService.session.data.nodes
+      : [];
+
+    this.seriesDataInclusionSummaries = Array.from(
+      { length: this.maxSeriesCount },
+      (_, index) => this.buildSeriesDataInclusionSummary(index, nodes),
+    );
+  }
+
+  private buildSeriesDataInclusionSummary(
+    index: number,
+    nodes: any[],
+  ): EpiCurveDataInclusionSummary | null {
+    const dateField = this.widgets['epiCurve-date-fields']?.[index];
+    if (!this.isDateFieldCompatible(dateField)) {
+      return null;
+    }
+
+    const valueField = this.widgets['epiCurve-value-fields']?.[index] || 'None';
+    const usesNumericValue = this.selectedGraphType != 'Single Date Field'
+      && valueField != 'None'
+      && this.getSeriesAggregation(index) != 'Count';
+    let plottedRecords = 0;
+    let invalidDateRecords = 0;
+    let invalidValueRecords = 0;
+
+    nodes.forEach(node => {
+      if (this.parseEpiCurveDate(node?.[dateField]) == null) {
+        invalidDateRecords += 1;
+        return;
+      }
+
+      if (usesNumericValue && !this.isSeriesNumericValueUsable(node?.[valueField])) {
+        invalidValueRecords += 1;
+        return;
+      }
+
+      plottedRecords += 1;
+    });
+
+    const totalRecords = nodes.length;
+    const recordLabel = totalRecords == 1 ? 'record' : 'records';
+    const details = [];
+    if (invalidDateRecords > 0) {
+      details.push(`${invalidDateRecords} missing or invalid ${invalidDateRecords == 1 ? 'date' : 'dates'}`);
+    }
+    if (invalidValueRecords > 0) {
+      details.push(`${invalidValueRecords} missing or nonnumeric ${invalidValueRecords == 1 ? 'value' : 'values'}`);
+    }
+
+    return {
+      totalRecords,
+      plottedRecords,
+      invalidDateRecords,
+      invalidValueRecords,
+      text: `${plottedRecords} of ${totalRecords} ${recordLabel} plotted${details.length > 0 ? ` · ${details.join(' · ')}` : ''}`,
+    };
+  }
+
+  private isSeriesNumericValueUsable(value): boolean {
+    const normalizedValue = value == null ? '' : String(value).trim();
+    return normalizedValue != ''
+      && normalizedValue.toLowerCase() != 'null'
+      && Number.isFinite(Number(value));
   }
 
   ngOnInit() {
@@ -133,11 +396,12 @@ export class TimelineComponent extends BaseComponentDirective implements OnInit,
     // populate this.twoD.FieldList with [None, ...nodeFields]
     this.updateFieldLists();
 
-    this.tickInterval = 1;
     this.updateSettingsRows();    
 
     this.store.clusterUpdate$.pipe(takeUntil(this.destroy$)).subscribe(() => {
-      if (this.selectedGraphType == "Single Date Field" && (this.widgets['epiCurve-stackColorBy'] == 'cluster' || (this.widgets['epiCurve-stackColorBy'] == 'Node Color' && this.widgets['node-color-variable'] == 'cluster'))) {
+      const stackColoringIsVisible = this.selectedGraphType == 'Single Date Field'
+        || (this.selectedGraphType == 'Multi: Overlay' && this.isOverlayStackEligible());
+      if (stackColoringIsVisible && (this.widgets['epiCurve-stackColorBy'] == 'cluster' || (this.widgets['epiCurve-stackColorBy'] == 'Node Color' && this.widgets['node-color-variable'] == 'cluster'))) {
         this.refresh();
       }
     })
@@ -157,25 +421,96 @@ export class TimelineComponent extends BaseComponentDirective implements OnInit,
     this.selectedGraphType = this.widgets['epiCurve-graphType'];
 
     // date fields
-    if (this.widgets['epiCurve-date-fields'] == undefined) {
+    if (!Array.isArray(this.widgets['epiCurve-date-fields'])) {
       if (this.widgets['epi-timeline-date-field'] != undefined) {
-        this.widgets['epiCurve-date-fields'] = [this.widgets['epi-timeline-date-field'], 'None', 'None']
+        this.widgets['epiCurve-date-fields'] = [this.widgets['epi-timeline-date-field']]
       } else {
-        this.widgets['epiCurve-date-fields'] = ['None', 'None', 'None']
-      }
-    } else if (this.widgets['epiCurve-date-fields'].length < 3) {
-      while (this.widgets['epiCurve-date-fields']< 3) {
-        this.widgets['epiCurve-date-fields'].push('None')
+        this.widgets['epiCurve-date-fields'] = ['None']
       }
     }
-    this.SelectedDateFieldVariable = this.widgets['epiCurve-date-fields'][0];
-    this.SelectedDateFieldVariable2 = this.widgets['epiCurve-date-fields'][1];
-    this.SelectedDateFieldVariable3 = this.widgets['epiCurve-date-fields'][2];
+    this.widgets['epiCurve-date-fields'] = this.normalizeSeriesSetting(
+      this.widgets['epiCurve-date-fields'],
+      'None');
+
+    const savedSeriesCount = Number(this.widgets['epiCurve-series-count']);
+    const lastConfiguredSeries = this.widgets['epiCurve-date-fields']
+      .reduce((lastIndex, dateField, index) => dateField != 'None' ? index : lastIndex, -1) + 1;
+    this.seriesCount = this.clampSeriesCount(Math.max(
+      Number.isFinite(savedSeriesCount) ? savedSeriesCount : 1,
+      lastConfiguredSeries,
+      1,
+    ));
+    this.widgets['epiCurve-series-count'] = this.seriesCount;
+    this.syncSelectedDateFieldVariables();
+
+    const savedValueFields = Array.isArray(this.widgets['epiCurve-value-fields'])
+      ? this.widgets['epiCurve-value-fields']
+      : [];
+    this.widgets['epiCurve-value-fields'] = this.normalizeSeriesSetting(savedValueFields, 'None');
+
+    const savedAggregations = Array.isArray(this.widgets['epiCurve-series-aggregations'])
+      ? this.widgets['epiCurve-series-aggregations']
+      : [];
+    this.widgets['epiCurve-series-aggregations'] = this.widgets['epiCurve-value-fields']
+      .map((valueField, index) => {
+        const savedAggregation = savedAggregations[index];
+        if (this.isAggregation(savedAggregation)) {
+          return valueField == 'None' ? 'Count' : savedAggregation;
+        }
+        return valueField == 'None' ? 'Count' : 'Sum';
+      });
+
+    const savedSeriesCumulative = Array.isArray(this.widgets['epiCurve-series-cumulative'])
+      ? this.widgets['epiCurve-series-cumulative']
+      : [];
+    const legacyCumulative = Boolean(this.widgets['epiCurve-cumulative']);
+    this.widgets['epiCurve-series-cumulative'] = this.normalizeSeriesSetting(
+      savedSeriesCumulative,
+      legacyCumulative,
+    ).map(value => Boolean(value));
+
+    const savedSeriesLabels = Array.isArray(this.widgets['epiCurve-series-labels'])
+      ? this.widgets['epiCurve-series-labels']
+      : [];
+    this.widgets['epiCurve-series-labels'] = this.normalizeSeriesSetting(savedSeriesLabels, '')
+      .map(label => typeof label == 'string' ? label : '');
 
     // colors
-    if (this.widgets['epiCurve-colors'] == undefined) {
-      this.widgets['epiCurve-colors'] = ['#C6D8EB','#B79ECC', '#F3BF79'];
-    }
+    const savedColors = Array.isArray(this.widgets['epiCurve-colors'])
+      ? this.widgets['epiCurve-colors']
+      : [];
+    this.widgets['epiCurve-colors'] = this.defaultSeriesColors.map((defaultColor, index) =>
+      savedColors[index] || defaultColor);
+
+    const defaultLineStyles = ['Solid', 'Solid', 'Dashed', 'Solid'];
+    const savedLineStyles = Array.isArray(this.widgets['epiCurve-lineStyles'])
+      ? this.widgets['epiCurve-lineStyles']
+      : [];
+    this.widgets['epiCurve-lineStyles'] = defaultLineStyles.map((defaultStyle, index) =>
+      savedLineStyles[index] == 'Solid' || savedLineStyles[index] == 'Dashed'
+        ? savedLineStyles[index]
+        : defaultStyle);
+
+    const savedLineWidths = Array.isArray(this.widgets['epiCurve-lineWidths'])
+      ? this.widgets['epiCurve-lineWidths']
+      : [];
+    const legacyLineWidth = savedLineWidths.find(value =>
+      value != null && value !== '' && Number(value) != this.defaultLineWidth)
+      ?? savedLineWidths.find(value => value != null && value !== '');
+    this.widgets['epiCurve-lineWidth'] = this.normalizeLineWidth(
+      this.widgets['epiCurve-lineWidth'] ?? legacyLineWidth,
+    );
+
+    const savedSeriesTypes = Array.isArray(this.widgets['epiCurve-series-types'])
+      ? this.widgets['epiCurve-series-types']
+      : [];
+    const legacySeriesTypes: EpiCurveSeriesType[] = this.selectedGraphType == 'Multi: Overlay'
+      ? ['Bar', 'Line', 'Line', 'Bar']
+      : ['Bar', 'Bar', 'Bar', 'Bar'];
+    this.widgets['epiCurve-series-types'] = legacySeriesTypes.map((defaultType, index) =>
+      savedSeriesTypes[index] == 'Line' || savedSeriesTypes[index] == 'Bar'
+        ? savedSeriesTypes[index]
+        : defaultType);
 
     // stackColorBy field
     if (this.widgets['epiCurve-stackColorBy'] == undefined) {
@@ -208,9 +543,243 @@ export class TimelineComponent extends BaseComponentDirective implements OnInit,
 
     // legendPosition
     if (this.widgets['epiCurve-legendPosition'] == undefined) {
-      this.widgets['epiCurve-legendPosition'] = 'Left';
+      this.widgets['epiCurve-legendPosition'] = 'Bottom';
     }
- }
+    if (this.widgets['epiCurve-tickUnit'] == undefined) {
+      this.widgets['epiCurve-tickUnit'] = 'Automatic';
+    }
+    if (this.widgets['epiCurve-tickInterval'] == undefined) {
+      this.widgets['epiCurve-tickInterval'] = 1;
+    }
+    this.tickInterval = Math.max(1, Number(this.widgets['epiCurve-tickInterval']) || 1);
+
+    [
+      'epiCurve-xAxisLabel',
+      'epiCurve-leftYAxisLabel',
+      'epiCurve-rightYAxisLabel',
+    ].forEach(widgetName => {
+      if (this.widgets[widgetName] == undefined) {
+        this.widgets[widgetName] = '';
+      }
+    });
+
+  }
+
+  get visibleSeriesIndexes(): number[] {
+    const count = this.selectedGraphType == 'Single Date Field' ? 1 : this.seriesCount;
+    return Array.from({ length: count }, (_, index) => index);
+  }
+
+  getSeriesDateLabel(index: number): string {
+    return index == 0 ? 'Date Field' : `Date Field ${index + 1}`;
+  }
+
+  getSeriesColorInputId(index: number): string {
+    return index == 0 ? 'epi-color-select' : `epi-color-select-${index + 1}`;
+  }
+
+  getSeriesType(index: number): EpiCurveSeriesType {
+    return this.widgets['epiCurve-series-types']?.[index] == 'Line' ? 'Line' : 'Bar';
+  }
+
+  getLineWidth(): number {
+    return this.normalizeLineWidth(this.widgets['epiCurve-lineWidth']);
+  }
+
+  hasVisibleLineSeries(): boolean {
+    return this.selectedGraphType != 'Single Date Field'
+      && this.visibleSeriesIndexes.some(index => this.getSeriesType(index) == 'Line');
+  }
+
+  getSeriesAxis(index: number): EpiCurveAxis {
+    return this.isDualAxisMulti() && this.getSeriesType(index) == 'Bar' ? 'Right' : 'Left';
+  }
+
+  getOverlayStackBarIndex(): number | null {
+    if (this.selectedGraphType != 'Multi: Overlay') {
+      return null;
+    }
+
+    const barIndexes = this.visibleSeriesIndexes
+      .filter(index => this.isSeriesConfigurationValid(index) && this.getSeriesType(index) == 'Bar');
+    return barIndexes.length == 1 ? barIndexes[0] : null;
+  }
+
+  isOverlayStackEligible(): boolean {
+    const barIndex = this.getOverlayStackBarIndex();
+    if (barIndex == null) {
+      return false;
+    }
+
+    const aggregation = this.getSeriesAggregation(barIndex);
+    return aggregation == 'Count' || aggregation == 'Sum';
+  }
+
+  getOverlayStackAvailabilityMessage(): string {
+    if (this.selectedGraphType != 'Multi: Overlay') {
+      return '';
+    }
+
+    const barIndexes = this.visibleSeriesIndexes
+      .filter(index => this.isSeriesConfigurationValid(index) && this.getSeriesType(index) == 'Bar');
+    if (barIndexes.length != 1) {
+      return 'Stack colors are available when Overlay contains exactly one configured bar series.';
+    }
+
+    if (!this.isOverlayStackEligible()) {
+      return 'Stack colors require the bar series to use Count or Sum. Last and Average remain unstacked.';
+    }
+
+    return 'The bar is stacked by category. Any line series remain overlaid on the left axis.';
+  }
+
+  getSeriesAggregation(index: number): EpiCurveAggregation {
+    const aggregation = this.widgets['epiCurve-series-aggregations']?.[index];
+    if (this.widgets['epiCurve-value-fields']?.[index] == 'None') {
+      return 'Count';
+    }
+    return this.isAggregation(aggregation) ? aggregation : 'Sum';
+  }
+
+  getSeriesCumulative(index: number): boolean {
+    return Boolean(this.widgets['epiCurve-series-cumulative']?.[index]);
+  }
+
+  getDefaultSeriesLabel(index: number): string {
+    const valueField = this.widgets['epiCurve-value-fields']?.[index];
+    if (this.getSeriesAggregation(index) != 'Count' && valueField && valueField != 'None') {
+      return this.getTooltipLabel(valueField);
+    }
+
+    const dateField = this.widgets['epiCurve-date-fields']?.[index];
+    if (dateField && dateField != 'None') {
+      return this.getTooltipLabel(dateField);
+    }
+
+    return `Series ${index + 1}`;
+  }
+
+  getSeriesLabel(index: number): string {
+    const customLabel = String(this.widgets['epiCurve-series-labels']?.[index] || '').trim();
+    return customLabel || this.getDefaultSeriesLabel(index);
+  }
+
+  getDefaultYAxisLabel(axis: EpiCurveAxis): string {
+    if (this.selectedGraphType == 'Single Date Field') {
+      return this.getSeriesAxisValueLabel(0);
+    }
+
+    const labels = this.visibleSeriesIndexes
+      .filter(index => this.isSeriesConfigurationValid(index) && this.getSeriesAxis(index) == axis)
+      .map(index => this.getSeriesAxisValueLabel(index))
+      .filter((label, index, allLabels) => allLabels.indexOf(label) == index);
+
+    return labels.join(' / ') || 'Number of Records';
+  }
+
+  getDefaultXAxisLabel(): string {
+    return `Date (${this.widgets['epiCurve-binSize'] == 'Day' ? 'Dai' : this.widgets['epiCurve-binSize']}ly Bins)`;
+  }
+
+  private getAxisLabel(widgetName: string, defaultLabel: string): string {
+    const customLabel = typeof this.widgets[widgetName] == 'string'
+      ? this.widgets[widgetName].trim()
+      : '';
+    return customLabel || defaultLabel;
+  }
+
+  private getSeriesAxisValueLabel(index: number): string {
+    const valueField = this.widgets['epiCurve-value-fields']?.[index];
+    if (this.getSeriesAggregation(index) != 'Count' && valueField && valueField != 'None') {
+      return this.getTooltipLabel(valueField);
+    }
+
+    const dateField = this.widgets['epiCurve-date-fields']?.[index];
+    return dateField && dateField != 'None'
+      ? `Count of ${this.getTooltipLabel(dateField)}`
+      : 'Number of Records';
+  }
+
+  addSeries(): void {
+    if (this.seriesCount >= this.maxSeriesCount) {
+      return;
+    }
+
+    const index = this.seriesCount;
+    this.widgets['epiCurve-date-fields'][index] = 'None';
+    this.widgets['epiCurve-value-fields'][index] = 'None';
+    this.widgets['epiCurve-series-labels'][index] = '';
+    this.widgets['epiCurve-series-aggregations'][index] = 'Count';
+    this.widgets['epiCurve-series-cumulative'][index] = false;
+    this.widgets['epiCurve-series-types'][index] = 'Bar';
+    this.widgets['epiCurve-lineStyles'][index] = 'Solid';
+    this.widgets['epiCurve-colors'][index] = this.defaultSeriesColors[index];
+    this.seriesCount += 1;
+    this.widgets['epiCurve-series-count'] = this.seriesCount;
+    this.syncSelectedDateFieldVariables();
+    this.refresh();
+  }
+
+  removeSeries(index: number): void {
+    if (index <= 0 || index >= this.seriesCount) {
+      return;
+    }
+
+    const defaults = {
+      'epiCurve-date-fields': 'None',
+      'epiCurve-value-fields': 'None',
+      'epiCurve-series-labels': '',
+      'epiCurve-series-aggregations': 'Count',
+      'epiCurve-series-cumulative': false,
+      'epiCurve-series-types': 'Bar',
+      'epiCurve-lineStyles': 'Solid',
+    };
+    Object.entries(defaults).forEach(([widgetName, defaultValue]) => {
+      this.widgets[widgetName].splice(index, 1);
+      this.widgets[widgetName].push(defaultValue);
+    });
+    this.widgets['epiCurve-colors'].splice(index, 1);
+    this.widgets['epiCurve-colors'].push(this.defaultSeriesColors[this.maxSeriesCount - 1]);
+
+    this.seriesCount -= 1;
+    this.widgets['epiCurve-series-count'] = this.seriesCount;
+    this.syncSelectedDateFieldVariables();
+    this.refresh();
+  }
+
+  private normalizeSeriesSetting(values, defaultValue) {
+    return Array.from({ length: this.maxSeriesCount }, (_, index) =>
+      values?.[index] ?? defaultValue);
+  }
+
+  private normalizeLineWidth(value): number {
+    if (value == null || value === '') {
+      return this.defaultLineWidth;
+    }
+
+    const numericValue = Number(value);
+    if (!Number.isFinite(numericValue)) {
+      return this.defaultLineWidth;
+    }
+
+    return Math.min(this.maxLineWidth, Math.max(this.minLineWidth, numericValue));
+  }
+
+  private isAggregation(value): value is EpiCurveAggregation {
+    return this.aggregationOptions.includes(value);
+  }
+
+  private clampSeriesCount(value: number): number {
+    return Math.min(this.maxSeriesCount, Math.max(1, Math.round(value)));
+  }
+
+  private syncSelectedDateFieldVariables(): void {
+    const dateFields = this.widgets['epiCurve-date-fields'];
+    this.SelectedDateFieldVariable = dateFields[0];
+    this.SelectedDateFieldVariable2 = dateFields[1];
+    this.SelectedDateFieldVariable3 = dateFields[2];
+    this.SelectedDateFieldVariable4 = dateFields[3];
+  }
 
  ngAfterViewInit() {
 
@@ -224,6 +793,8 @@ export class TimelineComponent extends BaseComponentDirective implements OnInit,
  * Clears previous histogram/epi curve and creates a new one; calls refreshMulti if needed
  */
 public refresh(): void {
+  this.updateSeriesDataInclusionSummaries();
+
   if (this.selectedGraphType=='Multi: Overlay' || this.selectedGraphType=='Multi: Side by Side') {
     this.refreshMulti();
     return;
@@ -231,7 +802,7 @@ public refresh(): void {
 
   $('#epiCurveSVG').empty()
 
-  if (this.SelectedDateFieldVariable == 'None') {
+  if (!this.isDateFieldCompatible(this.SelectedDateFieldVariable)) {
     return;
   }
 
@@ -259,7 +830,8 @@ public refresh(): void {
     .attr("width", this.width + this.margin.left + this.margin.right)
     .attr("height", this.height + this.margin.top + this.margin.bottom)
     //.attr("transform", `translate(0, ${this.margin.top})`);
-    
+
+  this.applyEpiCurveFontFamily();
 
   const epiCurve = this.svg.append("g")
     .classed("epiCurve-epi-curve", true)
@@ -343,29 +915,78 @@ private refreshMulti(): void {
 
   $('#epiCurveSVG').empty()
 
-  if (this.SelectedDateFieldVariable == 'None' && this.SelectedDateFieldVariable2 == 'None' && this.SelectedDateFieldVariable3 == 'None') {
+  const configuredSeries = this.visibleSeriesIndexes
+    .map(fieldIndex => ({
+      fieldIndex,
+      field: this.widgets['epiCurve-date-fields'][fieldIndex],
+      color: this.widgets['epiCurve-colors'][fieldIndex],
+      type: this.getSeriesType(fieldIndex),
+    }))
+    .filter(series => this.isSeriesConfigurationValid(series.fieldIndex));
+
+  if (configuredSeries.length == 0) {
     return;
   }
 
-  this.updateSizes();
+  const fields = configuredSeries.map(series => series.field);
+  const colors = configuredSeries.map(series => series.color);
+  const fieldIndexes = configuredSeries.map(series => series.fieldIndex);
+  const seriesTypes = configuredSeries.map(series => series.type);
+  const seriesLabels = fieldIndexes.map(fieldIndex => this.getSeriesLabel(fieldIndex));
+  const useDualAxis = this.isDualAxisMulti();
+  const barSeriesIndexes = fields
+    .map((_, index) => index)
+    .filter(index => seriesTypes[index] == 'Bar');
+  const lineSeriesIndexes = fields
+    .map((_, index) => index)
+    .filter(index => seriesTypes[index] == 'Line');
+  const lineStyles = fieldIndexes.map(fieldIndex => this.getLineStyle(fieldIndex));
+
+  // current implementation of times is only used to calculate min and max time of all data given when setting up x axis and bins; there isn't a current need to link times by datapoint with times
+  let times = this.getTimes(fields);
+
+  const overlayStackBarFieldIndex = this.isOverlayStackEligible()
+    ? this.getOverlayStackBarIndex()
+    : null;
+  const overlayStackSeriesIndex = overlayStackBarFieldIndex == null
+    ? -1
+    : fieldIndexes.indexOf(overlayStackBarFieldIndex);
+  const overlayStackConfiguration = overlayStackSeriesIndex >= 0
+    ? this.getMultiStackColorConfiguration(overlayStackBarFieldIndex)
+    : null;
+  const overlayLegendSections: EpiCurveLegendSection[] = [];
+  if (overlayStackConfiguration) {
+    overlayLegendSections.push({
+      id: 'stacked-bars',
+      title: `Stacked bars — ${seriesLabels[overlayStackSeriesIndex]} by ${this.getTooltipLabel(overlayStackConfiguration.colorVariable)} (${this.getSeriesAxis(fieldIndexes[overlayStackSeriesIndex])} axis)`,
+      items: overlayStackConfiguration.keys.map(key => ({
+        color: this.getStackFill(key),
+        label: this.getTooltipLabel(key),
+        opacity: this.getStackOpacity(key),
+        seriesType: 'bar',
+        lineStyle: 'Solid',
+      })),
+    });
+
+    if (lineSeriesIndexes.length > 0) {
+      overlayLegendSections.push({
+        id: 'lines',
+        title: `Lines (${this.getSeriesAxis(fieldIndexes[lineSeriesIndexes[0]])} axis)`,
+        items: lineSeriesIndexes.map(seriesIndex => ({
+          color: colors[seriesIndex],
+          label: seriesLabels[seriesIndex],
+          opacity: 1,
+          seriesType: 'line',
+          lineStyle: lineStyles[seriesIndex],
+        })),
+      });
+    }
+  }
+
+  this.updateSizes(overlayLegendSections);
   if (this.height < 0) {
     return;
   }
-
-  let fields = [];
-  let colors = [];
-  [this.SelectedDateFieldVariable, this.SelectedDateFieldVariable2, this.SelectedDateFieldVariable3].forEach((dateField, ind) => {
-    if (dateField != 'None') {
-      fields.push(dateField);
-      colors.push(this.widgets["epiCurve-colors"][ind])
-    }
-  })
-
-  if (fields.length == 0) {
-    return;
-  }
-  // current implementation of times is only used to calculate min and max time of all data given when setting up x axis and bins; there isn't a current need to link times by datapoint with times
-  let times = this.getTimes(fields);
 
   // updates this.timeDomainStart and this.timeDomainInterval and returns the bin interval
   let binInterval = this.calculateBinInterval(times);
@@ -375,14 +996,13 @@ private refreshMulti(): void {
 
   this.x = d3.scaleTime().domain([this.timeDomainStart, this.timeDomainEnd]).rangeRound([0, this.width]);
   this.y = d3.scaleLinear().range([this.height, 0]);
-
-  //@ts-ignore
-  this.histogram = d3.histogram().domain(this.x.domain()).thresholds(binInterval);
+  this.yRight = useDualAxis ? d3.scaleLinear().range([this.height, 0]) : undefined;
 
   this.svg = d3.select(this.epiCurveSVGElement.nativeElement)
     .attr("width", this.width + this.margin.left + this.margin.right)
     .attr("height", this.height + this.margin.top + this.margin.bottom);
-    
+
+  this.applyEpiCurveFontFamily();
 
   const epiCurve = this.svg.append("g")
     .classed("epiCurve-epi-curve", true)
@@ -390,79 +1010,332 @@ private refreshMulti(): void {
 
   let maxCount = 0;
   let bins = [];
-  fields.forEach((field) => {
+  let barMax = 0;
+  let lineMax = 0;
+  fields.forEach((field, ind) => {
     if (field != 'None') {
-      let currentCount = 0;
-      let currentbin = this.histogram(this.vnodes.map((d) => d[field]).filter(value => value != null));
-      [currentCount, currentbin] = this.updateBins(currentbin);
+      //@ts-ignore
+      const seriesHistogram = d3.histogram()
+        .value(d => d[field])
+        .domain(this.x.domain())
+        .thresholds(binInterval);
+      let currentbin = seriesHistogram(this.vnodes);
+      const [currentCount, updatedBins] = this.updateMultiSeriesBins(currentbin, fieldIndexes[ind]);
+      currentbin = updatedBins;
       bins.push(currentbin)
       if (currentCount > maxCount) maxCount = currentCount;
+      if (seriesTypes[ind] == 'Bar') {
+        barMax = Math.max(barMax, currentCount);
+      } else {
+        lineMax = Math.max(lineMax, currentCount);
+      }
     }
   })
 
-  this.y.domain([0, maxCount]).nice();
-
-  if (this.selectedGraphType == 'Multi: Overlay') {
-    fields.forEach((_, ind) => {
-        const rects = epiCurve.selectAll(`rect${ind}`)
-        .data(bins[ind])
-        .enter()
-        .append("rect")
-        .attr("transform", d => `translate(${this.x(d.x0)}, ${this.y(d.length)})`)
-        .attr("width", d => this.x(d.x1) - this.x(d.x0))
-        .attr("height", d => this.height - this.y(d.length))
-        .attr("fill", colors[ind])
-        .attr("opacity", 0.6);
-
-        rects.append("title")
-          .text((_, binIndex) => this.getMultiBinTooltip(fields, bins, binIndex));
-    })
-
-  } else {
-    let numberOfBins = fields.length;
-    let width;
-    let xOffset = [];
-    if (numberOfBins == 1) {
-      width = (d) => this.x(d.x1)- this.x(d.x0);
-      xOffset = [
-        function(d, c) {return c.x(d.x0)}
-      ]
-    } else if (numberOfBins == 2) {
-      width = (d) => (this.x(d.x1)- this.x(d.x0))/2
-      xOffset = [
-        function(d, c) {return c.x(d.x0)},
-        function(d, c) {return c.x(d.x0)+(c.x(d.x1) - c.x(d.x0))/2}
-      ]
-    } else {
-      width = (d) => (this.x(d.x1)- this.x(d.x0))/3;
-      xOffset = [
-        function(d, c) { return c.x(d.x0)},
-        function(d, c) { return c.x(d.x0)+(c.x(d.x1) - c.x(d.x0))/3},
-        function(d, c) { return c.x(d.x0)+2*(c.x(d.x1) - c.x(d.x0))/3}
-      ]
-    }
-    
-    let that = this;
-
-    fields.forEach((_, ind) => {
-        const rects = epiCurve.selectAll(`rect${ind}`)
-        .data(bins[ind])
-        .enter()
-        .append("rect")
-        .attr("transform", d => `translate(${xOffset[ind](d, that)}, ${this.y(d.length)})`)
-        .attr("width", width)
-        .attr("height", d => this.height - this.y(d.length))
-        .attr("fill", colors[ind])
-        .attr("stroke", "black" );
-
-        rects.append("title")
-          .text((_, binIndex) => this.getMultiBinTooltip(fields, bins, binIndex));
-    });
+  if (overlayStackConfiguration) {
+    const stackMax = this.updateMultiStackBins(
+      bins[overlayStackSeriesIndex],
+      overlayStackBarFieldIndex,
+      overlayStackConfiguration.colorVariable,
+      overlayStackConfiguration.keys);
+    barMax = Math.max(barMax, stackMax);
+    maxCount = Math.max(maxCount, stackMax);
   }
 
-  this.updateAxes();
-  this.generateLegend(epiCurve, colors, fields)
+  if (useDualAxis) {
+    this.y.domain([0, Math.max(1, lineMax * 1.08)]).nice();
+    this.yRight.domain([0, Math.max(1, barMax * 1.1)]).nice();
+  } else {
+    this.y.domain([0, Math.max(1, maxCount)]).nice();
+  }
+
+  const barScale = useDualAxis ? this.yRight : this.y;
+  const layerBars = this.selectedGraphType == 'Multi: Overlay';
+
+  barSeriesIndexes.forEach((seriesIndex, barPosition) => {
+    const fieldIndex = fieldIndexes[seriesIndex];
+    const barCount = Math.max(1, barSeriesIndexes.length);
+    const getBarWidth = d => {
+      const fullWidth = this.x(d.x1) - this.x(d.x0);
+      return layerBars ? fullWidth : fullWidth / barCount;
+    };
+    const getBarX = d => {
+      const fullWidth = this.x(d.x1) - this.x(d.x0);
+      return this.x(d.x0) + (layerBars ? 0 : barPosition * fullWidth / barCount);
+    };
+
+    if (overlayStackConfiguration && seriesIndex == overlayStackSeriesIndex) {
+      overlayStackConfiguration.keys.forEach((stackKey, stackIndex) => {
+        const fill = this.getStackFill(stackKey);
+        const opacity = this.getStackOpacity(stackKey);
+        const rects = epiCurve.selectAll(`rect${seriesIndex}-${stackIndex}`)
+          .data(bins[seriesIndex])
+          .enter()
+          .append("rect")
+          .attr("class", "epiCurve-bar-series epiCurve-overlay-bar epiCurve-stacked-bar-segment")
+          .attr("data-field-index", fieldIndex)
+          .attr("data-series-type", "bar")
+          .attr("data-series-axis", this.getSeriesAxis(fieldIndex).toLowerCase())
+          .attr("data-aggregation", this.getSeriesAggregation(fieldIndex).toLowerCase())
+          .attr("data-cumulative", this.getSeriesCumulative(fieldIndex).toString())
+          .attr("data-stack-index", stackIndex)
+          .attr("data-stack-key", stackKey == null ? '' : String(stackKey))
+          .attr("data-segment-value", d => this.getMultiStackSegment(d, stackIndex).value)
+          .attr("data-stack-total", d => this.getBinCount(d))
+          .attr("transform", d => {
+            const segment = this.getMultiStackSegment(d, stackIndex);
+            return `translate(${getBarX(d)}, ${barScale(segment.y1)})`;
+          })
+          .attr("width", getBarWidth)
+          .attr("height", d => {
+            const segment = this.getMultiStackSegment(d, stackIndex);
+            return Math.max(0, barScale(segment.y0) - barScale(segment.y1));
+          })
+          .attr("fill", fill)
+          .attr("opacity", opacity)
+          .attr("stroke", "black");
+
+        rects.append("title")
+          .text((d, binIndex) => this.getMultiStackBinTooltip(
+            d,
+            stackKey,
+            this.getMultiStackSegment(d, stackIndex).value,
+            overlayStackConfiguration.colorVariable,
+            seriesLabels[seriesIndex],
+            seriesLabels,
+            bins,
+            lineSeriesIndexes,
+            binIndex));
+      });
+      return;
+    }
+
+    const rects = epiCurve.selectAll(`rect${seriesIndex}`)
+      .data(bins[seriesIndex])
+      .enter()
+      .append("rect")
+      .attr("class", `epiCurve-bar-series${layerBars ? ' epiCurve-overlay-bar' : ''}`)
+      .attr("data-field-index", fieldIndex)
+      .attr("data-series-type", "bar")
+      .attr("data-series-axis", this.getSeriesAxis(fieldIndex).toLowerCase())
+      .attr("data-aggregation", this.getSeriesAggregation(fieldIndex).toLowerCase())
+      .attr("data-cumulative", this.getSeriesCumulative(fieldIndex).toString())
+      .attr("transform", d => `translate(${getBarX(d)}, ${barScale(this.getBinCount(d))})`)
+      .attr("width", getBarWidth)
+      .attr("height", d => this.height - barScale(this.getBinCount(d)))
+      .attr("fill", colors[seriesIndex])
+      .attr("opacity", layerBars && barSeriesIndexes.length > 1 ? 0.6 : 1)
+      .attr("stroke", "black");
+
+    rects.append("title")
+      .text((_, binIndex) => this.getMultiBinTooltip(seriesLabels, bins, binIndex));
+  });
+
+  lineSeriesIndexes.forEach(seriesIndex => {
+    const fieldIndex = fieldIndexes[seriesIndex];
+    const lineStyle = this.getLineStyle(fieldIndex);
+    const lineWidth = this.getLineWidth();
+    const lineGenerator = d3.line<any>()
+      .x((d: any) => this.x(new Date((d.x0.getTime() + d.x1.getTime()) / 2)))
+      .y((d: any) => this.y(this.getBinCount(d)));
+    const linePath = epiCurve.append("path")
+      .datum(bins[seriesIndex])
+      .attr("class", "epiCurve-line-overlay")
+      .attr("data-field-index", fieldIndex)
+      .attr("data-series-type", "line")
+      .attr("data-series-axis", this.getSeriesAxis(fieldIndex).toLowerCase())
+      .attr("data-aggregation", this.getSeriesAggregation(fieldIndex).toLowerCase())
+      .attr("data-cumulative", this.getSeriesCumulative(fieldIndex).toString())
+      .attr("data-line-style", lineStyle.toLowerCase())
+      .attr("data-line-width", lineWidth)
+      .attr("fill", "none")
+      .attr("stroke", colors[seriesIndex])
+      .attr("stroke-width", lineWidth)
+      .attr("stroke-linecap", "round")
+      .attr("stroke-linejoin", "round")
+      .attr("stroke-dasharray", this.getLineDashArray(lineStyle))
+      .attr("vector-effect", "non-scaling-stroke")
+      .attr("d", lineGenerator as any);
+
+    linePath.append("title")
+      .text(`${seriesLabels[seriesIndex]} (${lineStyle.toLowerCase()} line)`);
+  });
+
+  this.updateAxes(useDualAxis);
+  if (overlayStackConfiguration) {
+    this.generateLegendSections(epiCurve, overlayLegendSections);
+  } else {
+    this.generateLegend(
+      epiCurve,
+      colors,
+      seriesLabels,
+      [],
+      seriesTypes.map(seriesType => seriesType.toLowerCase()),
+      lineStyles,
+      false);
+  }
 } 
+
+isDualAxisMulti(): boolean {
+  if (this.selectedGraphType == 'Single Date Field') {
+    return false;
+  }
+
+  const activeTypes = this.visibleSeriesIndexes
+    .filter(index => this.isSeriesConfigurationValid(index))
+    .map(index => this.getSeriesType(index));
+  return activeTypes.includes('Bar') && activeTypes.includes('Line');
+}
+
+private getMultiStackColorConfiguration(fieldIndex: number): { colorVariable: string; keys: any[] } | null {
+  if (!this.isOverlayStackEligible() || this.getOverlayStackBarIndex() != fieldIndex) {
+    return null;
+  }
+
+  const colorVariable = this.getCurrentStackColorVariable();
+  if (!colorVariable || colorVariable == 'None') {
+    return null;
+  }
+
+  let keys;
+  if (this.widgets['epiCurve-stackColorBy'] == 'Node Color') {
+    const savedKeys = this.commonService.session.style.nodeColorsTableKeys[colorVariable] || [];
+    keys = savedKeys.map(value => value == 'null' ? null : value);
+    this.localColorMap = this.commonService.temp.style.nodeColorMap;
+  } else {
+    keys = this.updateLocalColorMap();
+  }
+
+  keys = this.getOrderedStackKeys(keys, colorVariable, fieldIndex);
+  return keys.length > 0 ? { colorVariable, keys } : null;
+}
+
+private updateMultiStackBins(bins, fieldIndex: number, colorVariable: string, keys: any[]): number {
+  const aggregation = this.getSeriesAggregation(fieldIndex);
+  const valueField = this.widgets['epiCurve-value-fields']?.[fieldIndex] || 'None';
+  const cumulative = this.getSeriesCumulative(fieldIndex);
+  const runningSegmentValues = keys.map(() => 0);
+  let maxStackHeight = 0;
+
+  bins.forEach(bin => {
+    const segmentValues = keys.map((key, stackIndex) => {
+      const matchingNodes = bin.filter(node => this.isStackGroupMatch(node?.[colorVariable], key));
+      const binValue = this.aggregateSeriesBin(matchingNodes, fieldIndex, valueField, aggregation);
+      if (cumulative) {
+        runningSegmentValues[stackIndex] += binValue;
+        return runningSegmentValues[stackIndex];
+      }
+
+      return binValue;
+    });
+
+    let offset = 0;
+    bin.stackSegments = segmentValues.map(value => {
+      const segment: EpiCurveStackSegment = {
+        value,
+        y0: offset,
+        y1: offset + value,
+      };
+      offset = segment.y1;
+      return segment;
+    });
+    bin.displayCount = offset;
+    maxStackHeight = Math.max(maxStackHeight, offset);
+  });
+
+  return maxStackHeight;
+}
+
+private isStackGroupMatch(nodeValue, stackKey): boolean {
+  if (nodeValue == null && stackKey == null) {
+    return true;
+  }
+
+  return nodeValue == stackKey;
+}
+
+private getMultiStackSegment(bin, stackIndex: number): EpiCurveStackSegment {
+  return bin?.stackSegments?.[stackIndex] || { value: 0, y0: 0, y1: 0 };
+}
+
+private updateMultiSeriesBins(bins, fieldIndex: number): [number, any[]] {
+  const valueField = this.widgets['epiCurve-value-fields']?.[fieldIndex] || 'None';
+  const aggregation = this.getSeriesAggregation(fieldIndex);
+  const cumulative = this.getSeriesCumulative(fieldIndex);
+  let cumulativeCount = 0;
+  let maxCount = 0;
+
+  bins.forEach(bin => {
+    const binCount = this.aggregateSeriesBin(bin, fieldIndex, valueField, aggregation);
+    cumulativeCount += binCount;
+    bin.binCount = binCount;
+    bin.cumulativeCount = cumulativeCount;
+    bin.displayCount = cumulative ? cumulativeCount : binCount;
+    maxCount = Math.max(maxCount, bin.displayCount);
+  });
+
+  return [maxCount, bins];
+}
+
+private aggregateSeriesBin(
+  bin,
+  fieldIndex: number,
+  valueField: string,
+  aggregation: EpiCurveAggregation,
+): number {
+  if (aggregation == 'Count' || valueField == 'None') {
+    return bin.length;
+  }
+
+  const dateField = this.widgets['epiCurve-date-fields']?.[fieldIndex];
+  const numericEntries = bin.reduce((entries, node, inputIndex) => {
+    const rawValue = node?.[valueField];
+    const normalizedValue = rawValue == null ? '' : String(rawValue).trim();
+    if (normalizedValue == '' || normalizedValue.toLowerCase() == 'null') {
+      return entries;
+    }
+
+    const value = Number(rawValue);
+    if (!Number.isFinite(value)) {
+      return entries;
+    }
+
+    const timestamp = new Date(node?.[dateField]).getTime();
+    entries.push({
+      value,
+      timestamp: Number.isFinite(timestamp) ? timestamp : Number.NEGATIVE_INFINITY,
+      inputIndex,
+    });
+    return entries;
+  }, []);
+
+  if (numericEntries.length == 0) {
+    return 0;
+  }
+
+  if (aggregation == 'Sum') {
+    return d3.sum(numericEntries, entry => entry.value);
+  }
+
+  if (aggregation == 'Average') {
+    return d3.mean(numericEntries, entry => entry.value) ?? 0;
+  }
+
+  const lastEntry = numericEntries.reduce((latest, entry) =>
+    entry.timestamp > latest.timestamp
+      || (entry.timestamp == latest.timestamp && entry.inputIndex > latest.inputIndex)
+      ? entry
+      : latest);
+  return lastEntry.value;
+}
+
+private getLineStyle(fieldIndex): string {
+  return this.widgets['epiCurve-lineStyles']?.[fieldIndex] == 'Dashed' ? 'Dashed' : 'Solid';
+}
+
+private getLineDashArray(lineStyle): string | null {
+  return lineStyle == 'Dashed' ? '10 7' : null;
+}
 
 /**
  * Return an array of unique options for nodes[this.widgets['epiCurve-stackColorBy']] and then also used that information to update localColorMap function
@@ -480,30 +1353,30 @@ updateLocalColorMap() {
   return nodeColorTableKeys;
 }
 
-private getOrderedStackKeys(keys, colorVariable) {
+private getOrderedStackKeys(keys, colorVariable, fieldIndex: number | null = null) {
   const order = this.widgets['epiCurve-stackOrder'];
   let orderedKeys;
   if (order == 'Custom') {
-    orderedKeys = this.getCustomOrderedStackKeys(keys, colorVariable);
+    orderedKeys = this.getCustomOrderedStackKeys(keys, colorVariable, false, fieldIndex);
   } else {
-    orderedKeys = this.getDefaultOrderedStackKeys(keys, colorVariable, order == 'Smallest at Bottom');
+    orderedKeys = this.getDefaultOrderedStackKeys(keys, colorVariable, order == 'Smallest at Bottom', fieldIndex);
   }
 
   this.setStackOrderItemsFromInternalOrder(orderedKeys);
   return orderedKeys;
 }
 
-private getDefaultOrderedStackKeys(keys, colorVariable, smallestAtBottom = false) {
+private getDefaultOrderedStackKeys(keys, colorVariable, smallestAtBottom = false, fieldIndex: number | null = null) {
   const counts = new Map();
 
   keys.forEach((key) => counts.set(key, 0));
   this.vnodes.forEach((node) => {
-    if (!this.hasValidStackDate(node)) return;
+    if (!this.hasValidStackDate(node, fieldIndex)) return;
 
     const key = keys.find((value) => value == node[colorVariable]);
     if (key === undefined) return;
 
-    counts.set(key, (counts.get(key) || 0) + 1);
+    counts.set(key, (counts.get(key) || 0) + this.getStackOrderWeight(node, fieldIndex));
   });
 
   return [...keys]
@@ -518,8 +1391,8 @@ private getDefaultOrderedStackKeys(keys, colorVariable, smallestAtBottom = false
     .map((entry) => entry.key);
 }
 
-private getCustomOrderedStackKeys(keys, colorVariable, reset = false) {
-  this.ensureCustomStackOrder(keys, colorVariable, reset);
+private getCustomOrderedStackKeys(keys, colorVariable, reset = false, fieldIndex: number | null = null) {
+  this.ensureCustomStackOrder(keys, colorVariable, reset, fieldIndex);
 
   const customOrder = this.widgets['epiCurve-customStackOrder'];
   const orderedKeys = customOrder
@@ -530,8 +1403,8 @@ private getCustomOrderedStackKeys(keys, colorVariable, reset = false) {
   return [...orderedKeys, ...missingKeys];
 }
 
-private ensureCustomStackOrder(keys, colorVariable, reset = false) {
-  const defaultOrder = this.getDefaultOrderedStackKeys(keys, colorVariable);
+private ensureCustomStackOrder(keys, colorVariable, reset = false, fieldIndex: number | null = null) {
+  const defaultOrder = this.getDefaultOrderedStackKeys(keys, colorVariable, false, fieldIndex);
   const currentOrder = Array.isArray(this.widgets['epiCurve-customStackOrder'])
     ? this.widgets['epiCurve-customStackOrder']
     : [];
@@ -567,7 +1440,10 @@ private initializeCustomStackOrder(reset = false) {
 
   const keys = this.getCurrentStackKeys(colorVariable);
   this.vnodes = JSON.parse(JSON.stringify(this.commonService.session.data.nodes));
-  const orderedKeys = this.getCustomOrderedStackKeys(keys, colorVariable, reset);
+  const fieldIndex = this.selectedGraphType == 'Multi: Overlay'
+    ? this.getOverlayStackBarIndex()
+    : null;
+  const orderedKeys = this.getCustomOrderedStackKeys(keys, colorVariable, reset, fieldIndex);
   this.setStackOrderItemsFromInternalOrder(orderedKeys);
 }
 
@@ -661,18 +1537,27 @@ private getCurrentStackKeys(colorVariable) {
   return keys;
 }
 
-private hasValidStackDate(node) {
-  const value = node?.[this.SelectedDateFieldVariable];
-  if (value == null || String(value).trim() == '') {
-    return false;
-  }
-
-  return moment(value).isValid();
+private hasValidStackDate(node, fieldIndex: number | null = null) {
+  const dateField = fieldIndex == null
+    ? this.SelectedDateFieldVariable
+    : this.widgets['epiCurve-date-fields']?.[fieldIndex];
+  const value = node?.[dateField];
+  return this.parseEpiCurveDate(value) != null;
 }
 
-updateSizes() {
-  this.updateBottomMargin();
+private getStackOrderWeight(node, fieldIndex: number | null): number {
+  if (fieldIndex == null || this.getSeriesAggregation(fieldIndex) != 'Sum') {
+    return 1;
+  }
+
+  const valueField = this.widgets['epiCurve-value-fields']?.[fieldIndex];
+  const numericValue = Number(node?.[valueField]);
+  return Number.isFinite(numericValue) ? numericValue : 0;
+}
+
+updateSizes(legendSections: EpiCurveLegendSection[] = []) {
   const wrapper = $(this.epiCurveElement.nativeElement).parent();
+  this.updateBottomMargin(legendSections, wrapper.width(), wrapper.height());
   $('#epiCurve').height(wrapper.height() - 50);
   this.width = wrapper.width() - this.margin.left - this.margin.right;
   // height represents the height of y axis
@@ -680,14 +1565,33 @@ updateSizes() {
   this.middle = this.height / 2;
 }
 
-private updateBottomMargin() {
+private updateBottomMargin(
+  legendSections: EpiCurveLegendSection[] = [],
+  wrapperWidth = 0,
+  wrapperHeight = 0,
+) {
   const baseBottomMargin = this.widgets['epiCurve-legendPosition'] == 'Bottom' ? 100 : 50;
   const labelSizePadding = Math.max(0, this.labelSize - 12) * 2;
   const legendSizePadding = this.widgets['epiCurve-legendPosition'] == 'Bottom' ? Math.max(0, this.legendLabelSize - 15) * 2 : 0;
-  this.margin.bottom = baseBottomMargin + labelSizePadding + legendSizePadding;
+  const dualAxisPadding = this.isDualAxisMulti() ? Math.round(this.labelSize * 5) : 0;
+  this.margin.left = Math.max(64, Math.round(this.labelSize * 4.8));
+  this.margin.right = Math.max(30, Math.round(this.labelSize * 2) + 10, dualAxisPadding);
   this.margin.top = Math.max(8, Math.round(this.labelSize * 0.75));
-  this.margin.left = Math.max(45, Math.round(this.labelSize * 3.2));
-  this.margin.right = Math.max(20, Math.round(this.labelSize * 2))+10;
+  this.margin.bottom = baseBottomMargin + labelSizePadding + legendSizePadding;
+
+  if (this.widgets['epiCurve-legendPosition'] == 'Bottom' && legendSections.length > 1 && wrapperWidth > 0) {
+    const plotWidth = Math.max(1, wrapperWidth - this.margin.left - this.margin.right);
+    const axisSpace = Math.max(58, Math.round(this.labelSize * 4.2));
+    const sectionHeight = this.getBottomLegendSectionsHeight(legendSections, plotWidth);
+    const desiredBottomMargin = axisSpace + sectionHeight + 12;
+    const maxBottomMargin = wrapperHeight > 0
+      ? Math.max(100, wrapperHeight - this.margin.top - 160)
+      : desiredBottomMargin;
+    this.margin.bottom = Math.max(
+      this.margin.bottom,
+      Math.min(desiredBottomMargin, maxBottomMargin),
+    );
+  }
 }
 
 getTimes(fields) {
@@ -695,8 +1599,8 @@ getTimes(fields) {
   this.vnodes = JSON.parse(JSON.stringify(this.commonService.session.data.nodes));
   this.vnodes.forEach(d => {
     fields.forEach(field => {
-      const time = moment(d[field as string]); // Cast 'field' as string
-      if (time.isValid()) {
+      const time = this.parseEpiCurveDate(d[field as string]); // Cast 'field' as string
+      if (time) {
         d[field as string] = time.toDate();
         times.push(d[field as string]); // Cast 'field' as string
       } else {
@@ -705,9 +1609,6 @@ getTimes(fields) {
     })
   });
 
-  if (times.length < 2) {
-    times = [new Date(2000, 1, 1), new Date()];
-  }
   return times;
 }
 
@@ -740,6 +1641,10 @@ private getCount(count): number {
 private getBinCount(bin): number {
   if (!bin) {
     return 0;
+  }
+
+  if (bin.displayCount != null) {
+    return this.getCount(bin.displayCount);
   }
 
   if (this.widgets['epiCurve-cumulative']) {
@@ -785,33 +1690,67 @@ private getSingleBinTooltip(bin, field, segmentLabel = undefined, segmentCount =
   return lines.join("\n");
 }
 
-private getMultiBinTooltip(fields, bins, binIndex): string {
+private getMultiBinTooltip(seriesLabels, bins, binIndex): string {
   const firstAvailableBin = bins.find(fieldBins => fieldBins?.[binIndex])?.[binIndex];
   const lines = [
     this.getBinDateRange(firstAvailableBin)
   ];
 
-  fields.forEach((field, fieldIndex) => {
-    lines.push(`${this.getTooltipLabel(field)}: ${this.getBinCount(bins[fieldIndex]?.[binIndex])}`);
+  seriesLabels.forEach((seriesLabel, seriesIndex) => {
+    lines.push(`${seriesLabel}: ${this.formatNumericValue(this.getBinCount(bins[seriesIndex]?.[binIndex]))}`);
   });
 
   return lines.join("\n");
+}
+
+private getMultiStackBinTooltip(
+  bin,
+  stackKey,
+  segmentValue: number,
+  colorVariable: string,
+  barSeriesLabel: string,
+  seriesLabels: string[],
+  bins,
+  lineSeriesIndexes: number[],
+  binIndex: number,
+): string {
+  const lines = [
+    this.getBinDateRange(bin),
+    `${this.getTooltipLabel(colorVariable)} — ${this.getTooltipLabel(stackKey)}: ${this.formatNumericValue(segmentValue)}`,
+    `${barSeriesLabel} total: ${this.formatNumericValue(this.getBinCount(bin))}`,
+  ];
+
+  lineSeriesIndexes.forEach(seriesIndex => {
+    lines.push(`${seriesLabels[seriesIndex]}: ${this.formatNumericValue(this.getBinCount(bins[seriesIndex]?.[binIndex]))}`);
+  });
+
+  return lines.join("\n");
+}
+
+private formatNumericValue(value: number): string {
+  const numericValue = this.getCount(value);
+  return numericValue.toLocaleString(undefined, {
+    maximumFractionDigits: Number.isInteger(numericValue) ? 0 : 2,
+  });
 }
 onLabelSizeChange() {
   this.refresh();
 }
 
-updateAxes() {
+updateAxes(showRightAxis = false) {
   const xAxis = this.configureXAxisSettings();
-  const yDomainMax = Math.max(0, Math.ceil(this.y.domain()[1] as number));
-  const yTickStep = Math.max(1, Math.ceil(yDomainMax / 10));
-  const yTickValues = d3.range(0, yDomainMax + 1, yTickStep);
-  if (yTickValues[yTickValues.length - 1] !== yDomainMax) {
-    yTickValues.push(yDomainMax);
-  }
+  const createTickValues = scale => {
+    const domainMax = Math.max(0, Math.ceil(scale.domain()[1] as number));
+    const tickStep = Math.max(1, Math.ceil(domainMax / 10));
+    const tickValues = d3.range(0, domainMax + 1, tickStep);
+    if (tickValues[tickValues.length - 1] !== domainMax) {
+      tickValues.push(domainMax);
+    }
+    return tickValues;
+  };
   const yAxis = d3.axisLeft(this.y)
-    .tickValues(yTickValues)
-    .tickFormat((d: number) => `${Math.round(d)}`);
+    .tickValues(createTickValues(this.y))
+    .tickFormat((d: number) => this.formatNumericValue(Number(d)));
 
   const xLabelY = this.height + this.margin.top + Math.max(40, Math.round(this.labelSize * 2.3));
   const yTickOffset = -Math.max(9, Math.round(this.labelSize * 0.9));
@@ -839,47 +1778,352 @@ updateAxes() {
     .attr("font-size", this.labelSize)
     .attr("x", this.margin.left + this.width / 2)
     .attr("y", xLabelY)
-    .text(`Date (${this.widgets['epiCurve-binSize']=='Day'? 'Dai': this.widgets['epiCurve-binSize']}ly Bins)`);
+    .text(this.getAxisLabel('epiCurve-xAxisLabel', this.getDefaultXAxisLabel()));
 
   this.svg.append("text")
-    .attr("class", "y label")
+    .attr("class", "y label label--left")
     .attr("text-anchor", "middle")
     .attr("font-size", this.labelSize)
-    .attr("y", Math.max(14, Math.round(this.labelSize * 0.95)))
-    .attr("x", -(this.margin.top + this.height / 2))
-    .attr("transform", "rotate(-90)")
-    .text("Number of Cases");
+    .attr("transform", `translate(${Math.max(14, Math.round(this.labelSize * 0.95))}, ${this.margin.top + this.height / 2}) rotate(-90)`)
+    .text(this.getAxisLabel('epiCurve-leftYAxisLabel', this.getDefaultYAxisLabel('Left')));
 
-  /*this.brush = d3.brushX()
-    .extent([[0, 0], [this.width, this.height]])
-    .on("start brush", () => {
-      this.selection = d3.brushSelection(this.brushG.node());
-      if (!this.selection) return;
-      if (this.selection[0] > 0) {
-        this.selection[0] = 0;
-        this.brushG.call(this.brush.move, this.selection);
-      }
-    })
-    .on("end", function () {
-      this.selection = d3.brushSelection(this.brushG.node());
-      if (!this.selection) return;
-      if (this.selection[0] > 0) {
-        this.selection[0] = 0;
-        this.brushG.call(this.brush.move, this.selection);
-        this.propagate();
-      }
-    });
+  if (showRightAxis && this.yRight) {
+    const yRightAxis = d3.axisRight(this.yRight)
+      .tickValues(createTickValues(this.yRight))
+      .tickFormat((d: number) => this.formatNumericValue(Number(d)));
+    this.svg.append("g")
+      .attr("class", "axis axis--y-right")
+      .attr("transform", `translate(${this.margin.left + this.width}, ${this.margin.top})`)
+      .call(yRightAxis)
+      .attr("font-size", this.labelSize);
 
-    this.brushG = this.svg
-    .append("g")
-    .attr("class", "brush")
-    .attr("transform", "translate(" + this.margin.left + ",0)")
-    .call(this.brush);
-    */
+    this.svg.append("text")
+      .attr("class", "y label label--right")
+      .attr("text-anchor", "middle")
+      .attr("font-size", this.labelSize)
+      .attr("transform", `translate(${this.margin.left + this.width + this.margin.right - Math.max(10, Math.round(this.labelSize * 0.7))}, ${this.margin.top + this.height / 2}) rotate(90)`)
+      .text(this.getAxisLabel('epiCurve-rightYAxisLabel', this.getDefaultYAxisLabel('Right')));
+  }
 
+  this.applyEpiCurveFontFamily();
 }
 
-generateLegend(epiCurve, colors, fieldNames, opacities = []) {
+private fitLegendTextToWidth(textSelection, fullLabel: string, maxWidth: number, legendFontSize: number): number {
+  const textNode = textSelection.node() as SVGTextElement;
+  const safeMaxWidth = Math.max(0, maxWidth);
+  const measureText = () => {
+    if (textNode && typeof textNode.getComputedTextLength == 'function') {
+      return textNode.getComputedTextLength();
+    }
+
+    return String(textSelection.text() || '').length * legendFontSize * 0.55;
+  };
+
+  textSelection
+    .text(fullLabel)
+    .attr('data-full-label', fullLabel);
+
+  if (measureText() <= safeMaxWidth) {
+    return measureText();
+  }
+
+  const ellipsis = '…';
+  let longestFit = '';
+  let low = 0;
+  let high = fullLabel.length;
+
+  while (low <= high) {
+    const midpoint = Math.floor((low + high) / 2);
+    const candidate = `${fullLabel.slice(0, midpoint).trimEnd()}${ellipsis}`;
+    textSelection.text(candidate);
+
+    if (measureText() <= safeMaxWidth) {
+      longestFit = candidate;
+      low = midpoint + 1;
+    } else {
+      high = midpoint - 1;
+    }
+  }
+
+  textSelection
+    .text(longestFit)
+    .attr('aria-label', fullLabel);
+  return measureText();
+}
+
+private getLegendLayoutMetrics() {
+  const fontSize = Math.max(6, Number(this.legendLabelSize || 15));
+  return {
+    fontSize,
+    fontSizePx: `${fontSize}px`,
+    markerRadius: Math.max(4, Math.round(fontSize * 0.35)),
+    markerTextGap: Math.max(8, Math.round(fontSize * 0.65)),
+    rowHeight: Math.max(22, Math.round(fontSize * 1.9)),
+    charWidth: Math.max(5.5, fontSize * 0.55),
+    itemGap: Math.max(24, Math.round(fontSize * 1.8)),
+    sectionGap: Math.max(12, Math.round(fontSize * 0.9)),
+    horizontalPadding: Math.max(12, Math.round(fontSize * 0.8)),
+  };
+}
+
+private getLegendItemWidth(
+  item: EpiCurveLegendItem,
+  metrics: ReturnType<TimelineComponent['getLegendLayoutMetrics']>,
+): number {
+  const markerHalfWidth = item.seriesType == 'line'
+    ? metrics.markerRadius * 2
+    : metrics.markerRadius;
+  return markerHalfWidth * 2
+    + metrics.markerTextGap
+    + String(item.label || '(Empty)').length * metrics.charWidth
+    + metrics.itemGap;
+}
+
+private getBottomLegendSectionRowCount(
+  section: EpiCurveLegendSection,
+  availableWidth: number,
+  metrics: ReturnType<TimelineComponent['getLegendLayoutMetrics']>,
+): number {
+  let rowCount = 0;
+  let usedWidth = 0;
+
+  section.items.forEach(item => {
+    const itemWidth = Math.min(availableWidth, this.getLegendItemWidth(item, metrics));
+    if (rowCount == 0 || (usedWidth > 0 && usedWidth + itemWidth > availableWidth)) {
+      rowCount += 1;
+      usedWidth = itemWidth;
+    } else {
+      usedWidth += itemWidth;
+    }
+  });
+
+  return rowCount;
+}
+
+private getBottomLegendSectionsHeight(
+  sections: EpiCurveLegendSection[],
+  plotWidth: number,
+): number {
+  const metrics = this.getLegendLayoutMetrics();
+  const availableWidth = Math.max(1, plotWidth - metrics.horizontalPadding * 2);
+
+  return sections.reduce((height, section, sectionIndex) => {
+    const itemRows = this.getBottomLegendSectionRowCount(section, availableWidth, metrics);
+    return height
+      + (sectionIndex > 0 ? metrics.sectionGap : 0)
+      + metrics.rowHeight
+      + itemRows * metrics.rowHeight;
+  }, 0);
+}
+
+private generateLegendSections(epiCurve, sections: EpiCurveLegendSection[]): void {
+  if (this.widgets['epiCurve-legendPosition'] == 'Hide' || sections.length == 0) {
+    return;
+  }
+
+  const metrics = this.getLegendLayoutMetrics();
+  const position = this.widgets['epiCurve-legendPosition'];
+
+  if (position == 'Bottom') {
+    const availableWidth = Math.max(1, this.width - metrics.horizontalPadding * 2);
+    const axisSpace = Math.max(58, Math.round(this.labelSize * 4.2));
+    let nextY = this.height + axisSpace;
+
+    sections.forEach((section, sectionIndex) => {
+      const sectionGroup = epiCurve.append('g')
+        .attr('class', `epiCurve-legend-section epiCurve-legend-section--${section.id}`)
+        .attr('data-legend-section', section.id)
+        .attr('role', 'group')
+        .attr('aria-label', section.title);
+
+      if (sectionIndex > 0) {
+        nextY += Math.floor(metrics.sectionGap / 2);
+        sectionGroup.append('line')
+          .attr('class', 'epiCurve-legend-section-divider')
+          .attr('x1', metrics.horizontalPadding)
+          .attr('x2', this.width - metrics.horizontalPadding)
+          .attr('y1', nextY)
+          .attr('y2', nextY)
+          .attr('stroke', '#d8dde3')
+          .attr('stroke-width', 1);
+        nextY += Math.ceil(metrics.sectionGap / 2);
+      }
+
+      const title = sectionGroup.append('text')
+        .attr('class', 'epiCurve-legend-section-title')
+        .attr('x', metrics.horizontalPadding)
+        .attr('y', nextY)
+        .style('font-size', metrics.fontSizePx)
+        .style('font-weight', '600')
+        .attr('alignment-baseline', 'middle');
+      this.fitLegendTextToWidth(title, section.title, availableWidth, metrics.fontSize);
+
+      nextY += metrics.rowHeight;
+      let rowY = nextY;
+      let itemX = metrics.horizontalPadding;
+      let rowHasItems = false;
+
+      section.items.forEach((item, itemIndex) => {
+        const itemWidth = Math.min(availableWidth, this.getLegendItemWidth(item, metrics));
+        if (rowHasItems && itemX + itemWidth > this.width - metrics.horizontalPadding) {
+          itemX = metrics.horizontalPadding;
+          rowY += metrics.rowHeight;
+          rowHasItems = false;
+        }
+
+        const markerHalfWidth = item.seriesType == 'line'
+          ? metrics.markerRadius * 2
+          : metrics.markerRadius;
+        const markerX = itemX + markerHalfWidth;
+        const textX = markerX + markerHalfWidth + metrics.markerTextGap;
+        const maxTextWidth = Math.max(
+          0,
+          itemWidth - markerHalfWidth * 2 - metrics.markerTextGap - metrics.itemGap,
+        );
+
+        this.appendLegendMarker(
+          sectionGroup,
+          markerX,
+          rowY,
+          metrics.markerRadius,
+          item.color,
+          item.opacity ?? 1,
+          item.seriesType,
+          item.lineStyle,
+        );
+        const label = sectionGroup.append('text')
+          .attr('class', 'epiCurve-legend-label')
+          .attr('data-legend-section', section.id)
+          .attr('data-series-index', itemIndex)
+          .attr('x', textX)
+          .attr('y', rowY)
+          .style('font-size', metrics.fontSizePx)
+          .attr('alignment-baseline', 'middle');
+        this.fitLegendTextToWidth(label, item.label || '(Empty)', maxTextWidth, metrics.fontSize);
+
+        itemX += itemWidth;
+        rowHasItems = true;
+      });
+
+      nextY = rowY + metrics.rowHeight;
+    });
+    return;
+  }
+
+  const longestLabelLength = sections.reduce((longest, section) => Math.max(
+    longest,
+    section.title.length,
+    ...section.items.map(item => String(item.label || '(Empty)').length),
+  ), 0);
+  const estimatedLegendWidth = longestLabelLength * metrics.charWidth
+    + metrics.markerRadius * 4
+    + metrics.markerTextGap;
+  const rightAligned = position == 'Right';
+  const legendRightX = this.width - Math.max(12, Math.round(this.labelSize * 0.75));
+  let xOffset = 50;
+  if (position == 'Top') {
+    const centeredX = Math.round((this.width - estimatedLegendWidth) / 2);
+    const referenceStyleX = Math.round(this.width * 0.42);
+    const rightSafeX = Math.max(metrics.markerRadius * 2 + 6, this.width - estimatedLegendWidth - 8);
+    xOffset = Math.max(metrics.markerRadius * 2 + 6, Math.min(Math.max(centeredX, referenceStyleX), rightSafeX));
+  }
+
+  let nextY = metrics.rowHeight;
+  sections.forEach((section, sectionIndex) => {
+    if (sectionIndex > 0) {
+      nextY += metrics.sectionGap;
+    }
+
+    const sectionGroup = epiCurve.append('g')
+      .attr('class', `epiCurve-legend-section epiCurve-legend-section--${section.id}`)
+      .attr('data-legend-section', section.id)
+      .attr('role', 'group')
+      .attr('aria-label', section.title);
+    const titleX = rightAligned ? legendRightX : xOffset;
+    const titleMaxWidth = rightAligned
+      ? Math.max(0, legendRightX - 8)
+      : Math.max(0, this.width - xOffset - 8);
+    const title = sectionGroup.append('text')
+      .attr('class', 'epiCurve-legend-section-title')
+      .attr('x', titleX)
+      .attr('y', nextY)
+      .attr('text-anchor', rightAligned ? 'end' : 'start')
+      .style('font-size', metrics.fontSizePx)
+      .style('font-weight', '600')
+      .attr('alignment-baseline', 'middle');
+    this.fitLegendTextToWidth(title, section.title, titleMaxWidth, metrics.fontSize);
+    nextY += metrics.rowHeight;
+
+    section.items.forEach((item, itemIndex) => {
+      const markerHalfWidth = item.seriesType == 'line'
+        ? metrics.markerRadius * 2
+        : metrics.markerRadius;
+      const labelText = item.label || '(Empty)';
+
+      if (rightAligned) {
+        const maxTextWidth = Math.max(
+          0,
+          legendRightX - metrics.markerTextGap - markerHalfWidth * 2 - 8,
+        );
+        const label = sectionGroup.append('text')
+          .attr('class', 'epiCurve-legend-label')
+          .attr('data-legend-section', section.id)
+          .attr('data-series-index', itemIndex)
+          .attr('x', legendRightX)
+          .attr('y', nextY)
+          .attr('text-anchor', 'end')
+          .style('font-size', metrics.fontSizePx)
+          .attr('alignment-baseline', 'middle');
+        const renderedTextWidth = this.fitLegendTextToWidth(
+          label,
+          labelText,
+          maxTextWidth,
+          metrics.fontSize,
+        );
+        const markerX = legendRightX - renderedTextWidth - metrics.markerTextGap - markerHalfWidth;
+        this.appendLegendMarker(
+          sectionGroup,
+          markerX,
+          nextY,
+          metrics.markerRadius,
+          item.color,
+          item.opacity ?? 1,
+          item.seriesType,
+          item.lineStyle,
+        );
+      } else {
+        this.appendLegendMarker(
+          sectionGroup,
+          xOffset,
+          nextY,
+          metrics.markerRadius,
+          item.color,
+          item.opacity ?? 1,
+          item.seriesType,
+          item.lineStyle,
+        );
+        const label = sectionGroup.append('text')
+          .attr('class', 'epiCurve-legend-label')
+          .attr('data-legend-section', section.id)
+          .attr('data-series-index', itemIndex)
+          .attr('x', xOffset + markerHalfWidth + metrics.markerTextGap)
+          .attr('y', nextY)
+          .style('font-size', metrics.fontSizePx)
+          .attr('alignment-baseline', 'middle');
+        this.fitLegendTextToWidth(
+          label,
+          labelText,
+          Math.max(0, this.width - xOffset - markerHalfWidth - metrics.markerTextGap - 8),
+          metrics.fontSize,
+        );
+      }
+
+      nextY += metrics.rowHeight;
+    });
+  });
+}
+
+generateLegend(epiCurve, colors, fieldNames, opacities = [], seriesTypes = [], lineStyles = [], formatLabels = true) {
   const legendFontSize = Math.max(6, Number(this.legendLabelSize || 15));
   const legendFontSizePx = `${legendFontSize}px`;
   const markerRadius = Math.max(4, Math.round(legendFontSize * 0.35));
@@ -907,22 +2151,90 @@ generateLegend(epiCurve, colors, fieldNames, opacities = []) {
       // this first section calculates the location for each item/name in the legend
       let nLength = name==null ? 7: name.toString().length
       let baseX = 70 + legendItemGap * rowCount + prevLength * legendCharWidth;
-      if (baseX + markerRadius * 2 + markerTextGap + nLength * legendCharWidth > this.width - 70) {
+      const markerHalfWidth = seriesTypes[i] == 'line' ? markerRadius * 2 : markerRadius;
+      if (baseX + markerHalfWidth + markerTextGap + nLength * legendCharWidth > this.width - 70) {
         rowCount = 0;
         y -= legendRowHeight;
         prevLength = 0;
         baseX = 70;
       }
 
-      epiCurve.append("circle").attr("cx", baseX).attr("cy", y).attr("r", markerRadius).style("fill", colors[i]).style("opacity", opacities[i] ?? 1)
-      epiCurve.append("text").attr("x", baseX + markerRadius + markerTextGap).attr("y", y).text(this.commonService.capitalize(name==null? '(Empty)': name.toString())).style("font-size", legendFontSizePx).attr("alignment-baseline","middle")
+      this.appendLegendMarker(epiCurve, baseX, y, markerRadius, colors[i], opacities[i] ?? 1, seriesTypes[i], lineStyles[i]);
+      const legendLabel = name == null
+        ? '(Empty)'
+        : formatLabels ? this.commonService.capitalize(name.toString()) : name.toString();
+      epiCurve.append("text")
+        .attr("class", "epiCurve-legend-label")
+        .attr("data-series-index", i)
+        .attr("x", baseX + markerHalfWidth + markerTextGap)
+        .attr("y", y)
+        .text(legendLabel)
+        .style("font-size", legendFontSizePx)
+        .attr("alignment-baseline","middle")
 
       prevLength += nLength;
       rowCount += 1;
     })
     return;
+  } else if (this.widgets['epiCurve-legendPosition'] == 'Top') {
+    const longestLabelLength = fieldNames.reduce(
+      (longest, name) => Math.max(longest, String(name ?? '(Empty)').length),
+      0);
+    const estimatedLegendWidth = longestLabelLength * legendCharWidth + markerRadius * 4 + markerTextGap;
+    const centeredX = Math.round((this.width - estimatedLegendWidth) / 2);
+    const referenceStyleX = Math.round(this.width * 0.42);
+    const rightSafeX = Math.max(markerRadius * 2 + 6, this.width - estimatedLegendWidth - 8);
+    xOffset = Math.max(markerRadius * 2 + 6, Math.min(Math.max(centeredX, referenceStyleX), rightSafeX));
   } else if (this.widgets['epiCurve-legendPosition'] == 'Right') {
-    xOffset = this.width - Math.max(120, Math.round(legendFontSize * 8));
+    const legendRightX = this.width - Math.max(12, Math.round(this.labelSize * 0.75));
+    let count = 0;
+
+    if (this.selectedGraphType=='Single Date Field' && this.widgets['epiCurve-stackColorBy'] == 'Node Color' && this.commonService.session.style.widgets['node-color-variable'] != 'None') {
+      const field = `${this.commonService.capitalize(this.commonService.session.style.widgets['node-color-variable'])}:`;
+      const heading = epiCurve.append('text')
+        .attr('class', 'epiCurve-legend-heading')
+        .attr('x', legendRightX)
+        .attr('y', legendRowHeight)
+        .attr('text-anchor', 'end')
+        .style('font-size', legendFontSizePx)
+        .attr('alignment-baseline', 'middle');
+      this.fitLegendTextToWidth(heading, field, Math.max(0, legendRightX - 8), legendFontSize);
+      count += 1;
+    } else if (this.selectedGraphType=='Single Date Field' && this.widgets['epiCurve-stackColorBy'] != 'Node Color' && this.widgets['epiCurve-stackColorBy'] != 'None') {
+      const field = `${this.widgets['epiCurve-stackColorBy']}:`;
+      const heading = epiCurve.append('text')
+        .attr('class', 'epiCurve-legend-heading')
+        .attr('x', legendRightX)
+        .attr('y', legendRowHeight)
+        .attr('text-anchor', 'end')
+        .style('font-size', legendFontSizePx)
+        .attr('alignment-baseline', 'middle');
+      this.fitLegendTextToWidth(heading, field, Math.max(0, legendRightX - 8), legendFontSize);
+      count += 1;
+    }
+
+    fieldNames.forEach((name, i) => {
+      const markerHalfWidth = seriesTypes[i] == 'line' ? markerRadius * 2 : markerRadius;
+      const legendLabel = name == null
+        ? '(Empty)'
+        : formatLabels ? this.commonService.capitalize(name.toString()) : name.toString();
+      const y = legendRowHeight * (count + 1);
+      const maxTextWidth = Math.max(0, legendRightX - markerTextGap - markerHalfWidth * 2 - 8);
+      const text = epiCurve.append('text')
+        .attr('class', 'epiCurve-legend-label')
+        .attr('data-series-index', i)
+        .attr('x', legendRightX)
+        .attr('y', y)
+        .attr('text-anchor', 'end')
+        .style('font-size', legendFontSizePx)
+        .attr('alignment-baseline', 'middle');
+      const renderedTextWidth = this.fitLegendTextToWidth(text, legendLabel, maxTextWidth, legendFontSize);
+      const markerX = legendRightX - renderedTextWidth - markerTextGap - markerHalfWidth;
+
+      this.appendLegendMarker(epiCurve, markerX, y, markerRadius, colors[i], opacities[i] ?? 1, seriesTypes[i], lineStyles[i]);
+      count += 1;
+    });
+    return;
   }
   let count = 0;
   if (this.selectedGraphType=='Single Date Field' && this.widgets['epiCurve-stackColorBy'] == 'Node Color' && this.commonService.session.style.widgets['node-color-variable'] != 'None') {
@@ -934,10 +2246,70 @@ generateLegend(epiCurve, colors, fieldNames, opacities = []) {
     count += 1;
   }
   fieldNames.forEach((name, i) => {
-    epiCurve.append("circle").attr("cx", xOffset).attr("cy", legendRowHeight * (count + 1)).attr("r", markerRadius).style("fill", colors[i]).style("opacity", opacities[i] ?? 1)
-    epiCurve.append("text").attr("x", xOffset + markerRadius + markerTextGap).attr("y", legendRowHeight * (count + 1)).text(this.commonService.capitalize(name==null? '(Empty)': name.toString())).style("font-size", legendFontSizePx).attr("alignment-baseline","middle")
+    const markerHalfWidth = seriesTypes[i] == 'line' ? markerRadius * 2 : markerRadius;
+    this.appendLegendMarker(epiCurve, xOffset, legendRowHeight * (count + 1), markerRadius, colors[i], opacities[i] ?? 1, seriesTypes[i], lineStyles[i]);
+    const legendLabel = name == null
+      ? '(Empty)'
+      : formatLabels ? this.commonService.capitalize(name.toString()) : name.toString();
+    epiCurve.append("text")
+      .attr("class", "epiCurve-legend-label")
+      .attr("data-series-index", i)
+      .attr("x", xOffset + markerHalfWidth + markerTextGap)
+      .attr("y", legendRowHeight * (count + 1))
+      .text(legendLabel)
+      .style("font-size", legendFontSizePx)
+      .attr("alignment-baseline","middle")
     count += 1;
   })
+}
+
+private appendLegendMarker(
+  epiCurve,
+  x,
+  y,
+  markerRadius,
+  color,
+  opacity,
+  seriesType = 'bar',
+  lineStyle = 'Solid',
+): void {
+  if (seriesType == 'line') {
+    const normalizedLineWidth = this.getLineWidth();
+    epiCurve.append("line")
+      .attr("class", "epiCurve-legend-line")
+      .attr("data-line-style", lineStyle.toLowerCase())
+      .attr("data-line-width", normalizedLineWidth)
+      .attr("x1", x - markerRadius * 2)
+      .attr("x2", x + markerRadius * 2)
+      .attr("y1", y)
+      .attr("y2", y)
+      .attr("stroke", color)
+      .attr("stroke-width", normalizedLineWidth)
+      .attr("stroke-linecap", "round")
+      .attr("stroke-dasharray", this.getLineDashArray(lineStyle))
+      .style("opacity", opacity);
+    return;
+  }
+
+  if (this.selectedGraphType == 'Multi: Overlay') {
+    epiCurve.append("path")
+      .attr("class", "epiCurve-legend-marker")
+      .attr("data-x", x)
+      .attr("data-y", y)
+      .attr("d", `M ${x - markerRadius} ${y - markerRadius} h ${markerRadius * 2} v ${markerRadius * 2} h ${-markerRadius * 2} Z`)
+      .style("fill", color)
+      .style("stroke", "black")
+      .style("opacity", opacity);
+    return;
+  }
+
+  epiCurve.append("circle")
+    .attr("class", "epiCurve-legend-marker")
+    .attr("cx", x)
+    .attr("cy", y)
+    .attr("r", markerRadius)
+    .style("fill", color)
+    .style("opacity", opacity);
 }
 
 private setupEventListeners(): void {
@@ -974,14 +2346,24 @@ private setupEventListeners(): void {
  * @returns return a d3 time range such as d3.timeMonth.range()
  */
 calculateBinInterval(times) {
-  let minTime = Math.min(...times);
-  let maxTime = Math.max(...times);
+  const validTimes = (times || []).filter(time => Number.isFinite(new Date(time).getTime()));
+  if (validTimes.length == 0) {
+    this.timeDomainStart = undefined;
+    this.timeDomainEnd = undefined;
+    return 0;
+  }
+
+  let minTime = Math.min(...validTimes);
+  let maxTime = Math.max(...validTimes);
 
   if (this.widgets['epiCurve-binSize'] == 'Day') {
     //@ts-ignore
     this.timeDomainStart = d3.timeMonth(minTime);
     //@ts-ignore
     this.timeDomainEnd = d3.timeMonth.ceil(maxTime);
+    if (this.timeDomainEnd.getTime() <= this.timeDomainStart.getTime()) {
+      this.timeDomainEnd = d3.timeMonth.offset(this.timeDomainStart, 1);
+    }
     return d3.timeDay.range(this.timeDomainStart, this.timeDomainEnd);
   } else if (this.widgets['epiCurve-binSize'] == 'Week') {
     this.timeDomainStart = d3.timeMonday.floor(new Date(minTime));
@@ -995,6 +2377,9 @@ calculateBinInterval(times) {
     this.timeDomainStart = d3.timeMonth(minTime);
     //@ts-ignore
     this.timeDomainEnd = d3.timeMonth.ceil(maxTime);
+    if (this.timeDomainEnd.getTime() <= this.timeDomainStart.getTime()) {
+      this.timeDomainEnd = d3.timeMonth.offset(this.timeDomainStart, 1);
+    }
     return d3.timeMonth.range(this.timeDomainStart, this.timeDomainEnd);
   } else if (this.widgets['epiCurve-binSize'] == 'Quarter') {
     //@ts-ignore
@@ -1011,12 +2396,18 @@ calculateBinInterval(times) {
     } else if ([10,11].includes(this.timeDomainStart.getMonth())) {
       this.timeDomainStart.setMonth(9);
     }
+    if (this.timeDomainEnd.getTime() <= this.timeDomainStart.getTime()) {
+      this.timeDomainEnd = d3.timeMonth.offset(this.timeDomainStart, 3);
+    }
     return d3.timeMonth.range(this.timeDomainStart, this.timeDomainEnd, 3);
   } else if (this.widgets['epiCurve-binSize'] == 'Year') {
     //@ts-ignore
     this.timeDomainStart = d3.timeYear(minTime);
     //@ts-ignore
     this.timeDomainEnd = d3.timeYear.ceil(maxTime);
+    if (this.timeDomainEnd.getTime() <= this.timeDomainStart.getTime()) {
+      this.timeDomainEnd = d3.timeYear.offset(this.timeDomainStart, 1);
+    }
     return d3.timeYear.range(this.timeDomainStart, this.timeDomainEnd);
   } else {
     alert("Invalid bin size selected");
@@ -1097,6 +2488,26 @@ updateBins(bins, colorVariable='None', nodeColorKeys=undefined) {
 configureXAxisSettings() {
   let xAxis;
   let numberOfDays = d3.timeDay.count(this.timeDomainStart, this.timeDomainEnd);
+  const tickUnit = this.widgets['epiCurve-tickUnit'] || 'Automatic';
+  const tickInterval = Math.max(1, Number(this.tickInterval) || 1);
+  if (tickUnit != 'Automatic') {
+    const intervals = {
+      Day: d3.timeDay,
+      Week: d3.timeWeek,
+      Month: d3.timeMonth,
+      Year: d3.timeYear,
+    };
+    const interval = intervals[tickUnit] || d3.timeMonth;
+    const tickValues = interval.range(this.timeDomainStart, new Date(this.timeDomainEnd.getTime() + 1), tickInterval);
+    const tickFormat = tickUnit == 'Year'
+      ? d3.timeFormat('%Y')
+      : tickUnit == 'Month'
+        ? d3.timeFormat('%b %Y')
+        : numberOfDays < 366
+          ? d3.timeFormat('%b %-d')
+          : d3.timeFormat('%b %-d, %Y');
+    return d3.axisBottom(this.x).tickValues(tickValues).tickFormat(tickFormat as any);
+  }
   if (this.widgets['epiCurve-binSize'] == 'Year') {
     xAxis = d3.axisBottom(this.x).ticks(d3.timeYear).tickFormat(d3.timeFormat("%Y"));
   } else if (numberOfDays<366) {
@@ -1121,15 +2532,13 @@ goldenLayoutComponentResize() {
 }
 
 // Handle the change event of the date field
-onDateFieldChange(index: number) {
-  if (index == 0) {
-    this.widgets["epiCurve-date-fields"][index] = this.SelectedDateFieldVariable;
-  } else if (index == 1) {
-    this.widgets["epiCurve-date-fields"][index] = this.SelectedDateFieldVariable2;
-  } else if (index == 2) {
-    this.widgets["epiCurve-date-fields"][index] = this.SelectedDateFieldVariable3;
-  }
+onDateFieldChange(_index: number) {
+  this.syncSelectedDateFieldVariables();
+  this.refresh();
+}
 
+onSeriesTypeChange(index: number) {
+  this.widgets['epiCurve-series-types'][index] = this.getSeriesType(index);
   this.refresh();
 }
 
@@ -1139,6 +2548,7 @@ onBinSizeChange() {
   } else {
     if (this.widgets['epiCurve-binSize'] == 'Quarter') {
       this.tickInterval = 1;
+      this.widgets['epiCurve-tickInterval'] = this.tickInterval;
     }
     $('#epi-tick-size').slideDown();
   }
@@ -1148,14 +2558,18 @@ onBinSizeChange() {
 updateSettingsRows() {
   this.ShowEpiSettingsPane = true;
   setTimeout(() => {
-    if (this.selectedGraphType == 'Multi: Overlay' || this.selectedGraphType == 'Multi: Side by Side') {
+    if (this.selectedGraphType == 'Multi: Side by Side') {
       $('#useNodeColorRow').slideUp();
       $('.additionalDateField').slideDown();
       //$('#epi-color-select').slideUp();
     } else {
-      $('.additionalDateField').slideUp();
+      if (this.selectedGraphType == 'Single Date Field') {
+        $('.additionalDateField').slideUp();
+      } else {
+        $('.additionalDateField').slideDown();
+      }
       $('#useNodeColorRow').slideDown();
-      if (this.widgets['epiCurve-stackColorBy'] == 'None') {
+      if (this.selectedGraphType == 'Single Date Field' && this.widgets['epiCurve-stackColorBy'] == 'None') {
         $('#epi-color-select').slideDown();
       }
     }
@@ -1172,9 +2586,11 @@ onGraphTypeChange(refresh=true) {
 
 onUseNodeColorChange() {
   if (this.widgets['epiCurve-stackColorBy'] == 'None') {
-    $('#epi-color-select').slideDown();
     this.customStackOrderItems = [];
-  } else {
+    if (this.selectedGraphType == 'Single Date Field') {
+      $('#epi-color-select').slideDown();
+    }
+  } else if (this.selectedGraphType == 'Single Date Field') {
     $('#epi-color-select').slideUp();
   }
   if (this.widgets['epiCurve-stackOrder'] == 'Custom') {
@@ -1237,10 +2653,53 @@ openStackGroupTransparencyPicker(event, item) {
 }
 
 onTickIntevalChange() {
+  this.tickInterval = Math.max(1, Number(this.tickInterval) || 1);
+  this.widgets['epiCurve-tickInterval'] = this.tickInterval;
   this.refresh()
 }
 
+onTickUnitChange() {
+  this.refresh();
+}
+
+onValueFieldChange(index: number) {
+  const valueField = this.widgets['epiCurve-value-fields']?.[index];
+  const aggregation = this.widgets['epiCurve-series-aggregations']?.[index];
+  if (valueField == 'None') {
+    this.widgets['epiCurve-series-aggregations'][index] = 'Count';
+  } else if (aggregation == 'Count' || !this.isAggregation(aggregation)) {
+    this.widgets['epiCurve-series-aggregations'][index] = 'Sum';
+  }
+  this.refresh();
+}
+
+onSeriesAggregationChange(index: number) {
+  this.widgets['epiCurve-series-aggregations'][index] = this.getSeriesAggregation(index);
+  this.refresh();
+}
+
+onSeriesCumulativeChange() {
+  this.refresh();
+}
+
+onSeriesLabelChange() {
+  this.refresh();
+}
+
+onAxisTitleChange() {
+  this.refresh();
+}
+
 onNodeColorChanged() {
+  this.refresh();
+}
+
+onLineStyleChange() {
+  this.refresh();
+}
+
+onLineWidthChange() {
+  this.widgets['epiCurve-lineWidth'] = this.getLineWidth();
   this.refresh();
 }
 
@@ -1488,9 +2947,10 @@ openExport() {
 
 exportVisualization() {
   if (this.EpiExportFileType == 'svg') {
-      let content = this.exportService.unparseSVG(this.epiCurveSVGElement.nativeElement);
-      let blob = new Blob([content], { type: 'image/svg+xml;charset=utf-8' });
-      saveAs(blob, this.EpiExportFileName + '.' + this.EpiExportFileType);
+      saveSvg(
+        this.epiCurveSVGElement.nativeElement,
+        this.EpiExportFileName + '.' + this.EpiExportFileType,
+      );
   } else {
       saveSvgAsPng(this.epiCurveSVGElement.nativeElement, this.EpiExportFileName + '.' + this.EpiExportFileType, {
           scale: this.SelectedNetworkExportScaleVariable,

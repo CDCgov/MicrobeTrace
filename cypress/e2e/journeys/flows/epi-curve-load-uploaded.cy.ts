@@ -115,7 +115,7 @@ describe('Journey Flow - Epi Curve uploaded load smoke', () => {
       assertEpiCurveHasBars();
 
       cy.get('#epiCurveSVG text.x.label').should('contain.text', 'Date');
-      cy.get('#epiCurveSVG text.y.label').should('contain.text', 'Number of Cases');
+      cy.get('#epiCurveSVG text.y.label').should('have.text', `Count of ${dateField}`);
 
       cy.closeSettingsPane('Epi Curve Settings');
     });
