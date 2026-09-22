@@ -2771,6 +2771,9 @@ export class CommonService extends AppComponentBase implements OnInit {
         this.session.style = oldSession.style;
         this.ensureNodeColorAssignmentState(this.session.style);
 
+        if (oldSession.meta?.rendererViewState) {
+            (this.session.meta as any).rendererViewState = oldSession.meta.rendererViewState;
+        }
         this.session.meta.startTime = Date.now();
 
 

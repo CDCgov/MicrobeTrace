@@ -789,7 +789,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         this.widgets = this.commonService.session.style.widgets;
         this.ensureNodeCollapseWidgetDefaults();
 
-        this.container.on('resize', () => { setTimeout(() => this.fit(), 200)})
+        this.container.on('resize', () => { setTimeout(() => this.resizeActiveRenderer(), 200)})
         this.container.on('hide', () => { 
             this.viewActive = false; 
             this.cdref.detectChanges();
@@ -802,7 +802,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                     this._rerender()
                     this.rerenderOnActive = false;
                 }
-                this.fit()
+                this.resizeActiveRenderer()
                 this.commonService.onStatisticsChanged("Show");
                 this.syncPolygonColorTableVisibility();
             }, 50)
@@ -7272,6 +7272,14 @@ scaleLinkWidth() {
     /**
      * centers the view
      */
+    private resizeActiveRenderer(): void {
+        if (this.sigmaActive) {
+            this.sigmaRenderer?.resize();
+            return;
+        }
+        this.fit();
+    }
+
     fit() {
         if (this.sigmaActive) {
             this.sigmaRenderer?.fit();

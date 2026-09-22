@@ -812,13 +812,15 @@ export class SigmaNetworkRendererAdapter {
     if (!Number.isFinite(currentGraphToViewportRatio) || currentGraphToViewportRatio <= 0) return;
     const currentGraphUnitsPerPixel = 1 / currentGraphToViewportRatio;
     const framedCenter = this.renderer.graphToFramedGraph({ x: state.centerX, y: state.centerY });
+    // Camera updates synchronously emit a view-state callback. Apply the edge
+    // detail mode first so that callback cannot persist a mixed old/new state.
+    this.setEdgeDetailMode(state.edgeDetailMode);
     camera.setState({
       ...current,
       x: framedCenter.x,
       y: framedCenter.y,
       ratio: current.ratio * state.graphUnitsPerPixel / currentGraphUnitsPerPixel,
     });
-    this.setEdgeDetailMode(state.edgeDetailMode);
   }
 
   hasActiveWebglContext(): boolean {
