@@ -23,12 +23,34 @@ describe('Sigma renderer migration', () => {
       .should('contain.text', '33 nodes')
       .and('contain.text', '74 links resident')
       .and('contain.text', '74 links drawn');
+    cy.get('[data-testid="renderer-accessible-feature-summary"]')
+      .should('contain.text', '33 network nodes');
 
     cy.contains('.sigma-detail-controls button', 'Detail')
       .click({ force: true })
       .should('have.class', 'active');
     cy.get('[data-testid="sigma-migration-banner"]')
       .should('not.contain.text', 'fallback');
+    cy.window().then(win => {
+      const twoD = (win as any).commonService.visuals.twoD;
+      const initialState = twoD.getRendererViewState();
+      expect(initialState).to.not.equal(null);
+      twoD.setRendererViewState({
+        centerX: initialState.centerX + 5,
+        centerY: initialState.centerY + 5,
+        graphUnitsPerPixel: initialState.graphUnitsPerPixel * 1.1,
+        edgeDetailMode: 'detail',
+      });
+      expect((win as any).commonService.session.meta.rendererViewState.edgeDetailMode)
+        .to.equal('detail');
+
+      const composite = twoD.exportRendererComposite(1);
+      expect(composite.metadata.renderer).to.equal('sigma');
+      expect(composite.metadata.residentNodeCount).to.equal(33);
+      expect(composite.metadata.residentEdgeCount).to.equal(74);
+      expect(composite.canvasLayerCount).to.be.greaterThan(0);
+      expect(composite.pngDataUrl).to.match(/^data:image\/png/);
+    });
     cy.window().then(win => {
       const rendererResources = win.performance.getEntriesByType('resource')
         .map(entry => entry.name)

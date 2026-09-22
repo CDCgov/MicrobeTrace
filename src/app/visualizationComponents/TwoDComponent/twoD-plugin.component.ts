@@ -32,6 +32,17 @@ import {
 } from '../KeyTablesComponent/style-key-table.component';
 import { buildThresholdConnectedComponents } from '@app/contactTraceCommonServices/threshold-analysis';
 import { buildPieChartSvgDataUri, PieChartSlice } from '@app/contactTraceCommonServices/pie-chart-utils';
+import {
+    buildNetworkNodeVisualFeatures,
+    hasMixedValueDonut,
+    hasNetworkNodeVisualFeatures,
+    type NetworkNodeFeatureFields,
+    type NetworkNodeVisualFeatures
+} from '@app/contactTraceCommonServices/network-node-features';
+import {
+    projectNetworkGeography,
+    type NetworkGeographicProjection
+} from '@app/contactTraceCommonServices/network-geography.model';
 import { createGlobalSettingsDialogRequest, GlobalSettingsDialogRequest } from '@app/helperClasses/globalSettingsDialogRequest';
 import {
     canCreateWebGL2Context,
@@ -45,6 +56,14 @@ import {
     type SigmaEdgeDetailMode,
     type SigmaPocRenderSummary
 } from './sigma-network-renderer.adapter';
+import {
+    normalizeNetworkRendererViewState,
+    type NetworkRendererViewState
+} from './network-renderer-view-state';
+import {
+    captureNetworkRendererComposite,
+    type NetworkRendererCompositeExport
+} from './network-renderer-export';
 
 interface CustomNodeSvgExportReplacement {
     exportHeight: number;
@@ -99,6 +118,12 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         : null;
     sigmaLoading = false;
     sigmaLoadingMessage = 'Preparing the network';
+    rendererAccessibleFeatureSummary = 'No renderer feature data is available.';
+    rendererAccessibleFeatureItems: Array<{
+        id: string;
+        description: string;
+        selected: boolean;
+    }> = [];
     sigmaSummary: SigmaPocRenderSummary = {
         residentNodeCount: 0,
         residentLinkCount: 0,
@@ -112,6 +137,8 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
     private sigmaRenderQueued = false;
     private readonly sigmaLayoutGroupByNodeId = new Map<string, string>();
     private cytoscapeFactoryPromise: Promise<typeof cytoscape> | null = null;
+    private rendererViewStateTimer: ReturnType<typeof setTimeout> | null = null;
+    private rendererGeographicProjection: NetworkGeographicProjection | null = null;
     vizLoaded = true;
     nodePositions: Map<string, { x: number; y: number }> = new Map();
     private nodeDataById: Map<string, any> = new Map();
@@ -796,6 +823,205 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         return this.cytoscapeFactoryPromise;
     }
 
+    public getRendererViewState(): NetworkRendererViewState | null {
+        if (this.sigmaActive) return this.sigmaRenderer?.getViewState() || null;
+        if (!this.cy || !this.cyContainer?.nativeElement) return null;
+
+        const bounds = this.cyContainer.nativeElement.getBoundingClientRect();
+        const zoom = this.cy.zoom();
+        const pan = this.cy.pan();
+        if (!Number.isFinite(zoom) || zoom <= 0 || bounds.width <= 0 || bounds.height <= 0) {
+            return null;
+        }
+
+        return {
+            centerX: (bounds.width / 2 - pan.x) / zoom,
+            centerY: (bounds.height / 2 - pan.y) / zoom,
+            graphUnitsPerPixel: 1 / zoom,
+            edgeDetailMode: this.resolveSavedSigmaEdgeDetailMode()
+        };
+    }
+
+    public setRendererViewState(stateValue: NetworkRendererViewState, persist = true): void {
+        const state = normalizeNetworkRendererViewState(stateValue);
+        if (!state) return;
+
+        if (this.sigmaActive) {
+            this.sigmaRenderer?.setViewState(state);
+        } else if (this.cy && this.cyContainer?.nativeElement) {
+            const bounds = this.cyContainer.nativeElement.getBoundingClientRect();
+            const zoom = 1 / state.graphUnitsPerPixel;
+            this.cy.zoom(zoom);
+            this.cy.pan({
+                x: bounds.width / 2 - state.centerX * zoom,
+                y: bounds.height / 2 - state.centerY * zoom
+            });
+        }
+
+        this.widgets['network-edge-detail-mode'] = state.edgeDetailMode;
+        if (persist) this.persistRendererViewState(state);
+    }
+
+    private resolveSavedSigmaEdgeDetailMode(): SigmaEdgeDetailMode {
+        const mode = this.widgets?.['network-edge-detail-mode'];
+        return mode === 'detail' || mode === 'all' ? mode : 'overview';
+    }
+
+    private restoreRendererViewState(): boolean {
+        const state = normalizeNetworkRendererViewState(
+            (this.commonService.session?.meta as any)?.rendererViewState
+        );
+        if (!state) return false;
+        if (this.sigmaActive ? !this.sigmaRenderer : !this.cy) return false;
+        this.setRendererViewState(state, false);
+        return true;
+    }
+
+    private persistRendererViewState(stateValue?: NetworkRendererViewState | null): void {
+        const state = normalizeNetworkRendererViewState(stateValue || this.getRendererViewState());
+        if (!state) return;
+        const sessionMeta = this.commonService.session.meta as any;
+        sessionMeta.rendererViewState = state;
+        this.widgets['network-edge-detail-mode'] = state.edgeDetailMode;
+    }
+
+    private scheduleRendererViewStatePersistence(state?: NetworkRendererViewState): void {
+        if (this.rendererViewStateTimer) clearTimeout(this.rendererViewStateTimer);
+        this.rendererViewStateTimer = setTimeout(() => {
+            this.rendererViewStateTimer = null;
+            this.persistRendererViewState(state || this.getRendererViewState());
+        }, 100);
+    }
+
+    private getNetworkNodeFeatureFields(): NetworkNodeFeatureFields {
+        return {
+            compositionField: String(this.widgets?.['node-color-variable'] || 'None'),
+            qcStatusField: String(this.widgets?.['node-qc-status-variable'] || 'None'),
+            qcSeverityField: String(this.widgets?.['node-qc-severity-variable'] || 'None'),
+            qcReasonField: String(this.widgets?.['node-qc-reason-variable'] || 'None'),
+            uncertaintyField: String(this.widgets?.['node-uncertainty-variable'] || 'None')
+        };
+    }
+
+    private buildRendererNodeFeatures(node: any): NetworkNodeVisualFeatures {
+        return buildNetworkNodeVisualFeatures(node, this.getNetworkNodeFeatureFields());
+    }
+
+    private summarizeRendererNodeFeatures(features: NetworkNodeVisualFeatures[]): {
+        mixedValueDonutNodeCount: number;
+        qcOverlayNodeCount: number;
+        uncertaintyOverlayNodeCount: number;
+    } {
+        return {
+            mixedValueDonutNodeCount: features.filter(feature => hasMixedValueDonut(feature)).length,
+            qcOverlayNodeCount: features.filter(feature => Boolean(feature.qc)).length,
+            uncertaintyOverlayNodeCount: features.filter(feature => feature.uncertainty !== null).length
+        };
+    }
+
+    private updateRendererAccessibleFeatures(nodes: any[]): void {
+        const featureRows = nodes.map(node => ({
+            id: this.getNodeId(node),
+            selected: node.selected === true,
+            features: this.buildRendererNodeFeatures(node)
+        }));
+        const summary = this.summarizeRendererNodeFeatures(featureRows.map(row => row.features));
+        this.rendererAccessibleFeatureSummary = [
+            `${nodes.length} network nodes`,
+            `${summary.mixedValueDonutNodeCount} mixed-value donut nodes`,
+            `${summary.qcOverlayNodeCount} QC overlays`,
+            `${summary.uncertaintyOverlayNodeCount} uncertainty overlays`
+        ].join('; ');
+        this.rendererAccessibleFeatureItems = featureRows
+            .filter(row => hasNetworkNodeVisualFeatures(row.features))
+            .slice(0, 200)
+            .map(row => ({
+                id: row.id,
+                description: row.features.accessibleLabel,
+                selected: row.selected
+            }));
+    }
+
+    private syncRendererAccessibleSelection(selectedIds: ReadonlySet<string>): void {
+        this.rendererAccessibleFeatureItems = this.rendererAccessibleFeatureItems.map(item => ({
+            ...item,
+            selected: selectedIds.has(item.id)
+        }));
+    }
+
+    private isRendererGeographicOverlayEnabled(): boolean {
+        const setting = this.widgets?.['network-geographic-overlay'];
+        const enabled = setting === true || String(setting).toLowerCase() === 'true' || setting === 'On';
+        return enabled
+            && String(this.widgets?.['map-field-lat'] || 'None') !== 'None'
+            && String(this.widgets?.['map-field-lon'] || 'None') !== 'None';
+    }
+
+    private applyRendererGeographicProjection<T extends { nodes: any[]; links: any[] }>(networkData: T): T {
+        this.rendererGeographicProjection = null;
+        if (!this.isRendererGeographicOverlayEnabled()) return networkData;
+
+        const result = projectNetworkGeography(
+            networkData.nodes,
+            String(this.widgets['map-field-lat']),
+            String(this.widgets['map-field-lon'])
+        );
+        this.rendererGeographicProjection = result.projection;
+        return { ...networkData, nodes: result.nodes };
+    }
+
+    public exportRendererComposite(pixelRatio?: number): NetworkRendererCompositeExport {
+        const host = (this.sigmaActive
+            ? this.sigmaContainer?.nativeElement
+            : this.cyContainer?.nativeElement) as HTMLElement | undefined;
+        if (!host) throw new Error('The active network renderer is not available for export.');
+
+        let residentNodeCount = 0;
+        let residentEdgeCount = 0;
+        let drawnNodeCount = 0;
+        let drawnEdgeCount = 0;
+        let collapsedGroupIds: string[] = [];
+        let featureSummary = {
+            mixedValueDonutNodeCount: 0,
+            qcOverlayNodeCount: 0,
+            uncertaintyOverlayNodeCount: 0
+        };
+
+        if (this.sigmaActive && this.sigmaRenderer) {
+            const graph = this.sigmaRenderer.getGraph();
+            const displayGraph = this.sigmaRenderer.getDisplayGraph();
+            const features: NetworkNodeVisualFeatures[] = [];
+            graph.forEachNode((nodeId, attributes: any) => {
+                features.push(attributes.features);
+                if (attributes.raw?.raw?.isCollapsedAggregate === true) {
+                    collapsedGroupIds.push(nodeId);
+                }
+            });
+            featureSummary = this.summarizeRendererNodeFeatures(features);
+            residentNodeCount = graph.order;
+            residentEdgeCount = graph.size;
+            drawnNodeCount = displayGraph.order;
+            drawnEdgeCount = displayGraph.size;
+        } else if (this.cy) {
+            residentNodeCount = this.cy.nodes().length;
+            residentEdgeCount = this.cy.edges().length;
+            drawnNodeCount = this.cy.nodes(':visible').length;
+            drawnEdgeCount = this.cy.edges(':visible').length;
+            collapsedGroupIds = this.cy.nodes('[isCollapsedAggregate]').map(node => node.id());
+        }
+
+        return captureNetworkRendererComposite(host, {
+            renderer: this.sigmaActive ? 'sigma' : 'cytoscape-canvas',
+            residentNodeCount,
+            residentEdgeCount,
+            drawnNodeCount,
+            drawnEdgeCount,
+            collapsedGroupIds,
+            geographicOverlayActive: Boolean(this.rendererGeographicProjection),
+            ...featureSummary
+        }, String(this.widgets?.['background-color'] || '#ffffff'), pixelRatio);
+    }
+
     private isCytoscapeContainerReady(): boolean {
         const element = (
             this.sigmaActive
@@ -1105,6 +1331,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
 
         syncNodes(this.commonService.session.data.nodes);
         syncNodes(this.commonService.session.data.nodeFilteredValues);
+        this.syncRendererAccessibleSelection(selectedIds);
         if (selectionChanged) {
             $(document).trigger('node-selected');
         }
@@ -1154,6 +1381,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                 timelineTick || this.isTimelineFilteringActive()
             );
             this.normalizeNetworkDataForCytoscape(networkData, false);
+            networkData = this.applyRendererGeographicProjection(networkData);
             networkData = this.applyNodeCollapseToNetworkData(networkData);
             this.normalizeNetworkDataForCytoscape(networkData, false);
 
@@ -1198,6 +1426,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                     this.sigmaLayoutGroupByNodeId.set(nodeId, String(node._sigmaLayoutGroup));
                 }
             });
+            this.updateRendererAccessibleFeatures(networkData.nodes);
 
             const sigmaNodes = networkData.nodes.map(node => {
                 const [color, opacity] = this.getNodeColor(node);
@@ -1216,6 +1445,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                     selected: node.selected === true,
                     group,
                     groupColor: group ? this.getSigmaGroupColor(group) : undefined,
+                    features: this.buildRendererNodeFeatures(node),
                     raw: node
                 };
             });
@@ -1233,6 +1463,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                 };
             });
 
+            const creatingSigmaRenderer = !this.sigmaRenderer;
             if (!this.sigmaRenderer) {
                 this.sigmaRenderer = new SigmaNetworkRendererAdapter(
                     this.sigmaContainer.nativeElement,
@@ -1256,6 +1487,9 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                             this.sigmaSummary = summary;
                             this.cdref.markForCheck();
                         }),
+                        onViewStateChange: state => this.zone.run(() => {
+                            this.scheduleRendererViewStatePersistence(state);
+                        }),
                         onWebglContextLost: () => this.zone.run(() => {
                             this.fallbackFromSigma(
                                 'The WebGL context was lost; continuing with the Cytoscape Canvas compatibility renderer.'
@@ -1268,8 +1502,14 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             this.sigmaRenderer.render({
                 nodes: sigmaNodes,
                 links: sigmaLinks,
-                showGroupHulls
+                showGroupHulls,
+                geographicOverlay: this.rendererGeographicProjection
             }, Boolean(this.sigmaRenderer.getRenderer()));
+            if (creatingSigmaRenderer) {
+                if (!this.restoreRendererViewState()) {
+                    this.sigmaRenderer.setEdgeDetailMode(this.resolveSavedSigmaEdgeDetailMode());
+                }
+            }
             this.sigmaSummary = this.sigmaRenderer.getSummary();
             this.store.setNetworkRendered(true);
             this.store.setNetworkUpdated(false);
@@ -1302,6 +1542,8 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
     setSigmaEdgeDetailMode(mode: SigmaEdgeDetailMode): void {
         this.sigmaRenderer?.setEdgeDetailMode(mode);
         this.sigmaSummary = this.sigmaRenderer?.getSummary() || this.sigmaSummary;
+        this.widgets['network-edge-detail-mode'] = mode;
+        this.persistRendererViewState();
         this.cdref.markForCheck();
     }
 
@@ -1317,6 +1559,20 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         if (!Number.isFinite(Number(this.widgets['network-node-collapse-threshold']))) {
             this.widgets['network-node-collapse-threshold'] = 0;
         }
+        if (!['overview', 'detail', 'all'].includes(this.widgets['network-edge-detail-mode'])) {
+            this.widgets['network-edge-detail-mode'] = 'overview';
+        }
+        if (this.widgets['network-geographic-overlay'] === undefined) {
+            this.widgets['network-geographic-overlay'] = false;
+        }
+        [
+            'node-qc-status-variable',
+            'node-qc-severity-variable',
+            'node-qc-reason-variable',
+            'node-uncertainty-variable'
+        ].forEach(key => {
+            if (!this.widgets[key]) this.widgets[key] = 'None';
+        });
     }
 
     private getNodeCollapseMetric(): string {
@@ -3034,8 +3290,10 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
      * @param event Event from scale input
      */
     updateCalculatedResolution(): void {
-        let height = Math.floor(this.cyContainer.nativeElement.offsetHeight * this.SelectedNetworkExportScaleVariable);
-        let width  = Math.floor(this.cyContainer.nativeElement.offsetWidth  * this.SelectedNetworkExportScaleVariable);
+        const rendererContainer = this.sigmaActive ? this.sigmaContainer : this.cyContainer;
+        if (!rendererContainer?.nativeElement) return;
+        let height = Math.floor(rendererContainer.nativeElement.offsetHeight * this.SelectedNetworkExportScaleVariable);
+        let width  = Math.floor(rendererContainer.nativeElement.offsetWidth  * this.SelectedNetworkExportScaleVariable);
 
         this.CalculatedResolution = `${width} x ${height}`;
     }
@@ -3468,6 +3726,20 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         this.exportService.setExportOptions(exportOptions);
         const polygonColorTableElement = this.getPolygonColorTableElementForExport();
         const shouldExportPolygonColorTable = this.shouldDisplayPolygonColorTable();
+
+        if (this.sigmaActive && this.SelectedNetworkExportFileTypeListVariable === 'svg') {
+            const composite = this.exportRendererComposite(this.SelectedNetworkExportScaleVariable);
+            const elementsToExport: HTMLTableElement[] = [];
+            if (shouldExportPolygonColorTable && polygonColorTableElement) {
+                elementsToExport.push(polygonColorTableElement);
+            }
+            if (window.getComputedStyle(this.networkStatisticsTable.nativeElement.parentElement).display === 'block') {
+                elementsToExport.push(this.networkStatisticsTable.nativeElement);
+            }
+            this.exportService.requestSVGExport(elementsToExport, composite.svg, true, true, true);
+            this.Show2DExportPane = false;
+            return;
+        }
 
         if (this.SelectedNetworkExportFileTypeListVariable == 'svg') {
 
@@ -5945,6 +6217,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             }
             // Attach events
             this.attachCytoscapeEvents();
+            this.cy.on('pan zoom', () => this.scheduleRendererViewStatePersistence());
             
             const initialReadyStart = this.getPerformanceNow();
             let initialRenderFinished = false;
@@ -6004,6 +6277,8 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                     edges: this.cy.edges().length
                 });
                }
+
+              this.restoreRendererViewState();
 
               // Mark as rendered
               this.store.setNetworkRendered(true);
@@ -6996,6 +7271,8 @@ scaleLinkWidth() {
 
         console.log("calling destroy");
         this.isDestroyed = true;
+        if (this.rendererViewStateTimer) clearTimeout(this.rendererViewStateTimer);
+        this.rendererViewStateTimer = null;
         this.pendingPartialUpdate = false;
         this.destroy$.next();
         this.destroy$.complete();

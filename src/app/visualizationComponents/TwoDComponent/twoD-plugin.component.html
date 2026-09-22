@@ -7,10 +7,10 @@
     <span style="overflow: visible; position: relative; width: 110px;">
       <a title="Settings" data-testid="twod-settings-button" class="btn btn-sm btn-clean btn-icon btn-icon-md" style="float:left" (click)="openSettings()"><i class="flaticon-settings primary"></i></a>
     </span>
-    <span style="overflow: visible; position: relative; width: 110px;">
-      <a title="Export Screen" class="btn btn-sm btn-clean btn-icon btn-icon-md" style="float:left" (click)="openExport()"><i class="flaticon-download primary"></i></a>
-    </span>
   }
+  <span style="overflow: visible; position: relative; width: 110px;">
+    <a title="Export Screen" data-testid="twod-export-button" class="btn btn-sm btn-clean btn-icon btn-icon-md" style="float:left" (click)="openExport()"><i class="flaticon-download primary"></i></a>
+  </span>
   <span style="overflow: visible; position: relative; width: 110px;">
     <a title="Center Screen" class="btn btn-sm btn-clean btn-icon btn-icon-md" style="float:left" (click)="openCenter()"><i class="flaticon-eye primary"></i></a>
   </span>
@@ -66,6 +66,17 @@
       <!-- Static Watermark (Optional) -->
       <div id="watermark" class="watermark"></div>
     </div>
+    <section class="sr-only" data-testid="renderer-accessible-feature-summary"
+      aria-label="Network feature summary">
+      <p aria-live="polite">{{ rendererAccessibleFeatureSummary }}</p>
+      <ul>
+        @for (item of rendererAccessibleFeatureItems; track item.id) {
+          <li [attr.data-node-id]="item.id">
+            {{ item.id }}: {{ item.description }}{{ item.selected ? '; selected' : '' }}
+          </li>
+        }
+      </ul>
+    </section>
     <div id="network-statistics-wrapper">
       <div id="network-statistics-draghandle"><span class="oi oi-move"></span></div>
       <table #networkStats id="network-statistics-table">
