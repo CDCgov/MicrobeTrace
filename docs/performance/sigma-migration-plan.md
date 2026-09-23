@@ -77,8 +77,13 @@ Sigma is pinned to an exact beta release, and Sigma-specific calls are isolated 
 - Angular 22 development and optimized production builds: passed.
 - Focused renderer, view-state, grouping, geography, and node-feature unit tests: 25 passed.
 - Integrated Sigma startup, fallback, recovery, settings, session, lifecycle, grouping, geography, selection, interaction, and export contracts: 15 passed.
+- Shared renderer-neutral Cypress matrix: 16 passed. The same eight uploaded-network contracts run against production Sigma and the Cytoscape Canvas fallback, covering graph residency, node styling and scaling, link styling/arrows/scaling/layout, applied style files, cross-view interaction, grouping palettes, threshold filtering, and SVG export.
 - Average, large, and stress Sigma scalability contracts: 3 passed.
 - Existing Cytoscape compatibility coverage for core 2D behavior, settings, context menus, selection, dragging, collapsing, threshold synchronization, and uploaded grouping: 48 passed.
 - Default-browser exploratory check: Sigma rendered the sample graph with 33 nodes and 74 links and no Cytoscape resources loaded.
+
+The renderer-neutral harness exposes normalized node, link, group, selection, hover, drag, and context-menu operations. Renderer-specific tests remain focused on implementation-specific behavior such as WebGL recovery, edge level of detail, Sigma hull rendering, and Canvas fallback safety. The shared matrix is part of the standard journey-flow suite and also has targeted `e2e:journeys:twod-renderers` commands for local diagnosis.
+
+Canvas partial rendering uses a generation guard so a slower, older asynchronous layout cannot overwrite a newer threshold or network state. Link-length changes return their layout completion promise, allowing regression coverage and other callers to observe the completed update deterministically.
 
 The resulting branch contains the production default, compatibility path, lifecycle hardening, performance instrumentation, and regression coverage as discrete migration commits.

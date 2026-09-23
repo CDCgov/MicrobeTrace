@@ -153,6 +153,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
     private nodeDataById: Map<string, any> = new Map();
     data;
     pendingPartialUpdate = false;
+    private partialUpdateGeneration = 0;
     rerenderTimeout: any;
     private isDestroyed = false;
     layoutParallelNodesPerColumn = 4;
@@ -7080,14 +7081,14 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
     /**
      * Updates link-length widget and link force distance
      */
-    onLinkLengthChange(e) {
+    async onLinkLengthChange(e): Promise<void> {
         if (this.commonService.session.network.allPinned) {
             // updating link length results in recaculcating node positions, if nodes are pinned prevent this
             this.SelectedLinkLengthVariable = this.widgets['link-length'];
             return;
         }
         this.widgets['link-length'] = this.SelectedLinkLengthVariable;
-        this.updateLayout();
+        await this.updateLayout();
     }
 
    /**
@@ -7518,6 +7519,7 @@ scaleLinkWidth() {
             return;
         }
 
+        const updateGeneration = ++this.partialUpdateGeneration;
         const partialUpdateStart = this.getPerformanceNow();
         console.log('--- TwoD _partialUpdate called');
         const cy = this.cy;
@@ -7566,7 +7568,17 @@ scaleLinkWidth() {
     const partialLayout = await this.precomputePositionsWithD3(networkData.nodes, networkData.links, 30, false);
     const { nodes: laidOutNodes, links: laidOutLinks } = partialLayout;
 
-    if (this.isDestroyed || this.cy !== cy || !this.isCytoscapeUsable(cy)) {
+    if (
+        this.isDestroyed
+        || this.cy !== cy
+        || !this.isCytoscapeUsable(cy)
+        || updateGeneration !== this.partialUpdateGeneration
+    ) {
+        if (updateGeneration !== this.partialUpdateGeneration) {
+            this.recordTwoDRenderTiming('twoDPartialUpdateSkipped', partialUpdateStart, {
+                reason: 'superseded'
+            });
+        }
         return;
     }
 
