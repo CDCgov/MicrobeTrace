@@ -53,6 +53,7 @@ describe('Sigma session round-trip', () => {
       };
       twoD.onNodeBorderWidthChange(4);
       twoD.onNodeLabelOrientationChange('Top');
+      twoD.onLinkOpacityChange(0.45);
       twoD.setRendererViewState(expectedState);
 
       selectedNodeId = [...twoD.sigmaRenderer.getNodeIds()].sort()[0];
@@ -63,6 +64,8 @@ describe('Sigma session round-trip', () => {
       expect(twoD.widgets['network-edge-detail-mode']).to.equal('all');
       expect(twoD.widgets['node-border-width']).to.equal(4);
       expect(twoD.widgets['node-label-orientation']).to.equal('Top');
+      expect(twoD.widgets['link-opacity']).to.equal(0.45);
+      expect(twoD.widgets['link-opacity-override-enabled']).to.equal(true);
       expect(twoD.sigmaRenderer.getSelectedNodeIds()).to.deep.equal([selectedNodeId]);
       expect(appWindow.commonService.session.data.nodes
         .find((node: any) => String(node._id ?? node.id) === selectedNodeId)?.selected)
@@ -88,7 +91,14 @@ describe('Sigma session round-trip', () => {
       );
       expect(saved.session.style.widgets['node-border-width']).to.equal(4);
       expect(saved.session.style.widgets['node-label-orientation']).to.equal('Top');
+      expect(saved.session.style.widgets['link-opacity']).to.equal(0.45);
+      expect(saved.session.style.widgets['link-opacity-override-enabled']).to.equal(true);
       expect(selectedNode?.selected, 'saved selected node').to.equal(true);
+
+      // Pre-migration sessions stored the slider value but not the explicit
+      // override marker. Re-load that shape to verify backward compatibility.
+      delete saved.session.style.widgets['link-opacity-override-enabled'];
+      cy.writeFile(sessionFilePath, JSON.stringify(saved));
     });
 
     cy.visit('/?skipEula=1&skipDemoSession=1');
@@ -123,8 +133,13 @@ describe('Sigma session round-trip', () => {
       expect(twoD.widgets['network-edge-detail-mode']).to.equal('all');
       expect(twoD.widgets['node-border-width']).to.equal(4);
       expect(twoD.widgets['node-label-orientation']).to.equal('Top');
+      expect(twoD.widgets['link-opacity']).to.equal(0.45);
+      expect(twoD.widgets['link-opacity-override-enabled']).to.equal(true);
       expect(graph.getNodeAttribute(firstNodeId, 'borderWidth')).to.equal(4);
       expect(graph.getNodeAttribute(firstNodeId, 'labelPosition')).to.equal('above');
+      expect(graph.edges().every((edgeId: string) => (
+        Math.abs(Number(graph.getEdgeAttribute(edgeId, 'opacity')) - 0.45) < 0.001
+      ))).to.equal(true);
       expect(twoD.sigmaRenderer.getSelectedNodeIds()).to.deep.equal([selectedNodeId]);
       expect(appWindow.commonService.session.data.nodes
         .find((node: any) => String(node._id ?? node.id) === selectedNodeId)?.selected)

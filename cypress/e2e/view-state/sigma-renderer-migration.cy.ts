@@ -134,14 +134,14 @@ describe('Sigma renderer migration', () => {
         .map((edgeId: string) => renderer.getGraph().getEdgeAttribute(edgeId, 'head'));
       const edgeTails = renderer.getGraph().edges()
         .map((edgeId: string) => renderer.getGraph().getEdgeAttribute(edgeId, 'tail'));
-      expect(renderer.getGraph().getNodeAttribute(firstNode, 'size')).to.equal(12);
+      expect(renderer.getGraph().getNodeAttribute(firstNode, 'size')).to.equal(21);
       expect(renderer.getGraph().getNodeAttribute(firstNode, 'labelPosition')).to.equal('above');
       expect(renderer.getGraph().getNodeAttribute(firstNode, 'borderWidth')).to.equal(4);
       expect(renderer.getGraph().getNodeAttribute(firstNode, 'shape')).to.equal('square');
       expect(renderer.getGraph().getNodeAttribute(firstNode, 'shapeKey')).to.equal('house');
       expect(renderer.getGraph().getNodeAttribute(firstNode, 'iconVectorData')).to.not.equal(null);
       expect(renderer.getGraph().getNodeAttribute(firstNode, 'features').qc).to.not.equal(null);
-      expect(renderer.getGraph().getEdgeAttribute(firstEdge, 'size')).to.equal(2.5);
+      expect(renderer.getGraph().getEdgeAttribute(firstEdge, 'size')).to.equal(3);
       expect(edgeHeads.filter((head: string) => head === 'arrow').length).to.be.greaterThan(0);
       expect(edgeTails.filter((tail: string) => tail === 'arrow').length).to.be.greaterThan(0);
       const expectedQcOverlays = (win as any).commonService.session.data.nodes

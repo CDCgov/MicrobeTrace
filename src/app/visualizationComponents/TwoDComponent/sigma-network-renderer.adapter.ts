@@ -56,6 +56,7 @@ export interface SigmaPocNode {
   selected: boolean;
   group?: string | null;
   groupColor?: string;
+  groupOpacity?: number;
   features?: NetworkNodeVisualFeatures;
   raw: any;
 }
@@ -69,6 +70,9 @@ export interface SigmaPocLink {
   size: number;
   distance?: number;
   label?: string;
+  labelSize?: number;
+  overlayDashColor?: string;
+  overlayDashOpacity?: number;
   head?: 'arrow' | 'none';
   tail?: 'arrow' | 'none';
   raw: any;
@@ -80,6 +84,8 @@ export interface SigmaPocGraphData {
   showGroupHulls: boolean;
   showGroupLabels?: boolean;
   groupLabelSize?: number;
+  groupLabelPosition?: 'left' | 'right' | 'above' | 'below' | 'over';
+  edgeLabelSize?: number;
   geographicOverlay?: NetworkGeographicProjection | null;
 }
 
@@ -98,6 +104,7 @@ export interface SigmaPocCallbacks {
     changedNodeIds: ReadonlySet<string>,
   ) => void;
   onNodeHover?: (node: SigmaPocNode | null, event?: MouseEvent | TouchEvent) => void;
+  onEdgeHover?: (link: SigmaPocLink | null, event?: MouseEvent | TouchEvent) => void;
   onNodeContextMenu?: (node: SigmaPocNode, event: MouseEvent) => void;
   onNodePositionChange?: (nodeId: string, position: { x: number; y: number }) => void;
   onGroupToggle?: (groupIdOrLabel: string) => void;
@@ -123,17 +130,21 @@ interface SigmaNodeAttributes extends Record<string, unknown>, SigmaNetworkFeatu
   selected: boolean;
   group: string | null;
   groupColor: string;
+  groupOpacity: number;
   features: NetworkNodeVisualFeatures;
   raw: SigmaPocNode;
 }
 
 interface SigmaEdgeAttributes extends Record<string, unknown> {
   label: string;
+  labelSize: number;
   head: 'arrow' | 'none';
   tail: 'arrow' | 'none';
   color: string;
   opacity: number;
   size: number;
+  overlayDashColor: string | null;
+  overlayDashOpacity: number;
   sourceId: string;
   targetId: string;
   stableBucket: number;
@@ -144,6 +155,7 @@ interface SigmaEdgeAttributes extends Record<string, unknown> {
 interface SigmaGroupHull {
   label: string;
   color: string;
+  opacity: number;
   nodeIds: string[];
   points: Array<{ x: number; y: number }>;
   center: { x: number; y: number };
@@ -272,6 +284,7 @@ export function assignSigmaOverviewPositions<TNode extends Record<string, any>, 
   nodes: TNode[],
   links: TLink[],
   groupField?: string | null,
+  linkLength = 50,
 ): SigmaOverviewLayoutResult {
   if (nodes.length < 40 || links.length < 2500) {
     return { applied: false, cohortCount: 0, method: 'unchanged' };
@@ -354,7 +367,8 @@ export function assignSigmaOverviewPositions<TNode extends Record<string, any>, 
     method = 'distance-cohorts';
   }
 
-  const spacing = Math.max(12, Math.min(22, 360 / Math.sqrt(nodes.length)));
+  const linkLengthScale = Math.max(0.4, Math.min(3.4, Number(linkLength) / 50 || 1));
+  const spacing = Math.max(12, Math.min(22, 360 / Math.sqrt(nodes.length))) * linkLengthScale;
   const goldenAngle = Math.PI * (3 - Math.sqrt(5));
   const layouts = Array.from(buckets.entries())
     .map(([key, values]) => {
@@ -522,6 +536,7 @@ export class SigmaNetworkRendererAdapter {
   private renderer: Sigma<SigmaNodeAttributes, SigmaEdgeAttributes> | null = null;
   private geographicLayer: HTMLCanvasElement | null = null;
   private groupLayer: HTMLCanvasElement | null = null;
+  private edgeLabelLayer: HTMLCanvasElement | null = null;
   private featureLayer: HTMLCanvasElement | null = null;
   private selectionLayer: HTMLCanvasElement | null = null;
   private groupHulls: SigmaGroupHull[] = [];
@@ -535,6 +550,7 @@ export class SigmaNetworkRendererAdapter {
   private showGroupHulls = false;
   private showGroupLabels = true;
   private groupLabelSize = 12;
+  private groupLabelPosition: 'left' | 'right' | 'above' | 'below' | 'over' = 'above';
   private geographicOverlay: NetworkGeographicProjection | null = null;
   private rankedEdges: SigmaRankedEdge[] = [];
   private incidentEdgeIdsByNode = new Map<string, string[]>();
@@ -553,6 +569,7 @@ export class SigmaNetworkRendererAdapter {
   private customWebglNodeFeaturesActive = false;
   private nodeDraggingEnabled = true;
   private renderEdgeLabels = false;
+  private edgeLabelSize = 12;
   private highlightNeighbors = true;
   private iconPathCache = new Map<string, Path2D>();
 
@@ -607,7 +624,7 @@ export class SigmaNetworkRendererAdapter {
 
   constructor(
     private container: HTMLElement,
-    private readonly selectedColor: string,
+    private selectedColor: string,
     private callbacks: SigmaPocCallbacks = {},
   ) {}
 
@@ -641,6 +658,7 @@ export class SigmaNetworkRendererAdapter {
         selected: node.selected,
         group: node.group || null,
         groupColor: node.groupColor || GROUP_PALETTE[stableHash(node.group || node.id) % GROUP_PALETTE.length],
+        groupOpacity: Number.isFinite(Number(node.groupOpacity)) ? Number(node.groupOpacity) : 1,
         features,
         ...buildSigmaNetworkFeatureAttributes(features),
         raw: node,
@@ -654,11 +672,16 @@ export class SigmaNetworkRendererAdapter {
       while (graph.hasEdge(edgeId)) edgeId = `${link.id}--${duplicate++}`;
       graph.addEdgeWithKey(edgeId, link.source, link.target, {
         label: link.label || '',
+        labelSize: Math.max(6, Number(link.labelSize) || 12),
         head: link.head || 'none',
         tail: link.tail || 'none',
         color: link.color || '#94a3b8',
         opacity: Number.isFinite(link.opacity) ? link.opacity : 0.35,
         size: Math.max(0.25, Number(link.size) || 0.75),
+        overlayDashColor: link.overlayDashColor || null,
+        overlayDashOpacity: Number.isFinite(Number(link.overlayDashOpacity))
+          ? Math.max(0, Math.min(1, Number(link.overlayDashOpacity)))
+          : 1,
         sourceId: link.source,
         targetId: link.target,
         stableBucket: stableHash(edgeId),
@@ -676,6 +699,8 @@ export class SigmaNetworkRendererAdapter {
     this.showGroupHulls = data.showGroupHulls;
     this.showGroupLabels = data.showGroupLabels !== false;
     this.groupLabelSize = Math.max(6, Number(data.groupLabelSize) || 12);
+    this.groupLabelPosition = data.groupLabelPosition || 'above';
+    this.edgeLabelSize = Math.max(6, Number(data.edgeLabelSize) || 12);
     this.geographicOverlay = data.geographicOverlay || null;
     this.baseEdgeStride = this.resolveBaseEdgeStride(graph.size);
     this.updateEffectiveEdgeStride(this.renderer?.getCamera().getState().ratio || 1);
@@ -690,7 +715,7 @@ export class SigmaNetworkRendererAdapter {
     }
     if (existingRenderer) {
       this.renderer.setGraph(this.displayGraph);
-      this.renderer.setSetting('renderEdgeLabels', this.renderEdgeLabels);
+      this.renderer.setSetting('renderEdgeLabels', false);
     }
 
     this.renderer.setCustomBBox(stableGraphBounds);
@@ -701,7 +726,13 @@ export class SigmaNetworkRendererAdapter {
     this.drawGeographicOverlay();
     this.drawGroupHulls();
     this.drawNodeFeatures();
+    this.drawEdgeLabels();
     this.emitSummary();
+  }
+
+  setSelectedColor(color: string): void {
+    this.selectedColor = color || '#ff2d55';
+    this.renderer?.refresh();
   }
 
   setEdgeDetailMode(mode: SigmaEdgeDetailMode): void {
@@ -723,6 +754,7 @@ export class SigmaNetworkRendererAdapter {
     this.drawGeographicOverlay();
     this.drawGroupHulls();
     this.drawNodeFeatures();
+    this.drawEdgeLabels();
     this.drawSelectionBox();
     this.scheduleProjectionRefresh();
   }
@@ -840,6 +872,7 @@ export class SigmaNetworkRendererAdapter {
     this.renderer = null;
     this.geographicLayer = null;
     this.groupLayer = null;
+    this.edgeLabelLayer = null;
     this.featureLayer = null;
     this.selectionLayer = null;
     this.selectionMouseLayer = null;
@@ -852,6 +885,7 @@ export class SigmaNetworkRendererAdapter {
       this.drawGeographicOverlay();
       this.drawGroupHulls();
       this.drawNodeFeatures();
+      this.drawEdgeLabels();
       return this.hasActiveWebglContext();
     } catch (error) {
       console.error('Unable to recreate the Sigma WebGL renderer.', error);
@@ -860,12 +894,18 @@ export class SigmaNetworkRendererAdapter {
   }
 
   selectNodes(nodeIds: Iterable<string>): void {
-    const previousSelection = new Set(this.selectedNodeIds);
-    this.selectedNodeIds.clear();
+    const nextSelection = new Set<string>();
     for (const nodeId of nodeIds) {
       const normalizedId = String(nodeId);
-      if (this.graph.hasNode(normalizedId)) this.selectedNodeIds.add(normalizedId);
+      if (this.graph.hasNode(normalizedId)) nextSelection.add(normalizedId);
     }
+    if (
+      nextSelection.size === this.selectedNodeIds.size
+      && Array.from(nextSelection).every(nodeId => this.selectedNodeIds.has(nodeId))
+    ) return;
+
+    const previousSelection = new Set(this.selectedNodeIds);
+    this.selectedNodeIds = nextSelection;
     this.syncSelectionAttributes(previousSelection);
   }
 
@@ -883,6 +923,7 @@ export class SigmaNetworkRendererAdapter {
     this.renderer = null;
     this.geographicLayer = null;
     this.groupLayer = null;
+    this.edgeLabelLayer = null;
     this.featureLayer = null;
     this.selectionLayer = null;
     this.selectionMouseLayer = null;
@@ -927,13 +968,15 @@ export class SigmaNetworkRendererAdapter {
         // deltas to the current graph instead of letting that stale reference
         // write node positions.
         dragPositionToAttributes: () => ({}),
-        enableEdgeEvents: false,
+        enableEdgeEvents: true,
         hideEdgesOnMove: false,
         hideLabelsOnMove: true,
         labelDensity: 0.55,
         labelGridCellSize: 140,
         labelRenderedSizeThreshold: 6,
-        renderEdgeLabels: this.renderEdgeLabels,
+        // Sigma 4 beta currently hard-codes edge-label size. MicrobeTrace uses
+        // a dedicated overlay so the existing label-size control remains exact.
+        renderEdgeLabels: false,
         minEdgeThickness: 0.35,
         nodePickingPadding: 6,
         stagePadding: 48,
@@ -1021,6 +1064,13 @@ export class SigmaNetworkRendererAdapter {
     });
     this.groupLayer.dataset.testid = 'network-group-hull-overlay';
     this.groupLayer.dataset.renderer = 'sigma';
+    this.edgeLabelLayer = this.renderer.createCanvas('microbetrace-edge-labels', {
+      afterLayer: 'stage',
+      style: { pointerEvents: 'none' },
+    });
+    this.edgeLabelLayer.dataset.testid = 'network-edge-label-overlay';
+    this.edgeLabelLayer.dataset.renderer = 'sigma';
+    this.edgeLabelLayer.setAttribute('aria-hidden', 'true');
     this.featureLayer = this.renderer.createCanvas('microbetrace-node-features', {
       afterLayer: 'stage',
       style: { pointerEvents: 'none' },
@@ -1042,9 +1092,12 @@ export class SigmaNetworkRendererAdapter {
       this.drawGeographicOverlay();
       this.drawGroupHulls();
       this.drawNodeFeatures();
+      this.drawEdgeLabels();
     });
     this.renderer.on('enterNode', payload => this.handleNodeHover(payload.node, payload.event.original));
     this.renderer.on('leaveNode', payload => this.handleNodeHover(null, payload.event.original));
+    this.renderer.on('enterEdge', payload => this.handleEdgeHover(payload.edge, payload.event.original));
+    this.renderer.on('leaveEdge', payload => this.handleEdgeHover(null, payload.event.original));
     this.renderer.on('clickNode', payload => this.handleNodeClick(payload.node, payload.event.original));
     this.renderer.on('doubleClickNode', payload => {
       const raw = this.graph.getNodeAttribute(payload.node, 'raw')?.raw;
@@ -1280,12 +1333,50 @@ export class SigmaNetworkRendererAdapter {
   private viewportHullPolygon(group: SigmaGroupHull): SigmaViewportPoint[] {
     if (!this.renderer) return [];
     const center = this.renderer.graphToViewport(group.center);
-    return group.points.map(graphPoint => {
-      const point = this.renderer!.graphToViewport(graphPoint);
+    const viewportPoints = group.points.map(graphPoint => this.renderer!.graphToViewport(graphPoint));
+    const largestNodeRadius = group.nodeIds.reduce((largest, nodeId) => {
+      if (!this.displayGraph.hasNode(nodeId)) return largest;
+      return Math.max(largest, this.renderer!.scaleSize(
+        Number(this.displayGraph.getNodeAttribute(nodeId, 'size')),
+      ));
+    }, 0);
+    const padding = Math.max(14, largestNodeRadius + 8);
+
+    if (viewportPoints.length === 1) {
+      const point = viewportPoints[0];
+      return Array.from({ length: 12 }, (_value, index) => {
+        const angle = index / 12 * Math.PI * 2;
+        return {
+          x: point.x + Math.cos(angle) * padding,
+          y: point.y + Math.sin(angle) * padding,
+        };
+      });
+    }
+
+    if (viewportPoints.length === 2) {
+      const [start, end] = viewportPoints;
+      const dx = end.x - start.x;
+      const dy = end.y - start.y;
+      const length = Math.max(1, Math.hypot(dx, dy));
+      const ux = dx / length;
+      const uy = dy / length;
+      const px = -uy;
+      const py = ux;
+      return [
+        { x: start.x - ux * padding + px * padding, y: start.y - uy * padding + py * padding },
+        { x: end.x + ux * padding + px * padding, y: end.y + uy * padding + py * padding },
+        { x: end.x + ux * padding, y: end.y + uy * padding },
+        { x: end.x + ux * padding - px * padding, y: end.y + uy * padding - py * padding },
+        { x: start.x - ux * padding - px * padding, y: start.y - uy * padding - py * padding },
+        { x: start.x - ux * padding, y: start.y - uy * padding },
+      ];
+    }
+
+    return viewportPoints.map(point => {
       const dx = point.x - center.x;
       const dy = point.y - center.y;
       const length = Math.max(1, Math.hypot(dx, dy));
-      return { x: point.x + dx / length * 14, y: point.y + dy / length * 14 };
+      return { x: point.x + dx / length * padding, y: point.y + dy / length * padding };
     });
   }
 
@@ -1384,6 +1475,14 @@ export class SigmaNetworkRendererAdapter {
     this.rebuildActiveNeighborhood();
     this.rebuildDisplayGraph(true);
     this.emitSummary();
+  }
+
+  private handleEdgeHover(edgeId: string | null, event?: MouseEvent | TouchEvent): void {
+    if (edgeId && this.graph.hasEdge(edgeId)) {
+      this.callbacks.onEdgeHover?.(this.graph.getEdgeAttribute(edgeId, 'raw'), event);
+    } else {
+      this.callbacks.onEdgeHover?.(null, event);
+    }
   }
 
   private rebuildActiveNeighborhood(): void {
@@ -1704,6 +1803,7 @@ export class SigmaNetworkRendererAdapter {
     }
     const groups = new Map<string, {
       color: string;
+      opacity: number;
       nodeIds: string[];
       points: Array<{ x: number; y: number }>;
     }>();
@@ -1711,6 +1811,7 @@ export class SigmaNetworkRendererAdapter {
       if (!attributes.group) return;
       const group = groups.get(attributes.group) || {
         color: attributes.groupColor,
+        opacity: attributes.groupOpacity,
         nodeIds: [],
         points: [],
       };
@@ -1718,22 +1819,28 @@ export class SigmaNetworkRendererAdapter {
       group.points.push({ x: Number(attributes.x), y: Number(attributes.y) });
       groups.set(attributes.group, group);
     });
-    if (groups.size < 2 || groups.size > 80) {
+    if (groups.size < 1) {
       this.groupHulls = [];
       return;
     }
     this.groupHulls = [];
     groups.forEach((group, label) => {
-      if (group.points.length < 3) return;
       const points = convexHull(group.points);
-      if (points.length < 3) return;
+      if (points.length < 1) return;
       const center = points.reduce(
         (acc, point) => ({ x: acc.x + point.x, y: acc.y + point.y }),
         { x: 0, y: 0 },
       );
       center.x /= points.length;
       center.y /= points.length;
-      this.groupHulls.push({ label, color: group.color, nodeIds: group.nodeIds, points, center });
+      this.groupHulls.push({
+        label,
+        color: group.color,
+        opacity: group.opacity,
+        nodeIds: group.nodeIds,
+        points,
+        center,
+      });
     });
   }
 
@@ -1804,6 +1911,86 @@ export class SigmaNetworkRendererAdapter {
     });
   }
 
+  private drawEdgeLabels(): void {
+    if (!this.renderer || !this.edgeLabelLayer) return;
+    const prepared = this.prepareOverlayCanvas(this.edgeLabelLayer);
+    if (!prepared) return;
+    this.edgeLabelLayer.dataset.labelSize = String(this.edgeLabelSize);
+    const { context, width, height } = prepared;
+    const overlayEdges = this.displayGraph.edges().filter(edgeId => (
+      Boolean(this.displayGraph.getEdgeAttribute(edgeId, 'overlayDashColor'))
+    ));
+    this.edgeLabelLayer.dataset.duoLinkCount = String(overlayEdges.length);
+
+    // Cytoscape represented a two-origin link as a solid edge for the first
+    // origin with a dashed edge for the second. Keep one resident Sigma edge
+    // and reproduce the second source as a lightweight Canvas overlay.
+    overlayEdges.forEach(edgeId => {
+      const [sourceId, targetId] = this.displayGraph.extremities(edgeId);
+      const source = this.displayGraph.getNodeAttributes(sourceId);
+      const target = this.displayGraph.getNodeAttributes(targetId);
+      const sourcePoint = this.renderer!.graphToViewport({ x: Number(source.x), y: Number(source.y) });
+      const targetPoint = this.renderer!.graphToViewport({ x: Number(target.x), y: Number(target.y) });
+      if (
+        (sourcePoint.x < 0 && targetPoint.x < 0) ||
+        (sourcePoint.x > width && targetPoint.x > width) ||
+        (sourcePoint.y < 0 && targetPoint.y < 0) ||
+        (sourcePoint.y > height && targetPoint.y > height)
+      ) return;
+
+      context.save();
+      context.strokeStyle = String(this.displayGraph.getEdgeAttribute(edgeId, 'overlayDashColor'));
+      context.globalAlpha = Number(this.displayGraph.getEdgeAttribute(edgeId, 'overlayDashOpacity'));
+      context.lineWidth = Math.max(0.5, Number(this.displayGraph.getEdgeAttribute(edgeId, 'size')));
+      context.lineCap = 'butt';
+      context.setLineDash([10, 10]);
+      context.lineDashOffset = 5;
+      context.beginPath();
+      if (sourceId === targetId) {
+        const radius = this.renderer!.scaleSize(Number(source.size)) + context.lineWidth * 2 + 6;
+        context.arc(sourcePoint.x + radius * 0.45, sourcePoint.y - radius * 0.45, radius, 0.35, Math.PI * 1.85);
+      } else {
+        context.moveTo(sourcePoint.x, sourcePoint.y);
+        context.lineTo(targetPoint.x, targetPoint.y);
+      }
+      context.stroke();
+      context.restore();
+    });
+
+    if (!this.renderEdgeLabels) return;
+
+    const labeledEdges = this.displayGraph.edges().filter(edgeId => (
+      Boolean(this.displayGraph.getEdgeAttribute(edgeId, 'label'))
+    ));
+    const labelLimit = this.edgeDetailMode === 'all' ? 2400 : this.edgeDetailMode === 'detail' ? 1200 : 500;
+    const labelStride = Math.max(1, Math.ceil(labeledEdges.length / labelLimit));
+    context.save();
+    context.font = `${this.edgeLabelSize}px sans-serif`;
+    context.textAlign = 'center';
+    context.textBaseline = 'middle';
+    context.lineJoin = 'round';
+    context.lineWidth = Math.max(2, this.edgeLabelSize / 4);
+    context.strokeStyle = 'rgba(255, 255, 255, 0.9)';
+    context.fillStyle = '#111827';
+
+    labeledEdges.forEach((edgeId, index) => {
+      if (index % labelStride !== 0) return;
+      const [sourceId, targetId] = this.displayGraph.extremities(edgeId);
+      const source = this.displayGraph.getNodeAttributes(sourceId);
+      const target = this.displayGraph.getNodeAttributes(targetId);
+      const sourcePoint = this.renderer!.graphToViewport({ x: Number(source.x), y: Number(source.y) });
+      const targetPoint = this.renderer!.graphToViewport({ x: Number(target.x), y: Number(target.y) });
+      const x = (sourcePoint.x + targetPoint.x) / 2;
+      const y = (sourcePoint.y + targetPoint.y) / 2;
+      const margin = this.edgeLabelSize * 2;
+      if (x < -margin || x > width + margin || y < -margin || y > height + margin) return;
+      const label = String(this.displayGraph.getEdgeAttribute(edgeId, 'label'));
+      context.strokeText(label, x, y);
+      context.fillText(label, x, y);
+    });
+    context.restore();
+  }
+
   private getIconPath(pathData: string): Path2D {
     let path = this.iconPathCache.get(pathData);
     if (!path) {
@@ -1840,19 +2027,43 @@ export class SigmaNetworkRendererAdapter {
       context.moveTo(expanded[0].x, expanded[0].y);
       for (let index = 1; index < expanded.length; index++) context.lineTo(expanded[index].x, expanded[index].y);
       context.closePath();
-      context.globalAlpha = 0.09;
+      const groupOpacity = Math.max(0, Math.min(1, Number(group.opacity)));
+      context.globalAlpha = groupOpacity * 0.18;
       context.fillStyle = group.color;
       context.fill();
-      context.globalAlpha = 0.45;
+      context.globalAlpha = groupOpacity * 0.65;
       context.strokeStyle = group.color;
       context.lineWidth = 1.5;
       context.stroke();
 
-      if (this.showGroupLabels && this.groupHulls.length <= 20) {
-        context.globalAlpha = 0.8;
+      if (this.showGroupLabels) {
+        const xs = expanded.map(point => point.x);
+        const ys = expanded.map(point => point.y);
+        const minX = Math.min(...xs);
+        const maxX = Math.max(...xs);
+        const minY = Math.min(...ys);
+        const maxY = Math.max(...ys);
+        let labelX = center.x;
+        let labelY = center.y;
+        context.textAlign = 'center';
+        context.textBaseline = 'middle';
+        if (this.groupLabelPosition === 'above') {
+          labelY = minY - 6;
+          context.textBaseline = 'bottom';
+        } else if (this.groupLabelPosition === 'below') {
+          labelY = maxY + 6;
+          context.textBaseline = 'top';
+        } else if (this.groupLabelPosition === 'left') {
+          labelX = minX - 6;
+          context.textAlign = 'right';
+        } else if (this.groupLabelPosition === 'right') {
+          labelX = maxX + 6;
+          context.textAlign = 'left';
+        }
+        context.globalAlpha = groupOpacity;
         context.fillStyle = group.color;
         context.font = `600 ${this.groupLabelSize}px sans-serif`;
-        context.fillText(group.label, center.x + 6, center.y - 6);
+        context.fillText(group.label, labelX, labelY);
       }
     }
     context.globalAlpha = 1;

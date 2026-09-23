@@ -965,7 +965,7 @@
                   <div class="form-group row" title="What color should denote selection?">
                     <div class="col-5"><label for="selected-color">Selected</label></div>
                     <div class="col-7">
-                      <input type="color" id="selected-color" class="form-control form-control-sm" value="#ff8300" [(ngModel)]="SelectedColorVariable" (ngModelChange)="updateGlobalSettingsModel()">
+                      <input type="color" id="selected-color" class="form-control form-control-sm" value="#ff8300" [(ngModel)]="SelectedColorVariable" (ngModelChange)="onSelectedColorChanged()">
                     </div>
                   </div>
                   <div class="form-group row" title="What color should the background be?">

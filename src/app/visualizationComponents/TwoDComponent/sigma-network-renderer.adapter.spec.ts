@@ -79,6 +79,34 @@ describe('Sigma network renderer adapter', () => {
     expect(links.length).toBe(4950);
   });
 
+  it('scales dense overview spacing with the configured link length', () => {
+    const createGraph = () => {
+      const nodes = Array.from({ length: 80 }, (_value, index) => ({ id: String(index) }));
+      const links: Array<{ id: string; source: string; target: string; distance: number }> = [];
+      for (let source = 0; source < nodes.length; source++) {
+        for (let target = source + 1; target < nodes.length; target++) {
+          links.push({
+            id: `${source}-${target}`,
+            source: String(source),
+            target: String(target),
+            distance: Math.floor(source / 20) === Math.floor(target / 20) ? 0.1 : 1,
+          });
+        }
+      }
+      return { nodes, links };
+    };
+    const compact = createGraph();
+    const expanded = createGraph();
+
+    assignSigmaOverviewPositions(compact.nodes, compact.links, null, 50);
+    assignSigmaOverviewPositions(expanded.nodes, expanded.links, null, 100);
+
+    const radius = (nodes: Array<Record<string, any>>) => Math.max(...nodes.map(node => (
+      Math.hypot(Number(node.x), Number(node.y))
+    )));
+    expect(radius(expanded.nodes)).toBeGreaterThan(radius(compact.nodes) * 1.8);
+  });
+
   it('severs view callbacks and DOM references when destroyed', () => {
     const container = document.createElement('div');
     container.appendChild(document.createElement('canvas'));
@@ -97,5 +125,20 @@ describe('Sigma network renderer adapter', () => {
     expect(adapter.getRenderer()).toBeNull();
     expect(adapter.getGraph().order).toBe(0);
     expect(adapter.getDisplayGraph().order).toBe(0);
+  });
+
+  it('does not republish an unchanged programmatic selection', () => {
+    const container = document.createElement('div');
+    let callbackCount = 0;
+    const adapter = new SigmaNetworkRendererAdapter(container, '#ff2d55', {
+      onNodeSelectionChange: () => callbackCount++,
+    });
+    (adapter.getGraph() as any).addNode('node-1', { selected: false });
+
+    adapter.selectNodes(['node-1']);
+    adapter.selectNodes(['node-1']);
+
+    expect(adapter.getSelectedNodeIds()).toEqual(['node-1']);
+    expect(callbackCount).toBe(1);
   });
 });

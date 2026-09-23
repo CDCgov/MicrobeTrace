@@ -30,11 +30,11 @@ If a live Sigma WebGL context is lost, the adapter first recreates the WebGL ren
 The integrated Sigma renderer supports:
 
 - complete resident node/link counts with edge level of detail;
-- node labels, size, opacity, borders, built-in shapes, and custom SVG-backed icons;
-- directed and bidirectional edge arrows, labels, width, color, and opacity;
-- click, keyboard, shift-box, and programmatic selection synchronized with session data;
+- node labels and tooltips, size ranges, opacity, borders, built-in shapes, custom SVG-backed icons, selected color, and background color;
+- directed and bidirectional edge arrows, labels and tooltips, label decimals and size, length, width ranges, per-category opacity, global opacity override, color, and two-origin solid/dashed styling;
+- click, keyboard, shift-box, cross-view programmatic selection, context menus, neighbor highlighting, grid display, and node pinning synchronized with session data;
 - individual-node and group dragging;
-- grouping hulls, group labels, group colors, and grouped layouts;
+- grouping hulls for singleton, pair, and larger groups, group labels and orientations, shared or per-group colors, per-group transparency, editable/sortable group key tables, and grouped layouts;
 - node collapsing and aggregate metadata used by renderer-neutral exports;
 - mixed-value donut glyphs, QC status/severity/reason overlays, and uncertainty overlays;
 - geographic longitude/latitude projection with an exported geographic overlay;
@@ -46,21 +46,21 @@ The integrated Sigma renderer supports:
 
 Closing the 2D view destroys the active Sigma instance, releases its WebGL context, removes document and container listeners, clears Graphology and display graphs, cancels timers and animation frames, and severs adapter callbacks and DOM references. The Angular component also removes Golden Layout listeners and clears its position, grouping, accessibility, and aggregate caches.
 
-Lifecycle coverage performs five close/reopen cycles and twelve Table-to-2D switches with style rerenders. Every reopen creates a fresh adapter, retired adapters have zero resident/display nodes and links, retired WebGL contexts are inactive, and the active renderer keeps a stable five-layer canvas count.
+Lifecycle coverage performs five close/reopen cycles and twelve Table-to-2D switches with style rerenders. Every reopen creates a fresh adapter, retired adapters have zero resident/display nodes and links, retired WebGL contexts are inactive, and the active renderer keeps a stable six-layer canvas count.
 
-The large-graph memory probe runs three in-page close/reopen cycles with explicit Chromium garbage collection. The verified run grew by 12.8 MiB from the initial active renderer to the final active renderer, within the enforced 64 MiB regression budget. The probe runs inside one application-frame callback so Cypress command snapshots are excluded from the lifecycle measurement.
+The large-graph memory probe runs three in-page close/reopen cycles with explicit Chromium garbage collection. The verified run grew by approximately 19.9 MiB from the initial active renderer to the final active renderer, within the enforced 64 MiB regression budget. The probe runs inside one application-frame callback so Cypress command snapshots are excluded from the lifecycle measurement.
 
 ## Scalability results
 
-Local validation used headless Edge 153 against the Angular development server on September 22, 2026. Times are observed end-to-end harness measurements, not production service-level budgets.
+Local validation used headless Edge 153 against the Angular development server on September 22–23, 2026. Times are observed end-to-end harness measurements, not production service-level budgets.
 
 | Dataset tier | Resident graph | Drawn links after LOD | Observed total |
 | --- | ---: | ---: | ---: |
 | Average | 1,600 nodes / 3,200 links | 1,703 | 10.6 s |
-| Large | 5,000 nodes / 10,000 links | 5,285 | 12.5 s |
-| Stress | 10,000 nodes / 25,000 links | 10,712 | 66.3 s |
+| Large | 5,000 nodes / 10,000 links | 5,285 | 13.6 s |
+| Stress | 10,000 nodes / 25,000 links | 10,712 | 63.1 s |
 
-All three tiers retained the complete expected graph, used Sigma as the active renderer, and showed no Cytoscape allocation. The stress run completed with 114 recorded long tasks and a 5.5-second maximum long task; the performance artifact records these responsiveness characteristics alongside heap, load, and render timing data.
+All three tiers retained the complete expected graph, used Sigma as the active renderer, and showed no Cytoscape allocation. The stress run completed with 120 recorded long tasks and a 5.169-second maximum long task; the performance artifact records these responsiveness characteristics alongside heap, load, and render timing data.
 
 ## Dependency review
 
@@ -75,8 +75,8 @@ Sigma is pinned to an exact beta release, and Sigma-specific calls are isolated 
 ## Verification record
 
 - Angular 22 development and optimized production builds: passed.
-- Focused renderer, view-state, grouping, geography, and node-feature unit tests: 24 passed.
-- Integrated Sigma startup, fallback, recovery, session, lifecycle, grouping, geography, selection, and export contracts: 8 passed.
+- Focused renderer, view-state, grouping, geography, and node-feature unit tests: 25 passed.
+- Integrated Sigma startup, fallback, recovery, settings, session, lifecycle, grouping, geography, selection, interaction, and export contracts: 15 passed.
 - Average, large, and stress Sigma scalability contracts: 3 passed.
 - Existing Cytoscape compatibility coverage for core 2D behavior, settings, context menus, selection, dragging, collapsing, threshold synchronization, and uploaded grouping: 48 passed.
 - Default-browser exploratory check: Sigma rendered the sample graph with 33 nodes and 74 links and no Cytoscape resources loaded.

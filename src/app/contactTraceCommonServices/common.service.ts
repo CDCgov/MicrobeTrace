@@ -504,6 +504,7 @@ export class CommonService extends AppComponentBase implements OnInit {
             'link-label-size': 16,
             'link-length': 50,
             'link-opacity': 0,
+            'link-opacity-override-enabled': false,
             'link-show-nn': false,
             'link-sort-variable': 'distance',
             'link-threshold': 16,
@@ -2930,12 +2931,24 @@ export class CommonService extends AppComponentBase implements OnInit {
         if(this.debugMode) {
             console.log('---- applying style: ', style);
         }
+        const sourceWidgets = style?.widgets || {};
+        const hasExplicitLinkOpacityOverride = Object.prototype.hasOwnProperty.call(
+            sourceWidgets,
+            'link-opacity-override-enabled'
+        );
+        const legacyLinkOpacityOverride = !hasExplicitLinkOpacityOverride
+            && Number(sourceWidgets['link-opacity']) !== 0;
         this.ensureNodeColorAssignmentState(style);
         this.session.style = style;
         this.session.style.widgets = Object.assign({},
             this.defaultWidgets(),
             style.widgets
         );
+        if (legacyLinkOpacityOverride) {
+            // Sessions written before the explicit flag only changed the
+            // non-zero slider value when the user requested a global alpha.
+            this.session.style.widgets['link-opacity-override-enabled'] = true;
+        }
 
         // if(this.debugMode) {
             console.log('creating link/node/polygon colorMap style: ', style);
@@ -4440,7 +4453,7 @@ align(params): Promise<any> {
         }
 
         // If this.session.style.widgets['polygons-color-show', we need 
-        let polygonGroups: {key: string, values: []}[] = this.temp.polygonGroups || [];
+        let polygonGroups: { key: string; index?: number; values: any[] }[] = this.temp.polygonGroups || [];
         let polygonColors = this.session.style.polygonColors;
 
         if (!polygonColors || polygonColors.length === 0) {
@@ -4448,20 +4461,33 @@ align(params): Promise<any> {
         }
         const polygonAlphas = this.session.style.polygonAlphas;
 
-        // If polygonGroups length is 0 but polygons-color-show is true, we need to create the groups via going through the visible nodes, and grouping them by cluster id in the format { key: clusterId, values: [nodeId1, nodeId2, ...] }
+        // If polygonGroups length is 0 but polygons-color-show is true, rebuild
+        // them from the active grouping field. This path is renderer-neutral and
+        // also supports session/style initialization before a graph is mounted.
         if (polygonGroups.length === 0 && this.session.style.widgets['polygons-color-show']) {
-            // Create the groups by going through visible nodes, and creating the keys of the group by the unique values of node['polygon-foci']
-            const groupMap = new Map();
+            const groupingField = String(this.session.style.widgets['polygons-foci'] || '').trim();
+            const groupMap = new Map<string, any[]>();
             this.getVisibleNodes().forEach(node => {
-                const polygonFoci = node['polygon-foci'];
-                if (!groupMap.has(polygonFoci)) {
-                    groupMap.set(polygonFoci, []);
+                const rawValue = groupingField && groupingField !== 'None'
+                    ? node[groupingField]
+                    : null;
+                const firstValue = Array.isArray(rawValue) ? rawValue[0] : rawValue;
+                const group = firstValue === undefined || firstValue === null
+                    ? ''
+                    : String(firstValue).trim();
+                if (!group || group.toLowerCase() === 'null') {
+                    return;
                 }
-                groupMap.get(polygonFoci).push(node);
+
+                if (!groupMap.has(group)) {
+                    groupMap.set(group, []);
+                }
+                groupMap.get(group)?.push(node);
             });
-            polygonGroups = Array.from(groupMap.entries()).map(([key, values]) => ({
+            polygonGroups = Array.from(groupMap.entries()).map(([key, values], index) => ({
                 key,
-                values: values.map(node => node.id)
+                index,
+                values: values.map(node => node._id ?? node.id)
             }));
 
             this.temp.polygonGroups = polygonGroups;

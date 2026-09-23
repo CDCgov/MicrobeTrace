@@ -348,6 +348,35 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         return groupingField && groupingField !== 'None' ? groupingField : null;
     }
 
+    private syncSigmaPolygonGroups(nodes: any[], groupingField: string | null): void {
+        if (!groupingField) {
+            this.commonService.temp.polygonGroups = [];
+            return;
+        }
+
+        const groupMap = new Map<string, string[]>();
+        (nodes || []).forEach(node => {
+            const group = this.normalizeGroupingValue(node?.[groupingField]);
+            if (group === null) return;
+
+            if (!groupMap.has(group)) {
+                groupMap.set(group, []);
+            }
+            groupMap.get(group)?.push(this.getNodeId(node));
+        });
+
+        const groupedNodeCount = Array.from(groupMap.values())
+            .reduce((sum, nodeIds) => sum + nodeIds.length, 0);
+        if (this.shouldSkipSingletonClusterGroups(groupingField, groupMap.size, groupedNodeCount)) {
+            this.commonService.temp.polygonGroups = [];
+            return;
+        }
+
+        this.commonService.temp.polygonGroups = Array.from(groupMap.entries())
+            .map(([key, values], index) => ({ key, index, values }));
+        this.commonService.createPolygonColorMap();
+    }
+
     private isRenderedLayoutNode(node: cytoscape.NodeSingular): boolean {
         return !node.hasClass('parent')
             && node.children().length === 0
@@ -866,6 +895,13 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             graphUnitsPerPixel: 1 / zoom,
             edgeDetailMode: this.resolveSavedSigmaEdgeDetailMode()
         };
+    }
+
+    public isRendererReady(): boolean {
+        if (this.sigmaActive) {
+            return Boolean(this.sigmaRenderer && !this.sigmaLoading && !this.sigmaRendering);
+        }
+        return Boolean(this.cy && !(typeof this.cy.destroyed === 'function' && this.cy.destroyed()));
     }
 
     public setRendererViewState(stateValue: NetworkRendererViewState, persist = true): void {
@@ -1449,6 +1485,35 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         }
     }
 
+    private getSigmaGroupOpacity(group: string): number {
+        try {
+            const opacity = Number(this.commonService.temp.style.polygonAlphaMap(group));
+            return Number.isFinite(opacity) ? Math.max(0, Math.min(1, opacity)) : 1;
+        } catch {
+            return 1;
+        }
+    }
+
+    private getSigmaGroupLabelPosition(): 'left' | 'right' | 'above' | 'below' | 'over' {
+        switch (String(this.widgets['polygon-label-orientation'] || 'Top').toLowerCase()) {
+            case 'left': return 'left';
+            case 'right': return 'right';
+            case 'bottom': return 'below';
+            case 'middle':
+            case 'center': return 'over';
+            default: return 'above';
+        }
+    }
+
+    private getSigmaNodeRadius(node: any): number {
+        const aggregateDiameter = Number(node?.aggregateRenderedSize);
+        const configuredSize = Number(node?.nodeSize ?? this.widgets['node-radius']);
+        const renderedDiameter = node?.isCollapsedAggregate === true && Number.isFinite(aggregateDiameter)
+            ? aggregateDiameter
+            : this.mapNodeSize(Math.max(0, Math.min(100, Number.isFinite(configuredSize) ? configuredSize : 20)));
+        return Math.max(2.5, renderedDiameter / 2);
+    }
+
     private getSigmaLabelPosition(): 'left' | 'right' | 'above' | 'below' | 'over' {
         switch (String(this.widgets['node-label-orientation'] || 'Right').toLowerCase()) {
             case 'left': return 'left';
@@ -1625,6 +1690,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             );
             this.normalizeNetworkDataForCytoscape(networkData, false);
             networkData = this.applyRendererGeographicProjection(networkData);
+            const sigmaGroupingNodes = networkData.nodes;
             networkData = this.applyNodeCollapseToNetworkData(networkData);
             this.normalizeNetworkDataForCytoscape(networkData, false);
 
@@ -1634,6 +1700,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
 
             const groupField = this.getActiveNodeGroupingField();
             const showGroupHulls = Boolean(groupField);
+            this.syncSigmaPolygonGroups(sigmaGroupingNodes, groupField);
             const layoutBackbone = selectSigmaLayoutBackbone(networkData.links, 3);
             const needsInitialLayout = !this.sigmaRenderer
                 || networkData.nodes.some(node => !this.hasFinitePosition(node));
@@ -1644,7 +1711,8 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                 const overviewLayout = assignSigmaOverviewPositions(
                     networkData.nodes,
                     networkData.links,
-                    showGroupHulls ? groupField : null
+                    showGroupHulls ? groupField : null,
+                    Number(this.SelectedLinkLengthVariable) || 50
                 );
                 if (!overviewLayout.applied) {
                     const layout = await this.precomputePositionsWithD3(
@@ -1692,26 +1760,42 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                     borderWidth: this.getNodeBorderWidth(node),
                     color: String(color || '#2563eb'),
                     opacity: Number.isFinite(Number(opacity)) ? Number(opacity) : 1,
-                    size: Math.max(2.5, Math.min(12, Number(node.nodeSize || this.widgets['node-radius']) / 5)),
+                    size: this.getSigmaNodeRadius(node),
                     selected: node.selected === true,
                     group,
                     groupColor: group ? this.getSigmaGroupColor(group) : undefined,
+                    groupOpacity: group ? this.getSigmaGroupOpacity(group) : undefined,
                     features: this.buildRendererNodeFeatures(node),
                     raw: node
                 };
             });
             const sigmaLinks = networkData.links.map((link, index) => {
-                const linkColor = this.getLinkColor(link);
+                const originValues = Array.isArray(link?.origin) ? link.origin : [];
+                const splitOriginLink = String(this.widgets['link-color-variable'] || '').toLowerCase() === 'origin'
+                    && originValues.length > 1;
+                const firstOriginLink = splitOriginLink
+                    ? { ...link, origin: [originValues[0]], Origin: [originValues[0]] }
+                    : link;
+                const secondOriginLink = splitOriginLink
+                    ? { ...link, origin: [originValues[1]], Origin: [originValues[1]] }
+                    : null;
+                const linkColor = this.getLinkColor(firstOriginLink);
+                const overlayDashColor = secondOriginLink ? this.getLinkColor(secondOriginLink) : null;
                 const extremities = this.getSigmaLinkExtremities(link);
                 return {
                     id: String(link.id ?? `${this.getLinkEndpointId(link.source)}--${this.getLinkEndpointId(link.target)}--${index}`),
                     source: this.getLinkEndpointId(link.source),
                     target: this.getLinkEndpointId(link.target),
                     color: String(linkColor.color || '#94a3b8'),
-                    opacity: Math.max(0.05, Math.min(1, Number(linkColor.opacity) || 0.25)),
-                    size: Math.max(0.25, Math.min(2.5, Number(this.getLinkWidth(link)) || 0.75)),
+                    opacity: Number.isFinite(Number(linkColor.opacity))
+                        ? Math.max(0, Math.min(1, Number(linkColor.opacity)))
+                        : 0.25,
+                    size: Math.max(0.25, Number(this.getLinkWidth(link)) || 0.75),
                     distance: Number.isFinite(Number(link.distance)) ? Number(link.distance) : undefined,
                     label: String(this.getLinkLabel(link).text || ''),
+                    labelSize: Math.max(6, Number(this.widgets['link-label-size']) || 12),
+                    overlayDashColor: overlayDashColor?.color,
+                    overlayDashOpacity: overlayDashColor?.opacity,
                     ...extremities,
                     raw: link
                 };
@@ -1730,7 +1814,12 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                             if (node && event) this.showNodeTooltip(node.raw, event);
                             else this.hideTooltip();
                         }),
+                        onEdgeHover: (link, event) => this.zone.run(() => {
+                            if (link && event) this.showLinkTooltip(link.raw, event);
+                            else this.hideTooltip();
+                        }),
                         onNodeContextMenu: (node, event) => this.zone.run(() => {
+                            if (node.raw?.isCollapsedAggregate === true) return;
                             this.showContextMenu(node.raw, event);
                         }),
                         onNodePositionChange: (nodeId, position) => this.zone.run(() => {
@@ -1751,12 +1840,15 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                 );
             }
 
+            this.sigmaRenderer.setSelectedColor(String(this.widgets['selected-color'] || '#ff2d55'));
             this.sigmaRenderer.render({
                 nodes: sigmaNodes,
                 links: sigmaLinks,
                 showGroupHulls,
                 showGroupLabels: this.widgets['polygons-label-show'] !== false,
                 groupLabelSize: Number(this.widgets['polygons-label-size']) || 12,
+                groupLabelPosition: this.getSigmaGroupLabelPosition(),
+                edgeLabelSize: Number(this.widgets['link-label-size']) || 12,
                 geographicOverlay: this.rendererGeographicProjection
             }, Boolean(this.sigmaRenderer.getRenderer()));
             this.sigmaRenderer.setNodeDraggingEnabled(!this.commonService.session.network.allPinned);
@@ -3483,7 +3575,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             // this._rerender();
 
             // Used for timeline mode, TODO: update to use an RxJS Observable
-            $(document).on("node-visibility", function () {
+            $(document).off("node-visibility.twoD").on("node-visibility.twoD", function () {
                 console.log('node-visibility called');
                 that._rerender(true);
             });
@@ -3496,19 +3588,23 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
 
             // });
 
-            $(document).on("node-selected", function () {
-                if (!that.cy) return;
-              
+            $(document).off("node-selected.twoD").on("node-selected.twoD", function () {
                 const mtSelectedNodes = that.commonService.getVisibleNodes().filter(n => n.selected);
                 const mtSelectedNodeIds = mtSelectedNodes.map(n => n._id || n.id);
-              
-                // Clear cytoscape selection
-                that.cy.elements().unselect();
-              
-                // Apply multi-selection
+
+                if (that.sigmaActive) {
+                  that.sigmaRenderer?.selectNodes(mtSelectedNodeIds);
+                } else if (that.cy) {
+                  // Clear Cytoscape selection and apply the renderer-neutral
+                  // selection stored by search, tables, maps, and other views.
+                  that.cy.elements().unselect();
+                  if (mtSelectedNodeIds.length > 0) {
+                    const selector = mtSelectedNodeIds.map(id => `#${id}`).join(', ');
+                    that.cy.nodes(selector).select();
+                  }
+                }
+
                 if (mtSelectedNodeIds.length > 0) {
-                  const selector = mtSelectedNodeIds.map(id => `#${id}`).join(', ');
-                  that.cy.nodes(selector).select();
                   that.selectedNodeId = mtSelectedNodeIds[mtSelectedNodeIds.length - 1]; // keep last-selected for UI logic only
                 } else {
                   that.selectedNodeId = undefined;
@@ -3553,8 +3649,14 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
      * @returns an array [X, Y] of the position of mouse relative to twodcomponent. Global position (i.e. d3.event.pageX) doesn't work for a dashboard
      */
     getRelativeMousePosition(event) {
-        // Get position based on container
-        let rect =  document.getElementById('cy').getBoundingClientRect();
+        // Get position based on the active renderer container. Sigma does not
+        // create the legacy #cy element, so tooltip placement must not depend
+        // on that element being present.
+        const rendererContainer = (this.sigmaActive
+            ? this.sigmaContainer?.nativeElement
+            : this.cyContainer?.nativeElement) as HTMLElement | undefined;
+        const rect = rendererContainer?.getBoundingClientRect();
+        if (!rect) return [0, 0];
         const X = event['clientX'] - rect.left;
         const Y = event['clientY'] - rect.top;
         return [X, Y];
@@ -4614,6 +4716,10 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
     }
 
     private updateGroupNodeColors(): void {
+        if (this.sigmaActive) {
+            this.refreshSigmaForStyleChange();
+            return;
+        }
         const cy = this.cy;
         if (!cy) {
             return;
@@ -5754,8 +5860,10 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         alphaValue = this.commonService.temp.style.linkAlphaMap(linkColorValue)
         //}
 
-        if (this.overideTransparency) {
-            alphaValue = this.widgets['link-opacity'];
+        if (this.overideTransparency || this.widgets['link-opacity-override-enabled'] === true) {
+            // Keep the established Cytoscape contract: despite the historical
+            // "Transparency" label, this slider value is the rendered alpha.
+            alphaValue = Number(this.widgets['link-opacity']);
         }
 
         return {
@@ -6766,9 +6874,12 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
     /**
      * Updates link-opacity widget and the opacity for all links
      */
-    onLinkOpacityChange(e) {
+    onLinkOpacityChange(e, enableOverride: boolean = true) {
         this.widgets['link-opacity'] = e;
-        this.overideTransparency = true;
+        if (enableOverride) {
+            this.widgets['link-opacity-override-enabled'] = true;
+        }
+        this.overideTransparency = enableOverride;
         if (this.refreshSigmaForStyleChange()) {
             this.overideTransparency = false;
             return;
@@ -6892,25 +7003,26 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         let variable = this.widgets['link-width-variable'];
 
         this.visLinks = this.getVLinks();
-        let n = this.visLinks.length;
         this.linkMax = -Infinity;
         this.linkMin = Infinity;
-        for (let i = 0; i < n; i++) {
-            const link = this.visLinks[i];
-          
-            // Check if the link has a distanceOrigin and if it's not included in origin array
-            let value = 0;
-            if (link.distanceOrigin && link.origin.includes(link.distanceOrigin)) {
-              value = link[variable];
+        for (const link of this.visLinks) {
+            if (
+                variable === 'distance' &&
+                link.distanceOrigin &&
+                Array.isArray(link.origin) &&
+                !link.origin.includes(link.distanceOrigin)
+            ) {
+                continue;
             }
-          
-            // Skip if value is not a number
-            if (!this.isNumber(value)) continue;
-          
-            // Update min and max
+            const value = Number(link[variable]);
+            if (!Number.isFinite(value)) continue;
             if (value > this.linkMax) this.linkMax = value;
             if (value < this.linkMin) this.linkMin = value;
-          }
+        }
+        if (!Number.isFinite(this.linkMin) || !Number.isFinite(this.linkMax)) {
+            this.linkMin = 0;
+            this.linkMax = 1;
+        }
         this.linkScale = d3.scaleLinear()
             .domain([this.linkMin, this.linkMax])
             .range([minWidth, maxWidth]);
@@ -7184,6 +7296,10 @@ private updateArrowStyles(): void {
      */
     updateNodeColors() {
 
+        if (this.sigmaActive) {
+            this.refreshSigmaForStyleChange();
+            return;
+        }
         if(!this.cy) return;
 
         if (this.isNodeCollapseEnabled()) {
@@ -7618,6 +7734,9 @@ scaleLinkWidth() {
 
         this.settingsLoadedSubscription?.unsubscribe();
 
+        $(document).off('node-visibility.twoD');
+        $(document).off('node-selected.twoD');
+
         this.sigmaRenderer?.destroy();
         this.sigmaRenderer = null;
 
@@ -7788,7 +7907,10 @@ scaleLinkWidth() {
 
         //Links|Transparency
         this.SelectedLinkTransparencyVariable = this.widgets['link-opacity'];
-        this.onLinkOpacityChange(this.SelectedLinkTransparencyVariable);
+        // Restoring settings must not turn the global transparency slider into
+        // an override unless that override was actually persisted. Otherwise
+        // category-specific link alpha values are lost on every view load.
+        this.onLinkOpacityChange(this.SelectedLinkTransparencyVariable, false);
 
         //Links|Width By
         this.SelectedLinkWidthByVariable = this.widgets['link-width-variable'];
@@ -7865,6 +7987,10 @@ scaleLinkWidth() {
      */
     updateLinkColor() {
         console.log('----TWOD updateLinkColor called');
+        if (this.sigmaActive) {
+            this.refreshSigmaForStyleChange();
+            return;
+        }
         if (!this.cy) return;
         this.widgets = this.commonService.session.style.widgets;
 
@@ -7966,6 +8092,10 @@ scaleLinkWidth() {
     }
 
 	    updateNodeShapes() {
+	        if (this.sigmaActive) {
+	            this.refreshSigmaForStyleChange();
+	            return;
+	        }
 	        if (!this.cy) return;
 	        this.cy.nodes().forEach(node => {
             if (this.isGroupNode(node)) {

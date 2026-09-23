@@ -61,6 +61,7 @@
         <div #sigmaNetwork id="sigma-network" data-testid="sigma-network" tabindex="0"
           role="application" aria-label="Sigma network visualization"
           aria-describedby="network-renderer-keyboard-instructions network-renderer-live-status"
+          [style.background-color]="widgets['background-color'] || '#ffffff'"
           (focus)="onRendererKeyboardFocus()" (keydown)="onRendererKeydown($event)"></div>
       } @else if (!canvasFallbackSuppressed) {
         <div #cy id="cy" tabindex="0" role="application" aria-label="Cytoscape network visualization"
