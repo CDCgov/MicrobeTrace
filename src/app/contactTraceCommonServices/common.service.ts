@@ -2326,6 +2326,38 @@ export class CommonService extends AppComponentBase implements OnInit {
         return [];
     }
 
+    /**
+     * Returns the value that should drive link coloring in the current view.
+     * A stored genetic distance is not visually applicable when the link is
+     * currently shown only because of a non-distance (for example,
+     * epidemiological) origin. Importers also use distance 0 as a placeholder
+     * for links that have no genetic distance at all, so those links must use
+     * the missing-value color rather than the bottom of a continuous ramp.
+     */
+    getLinkColorValue(link: any, field: string): any {
+        const value = link?.[field];
+        if (String(field).toLowerCase() !== 'distance') {
+            return value;
+        }
+
+        if (link?.hasDistance !== true) {
+            return null;
+        }
+
+        const distanceOrigins = this.getLinkDistanceOrigins(link);
+        if (distanceOrigins.length === 0) {
+            // Preserve legacy distance links that predate explicit origin metadata.
+            return value;
+        }
+
+        const visibleOrigins = this.normalizeLinkOrigins(link?.origin);
+        const hasVisibleDistanceOrigin = visibleOrigins.some(origin =>
+            this.isDistanceBackedOrigin(origin, distanceOrigins)
+        );
+
+        return hasVisibleDistanceOrigin ? value : null;
+    }
+
     syncLinkDistanceOrigins(link: any): void {
         const distanceOrigins = this.getLinkDistanceOrigins(link);
 
@@ -4587,9 +4619,11 @@ align(params): Promise<any> {
         }
 
         const links = this.getVisibleLinksForCurrentTimeline();
+        const colorLinks = this.getLinksWithEffectiveColorValue(links, linkColorVariable);
+        const colorDomainLinks = this.getLinksWithEffectiveColorValue(this.session.data.links, linkColorVariable);
         const variableColorScaleConfig = this.getVariableColorScaleConfig('link', linkColorVariable);
         const resolvedScale = this.colorMappingService.resolveVariableColorScale(
-            this.session.data.links,
+            colorDomainLinks,
             linkColorVariable,
             variableColorScaleConfig
         );
@@ -4623,7 +4657,7 @@ align(params): Promise<any> {
         
         // 2) Delegate to colorMappingService
         const result = this.colorMappingService.createLinkColorMap(
-          links,
+          colorLinks,
           linkColorVariable,
           linkColors,
           linkAlphas,
@@ -4632,7 +4666,7 @@ align(params): Promise<any> {
           linkColorsTableHistory,
           this.debugMode,
           variableColorScaleConfig,
-          this.session.data.links,
+          colorDomainLinks,
           linkColorAssignments
         );
 
@@ -4656,6 +4690,17 @@ align(params): Promise<any> {
 
         return result.aggregates;
       }
+
+    private getLinksWithEffectiveColorValue(links: any[], field: string): any[] {
+        if (String(field).toLowerCase() !== 'distance') {
+            return links;
+        }
+
+        return links.map(link => ({
+            ...link,
+            [field]: this.getLinkColorValue(link, field)
+        }));
+    }
     
     /**
 	 * updates the functions that set the color and transparency of the polygons [commonService.temp.style.polygonColorMap() and commonService.temp.style.polygonAlphaMap()]

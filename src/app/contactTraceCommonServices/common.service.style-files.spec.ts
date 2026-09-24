@@ -21,7 +21,9 @@ describe('CommonService style-file color scales', () => {
   }
 
   function stubStyleApplication(service: CommonService): void {
-    spyOn(service, 'defaultWidgets').and.returnValue({} as any);
+    // The lightweight service fixture bypasses the constructor, so class-field
+    // functions such as defaultWidgets are not installed on the instance.
+    (service as any).defaultWidgets = () => ({});
     spyOn(service, 'createNodeColorMap');
     spyOn(service, 'createLinkColorMap');
     spyOn(service, 'createPolygonColorMap');
@@ -179,5 +181,43 @@ describe('CommonService style-file color scales', () => {
     expect((service as any).temp.style.nodeColorMap()).toBe('#abcdef');
     expect((service as any).temp.style.nodeAlphaMap()).toBe(1);
     expect((service as any).session.style.variableColorScales).toBeUndefined();
+  });
+
+  it('uses the missing color value for epidemiological links without a visible genetic origin', () => {
+    const service = createService({});
+
+    expect(service.getLinkColorValue({
+      distance: 0,
+      hasDistance: false,
+      origin: ['Contact Tracing']
+    }, 'distance')).toBeNull();
+
+    expect(service.getLinkColorValue({
+      distance: 8,
+      hasDistance: true,
+      distanceOrigin: 'Genetic Distance',
+      origin: ['Contact Tracing']
+    }, 'distance')).toBeNull();
+  });
+
+  it('keeps distance coloring when the genetic origin is visible', () => {
+    const service = createService({});
+
+    expect(service.getLinkColorValue({
+      distance: 8,
+      hasDistance: true,
+      distanceOrigin: 'Genetic Distance',
+      origin: ['Contact Tracing', 'Genetic Distance']
+    }, 'distance')).toBe(8);
+  });
+
+  it('preserves legacy distance links that do not have explicit origin metadata', () => {
+    const service = createService({});
+
+    expect(service.getLinkColorValue({
+      distance: 5,
+      hasDistance: true,
+      origin: ['Legacy distance file']
+    }, 'distance')).toBe(5);
   });
 });

@@ -641,6 +641,13 @@
               <tab heading="{{'Styling' | localize}}" customClass="m-tabs__item" style='width: 400px; height: 100%;'>
 
                 <div id="style-config" role="tabpanel" aria-labelledby="style-tab">
+                  <p-accordion
+                    [(value)]="stylingAccordionPanels"
+                    [multiple]="true"
+                    styleClass="global-styling-accordion">
+                    <p-accordion-panel value="node-color" style="color:#495057">
+                      <p-accordion-header>Node Color</p-accordion-header>
+                      <p-accordion-content>
                   <div class="form-group row" title="By what variable nodes be colored?">
                     <div class="col-5"><label for="node-color-variable">Color Nodes By</label></div>
                     <div class="col-7">
@@ -716,6 +723,12 @@
                       </div>
                     </div>
                   }
+                      </p-accordion-content>
+                    </p-accordion-panel>
+
+                    <p-accordion-panel value="node-shape" style="color:#495057">
+                      <p-accordion-header>Node Shape</p-accordion-header>
+                      <p-accordion-content>
                   <div class="form-group row" title="Which variable should determine node shape?">
                     <div class="col-5"><label for="node-symbol-variable">Shape By</label></div>
                     <div class="col-7">
@@ -765,6 +778,12 @@
                       </div>
                     </div>
                   }
+                      </p-accordion-content>
+                    </p-accordion-panel>
+
+                    <p-accordion-panel value="link-color" style="color:#495057">
+                      <p-accordion-header>Link Color</p-accordion-header>
+                      <p-accordion-content>
                   <div class="form-group row" title="By what variable should links be colored?">
                     <div class="col-5"><label for="link-color-variable">Color Links By</label></div>
                     <div class="col-7">
@@ -839,6 +858,9 @@
                       </div>
                     </div>
                   }
+                      </p-accordion-content>
+                    </p-accordion-panel>
+                  </p-accordion>
 
                   <!-- Hidden for now 5/19/26; to be removed if not needed-->
                   <!--div class="form-group row" title="Open a docked view for the node color, link color, and node shape key tables.">

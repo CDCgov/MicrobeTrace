@@ -92,7 +92,7 @@ import {
                                     type="color"
                                     [attr.aria-label]="'Color for stop ' + formatValue(stop.value)"
                                     [ngModel]="stop.color"
-                                    (ngModelChange)="onStopColorChange($index, $event)">
+                                    (change)="onStopColorChange($index, $any($event.target).value)">
                                 <label>
                                     <span class="sr-only">Stop hex color</span>
                                     <input
@@ -120,7 +120,7 @@ import {
                                 type="color"
                                 [id]="controlId + '-missing-color'"
                                 [ngModel]="config.missingColor"
-                                (ngModelChange)="onMissingColorChange($event)">
+                                (change)="onMissingColorChange($any($event.target).value)">
                             <input
                                 type="text"
                                 class="form-control form-control-sm continuous-ramp__hex"

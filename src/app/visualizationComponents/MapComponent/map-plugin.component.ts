@@ -4371,7 +4371,7 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
         var opacity = 1 - this.commonService.session.style.widgets['map-link-transparency'];
         var links = this.commonService.getVisibleLinks();
         const getLinkColorValue = (link: any) => {
-            const value = link[lcv];
+            const value = this.commonService.getLinkColorValue(link, lcv);
             if (String(lcv).toLowerCase() === 'origin' && Array.isArray(value)) {
                 return value.length > 1 ? 'Duo-Link' : this.commonService.normalizeStyleCategoryValue(value[0]);
             }

@@ -1,3 +1,5 @@
+import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { FormsModule } from '@angular/forms';
 import { createDefaultVariableColorScaleConfig, resolveVariableColorScale } from '@app/contactTraceCommonServices/variable-color-scale';
 import { ContinuousColorRampComponent } from './continuous-color-ramp.component';
 
@@ -70,5 +72,37 @@ describe('ContinuousColorRampComponent', () => {
 
     expect(emitted.domain).toEqual({ kind: 'auto' });
     expect(emitted.mode).toBe('continuous');
+  });
+
+  it('commits color-picker changes only after the picker selection is finished', async () => {
+    await TestBed.configureTestingModule({
+      declarations: [ContinuousColorRampComponent],
+      imports: [FormsModule],
+    }).compileComponents();
+    const fixture: ComponentFixture<ContinuousColorRampComponent> = TestBed.createComponent(ContinuousColorRampComponent);
+    const component = fixture.componentInstance;
+    const configured = buildComponent();
+    component.editable = configured.editable;
+    component.config = configured.config;
+    component.resolved = configured.resolved;
+    fixture.detectChanges();
+
+    const colorInput = fixture.nativeElement.querySelector('.continuous-ramp__stop-row input[type="color"]') as HTMLInputElement;
+    const missingColorInput = fixture.nativeElement.querySelector('#continuous-color-ramp-missing-color') as HTMLInputElement;
+    const colorChange = spyOn(component, 'onStopColorChange');
+    const missingColorChange = spyOn(component, 'onMissingColorChange');
+    colorInput.value = '#123456';
+    colorInput.dispatchEvent(new Event('input', { bubbles: true }));
+    missingColorInput.value = '#654321';
+    missingColorInput.dispatchEvent(new Event('input', { bubbles: true }));
+
+    expect(colorChange).not.toHaveBeenCalled();
+    expect(missingColorChange).not.toHaveBeenCalled();
+
+    colorInput.dispatchEvent(new Event('change', { bubbles: true }));
+    missingColorInput.dispatchEvent(new Event('change', { bubbles: true }));
+
+    expect(colorChange).toHaveBeenCalledOnceWith(0, '#123456');
+    expect(missingColorChange).toHaveBeenCalledOnceWith('#654321');
   });
 });

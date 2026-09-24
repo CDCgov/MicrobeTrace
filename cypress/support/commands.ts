@@ -20,6 +20,19 @@ function closeVisibleSelectOverlays(): void {
   });
 }
 
+function expandVisibleGlobalStylingAccordions(): void {
+  cy.get('body').then(($body) => {
+    const collapsedHeaders = $body.find(
+      '.p-dialog:visible #style-config:visible p-accordion-header button[aria-expanded="false"]'
+    );
+
+    if (!collapsedHeaders.length) return;
+    cy.wrap(collapsedHeaders).each(($header) => {
+      cy.wrap($header).click({ force: true });
+    });
+  });
+}
+
 declare global {
   namespace Cypress {
     interface Chainable {
@@ -186,6 +199,7 @@ Cypress.Commands.add('openGlobalSettings', () => {
   });
   cy.contains('.p-dialog:visible .p-dialog-title', 'Global Settings', { timeout: 15000 }).should('be.visible');
   cy.contains('.p-dialog:visible .nav-link', 'Timeline', { timeout: 15000 }).should('be.visible');
+  expandVisibleGlobalStylingAccordions();
 });
 
 Cypress.Commands.add('closeGlobalSettings', () => {

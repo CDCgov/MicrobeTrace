@@ -394,6 +394,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
     nodeColorAssignmentStatus: ColorAssignmentStatus | null = null;
     linkColorAssignmentStatus: ColorAssignmentStatus | null = null;
     styleFileStatus: StyleFileStatus | null = null;
+    stylingAccordionPanels: string[] = [];
 
 
     activeTabNdx = null;
@@ -5680,6 +5681,7 @@ ${warnings.join('\n')}`,
         }
 
         if (dialogRequest.stylingTarget) {
+            this.expandStylingAccordionForTarget(dialogRequest.stylingTarget);
             this.scheduleGlobalSettingsStylingTargetFocus(dialogRequest.stylingTarget);
         }
     }
@@ -5691,6 +5693,14 @@ ${warnings.join('\n')}`,
             event,
             target === 'node' ? 'node-color-ramp' : 'link-color-ramp'
         ));
+    }
+
+    private expandStylingAccordionForTarget(target: GlobalSettingsStylingTarget): void {
+        const panel = target === 'node-color-ramp' ? 'node-color' : 'link-color';
+        if (!this.stylingAccordionPanels.includes(panel)) {
+            this.stylingAccordionPanels = [...this.stylingAccordionPanels, panel];
+            this.cdref.detectChanges();
+        }
     }
 
     private normalizeGlobalSettingsDialogRequest(request: GlobalSettingsDialogRequest): NormalizedGlobalSettingsDialogRequest {
