@@ -746,12 +746,10 @@ describe('Sigma settings parity', () => {
 
     cy.window().then(win => {
       const twoD = (win as any).commonService.visuals.twoD;
-      const composite = twoD.exportRendererComposite(1);
       twoD.SelectedNetworkExportFilenameVariable = fileName;
       twoD.SelectedNetworkExportFileTypeListVariable = 'svg';
       twoD.SelectedNetworkExportScaleVariable = 2;
       twoD.exportVisualization(null);
-      return expectExportToContainRenderedNodes(win, composite.pngDataUrl);
     });
 
     cy.window({ timeout: 30000 }).should(win => {
@@ -765,6 +763,18 @@ describe('Sigma settings parity', () => {
         .to.equal(true);
       expect(svg).to.include('<image');
       expect(svg).to.include('data:image/png;base64,');
+    });
+
+    cy.window().then(win => {
+      const downloads = (win as any).__mtCapturedDownloads || [];
+      const captured = downloads.find((download: any) => download.fileName === `${fileName}.svg`);
+      const svg = win.atob(String(captured.dataUrl).split(',')[1] || '');
+      const document = new win.DOMParser().parseFromString(svg, 'image/svg+xml');
+      const networkImage = document.querySelector('svg > image');
+      const pngDataUrl = networkImage?.getAttribute('href') || '';
+      expect(pngDataUrl, 'final SVG embedded network PNG').to.match(/^data:image\/png;base64,/);
+      cy.writeFile(`${Cypress.config('downloadsFolder')}/${fileName}.svg`, svg);
+      return expectExportToContainRenderedNodes(win, pngDataUrl);
     });
   });
 
