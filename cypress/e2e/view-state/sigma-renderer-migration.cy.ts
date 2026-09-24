@@ -58,7 +58,12 @@ describe('Sigma renderer migration', () => {
       .and('contain.text', 'Overview')
       .and('contain.text', 'Detailed')
       .and('contain.text', 'All links')
-      .and('contain.text', 'Large networks may look crowded and respond more slowly.');
+      .and('contain.text', 'not your data, filters, or link totals')
+      .and('contain.text', 'based on network size and zoom')
+      .and('contain.text', 'stable shortest-link backbone')
+      .and('contain.text', 'same selection rules with a higher link allowance')
+      .and('contain.text', 'remaining after your filters and Link Threshold')
+      .and('contain.text', 'Highlight neighbors');
     cy.get('[data-testid="network-detail-info"]').blur();
     cy.get('[data-testid="network-detail-tooltip"]').should('not.be.visible');
     cy.get('[data-testid="sigma-network"]')

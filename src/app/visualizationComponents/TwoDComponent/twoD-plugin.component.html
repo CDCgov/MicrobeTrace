@@ -39,9 +39,15 @@
         </button>
         <div id="network-detail-tooltip" class="network-detail-control__tooltip" role="tooltip"
           data-testid="network-detail-tooltip">
-          <p><strong>Overview</strong> prioritizes the most useful connections, keeping dense networks clear and responsive.</p>
-          <p><strong>Detailed</strong> adds more connections for closer analysis while still limiting visual clutter.</p>
-          <p><strong>All links</strong> shows every available connection. Large networks may look crowded and respond more slowly.</p>
+          <p class="network-detail-control__tooltip-intro">
+            These options change what is drawn, not your data, filters, or link totals.
+          </p>
+          <p><strong>Overview</strong> uses a link allowance based on network size and zoom. When links need to be reduced, it keeps a stable shortest-link backbone, then favors short links that connect nodes and groups in the current view, nearby links per node, and links just outside the view. Zoom in to reveal more; zoom out to show fewer.</p>
+          <p><strong>Detailed</strong> uses the same selection rules with a higher link allowance and more nearby connections per node. Zoom still adjusts what is shown.</p>
+          <p><strong>All links</strong> draws every link remaining after your filters and Link Threshold. Zoom and camera position do not hide links. Large networks may look crowded and respond more slowly.</p>
+          <p class="network-detail-control__tooltip-note">
+            In Overview or Detailed, selecting one node shows all of that node's links. Hovering does the same when <strong>Highlight neighbors</strong> is enabled.
+          </p>
         </div>
       </div>
       @if (sigmaLoading) {
@@ -69,17 +75,17 @@
       <button type="button" data-testid="network-detail-overview"
         [class.active]="sigmaSummary.edgeDetailMode === 'overview'"
         [attr.aria-pressed]="sigmaSummary.edgeDetailMode === 'overview'"
-        title="Show the most informative links for a clearer, faster view."
+        title="Use a zoom-aware selection of the most useful links."
         (click)="setSigmaEdgeDetailMode('overview')">Overview</button>
       <button type="button" data-testid="network-detail-detailed"
         [class.active]="sigmaSummary.edgeDetailMode === 'detail'"
         [attr.aria-pressed]="sigmaSummary.edgeDetailMode === 'detail'"
-        title="Show more links while preserving interactive performance."
+        title="Use the same selection rules with a higher link allowance."
         (click)="setSigmaEdgeDetailMode('detail')">Detailed</button>
       <button type="button" data-testid="network-detail-all"
         [class.active]="sigmaSummary.edgeDetailMode === 'all'"
         [attr.aria-pressed]="sigmaSummary.edgeDetailMode === 'all'"
-        title="Draw every visible link. Large networks may respond more slowly."
+        title="Draw every link remaining after filters and Link Threshold."
         (click)="setSigmaEdgeDetailMode('all')">All links</button>
     </div>
   </div>
