@@ -31,18 +31,21 @@ describe('Sigma renderer migration', () => {
     cy.visit('/?skipEula=1');
     loadSampleDataset();
 
-    cy.get('[data-testid="network-renderer-banner"]', { timeout: 20000 })
+    cy.get('[data-testid="network-detail-control"]', { timeout: 20000 })
       .should('be.visible')
-      .and('contain.text', 'Sigma WebGL renderer');
+      .and('contain.text', 'Link detail')
+      .and('not.contain.text', 'Sigma')
+      .and('not.contain.text', 'WebGL')
+      .and('not.contain.text', 'Cytoscape');
     cy.get('[data-testid="sigma-network"]')
       .should('be.visible')
       .find('canvas.sigma-stage')
       .should('exist');
     cy.get('#cy').should('not.exist');
-    cy.get('[data-testid="sigma-renderer-summary"]')
+    cy.get('[data-testid="network-render-summary"]')
       .should('contain.text', '33 nodes')
-      .and('contain.text', '74 links resident')
-      .and('contain.text', '74 links drawn');
+      .and('contain.text', '74 available links')
+      .and('contain.text', '74 links displayed');
     cy.get('[data-testid="renderer-accessible-feature-summary"]')
       .should('contain.text', '33 network nodes');
     cy.window().then(win => {
@@ -51,10 +54,11 @@ describe('Sigma renderer migration', () => {
       expect(nodeShapes).to.include('circle').and.include('triangle');
     });
 
-    cy.contains('.sigma-detail-controls button', 'Detail')
+    cy.get('[data-testid="network-detail-detailed"]')
       .click({ force: true })
-      .should('have.class', 'active');
-    cy.get('[data-testid="network-renderer-banner"]')
+      .should('have.class', 'active')
+      .and('have.attr', 'aria-pressed', 'true');
+    cy.get('[data-testid="network-detail-control"]')
       .should('not.contain.text', 'fallback');
     cy.window().then(async win => {
       const twoD = (win as any).commonService.visuals.twoD;
@@ -84,9 +88,9 @@ describe('Sigma renderer migration', () => {
     cy.get('[data-testid="twod-recalculate-layout-button"]')
       .should('not.have.class', 'disabled')
       .click({ force: true });
-    cy.get('[data-testid="sigma-renderer-summary"]', { timeout: 20000 })
+    cy.get('[data-testid="network-render-summary"]', { timeout: 20000 })
       .should('contain.text', '33 nodes')
-      .and('contain.text', '74 links resident');
+      .and('contain.text', '74 available links');
     cy.get('[data-testid="sigma-network"]').focus().trigger('keydown', { key: 'ArrowRight' });
     cy.get('[data-testid="network-renderer-live-status"]').should('contain.text', 'Node 2 of 33');
     cy.get('[data-testid="sigma-network"]').trigger('keydown', { key: 'Enter' });
@@ -104,8 +108,9 @@ describe('Sigma renderer migration', () => {
     cy.get('[data-testid="sigma-network"] canvas.sigma-stage').then($canvas => {
       $canvas[0].dispatchEvent(new Event('webglcontextlost', { cancelable: true }));
     });
-    cy.get('[data-testid="sigma-recovery-status"]', { timeout: 10000 })
-      .should('contain.text', 'recovered from a WebGL context loss');
+    cy.get('[data-testid="network-display-status"]', { timeout: 10000 })
+      .should('contain.text', 'Network display restored.')
+      .and('not.contain.text', 'WebGL');
     cy.get('[data-testid="sigma-network"] canvas.sigma-stage').should('exist');
     cy.get('#cy').should('not.exist');
     cy.get('[data-testid="twod-settings-button"]').click({ force: true });
@@ -123,7 +128,7 @@ describe('Sigma renderer migration', () => {
       twoD.onLinkDirectedUndirectedChange('Show');
       twoD.onLinkBidirectionalChange('Show');
     });
-    cy.get('[data-testid="sigma-renderer-summary"]', { timeout: 20000 })
+    cy.get('[data-testid="network-render-summary"]', { timeout: 20000 })
       .should('contain.text', '33 nodes');
     cy.window().then(async win => {
       const twoD = (win as any).commonService.visuals.twoD;
@@ -159,11 +164,9 @@ describe('Sigma renderer migration', () => {
     });
     loadSampleDataset();
 
-    cy.get('[data-testid="network-renderer-banner"]', { timeout: 20000 })
-      .should('be.visible')
-      .and('contain.text', 'Cytoscape Canvas fallback')
-      .and('contain.text', 'WebGL 2 is unavailable');
+    cy.get('[data-testid="network-detail-control"]').should('not.exist');
     cy.get('#cy').should('be.visible');
+    cy.get('#cy').should('have.attr', 'aria-label', 'Network visualization');
     cy.get('[data-testid="sigma-network"]').should('not.exist');
     cy.window().then(win => {
       const rendererResources = win.performance.getEntriesByType('resource')
@@ -180,7 +183,7 @@ describe('Sigma renderer migration', () => {
 
     cy.get('#cy', { timeout: 20000 }).should('be.visible');
     cy.get('[data-testid="sigma-network"]').should('not.exist');
-    cy.get('[data-testid="network-renderer-banner"]').should('not.exist');
+    cy.get('[data-testid="network-detail-control"]').should('not.exist');
     cy.window().then(win => {
       expect((win as any).commonService.visuals.twoD.requestedRendererMode)
         .to.equal('cytoscape-canvas');
@@ -219,8 +222,12 @@ describe('Sigma renderer migration', () => {
       .should('be.visible')
       .and('contain.text', '10,253-node')
       .and('contain.text', 'available through the data tables');
-    cy.get('[data-testid="network-renderer-banner"]')
-      .should('contain.text', 'Table-only network safety mode');
+    cy.get('[data-testid="network-detail-control"]').should('not.exist');
+    cy.get('[data-testid="network-canvas-safety-message"]')
+      .should('contain.text', 'Interactive network display unavailable')
+      .and('not.contain.text', 'WebGL')
+      .and('not.contain.text', 'Sigma')
+      .and('not.contain.text', 'Cytoscape');
     cy.get('#cy').should('not.exist');
     cy.get('[data-testid="sigma-network"]').should('not.exist');
     cy.window().then(win => {

@@ -26,31 +26,48 @@
   }
 </div>
 
-@if (sigmaRequested) {
-  <div class="network-renderer-banner" data-testid="network-renderer-banner">
-    @if (sigmaActive) {
-      <strong>Sigma WebGL renderer</strong>
+@if (sigmaRequested && sigmaActive) {
+  <div class="network-detail-control" data-testid="network-detail-control">
+    <div class="network-detail-control__header">
+      <span class="network-detail-control__label">Link detail</span>
       @if (sigmaLoading) {
-        <span class="network-renderer-status">{{ sigmaLoadingMessage }}</span>
-      } @else {
-        <span class="network-renderer-status" data-testid="sigma-renderer-summary">
-          {{ sigmaSummary.residentNodeCount.toLocaleString() }} nodes and
-          {{ sigmaSummary.residentLinkCount.toLocaleString() }} links resident;
-          {{ sigmaSummary.drawnLinkCount.toLocaleString() }} links drawn
+        <span class="network-detail-control__status" data-testid="network-display-status" role="status">
+          <span class="network-detail-control__spinner" aria-hidden="true"></span>
+          {{ sigmaLoadingMessage }}
+        </span>
+      } @else if (sigmaRecoveryMessage) {
+        <span class="network-detail-control__status" data-testid="network-display-status" role="status">
+          {{ sigmaRecoveryMessage }}
+        </span>
+      } @else if (sigmaSummary.drawnLinkCount < sigmaSummary.residentLinkCount) {
+        <span class="network-detail-control__status" data-testid="network-detail-summary">
+          {{ sigmaSummary.drawnLinkCount.toLocaleString() }} of
+          {{ sigmaSummary.residentLinkCount.toLocaleString() }} links shown
         </span>
       }
-      @if (sigmaRecoveryMessage) {
-        <span class="network-renderer-status" data-testid="sigma-recovery-status">{{ sigmaRecoveryMessage }}</span>
-      }
-      <span class="sigma-detail-controls" aria-label="Sigma edge detail">
-        <button type="button" [class.active]="sigmaSummary.edgeDetailMode === 'overview'" (click)="setSigmaEdgeDetailMode('overview')">Overview</button>
-        <button type="button" [class.active]="sigmaSummary.edgeDetailMode === 'detail'" (click)="setSigmaEdgeDetailMode('detail')">Detail</button>
-        <button type="button" [class.active]="sigmaSummary.edgeDetailMode === 'all'" (click)="setSigmaEdgeDetailMode('all')">All</button>
-      </span>
-    } @else {
-      <strong>{{ canvasFallbackSuppressed ? 'Table-only network safety mode' : 'Cytoscape Canvas fallback' }}</strong>
-      <span class="network-renderer-status">{{ sigmaFallbackReason }}</span>
-    }
+    </div>
+    <span class="sr-only" data-testid="network-render-summary">
+      {{ sigmaSummary.residentNodeCount.toLocaleString() }} nodes;
+      {{ sigmaSummary.residentLinkCount.toLocaleString() }} available links;
+      {{ sigmaSummary.drawnLinkCount.toLocaleString() }} links displayed
+    </span>
+    <div class="network-detail-control__segments" role="group" aria-label="Link detail level">
+      <button type="button" data-testid="network-detail-overview"
+        [class.active]="sigmaSummary.edgeDetailMode === 'overview'"
+        [attr.aria-pressed]="sigmaSummary.edgeDetailMode === 'overview'"
+        title="Show the most informative links for a clearer, faster view."
+        (click)="setSigmaEdgeDetailMode('overview')">Overview</button>
+      <button type="button" data-testid="network-detail-detailed"
+        [class.active]="sigmaSummary.edgeDetailMode === 'detail'"
+        [attr.aria-pressed]="sigmaSummary.edgeDetailMode === 'detail'"
+        title="Show more links while preserving interactive performance."
+        (click)="setSigmaEdgeDetailMode('detail')">Detailed</button>
+      <button type="button" data-testid="network-detail-all"
+        [class.active]="sigmaSummary.edgeDetailMode === 'all'"
+        [attr.aria-pressed]="sigmaSummary.edgeDetailMode === 'all'"
+        title="Draw every visible link. Large networks may respond more slowly."
+        (click)="setSigmaEdgeDetailMode('all')">All links</button>
+    </div>
   </div>
 }
 
@@ -59,21 +76,21 @@
     <div #exportContainer class="cytoscape-container" style="position: relative;">
       @if (sigmaActive) {
         <div #sigmaNetwork id="sigma-network" data-testid="sigma-network" tabindex="0"
-          role="application" aria-label="Sigma network visualization"
+          role="application" aria-label="Network visualization"
           aria-describedby="network-renderer-keyboard-instructions network-renderer-live-status"
           [style.background-color]="widgets['background-color'] || '#ffffff'"
           (pointerdown)="onRendererPointerInteraction()" (click)="onRendererPointerInteraction()"
           (focus)="onRendererKeyboardFocus($event)" (keydown)="onRendererKeydown($event)"></div>
       } @else if (!canvasFallbackSuppressed) {
-        <div #cy id="cy" tabindex="0" role="application" aria-label="Cytoscape network visualization"
+        <div #cy id="cy" tabindex="0" role="application" aria-label="Network visualization"
           aria-describedby="network-renderer-keyboard-instructions network-renderer-live-status"
           style="width: 100%; height: 100%; position: relative;"
           (pointerdown)="onRendererPointerInteraction()" (click)="onRendererPointerInteraction()"
           (focus)="onRendererKeyboardFocus($event)" (keydown)="onRendererKeydown($event)"></div>
       } @else {
         <section class="network-canvas-safety-message" data-testid="network-canvas-safety-message"
-          aria-label="Network renderer safety mode">
-          <h3>Network visualization paused</h3>
+          aria-label="Interactive network display unavailable">
+          <h3>Interactive network display unavailable</h3>
           <p>{{ sigmaFallbackReason }}</p>
         </section>
       }

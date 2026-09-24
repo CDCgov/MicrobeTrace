@@ -357,13 +357,16 @@ label[for="search"] {
 #network-statistics-wrapper {
     display: none;
     position: absolute;
-    bottom: 10px;
-    right: 20px;
+    bottom: 14px;
+    right: 14px;
     z-index: 1;
-    color: #303030;
-    background-color: #f8f9fa !important;
-    border: 1px solid #c0c0c0;
-    border-radius: 0.25rem;
+    padding: 6px 8px;
+    color: #334155;
+    background-color: rgba(255, 255, 255, 0.97) !important;
+    border: 1px solid #d6e0ea;
+    border-radius: 8px;
+    box-shadow: 0 4px 14px rgba(30, 41, 59, 0.12);
+    font-size: 12px;
   }
   #network-statistics-draghandle {
     display: none;
@@ -372,7 +375,13 @@ label[for="search"] {
   }
   #network-statistics-table td {
     border: none;
-    padding: 0.125rem 0.25rem;
+    padding: 0.1rem 0.25rem;
+    line-height: 1.35;
+  }
+  #network-statistics-table .text-right {
+    color: #0f172a;
+    font-variant-numeric: tabular-nums;
+    font-weight: 600;
   }
 
   mat-slider {

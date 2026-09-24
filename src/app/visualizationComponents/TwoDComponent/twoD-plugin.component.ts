@@ -126,7 +126,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         && typeof document !== 'undefined'
         && canCreateWebGL2Context(document);
     sigmaFallbackReason: string | null = this.sigmaRequested && !this.sigmaActive
-        ? 'WebGL 2 is unavailable; using the Cytoscape Canvas compatibility renderer.'
+        ? 'The accelerated network display is unavailable; using compatibility mode.'
         : null;
     canvasFallbackSuppressed = false;
     sigmaRecoveryMessage: string | null = null;
@@ -1741,9 +1741,9 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         if (!shouldSuppress) return false;
 
         this.sigmaFallbackReason = [
-            'WebGL 2 is unavailable.',
-            `The ${nodeCount.toLocaleString()}-node, ${edgeCount.toLocaleString()}-link network is above the safe Canvas fallback limit,`,
-            'so the graph remains available through the data tables without allocating a second in-memory renderer.'
+            'The interactive network display could not be started.',
+            `The ${nodeCount.toLocaleString()}-node, ${edgeCount.toLocaleString()}-link network is above the safe compatibility-display limit,`,
+            'so the graph remains available through the data tables to protect browser stability.'
         ].join(' ');
         this.rendererAccessibleFeatureSummary = [
             `${nodeCount.toLocaleString()} network nodes`,
@@ -1760,14 +1760,14 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         if (!this.sigmaRenderer || this.sigmaRecoveryInProgress || this.isDestroyed) return;
         this.sigmaRecoveryInProgress = true;
         const viewState = this.sigmaRenderer.getViewState();
-        this.sigmaRecoveryMessage = 'Recreating the Sigma WebGL renderer';
+        this.sigmaRecoveryMessage = 'Restoring the network display';
         this.cdref.markForCheck();
 
         setTimeout(() => {
             const recovered = this.sigmaRenderer?.recoverWebglContext() || false;
             if (recovered) {
                 if (viewState) this.sigmaRenderer?.setViewState(viewState);
-                this.sigmaRecoveryMessage = 'Sigma recovered from a WebGL context loss.';
+                this.sigmaRecoveryMessage = 'Network display restored.';
                 this.sigmaSummary = this.sigmaRenderer?.getSummary() || this.sigmaSummary;
                 this.sigmaRecoveryInProgress = false;
                 this.cdref.markForCheck();
@@ -1777,7 +1777,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             this.sigmaRecoveryInProgress = false;
             this.sigmaRecoveryMessage = null;
             this.fallbackFromSigma(
-                'The WebGL context was lost and could not be recreated; continuing with the Cytoscape Canvas compatibility renderer.'
+                'The accelerated network display could not be restored; continuing in compatibility mode.'
             );
         }, 0);
     }
@@ -2006,9 +2006,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         } catch (error) {
             console.error('Unable to render the network with Sigma.', error);
             this.fallbackFromSigma(
-                error instanceof Error
-                    ? `Sigma could not start: ${error.message}`
-                    : 'Sigma could not start; using the Cytoscape Canvas compatibility renderer.'
+                'The accelerated network display could not start; using compatibility mode.'
             );
         } finally {
             this.sigmaLoading = false;

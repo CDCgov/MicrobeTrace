@@ -5,9 +5,9 @@ const loadSampleDataset = (): void => {
     .should('be.visible')
     .click({ force: true });
   cy.get('#overlay', { timeout: 15000 }).should('not.be.visible');
-  cy.get('[data-testid="sigma-renderer-summary"]', { timeout: 30000 })
+  cy.get('[data-testid="network-render-summary"]', { timeout: 30000 })
     .should('contain.text', '33 nodes')
-    .and('contain.text', '74 links resident');
+    .and('contain.text', '74 available links');
 };
 
 describe('Sigma renderer feature parity', () => {
