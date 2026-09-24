@@ -703,6 +703,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
     isMac: boolean = navigator.userAgent.toUpperCase().indexOf('MAC') >= 0;
     thresholdSubscription: any;
     threshold: number;
+    private pendingThresholdIncreaseRelayout = false;
     networkUpdatedSubscription: any;
     settingsLoadedSubscription: any;
     private styleFileSub: any;
@@ -1739,6 +1740,15 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
     this.thresholdSubscription = this.store.linkThreshold$
         .pipe(takeUntil(this.destroy$))
         .subscribe(newThreshold => {
+            const previousThreshold = Number(this.threshold);
+            const nextThreshold = Number(newThreshold);
+            if (
+                Number.isFinite(previousThreshold)
+                && Number.isFinite(nextThreshold)
+                && nextThreshold !== previousThreshold
+            ) {
+                this.pendingThresholdIncreaseRelayout = nextThreshold > previousThreshold;
+            }
             this.threshold = newThreshold;
             this.syncNodeCollapseControlsFromWidgets();
             this.cdref.markForCheck();
@@ -4637,6 +4647,33 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         }
     }
 
+    private async settleMergedComponentsAfterThresholdIncrease(
+        timelineTick: boolean,
+        hadCytoscapeAtStart: boolean
+    ): Promise<void> {
+        if (!this.pendingThresholdIncreaseRelayout) return;
+
+        // Consume the request only after the networkUpdated$ render has applied
+        // the new link visibility and component membership.
+        this.pendingThresholdIncreaseRelayout = false;
+
+        if (
+            !hadCytoscapeAtStart
+            || timelineTick
+            || this.isTimelineFilteringActive()
+            || this.commonService.session.network.allPinned
+            || !this.isCytoscapeUsable(this.cy)
+        ) {
+            return;
+        }
+
+        // A threshold increase can join components that were laid out far apart.
+        // Repeat the same settle used by the Recalculate Layout button now that
+        // the merged graph is complete. Threshold decreases intentionally keep
+        // the normal single update because split components already look correct.
+        await this.updateLayout();
+    }
+
     /**
      * 
      * @param foci 
@@ -6035,6 +6072,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             
 
          }
+            await this.settleMergedComponentsAfterThresholdIncrease(timelineTick, hadCytoscapeAtStart);
             if (
                 this.cy
                 && this.getNetworkLayout() === 'order-by-size'

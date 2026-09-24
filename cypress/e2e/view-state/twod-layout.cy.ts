@@ -299,7 +299,7 @@ describe('2D Network - Cluster Size Layout', () => {
     });
   });
 
-  it('compacts components once after a threshold increase merges them', () => {
+  it('settles merged components with a second layout pass only after a threshold increase', () => {
     selectOrderByClusterSizeLayout();
     cy.closeSettingsPane('2D Network Settings');
 
@@ -338,6 +338,13 @@ describe('2D Network - Cluster Size Layout', () => {
       ).to.be.lessThan(275);
     });
 
-    cy.get('@thresholdLayoutRefresh').should('have.been.calledOnce');
+    cy.get('@thresholdLayoutRefresh').its('callCount').should('equal', 2);
+
+    cy.get('@thresholdLayoutRefresh').then((refreshSpy: any) => refreshSpy.resetHistory());
+    openGlobalFilteringTab();
+    setGlobalLinkThreshold(16);
+    cy.closeGlobalSettings();
+
+    cy.get('@thresholdLayoutRefresh').its('callCount').should('equal', 1);
   });
 });
