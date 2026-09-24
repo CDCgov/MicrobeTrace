@@ -3246,7 +3246,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
 	            this.zone.run(() => {
 	                const node = evt.target;
 	                this.showNodeTooltip(this.getFullNodeDataForCyNode(node), evt.originalEvent);
-                $('html,body').css('cursor', 'grab');
+                $('html,body').css('cursor', 'pointer');
     
                 if (this.widgets['node-highlight']) {
                     node.connectedEdges().addClass('highlighted');

@@ -388,6 +388,7 @@ describe('Sigma settings parity', () => {
         clientX: 140,
         clientY: 140,
       }));
+      expect(adapter.container.style.cursor, 'selectable node cursor').to.equal('pointer');
 
       const dimmed = renderer.nodeReducer(
         nonNeighborId,
@@ -505,6 +506,7 @@ describe('Sigma settings parity', () => {
       expect(normal.opacity, 'disabled setting does not dim non-neighbors')
         .to.equal(graph.getNodeAttribute(nonNeighborId, 'opacity'));
       adapter.handleNodeHover(null, new win.MouseEvent('mouseout'));
+      expect(adapter.container.style.cursor, 'stage cursor after leaving node').to.equal('');
     });
   });
 
@@ -650,6 +652,8 @@ describe('Sigma settings parity', () => {
       const cohortHull = adapter.groupHulls.find((hull: any) => hull.label === 'Cohort');
       expect(cohortHull, 'cohort hull').to.exist;
       const draggedNodeId = cohortHull.nodeIds[0];
+      adapter.selectNodes([draggedNodeId]);
+      expect(adapter.getSelectedNodeIds()).to.deep.equal([draggedNodeId]);
       const beforeAttributes = adapter.getGraph().getNodeAttributes(draggedNodeId);
       const beforePosition = { x: beforeAttributes.x, y: beforeAttributes.y };
       const start = renderer.graphToViewport(cohortHull.center);
@@ -661,6 +665,8 @@ describe('Sigma settings parity', () => {
         },
         preventSigmaDefault,
       });
+      expect(adapter.getSelectedNodeIds(), 'hull drag clears node selection').to.deep.equal([]);
+      expect(adapter.container.style.cursor, 'hull drag cursor').to.equal('grabbing');
       adapter.finishHullDrag({
         event: { x: start.x + 45, y: start.y + 30 },
         preventSigmaDefault,
@@ -669,7 +675,8 @@ describe('Sigma settings parity', () => {
       const afterPosition = adapter.getGraph().getNodeAttributes(draggedNodeId);
       expect(afterPosition.x).not.to.equal(beforePosition.x);
       expect(afterPosition.y).not.to.equal(beforePosition.y);
-      expect(adapter.getSelectedNodeIds()).to.have.length(cohortHull.nodeIds.length);
+      expect(adapter.getSelectedNodeIds()).to.deep.equal([]);
+      expect(adapter.container.style.cursor, 'selectable hull cursor').to.equal('pointer');
       const sessionNode = (win as any).commonService.session.data.nodes.find(
         (node: any) => String(node._id ?? node.id) === draggedNodeId,
       );

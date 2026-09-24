@@ -656,6 +656,7 @@ export class SigmaNetworkRendererAdapter {
   private renderEdgeLabels = false;
   private edgeLabelSize = 12;
   private highlightNeighbors = false;
+  private hoveredEdgeId: string | null = null;
   private iconPathCache = new Map<string, Path2D>();
   private nodeImageCache = new Map<string, HTMLImageElement>();
 
@@ -1271,7 +1272,10 @@ export class SigmaNetworkRendererAdapter {
       this.clearSelection();
     });
     this.renderer.on('downStage', payload => this.startHullDrag(payload));
-    this.renderer.on('moveBody', payload => this.moveHullDrag(payload));
+    this.renderer.on('moveBody', payload => {
+      this.moveHullDrag(payload);
+      this.updateInteractiveCursor(payload.event);
+    });
     this.renderer.on('upStage', payload => this.finishHullDrag(payload));
     this.renderer.on('upNode', payload => this.finishHullDrag(payload));
     this.renderer.on('rightClickNode', payload => {
@@ -1540,6 +1544,19 @@ export class SigmaNetworkRendererAdapter {
     return matches[0]?.group || null;
   }
 
+  private updateInteractiveCursor(point?: SigmaViewportPoint): void {
+    const overSelectableTarget = Boolean(
+      this.hoveredNodeId
+      || this.hoveredEdgeId
+      || (point && this.hullAtViewportPoint(point))
+    );
+    this.container.style.cursor = this.hullDragState
+      ? 'grabbing'
+      : overSelectableTarget
+        ? 'pointer'
+        : '';
+  }
+
   private startHullDrag(payload: {
     event: { x: number; y: number; original: MouseEvent | TouchEvent };
     preventSigmaDefault(): void;
@@ -1554,7 +1571,6 @@ export class SigmaNetworkRendererAdapter {
     payload.preventSigmaDefault();
     const previousSelection = new Set(this.selectedNodeIds);
     this.selectedNodeIds.clear();
-    group.nodeIds.forEach(nodeId => this.selectedNodeIds.add(nodeId));
     this.syncSelectionAttributes(previousSelection);
 
     const startPositions = new Map<string, { x: number; y: number }>();
@@ -1570,6 +1586,7 @@ export class SigmaNetworkRendererAdapter {
       startPointer: this.renderer.viewportToGraph(payload.event),
       startPositions,
     };
+    this.updateInteractiveCursor(payload.event);
   }
 
   private moveHullDrag(payload: {
@@ -1605,10 +1622,10 @@ export class SigmaNetworkRendererAdapter {
     this.rebuildGroupHulls();
     this.drawGroupHulls();
     this.scheduleProjectionRefresh();
+    this.updateInteractiveCursor(payload.event);
 
-    // A no-movement hull click emits clickStage after upStage. Preserve the
-    // group selection for that click, while allowing later stage clicks to
-    // clear selection normally.
+    // A no-movement hull click emits clickStage after upStage. The hull gesture
+    // has already cleared selection, so suppress the redundant stage click.
     this.suppressStageClick = true;
     if (this.suppressStageClickTimer) clearTimeout(this.suppressStageClickTimer);
     this.suppressStageClickTimer = setTimeout(() => {
@@ -1619,6 +1636,7 @@ export class SigmaNetworkRendererAdapter {
 
   private handleNodeHover(nodeId: string | null, event?: MouseEvent | TouchEvent): void {
     this.hoveredNodeId = nodeId;
+    this.updateInteractiveCursor();
     if (nodeId && this.graph.hasNode(nodeId)) {
       this.callbacks.onNodeHover?.(this.graph.getNodeAttribute(nodeId, 'raw'), event);
     } else {
@@ -1630,6 +1648,8 @@ export class SigmaNetworkRendererAdapter {
   }
 
   private handleEdgeHover(edgeId: string | null, event?: MouseEvent | TouchEvent): void {
+    this.hoveredEdgeId = edgeId;
+    this.updateInteractiveCursor();
     if (edgeId && this.graph.hasEdge(edgeId)) {
       this.callbacks.onEdgeHover?.(this.graph.getEdgeAttribute(edgeId, 'raw'), event);
     } else {
