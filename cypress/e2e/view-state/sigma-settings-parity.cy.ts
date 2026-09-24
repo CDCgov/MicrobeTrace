@@ -846,32 +846,7 @@ describe('Sigma settings parity', () => {
     );
   });
 
-  it('keeps scientific overlays and node collapse on the Sigma path', () => {
-    cy.window().then(win => {
-      const appWindow = win as any;
-      const twoD = appWindow.commonService.visuals.twoD;
-      const applyFields = (node: any, index: number) => {
-        node.SigmaQcStatus = index % 2 ? 'Review' : 'Pass';
-        node.SigmaQcSeverity = index % 2 ? 'warning' : 'none';
-        node.SigmaQcReason = index % 2 ? 'Metadata check' : 'Complete';
-        node.SigmaUncertainty = index % 2 ? 0.65 : 0.1;
-      };
-      appWindow.commonService.session.data.nodes.forEach(applyFields);
-      appWindow.commonService.session.data.nodeFilteredValues.forEach(applyFields);
-      twoD.onRendererFeatureFieldChange('node-qc-status-variable', 'SigmaQcStatus');
-      twoD.onRendererFeatureFieldChange('node-qc-severity-variable', 'SigmaQcSeverity');
-      twoD.onRendererFeatureFieldChange('node-qc-reason-variable', 'SigmaQcReason');
-      twoD.onRendererFeatureFieldChange('node-uncertainty-variable', 'SigmaUncertainty');
-    });
-
-    expectSigmaGraph((_win, _twoD, graph) => {
-      const features = graph.getNodeAttribute(graph.nodes()[1], 'features');
-      expect(features.qc.status).to.equal('Review');
-      expect(features.qc.severity).to.equal('warning');
-      expect(features.qc.reason).to.equal('Metadata check');
-      expect(features.uncertainty).to.equal(0.65);
-    });
-
+  it('matches the dev collapsed aggregate visuals on the Sigma path', () => {
     cy.window().then(win => {
       const twoD = (win as any).commonService.visuals.twoD;
       twoD.widgets['network-node-collapse-threshold'] = 1;
@@ -880,11 +855,18 @@ describe('Sigma settings parity', () => {
     cy.window({ timeout: 30000 }).should(win => {
       const twoD = (win as any).commonService.visuals.twoD;
       const graph = twoD.sigmaRenderer.getGraph();
+      const aggregates = graph.nodes()
+        .map((nodeId: string) => graph.getNodeAttributes(nodeId))
+        .filter((attributes: any) => attributes.raw?.raw?.isCollapsedAggregate === true);
       expect(twoD.sigmaActive).to.equal(true);
       expect(graph.order).to.be.lessThan(33);
-      expect(graph.nodes().some((nodeId: string) => (
-        graph.getNodeAttribute(nodeId, 'raw')?.raw?.isCollapsedAggregate === true
-      ))).to.equal(true);
+      expect(aggregates.length).to.be.greaterThan(0);
+      const pieAggregate = aggregates.find((attributes: any) => attributes.raw.raw.pieBackgroundImage);
+      expect(pieAggregate, 'collapsed aggregate with dev pie visual').to.exist;
+      expect(pieAggregate.imageDataUri).to.equal(pieAggregate.raw.raw.pieBackgroundImage);
+      expect(String(pieAggregate.imageDataUri)).to.match(/^data:image\/svg\+xml/);
+      expect(Number(pieAggregate.borderWidth)).to.equal(Number(pieAggregate.raw.raw.borderWidth));
+      expect(Number(pieAggregate.size) * 2).to.equal(Number(pieAggregate.raw.raw.aggregateRenderedSize));
     });
     cy.get('#cy').should('not.exist');
   });

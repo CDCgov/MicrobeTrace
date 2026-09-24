@@ -12,14 +12,6 @@ describe('Sigma custom network node feature program', () => {
         { value: 'D', count: 2, fraction: 0.2, color: '#444444' },
         { value: 'E', count: 2, fraction: 0.2, color: '#555555' },
       ],
-      qc: {
-        status: 'Review',
-        severity: 'warning',
-        reason: 'Mixed signal',
-        color: '#d97706',
-        symbol: '!',
-      },
-      uncertainty: 0.7,
       accessibleLabel: 'feature test',
     };
 
@@ -28,8 +20,6 @@ describe('Sigma custom network node feature program', () => {
     expect(attributes.mtDonutCount).toBe(4);
     expect(attributes.mtDonutStops).toEqual([0.1, 0.3, 0.6, 1]);
     expect(attributes.mtDonutColor4).toBe('#444444');
-    expect(attributes.mtQcVisible).toBe(1);
-    expect(attributes.mtUncertainty).toBe(0.7);
     expect(attributes.mtFeatureScale).toBe(1.65);
   });
 
@@ -37,14 +27,10 @@ describe('Sigma custom network node feature program', () => {
     const attributes = buildSigmaNetworkFeatureAttributes({
       compositionField: null,
       donutSegments: [],
-      qc: null,
-      uncertainty: null,
       accessibleLabel: '',
     });
 
     expect(attributes.mtDonutCount).toBe(0);
-    expect(attributes.mtQcVisible).toBe(0);
-    expect(attributes.mtUncertainty).toBe(0);
     expect(attributes.mtFeatureScale).toBe(1);
   });
 });

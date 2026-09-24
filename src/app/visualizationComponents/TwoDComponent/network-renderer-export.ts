@@ -9,8 +9,6 @@ export interface NetworkRendererExportMetadata {
   collapsedGroupIds: string[];
   geographicOverlayActive: boolean;
   mixedValueDonutNodeCount: number;
-  qcOverlayNodeCount: number;
-  uncertaintyOverlayNodeCount: number;
 }
 
 export interface NetworkRendererCompositeExport {

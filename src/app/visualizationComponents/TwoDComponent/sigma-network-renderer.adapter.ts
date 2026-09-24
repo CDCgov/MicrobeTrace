@@ -734,9 +734,7 @@ export class SigmaNetworkRendererAdapter {
         // renderer-neutral SVG on the feature canvas. Do not draw the legacy
         // WebGL donut underneath that image.
         featureAttributes.mtDonutCount = 0;
-        if (!features.qc && !(features.uncertainty !== null && features.uncertainty > 0)) {
-          featureAttributes.mtFeatureScale = 1;
-        }
+        featureAttributes.mtFeatureScale = 1;
       }
       graph.addNode(node.id, {
         x: Number.isFinite(node.x) ? node.x : 0,

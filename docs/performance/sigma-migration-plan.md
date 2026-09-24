@@ -10,7 +10,7 @@ The implementation branch is `codex/sigma-migration`, based on `origin/dev` at `
 
 - `TwoDComponent` owns renderer-neutral MicrobeTrace behavior and chooses the active renderer.
 - `SigmaNetworkRendererAdapter` owns Graphology, Sigma, WebGL layers, camera interaction, selection, dragging, group hulls, edge level of detail, and resource teardown.
-- Renderer-neutral modules provide scientific node features, grouping, geographic projection, composite export, and saved view-state normalization.
+- Renderer-neutral modules provide existing mixed-value node coloring, grouping, geographic projection, composite export, and saved view-state normalization.
 - Sigma is selected when no renderer query parameter is supplied.
 - `?renderer=cytoscape-canvas` remains available for an explicit compatibility override.
 - Cytoscape and `cytoscape-svg` are dynamic imports. The optimized production build emits them as separate lazy chunks (approximately 419 kB and 21 kB raw, or 113 kB and 7 kB estimated transfer respectively), so they are not loaded on a successful Sigma startup.
@@ -36,7 +36,7 @@ The integrated Sigma renderer supports:
 - individual-node and group dragging;
 - grouping hulls for singleton, pair, and larger groups, group labels and orientations, shared or per-group colors, per-group transparency, editable/sortable group key tables, and grouped layouts;
 - node collapsing and aggregate metadata used by renderer-neutral exports;
-- mixed-value donut glyphs, QC status/severity/reason overlays, and uncertainty overlays;
+- existing mixed-value node coloring and collapsed aggregate pie charts;
 - geographic longitude/latitude projection with an exported geographic overlay;
 - camera position, zoom, edge-detail mode, styling, and selection round-tripped through saved sessions;
 - PNG/JPEG/WebP/SVG composite export metadata and layered canvas capture;

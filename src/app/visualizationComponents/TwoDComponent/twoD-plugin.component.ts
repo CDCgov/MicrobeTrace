@@ -1032,11 +1032,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
 
     private getNetworkNodeFeatureFields(): NetworkNodeFeatureFields {
         return {
-            compositionField: String(this.widgets?.['node-color-variable'] || 'None'),
-            qcStatusField: String(this.widgets?.['node-qc-status-variable'] || 'None'),
-            qcSeverityField: String(this.widgets?.['node-qc-severity-variable'] || 'None'),
-            qcReasonField: String(this.widgets?.['node-qc-reason-variable'] || 'None'),
-            uncertaintyField: String(this.widgets?.['node-uncertainty-variable'] || 'None')
+            compositionField: String(this.widgets?.['node-color-variable'] || 'None')
         };
     }
 
@@ -1053,13 +1049,9 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
 
     private summarizeRendererNodeFeatures(features: NetworkNodeVisualFeatures[]): {
         mixedValueDonutNodeCount: number;
-        qcOverlayNodeCount: number;
-        uncertaintyOverlayNodeCount: number;
     } {
         return {
-            mixedValueDonutNodeCount: features.filter(feature => hasMixedValueDonut(feature)).length,
-            qcOverlayNodeCount: features.filter(feature => Boolean(feature.qc)).length,
-            uncertaintyOverlayNodeCount: features.filter(feature => feature.uncertainty !== null).length
+            mixedValueDonutNodeCount: features.filter(feature => hasMixedValueDonut(feature)).length
         };
     }
 
@@ -1072,9 +1064,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         const summary = this.summarizeRendererNodeFeatures(featureRows.map(row => row.features));
         this.rendererAccessibleFeatureSummary = [
             `${nodes.length} network nodes`,
-            `${summary.mixedValueDonutNodeCount} mixed-value donut nodes`,
-            `${summary.qcOverlayNodeCount} QC overlays`,
-            `${summary.uncertaintyOverlayNodeCount} uncertainty overlays`
+            `${summary.mixedValueDonutNodeCount} mixed-value nodes`
         ].join('; ');
         this.rendererAccessibleFeatureItems = featureRows
             .filter(row => hasNetworkNodeVisualFeatures(row.features))
@@ -1258,9 +1248,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         let drawnEdgeCount = 0;
         let collapsedGroupIds: string[] = [];
         let featureSummary = {
-            mixedValueDonutNodeCount: 0,
-            qcOverlayNodeCount: 0,
-            uncertaintyOverlayNodeCount: 0
+            mixedValueDonutNodeCount: 0
         };
 
         if (this.sigmaActive && this.sigmaRenderer) {
@@ -2052,11 +2040,6 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         return true;
     }
 
-    onRendererFeatureFieldChange(widgetKey: string, value: string): void {
-        this.widgets[widgetKey] = value || 'None';
-        this.refreshSigmaForStyleChange();
-    }
-
     onRendererGeographicSettingsChange(): void {
         this.refreshSigmaForStyleChange(true);
     }
@@ -2079,14 +2062,6 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         if (this.widgets['network-geographic-overlay'] === undefined) {
             this.widgets['network-geographic-overlay'] = false;
         }
-        [
-            'node-qc-status-variable',
-            'node-qc-severity-variable',
-            'node-qc-reason-variable',
-            'node-uncertainty-variable'
-        ].forEach(key => {
-            if (!this.widgets[key]) this.widgets[key] = 'None';
-        });
     }
 
     private getNodeCollapseMetric(): string {

@@ -15,9 +15,6 @@ export interface SigmaNetworkFeatureAttributes extends Record<string, unknown> {
   mtDonutColor2: string;
   mtDonutColor3: string;
   mtDonutColor4: string;
-  mtUncertainty: number;
-  mtQcVisible: number;
-  mtQcColor: string;
   mtFeatureScale: number;
 }
 
@@ -52,8 +49,6 @@ export function buildSigmaNetworkFeatureAttributes(
   while (stops.length < 4) stops.push(1);
 
   const hasDonut = sourceSegments.length > 1;
-  const hasQc = Boolean(features.qc);
-  const hasUncertainty = features.uncertainty !== null && features.uncertainty > 0;
 
   return {
     mtDonutCount: hasDonut ? Math.min(4, visibleSegments.length) : 0,
@@ -62,12 +57,9 @@ export function buildSigmaNetworkFeatureAttributes(
     mtDonutColor2: colors[1] || TRANSPARENT,
     mtDonutColor3: colors[2] || TRANSPARENT,
     mtDonutColor4: colors[3] || TRANSPARENT,
-    mtUncertainty: features.uncertainty || 0,
-    mtQcVisible: hasQc ? 1 : 0,
-    mtQcColor: features.qc?.color || TRANSPARENT,
     // The larger quad preserves approximately the same central node radius
-    // while making room for renderer-native rings and the QC badge.
-    mtFeatureScale: hasDonut || hasQc || hasUncertainty ? 1.65 : 1,
+    // while making room for the renderer-native mixed-value ring.
+    mtFeatureScale: hasDonut ? 1.65 : 1,
   };
 }
 
@@ -82,9 +74,6 @@ const microbeTraceFeatureLayer: FragmentLayer = {
     { name: 'mtDonutColor4', size: 4, type: UNSIGNED_BYTE, normalized: true, source: 'mtDonutColor4', defaultValue: TRANSPARENT },
     { name: 'mtDonutStops', size: 4, type: FLOAT, source: 'mtDonutStops' },
     { name: 'mtDonutCount', size: 1, type: FLOAT, source: 'mtDonutCount' },
-    { name: 'mtUncertainty', size: 1, type: FLOAT, source: 'mtUncertainty' },
-    { name: 'mtQcVisible', size: 1, type: FLOAT, source: 'mtQcVisible' },
-    { name: 'mtQcColor', size: 4, type: UNSIGNED_BYTE, normalized: true, source: 'mtQcColor', defaultValue: TRANSPARENT },
   ],
   glsl: `
 vec4 mtMaskColor(vec4 sourceColor, float mask) {
@@ -103,18 +92,14 @@ vec4 layer_mt_features(
   vec4 v_mtDonutColor3,
   vec4 v_mtDonutColor4,
   vec4 v_mtDonutStops,
-  float v_mtDonutCount,
-  float v_mtUncertainty,
-  float v_mtQcVisible,
-  vec4 v_mtQcColor
+  float v_mtDonutCount
 ) {
   const float PI = 3.141592653589793;
   const float TWO_PI = 6.283185307179586;
   bool hasDonut = v_mtDonutCount > 1.5;
-  bool hasFeatures = hasDonut || v_mtUncertainty > 0.0 || v_mtQcVisible > 0.5;
-  float baseRadius = hasFeatures ? 0.57 : 0.96;
+  float baseRadius = hasDonut ? 0.57 : 0.96;
   float distanceFromCenter = length(context.uv);
-  vec4 result = hasFeatures
+  vec4 result = hasDonut
     ? mtMaskColor(v_mtBaseColor, mtCircleMask(context.uv, vec2(0.0), baseRadius))
     : v_mtBaseColor;
 
@@ -132,25 +117,6 @@ vec4 layer_mt_features(
     result = blendOver(result, mtMaskColor(donutColor, ringMask));
   }
 
-  if (v_mtUncertainty > 0.0) {
-    float outerMask = smoothstep(0.99, 0.99 - context.aaWidth * 1.5, distanceFromCenter);
-    float innerMask = smoothstep(0.93 + context.aaWidth * 1.5, 0.93 - context.aaWidth * 1.5, distanceFromCenter);
-    float angle = atan(context.uv.y, context.uv.x) + PI;
-    float dashMask = step(0.30, fract(angle / TWO_PI * 12.0));
-    float ringMask = outerMask * (1.0 - innerMask) * dashMask;
-    vec4 uncertaintyColor = vec4(0.486, 0.227, 0.929, 0.30 + v_mtUncertainty * 0.60);
-    result = blendOver(result, mtMaskColor(uncertaintyColor, ringMask));
-  }
-
-  if (v_mtQcVisible > 0.5) {
-    vec2 badgeCenter = vec2(0.64, 0.64);
-    float badgeMask = mtCircleMask(context.uv, badgeCenter, 0.21);
-    float innerWhite = mtCircleMask(context.uv, badgeCenter, 0.145);
-    result = blendOver(result, mtMaskColor(v_mtQcColor, badgeMask));
-    result = blendOver(result, mtMaskColor(vec4(1.0), innerWhite));
-    result = blendOver(result, mtMaskColor(v_mtQcColor, mtCircleMask(context.uv, badgeCenter, 0.09)));
-  }
-
   return result;
 }
 `,
@@ -165,9 +131,6 @@ export const MICROBETRACE_SIGMA_NODE_PRIMITIVES: NodePrimitives = {
     mtDonutColor2: { type: 'color', default: TRANSPARENT },
     mtDonutColor3: { type: 'color', default: TRANSPARENT },
     mtDonutColor4: { type: 'color', default: TRANSPARENT },
-    mtUncertainty: { type: 'number', default: 0 },
-    mtQcVisible: { type: 'number', default: 0 },
-    mtQcColor: { type: 'color', default: TRANSPARENT },
   },
   layers: [microbeTraceFeatureLayer],
 };

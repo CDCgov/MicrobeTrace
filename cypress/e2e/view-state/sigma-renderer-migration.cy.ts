@@ -110,6 +110,7 @@ describe('Sigma renderer migration', () => {
     cy.get('#cy').should('not.exist');
     cy.get('[data-testid="twod-settings-button"]').click({ force: true });
     cy.contains('.p-dialog-title', '2D Network Settings').should('be.visible');
+    cy.contains('Scientific Overlays').should('not.exist');
     cy.window().then(win => {
       const twoD = (win as any).commonService.visuals.twoD;
       twoD.SelectedNodeRadiusSizeVariable = 80;
@@ -121,7 +122,6 @@ describe('Sigma renderer migration', () => {
       twoD.onLinkWidthChange(3);
       twoD.onLinkDirectedUndirectedChange('Show');
       twoD.onLinkBidirectionalChange('Show');
-      twoD.onRendererFeatureFieldChange('node-qc-status-variable', 'Lineage');
     });
     cy.get('[data-testid="sigma-renderer-summary"]', { timeout: 20000 })
       .should('contain.text', '33 nodes');
@@ -140,15 +140,10 @@ describe('Sigma renderer migration', () => {
       expect(renderer.getGraph().getNodeAttribute(firstNode, 'shape')).to.equal('square');
       expect(renderer.getGraph().getNodeAttribute(firstNode, 'shapeKey')).to.equal('house');
       expect(renderer.getGraph().getNodeAttribute(firstNode, 'iconVectorData')).to.not.equal(null);
-      expect(renderer.getGraph().getNodeAttribute(firstNode, 'features').qc).to.not.equal(null);
       expect(renderer.getGraph().getEdgeAttribute(firstEdge, 'size')).to.equal(3);
       expect(edgeHeads.filter((head: string) => head === 'arrow').length).to.be.greaterThan(0);
       expect(edgeTails.filter((tail: string) => tail === 'arrow').length).to.be.greaterThan(0);
-      const expectedQcOverlays = (win as any).commonService.session.data.nodes
-        .filter((node: any) => String(node.Lineage ?? '').trim().length > 0)
-        .length;
-      expect((await twoD.exportRendererComposite(1)).metadata.qcOverlayNodeCount)
-        .to.equal(expectedQcOverlays);
+      expect((await twoD.exportRendererComposite(1)).metadata).not.to.have.property('qcOverlayNodeCount');
     });
     cy.window().then(win => {
       const rendererResources = win.performance.getEntriesByType('resource')

@@ -254,28 +254,6 @@
                 <p-accordion-content><button pButton type="button" class="ui-button-raised" (click)="showGlobalSettings($event)" [style]="{'background-color': '#2196f3', 'border': '1px solid #2196f3'}"><span class="p-button-label">Show Colors</span></button>
                 </p-accordion-content>
               </p-accordion-panel>
-              <p-accordion-panel value="node-features" style="color:#495057">
-                <p-accordion-header>Scientific Overlays</p-accordion-header>
-                <p-accordion-content>
-                  <p class="small">Mixed values in the active Color By field render as donut segments.</p>
-                  <div class="form-group row">
-                    <div class="col-4"><label for="node-qc-status-variable">QC Status</label></div>
-                    <div class="col-8"><p-select id="node-qc-status-variable" [options]="FieldList" appendTo="body" class="width-percent-100" [ngModel]="widgets['node-qc-status-variable']" (ngModelChange)="onRendererFeatureFieldChange('node-qc-status-variable', $event)"></p-select></div>
-                  </div>
-                  <div class="form-group row">
-                    <div class="col-4"><label for="node-qc-severity-variable">QC Severity</label></div>
-                    <div class="col-8"><p-select id="node-qc-severity-variable" [options]="FieldList" appendTo="body" class="width-percent-100" [ngModel]="widgets['node-qc-severity-variable']" (ngModelChange)="onRendererFeatureFieldChange('node-qc-severity-variable', $event)"></p-select></div>
-                  </div>
-                  <div class="form-group row">
-                    <div class="col-4"><label for="node-qc-reason-variable">QC Reason</label></div>
-                    <div class="col-8"><p-select id="node-qc-reason-variable" [options]="FieldList" appendTo="body" class="width-percent-100" [ngModel]="widgets['node-qc-reason-variable']" (ngModelChange)="onRendererFeatureFieldChange('node-qc-reason-variable', $event)"></p-select></div>
-                  </div>
-                  <div class="form-group row">
-                    <div class="col-4"><label for="node-uncertainty-variable">Uncertainty</label></div>
-                    <div class="col-8"><p-select id="node-uncertainty-variable" [options]="FieldList" appendTo="body" class="width-percent-100" [ngModel]="widgets['node-uncertainty-variable']" (ngModelChange)="onRendererFeatureFieldChange('node-uncertainty-variable', $event)"></p-select></div>
-                  </div>
-                </p-accordion-content>
-              </p-accordion-panel>
             </p-accordion>
           </tab>
           <tab heading="{{'Links' | localize}}" customClass="m-tabs__item">

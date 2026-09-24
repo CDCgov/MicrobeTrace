@@ -23,8 +23,6 @@ export interface NetworkRendererDiagnostics {
   geographicOverlayActive: boolean;
   geographicPositionedNodeCount: number;
   mixedValueDonutNodeCount: number;
-  qcOverlayNodeCount: number;
-  uncertaintyOverlayNodeCount: number;
   nodeFeatureRenderingMode: 'canvas-overlay' | 'sigma-webgl-program';
 }
 

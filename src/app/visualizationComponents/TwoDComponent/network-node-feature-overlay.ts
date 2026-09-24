@@ -38,7 +38,6 @@ export function drawNetworkNodeFeatureGlyph(
 ): void {
   const { x, y, features } = glyph;
   const radius = Math.max(3, glyph.radius);
-  let outerRadius = radius;
 
   if (hasMixedValueDonut(features)) {
     const donutRadius = radius + Math.max(2, radius * 0.18);
@@ -54,41 +53,6 @@ export function drawNetworkNodeFeatureGlyph(
       context.stroke();
       startAngle = endAngle;
     }
-    context.restore();
-    outerRadius = donutRadius + lineWidth / 2;
-  }
-
-  if (features.uncertainty !== null && features.uncertainty > 0) {
-    const uncertaintyRadius = outerRadius + 3;
-    context.save();
-    context.beginPath();
-    context.arc(x, y, uncertaintyRadius, 0, Math.PI * 2);
-    context.setLineDash([2.5, 3]);
-    context.lineWidth = 1.5 + features.uncertainty;
-    context.globalAlpha = 0.35 + features.uncertainty * 0.55;
-    context.strokeStyle = '#7c3aed';
-    context.stroke();
-    context.restore();
-    outerRadius = uncertaintyRadius + 2;
-  }
-
-  if (features.qc) {
-    const badgeRadius = Math.max(4, Math.min(7, radius * 0.42));
-    const badgeX = x + outerRadius * 0.72;
-    const badgeY = y - outerRadius * 0.72;
-    context.save();
-    context.beginPath();
-    context.arc(badgeX, badgeY, badgeRadius, 0, Math.PI * 2);
-    context.fillStyle = features.qc.color;
-    context.fill();
-    context.lineWidth = 1.5;
-    context.strokeStyle = '#ffffff';
-    context.stroke();
-    context.fillStyle = '#ffffff';
-    context.font = `700 ${Math.max(8, badgeRadius * 1.6)}px sans-serif`;
-    context.textAlign = 'center';
-    context.textBaseline = 'middle';
-    context.fillText(features.qc.symbol, badgeX, badgeY + 0.5);
     context.restore();
   }
 }
