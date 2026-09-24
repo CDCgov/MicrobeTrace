@@ -135,6 +135,7 @@ describe('Sigma session round-trip', () => {
       expect(twoD.widgets['node-label-orientation']).to.equal('Top');
       expect(twoD.widgets['link-opacity']).to.equal(0.45);
       expect(twoD.widgets['link-opacity-override-enabled']).to.equal(true);
+      expect(twoD.SelectedLinkTransparencyVariable).to.equal(0.45);
       expect(graph.getNodeAttribute(firstNodeId, 'borderWidth')).to.equal(4);
       expect(graph.getNodeAttribute(firstNodeId, 'labelPosition')).to.equal('above');
       expect(graph.edges().every((edgeId: string) => (

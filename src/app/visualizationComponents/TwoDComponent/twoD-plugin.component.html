@@ -319,7 +319,7 @@
             <p-accordion-content><div #linkcontrolsshapes>
               <div id="link-transparency-row" class="form-group row" title="How transparent should the links be?">
                 <div class="col-4"><label for="link-opacity">Transparency</label></div>
-                <div class="col-8"><input type="range" class="custom-range" id="link-opacity" min="0" max="1" value="0" step="0.01" [(ngModel)]="SelectedLinkTransparencyVariable" (ngModelChange)="onLinkOpacityChange($event)"></div>
+                <div class="col-8"><input type="range" class="custom-range" id="link-opacity" min="0" max="1" value="1" step="0.01" [(ngModel)]="SelectedLinkTransparencyVariable" (ngModelChange)="onLinkOpacityChange($event)"></div>
               </div>
               <div class="form-group row" title="Which variable should determine the width of a link?">
                 <div class="col-4"><label for="link-width-variable">Width By</label></div>

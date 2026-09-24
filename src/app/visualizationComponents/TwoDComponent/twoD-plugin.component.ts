@@ -813,7 +813,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
     SelectedLinkTooltipVariable: any = "None";
     SelectedLinkLabelVariable: string = "None";
     SelectedLinkDecimalVariable: number = 3;
-    SelectedLinkTransparencyVariable: any = 0;
+    SelectedLinkTransparencyVariable: any = 1;
     SelectedLinkWidthByVariable: string = "None";
     SelectedLinkWidthMax: number = 27;
     SelectedLinkWidthMin: number = 3;

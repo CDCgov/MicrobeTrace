@@ -39,6 +39,16 @@ const openNetworkDisplayPanel = (): void => {
   expandAccordionTabByHeader('@networkTab', 'Display');
 };
 
+const openLinkShapesPanel = (): void => {
+  openTwoDSettingsDialog();
+  cy.get('@twoDSettings').contains('.nav-link', 'Links').click({ force: true });
+  cy.get('@twoDSettings')
+    .find('.tab-pane:visible', { timeout: 15000 })
+    .should('exist')
+    .as('linksTab');
+  expandAccordionTabByHeader('@linksTab', 'Shapes and Sizes');
+};
+
 const closeTwoDSettingsDialog = (): void => {
   cy.get('@twoDSettings').find('button.p-dialog-close-button').click({ force: true });
   cy.contains('.p-dialog-title', '2D Network Settings').should('not.exist');
@@ -46,6 +56,21 @@ const closeTwoDSettingsDialog = (): void => {
 
 describe('Sigma settings parity', () => {
   beforeEach(loadSampleDataset);
+
+  it('shows the fully opaque default that is rendered for sample links', () => {
+    expectSigmaGraph((_win, twoD, graph) => {
+      expect(twoD.widgets['link-opacity']).to.equal(1);
+      expect(twoD.widgets['link-opacity-override-enabled']).to.equal(false);
+      expect(twoD.SelectedLinkTransparencyVariable).to.equal(1);
+      expect(graph.edges().every((edgeId: string) => (
+        Math.abs(Number(graph.getEdgeAttribute(edgeId, 'opacity')) - 1) < 0.001
+      ))).to.equal(true);
+    });
+
+    openLinkShapesPanel();
+    cy.get('@linksTab').find('#link-opacity').should('have.value', '1');
+    closeTwoDSettingsDialog();
+  });
 
   it('applies node labels, size, border, tooltip, colors, shapes, selection color, and background live', () => {
     cy.window().then(win => {

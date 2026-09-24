@@ -505,7 +505,7 @@ export class CommonService extends AppComponentBase implements OnInit {
             'link-label-decimal-length' : 3,
             'link-label-size': 16,
             'link-length': 50,
-            'link-opacity': 0,
+            'link-opacity': 1,
             'link-opacity-override-enabled': false,
             'link-show-nn': false,
             'link-sort-variable': 'distance',
@@ -755,7 +755,7 @@ export class CommonService extends AppComponentBase implements OnInit {
              * these functions are replaced with one from the d3 package usind d3.scaleOrdinal(...).domain(...)
              */
             style: {
-                linkAlphaMap: () => 1 - this.session.style.widgets['link-opacity'],
+                linkAlphaMap: () => Number(this.session.style.linkAlphas?.[0] ?? 1),
                 linkColorMap: () => this.session.style.widgets['link-color'],
                 nodeMixedColorInvalidWeightCount: 0,
                 nodeAlphaMap: () => 1,
@@ -2975,8 +2975,10 @@ export class CommonService extends AppComponentBase implements OnInit {
             sourceWidgets,
             'link-opacity-override-enabled'
         );
+        const legacyLinkOpacityValue = Number(sourceWidgets['link-opacity']);
         const legacyLinkOpacityOverride = !hasExplicitLinkOpacityOverride
-            && Number(sourceWidgets['link-opacity']) !== 0;
+            && Number.isFinite(legacyLinkOpacityValue)
+            && legacyLinkOpacityValue !== 0;
         this.ensureNodeColorAssignmentState(style);
         this.session.style = style;
         this.session.style.widgets = Object.assign({},
@@ -2987,6 +2989,11 @@ export class CommonService extends AppComponentBase implements OnInit {
             // Sessions written before the explicit flag only changed the
             // non-zero slider value when the user requested a global alpha.
             this.session.style.widgets['link-opacity-override-enabled'] = true;
+        } else if (!hasExplicitLinkOpacityOverride) {
+            // Legacy sessions used zero as the untouched slider value even
+            // though their links rendered fully opaque. Normalize that old
+            // sentinel so the control reflects the rendered network.
+            this.session.style.widgets['link-opacity'] = 1;
         }
 
         // if(this.debugMode) {
@@ -4419,7 +4426,7 @@ align(params): Promise<any> {
 
         if (linkColorVariable == "None") {
             this.temp.style.linkColorMap = () => this.session.style.widgets["link-color"];
-            this.temp.style.linkAlphaMap = () => 1 - this.session.style.widgets["link-opacity"];
+            this.temp.style.linkAlphaMap = () => Number(this.session.style.linkAlphas?.[0] ?? 1);
             return [];
         }
 
