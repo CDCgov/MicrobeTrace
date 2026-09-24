@@ -69,6 +69,39 @@ describe('Sigma settings parity', () => {
       expect((twoD.sigmaRenderer as any).selectedColor).to.equal('#00aaee');
       expect(win.getComputedStyle(win.document.querySelector('[data-testid="sigma-network"]')).backgroundColor)
         .to.equal('rgb(17, 34, 51)');
+
+      const renderer = twoD.sigmaRenderer.getRenderer();
+      const nodeReducer = renderer.nodeReducer;
+      const reducedNode = nodeReducer(
+        nodeId,
+        renderer.getNodeDisplayData(nodeId),
+        graph.getNodeAttributes(nodeId),
+        renderer.getNodeState(nodeId),
+      );
+      // Custom vector shapes draw their own exact outline; the generic Sigma
+      // backdrop is deliberately hidden so it cannot add a circular border.
+      expect(reducedNode.backdropVisibility).to.equal('hidden');
+      expect(reducedNode.backdropBorderWidth).to.equal(5);
+      expect(reducedNode.backdropShadowColor).to.equal('rgba(0,0,0,0)');
+      expect(reducedNode.backdropShadowBlur).to.equal(0);
+    });
+
+    cy.window().then(win => {
+      const twoD = (win as any).commonService.visuals.twoD;
+      twoD.onNodeBorderWidthChange(0);
+    });
+    expectSigmaGraph((_win, twoD, graph) => {
+      const nodeId = graph.nodes()[0];
+      const renderer = twoD.sigmaRenderer.getRenderer();
+      const reducedNode = renderer.nodeReducer(
+        nodeId,
+        renderer.getNodeDisplayData(nodeId),
+        graph.getNodeAttributes(nodeId),
+        renderer.getNodeState(nodeId),
+      );
+      expect(graph.getNodeAttribute(nodeId, 'borderWidth')).to.equal(0);
+      expect(reducedNode.backdropVisibility).to.equal('hidden');
+      expect(reducedNode.backdropShadowBlur).to.equal(0);
     });
 
     cy.window().then(win => {

@@ -15,6 +15,14 @@ export interface NetworkNodeFeatureFields {
 
 export interface NetworkDonutSegment extends CategoricalCompositionSegment {
   color: string;
+  alpha?: number;
+}
+
+export interface NetworkCompositionSegmentInput {
+  value: string;
+  color: string;
+  alpha?: number;
+  weight?: number;
 }
 
 export interface NetworkQcOverlay {
@@ -125,6 +133,75 @@ function normalizeUncertainty(value: unknown): number | null {
   return null;
 }
 
+function buildAccessibleLabel(
+  compositionField: string | null,
+  donutSegments: NetworkDonutSegment[],
+  qc: NetworkQcOverlay | null,
+  uncertainty: number | null,
+): string {
+  const accessibleParts: string[] = [];
+  if (compositionField && donutSegments.length > 1) {
+    accessibleParts.push(`${compositionField}: ${donutSegments.map(segment =>
+      `${segment.value} ${Math.round(segment.fraction * 100)}%`).join(', ')}`);
+  }
+  if (qc) {
+    accessibleParts.push(`QC ${qc.status}${qc.reason ? `: ${qc.reason}` : ''}`);
+  }
+  if (uncertainty !== null) {
+    accessibleParts.push(`uncertainty ${Math.round(uncertainty * 100)}%`);
+  }
+  return accessibleParts.join('; ');
+}
+
+/**
+ * Replaces the generic composition parsing with the application's canonical
+ * mixed-color segments, preserving configured colors, alpha, and weights.
+ */
+export function applyNetworkNodeCompositionSegments(
+  features: NetworkNodeVisualFeatures,
+  compositionField: string | null | undefined,
+  segments: NetworkCompositionSegmentInput[] | null | undefined,
+): NetworkNodeVisualFeatures {
+  const configuredCompositionField = configuredField(compositionField);
+  const validSegments = (segments || []).filter(segment => (
+    Boolean(String(segment?.value ?? '').trim())
+    && Boolean(String(segment?.color ?? '').trim())
+  ));
+  const totalWeight = validSegments.reduce((sum, segment) => {
+    const weight = Number(segment.weight);
+    return sum + (Number.isFinite(weight) && weight > 0 ? weight : 1);
+  }, 0);
+  const donutSegments = validSegments.length > 1 && totalWeight > 0
+    ? validSegments.map(segment => {
+        const requestedWeight = Number(segment.weight);
+        const weight = Number.isFinite(requestedWeight) && requestedWeight > 0
+          ? requestedWeight
+          : 1;
+        return {
+          value: String(segment.value),
+          count: weight,
+          fraction: weight / totalWeight,
+          color: String(segment.color),
+          alpha: Number.isFinite(Number(segment.alpha))
+            ? Math.max(0, Math.min(1, Number(segment.alpha)))
+            : 1,
+        };
+      })
+    : [];
+
+  return {
+    ...features,
+    compositionField: configuredCompositionField,
+    donutSegments,
+    accessibleLabel: buildAccessibleLabel(
+      configuredCompositionField,
+      donutSegments,
+      features.qc,
+      features.uncertainty,
+    ),
+  };
+}
+
 export function buildNetworkNodeVisualFeatures(
   values: Record<string, unknown>,
   fields: NetworkNodeFeatureFields,
@@ -155,24 +232,12 @@ export function buildNetworkNodeVisualFeatures(
     : null;
   const uncertainty = uncertaintyField ? normalizeUncertainty(values[uncertaintyField]) : null;
 
-  const accessibleParts: string[] = [];
-  if (donutSegments.length > 1) {
-    accessibleParts.push(`${compositionField}: ${donutSegments.map(segment =>
-      `${segment.value} ${Math.round(segment.fraction * 100)}%`).join(', ')}`);
-  }
-  if (qc) {
-    accessibleParts.push(`QC ${qc.status}${qc.reason ? `: ${qc.reason}` : ''}`);
-  }
-  if (uncertainty !== null) {
-    accessibleParts.push(`uncertainty ${Math.round(uncertainty * 100)}%`);
-  }
-
   return {
     compositionField,
     donutSegments,
     qc,
     uncertainty,
-    accessibleLabel: accessibleParts.join('; '),
+    accessibleLabel: buildAccessibleLabel(compositionField, donutSegments, qc, uncertainty),
   };
 }
 

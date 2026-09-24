@@ -36,6 +36,8 @@ const assertHistogramHoverReadout = (): void => {
     .then(($svg) => {
       const svg = $svg.get(0) as SVGElement;
       const rect = svg.getBoundingClientRect();
+      expect(rect.width, 'threshold histogram width').to.be.greaterThan(0);
+      expect(rect.height, 'threshold histogram height').to.be.greaterThan(0);
 
       cy.wrap($svg).trigger('mousemove', {
         clientX: rect.left + rect.width * 0.4,

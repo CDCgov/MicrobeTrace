@@ -24,7 +24,7 @@ import { BaseComponentDirective } from '@app/base-component.directive';
 import { ComponentContainer } from 'golden-layout';
 import { CommonStoreService } from '@app/contactTraceCommonServices/common-store.services';
 import { ExportService, ExportOptions } from '@app/contactTraceCommonServices/export.service';
-import { getMapNodeShapeDataUri, isCustomNodeShape as isCustomNodeIconShape, resolveNodeShapeForNode, resolveNodeShapeKey } from '@app/contactTraceCommonServices/node-shapes';
+import { getMapNodeShapeDataUri, getMixedNodeShapeDataUri, isCustomNodeShape as isCustomNodeIconShape, resolveNodeShapeForNode, resolveNodeShapeKey } from '@app/contactTraceCommonServices/node-shapes';
 import { createGlobalSettingsDialogRequest, GlobalSettingsDialogRequest } from '@app/helperClasses/globalSettingsDialogRequest';
 import {
     FloorplanBoundary,
@@ -631,6 +631,7 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
 
     onNodeRadiusChange() {
         this.commonService.session.style.widgets['map-node-size'] = this.mapNodeIconSize;
+        this.mapNodeIconCache = {};
         this.drawNodes(false);
     }
 
@@ -646,17 +647,25 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
         }
     }
 
-    private getMapNodeIcon(shapeKey: string, fillColor: string, strokeColor: string, selected: boolean, fillOpacity: number): L.Icon {
+    private getMapNodeIcon(shapeKey: string, fillColor: string, strokeColor: string, selected: boolean, fillOpacity: number, segments: any[] = []): L.Icon {
         const normalizedShapeKey = resolveNodeShapeKey(shapeKey);
         const safeFill = fillColor || '#000000';
         const safeStroke = strokeColor || '#000000';
         const safeFillOpacity = this.commonService.clampStyleAlpha(fillOpacity, 1);
         const strokeWidth = this.getStrokeWidth(normalizedShapeKey, selected);
         const shapeStrokeColor = isCustomNodeIconShape(normalizedShapeKey) && !selected ? (normalizedShapeKey == 'lettuce' ? '#ffffff' : '#000000') : safeStroke; // default for unselected shapes is black except for lettuce
-        const cacheKey = `${normalizedShapeKey}|${safeFill}|${shapeStrokeColor}|${strokeWidth}|${safeFillOpacity}`;
+        const segmentKey = segments.length > 1
+            ? segments.map(segment => `${segment.value}:${segment.color}:${segment.alpha}:${segment.weight}`).join(',')
+            : '';
+        const cacheKey = `${normalizedShapeKey}|${safeFill}|${shapeStrokeColor}|${strokeWidth}|${safeFillOpacity}|${segmentKey}|${selected ? safeStroke : ''}|${this.mapNodeIconSize}`;
+        const mixedShapeOptions = isCustomNodeIconShape(normalizedShapeKey)
+            ? { customShapePadding: 0, customShapeViewBoxPadding: Math.max(20, strokeWidth), renderedSize: this.mapNodeIconSize }
+            : { basicShapeViewBoxPadding: Math.max(20, strokeWidth), renderedSize: this.mapNodeIconSize };
 
         if (!this.mapNodeIconCache[cacheKey]) {
-            this.mapNodeIconCache[cacheKey] = getMapNodeShapeDataUri(normalizedShapeKey, safeFill, shapeStrokeColor, strokeWidth, safeFillOpacity);
+            this.mapNodeIconCache[cacheKey] = segments.length > 1
+                ? getMixedNodeShapeDataUri(normalizedShapeKey, safeFill, shapeStrokeColor, strokeWidth, safeFillOpacity, segments, selected ? safeStroke : null, mixedShapeOptions)
+                : getMapNodeShapeDataUri(normalizedShapeKey, safeFill, shapeStrokeColor, strokeWidth, safeFillOpacity);
         }
 
         return icon({
@@ -4263,7 +4272,7 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
         const shapeKey = this.getNodeShapeKey(d);
 
         const nodeMarker: MarkerWithData = L.marker(latlng, {
-            icon: this.getMapNodeIcon(shapeKey, nodeStyle.color, strokeColor, isSelectedMarker, nodeFillOpacity),
+            icon: this.getMapNodeIcon(shapeKey, nodeStyle.color, strokeColor, isSelectedMarker, nodeFillOpacity, nodeStyle.segments ?? []),
             opacity: 1,
             fillOpacity: nodeFillOpacity,
             fillColor: nodeStyle.color,
@@ -4343,7 +4352,6 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
                 manualPositioningActive,
                 manualPositioningActive
             );
-
             if (d._id !== undefined) {
                 this.mapNodeMarkersById[String(d._id)] = nodeMarker;
             }

@@ -1,4 +1,5 @@
 import {
+  applyNetworkNodeCompositionSegments,
   buildNetworkNodeVisualFeatures,
   colorForNetworkCategory,
   parseNetworkCategoricalValues,
@@ -51,5 +52,25 @@ describe('renderer-neutral network node features', () => {
     );
     expect(features.donutSegments).toHaveSize(1);
     expect(features.accessibleLabel).toBe('');
+  });
+
+  it('uses canonical weighted colors and alpha for renderer composition segments', () => {
+    const base = buildNetworkNodeVisualFeatures({ qc: 'Review' }, {
+      compositionField: 'Genotype',
+      qcStatusField: 'qc',
+    });
+
+    const features = applyNetworkNodeCompositionSegments(base, 'Genotype', [
+      { value: '2a', color: '#00aa00', alpha: 0.35, weight: 3 },
+      { value: '3a', color: '#663399', alpha: 1, weight: 1 },
+    ]);
+
+    expect(features.donutSegments).toEqual([
+      { value: '2a', count: 3, fraction: 0.75, color: '#00aa00', alpha: 0.35 },
+      { value: '3a', count: 1, fraction: 0.25, color: '#663399', alpha: 1 },
+    ]);
+    expect(features.qc?.status).toBe('Review');
+    expect(features.accessibleLabel).toContain('Genotype: 2a 75%, 3a 25%');
+    expect(features.accessibleLabel).toContain('QC Review');
   });
 });

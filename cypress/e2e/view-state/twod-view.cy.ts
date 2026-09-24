@@ -277,8 +277,8 @@ describe('2D Network - Core Rendering and Stats', () => {
     cy.closeGlobalSettings();
 
     getCy().then((cyInstance) => {
-      const node = cyInstance.getElementById('MZ375596');
-      expect(node.empty(), 'MZ375596 should exist').to.equal(false);
+      const node = cyInstance.getElementById('MZ797519');
+      expect(node.empty(), 'MZ797519 should exist').to.equal(false);
       expect(parseFloat(node.style('background-opacity'))).to.be.closeTo(alpha, 0.01);
     });
   });

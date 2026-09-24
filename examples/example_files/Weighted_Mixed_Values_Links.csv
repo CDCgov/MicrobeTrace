@@ -1,0 +1,11 @@
+source,target,distance
+weighted-counts,weighted-decimals,1
+weighted-decimals,weighted-percent,1
+weighted-percent,weighted-reversed,1
+weighted-reversed,weighted-duplicates,1
+weighted-duplicates,weighted-comma,1
+weighted-comma,weighted-three-way,1
+weighted-three-way,unweighted-control,1
+unweighted-control,invalid-partial,1
+invalid-partial,invalid-zero,1
+invalid-zero,solid-control,1

@@ -33,6 +33,17 @@ const nodeShapeTableSelector = '#node-shape-table, #key-tables-node-shape-table,
 
 const normalizeColor = (value: string): string => String(value || '').replace(/\s+/g, '').toLowerCase();
 
+const normalizeStyleCategoryValue = (value: unknown): string => {
+  const normalized = String(value ?? '').trim();
+  const normalizedLowerCase = normalized.toLowerCase();
+
+  if (!normalized || ['null', 'undefined', 'nan', 'n/a', '(empty)'].includes(normalizedLowerCase)) {
+    return 'null';
+  }
+
+  return normalized;
+};
+
 const hexToRgbString = (hex: string): string => {
   const normalized = hex.replace('#', '');
   const expanded = normalized.length === 3
@@ -124,7 +135,7 @@ const extractColorTableRows = ($table: JQuery<HTMLElement>): ColorTableRow[] => 
     if (index === 0) return;
 
     const $row = Cypress.$(row);
-    const value = String($row.find('td[data-value]').attr('data-value') || '');
+    const value = normalizeStyleCategoryValue($row.find('td[data-value]').attr('data-value'));
     if (!value) return;
 
     const countText = String($row.find('td.tableCount').first().text() || '').trim();
@@ -155,7 +166,7 @@ const assertNodeColorTableMatchesVisibleNodes = (field: string): void => {
         .nodes(':visible')
         .filter((node: any) => node.children().length === 0)
         .forEach((node: any) => {
-          const value = String(node.data(field));
+          const value = normalizeStyleCategoryValue(node.data(field));
           if (!visibleByValue[value]) {
             visibleByValue[value] = { count: 0, colors: [] };
           }
@@ -193,7 +204,7 @@ const assertLinkColorTableMatchesVisibleLinks = (field: string): void => {
       cyInstance
         .edges(':visible')
         .forEach((edge: any) => {
-          const value = String(edge.data(field));
+          const value = normalizeStyleCategoryValue(edge.data(field));
           if (!visibleByValue[value]) {
             visibleByValue[value] = { count: 0, colors: [] };
           }
