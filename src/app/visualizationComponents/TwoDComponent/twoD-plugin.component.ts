@@ -1138,7 +1138,30 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         this.cdref.markForCheck();
     }
 
-    onRendererKeyboardFocus(): void {
+    private clearRendererKeyboardFocus(): void {
+        this.rendererKeyboardFocusedNodeId = null;
+        this.rendererKeyboardLiveStatus = '';
+        if (this.sigmaActive) {
+            this.sigmaRenderer?.setKeyboardFocusedNode(null);
+        } else if (this.cy) {
+            this.cy.elements().removeClass('renderer-keyboard-focus');
+        }
+        this.cdref.markForCheck();
+    }
+
+    onRendererPointerInteraction(): void {
+        // A pointer click can focus the tabindex-enabled network container.
+        // Clear on both pointerdown and the resulting click so a renderer that
+        // focuses its container during either phase cannot leave node 1 active.
+        this.clearRendererKeyboardFocus();
+    }
+
+    onRendererKeyboardFocus(event?: FocusEvent): void {
+        const target = event?.currentTarget;
+        if (target instanceof HTMLElement && !target.matches(':focus-visible')) {
+            this.clearRendererKeyboardFocus();
+            return;
+        }
         const nodeIds = this.getRendererKeyboardNodeIds();
         if (!nodeIds.length) return;
         this.focusRendererKeyboardNode(

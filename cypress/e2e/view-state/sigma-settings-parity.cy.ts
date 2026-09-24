@@ -355,6 +355,58 @@ describe('Sigma settings parity', () => {
       expect(restored.opacity, 'non-neighbor opacity after whitespace click').to.be.greaterThan(0.12);
     });
 
+    cy.window().then(win => {
+      const twoD = (win as any).commonService.visuals.twoD;
+      const adapter = twoD.sigmaRenderer as any;
+      const graph = adapter.getGraph();
+      const renderer = adapter.getRenderer();
+      const network = win.document.querySelector('[data-testid="sigma-network"]') as HTMLElement;
+      const rect = network.getBoundingClientRect();
+      const nodePoints = graph.nodes().map((nodeId: string) => {
+        const attributes = graph.getNodeAttributes(nodeId);
+        return renderer.graphToViewport({ x: attributes.x, y: attributes.y });
+      });
+      let safePoint = { x: 40, y: Math.max(40, rect.height - 40), clearance: -1 };
+      for (let x = 40; x <= rect.width - 40; x += 40) {
+        for (let y = 100; y <= rect.height - 40; y += 40) {
+          if (x > rect.width - 240 && y > rect.height - 180) continue;
+          if (x > rect.width - 650 && y < 100) continue;
+          const clearance = Math.min(...nodePoints.map((point: { x: number; y: number }) => (
+            Math.hypot(point.x - x, point.y - y)
+          )));
+          if (clearance > safePoint.clearance) safePoint = { x, y, clearance };
+        }
+      }
+      expect(safePoint.clearance, 'whitespace click clearance from every node').to.be.greaterThan(40);
+      cy.wrap(safePoint, { log: false }).as('sigmaWhitespacePoint');
+    });
+
+    cy.get('@sigmaWhitespacePoint').then((point: any) => {
+      cy.get('[data-testid="sigma-network"] .sigma-stage')
+        .click(point.x, point.y, { force: true });
+    });
+
+    cy.window().then(win => {
+      const twoD = (win as any).commonService.visuals.twoD;
+      const adapter = twoD.sigmaRenderer as any;
+      const graph = adapter.getGraph();
+      const renderer = adapter.getRenderer();
+      expect(adapter.getKeyboardFocusedNodeId(), 'pointer click does not activate keyboard node focus').to.equal(null);
+      expect(adapter.hoveredNodeId, 'pointer whitespace click clears hover').to.equal(null);
+      expect(adapter.getSelectedNodeIds(), 'pointer whitespace click leaves selection empty').to.deep.equal([]);
+      expect(Array.from(adapter.hoveredNeighborhood), 'pointer whitespace click leaves no active neighborhood')
+        .to.deep.equal([]);
+      graph.forEachNode((nodeId: string, attributes: any) => {
+        const reduced = renderer.nodeReducer(
+          nodeId,
+          renderer.getNodeDisplayData(nodeId),
+          attributes,
+          renderer.getNodeState(nodeId),
+        );
+        expect(reduced.opacity, `normal opacity for ${nodeId}`).to.equal(attributes.opacity);
+      });
+    });
+
     openNetworkDisplayPanel();
     cy.get('@networkTab')
       .find('#dont-highlight-neighbors-highlight-neighbors')

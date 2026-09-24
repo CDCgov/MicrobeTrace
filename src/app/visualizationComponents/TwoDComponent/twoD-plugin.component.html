@@ -62,12 +62,14 @@
           role="application" aria-label="Sigma network visualization"
           aria-describedby="network-renderer-keyboard-instructions network-renderer-live-status"
           [style.background-color]="widgets['background-color'] || '#ffffff'"
-          (focus)="onRendererKeyboardFocus()" (keydown)="onRendererKeydown($event)"></div>
+          (pointerdown)="onRendererPointerInteraction()" (click)="onRendererPointerInteraction()"
+          (focus)="onRendererKeyboardFocus($event)" (keydown)="onRendererKeydown($event)"></div>
       } @else if (!canvasFallbackSuppressed) {
         <div #cy id="cy" tabindex="0" role="application" aria-label="Cytoscape network visualization"
           aria-describedby="network-renderer-keyboard-instructions network-renderer-live-status"
           style="width: 100%; height: 100%; position: relative;"
-          (focus)="onRendererKeyboardFocus()" (keydown)="onRendererKeydown($event)"></div>
+          (pointerdown)="onRendererPointerInteraction()" (click)="onRendererPointerInteraction()"
+          (focus)="onRendererKeyboardFocus($event)" (keydown)="onRendererKeydown($event)"></div>
       } @else {
         <section class="network-canvas-safety-message" data-testid="network-canvas-safety-message"
           aria-label="Network renderer safety mode">
