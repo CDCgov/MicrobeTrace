@@ -63,7 +63,17 @@ describe('Sigma renderer migration', () => {
       .and('contain.text', 'stable shortest-link backbone')
       .and('contain.text', 'same selection rules with a higher link allowance')
       .and('contain.text', 'remaining after your filters and Link Threshold')
-      .and('contain.text', 'Highlight neighbors');
+      .and('contain.text', 'Highlight neighbors')
+      .then($tooltip => {
+        const container = $tooltip.closest('twodcomponent')[0];
+        expect(container, 'GoldenLayout component bounds').to.exist;
+        const tooltipRect = $tooltip[0].getBoundingClientRect();
+        const containerRect = container.getBoundingClientRect();
+        expect(tooltipRect.right, 'tooltip right edge')
+          .to.be.at.most(containerRect.right);
+        expect(tooltipRect.left, 'tooltip left edge')
+          .to.be.at.least(containerRect.left);
+      });
     cy.get('[data-testid="network-detail-info"]').blur();
     cy.get('[data-testid="network-detail-tooltip"]').should('not.be.visible');
     cy.get('[data-testid="sigma-network"]')
