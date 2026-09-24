@@ -354,6 +354,79 @@ label[for="search"] {
   --p-treeselect-padding-x: 10px;
 }
 
+.network-detail-control__title {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.network-detail-control__info {
+  display: inline-grid;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  place-items: center;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: #64748b;
+  cursor: help;
+}
+
+.network-detail-control__info:hover,
+.network-detail-control__info:focus-visible {
+  background: #e8f1fa;
+  color: #1769aa;
+  outline: none;
+}
+
+.network-detail-control__info:focus-visible {
+  box-shadow: 0 0 0 2px #93c5fd;
+}
+
+.network-detail-control__info .pi {
+  font-size: 13px;
+}
+
+.network-detail-control__tooltip {
+  position: absolute;
+  top: calc(100% + 7px);
+  left: 0;
+  z-index: 20;
+  visibility: hidden;
+  width: 260px;
+  max-width: calc(100vw - 40px);
+  padding: 10px 11px;
+  border: 1px solid #cad6e2;
+  border-radius: 8px;
+  opacity: 0;
+  background: #ffffff;
+  box-shadow: 0 7px 22px rgba(15, 23, 42, 0.18);
+  color: #475569;
+  font-size: 11px;
+  line-height: 1.4;
+  pointer-events: none;
+}
+
+.network-detail-control__tooltip p {
+  margin: 0 0 7px;
+}
+
+.network-detail-control__tooltip p:last-child {
+  margin-bottom: 0;
+}
+
+.network-detail-control__tooltip strong {
+  color: #1e3a5f;
+}
+
+.network-detail-control__info:hover + .network-detail-control__tooltip,
+.network-detail-control__info:focus + .network-detail-control__tooltip {
+  visibility: visible;
+  opacity: 1;
+}
+
 #network-statistics-wrapper {
     display: none;
     position: absolute;

@@ -29,7 +29,21 @@
 @if (sigmaRequested && sigmaActive) {
   <div class="network-detail-control" data-testid="network-detail-control">
     <div class="network-detail-control__header">
-      <span class="network-detail-control__label">Link detail</span>
+      <div class="network-detail-control__title">
+        <span class="network-detail-control__label">Link detail</span>
+        <button type="button" class="network-detail-control__info"
+          data-testid="network-detail-info"
+          aria-label="About link detail options"
+          aria-describedby="network-detail-tooltip">
+          <i class="pi pi-info-circle" aria-hidden="true"></i>
+        </button>
+        <div id="network-detail-tooltip" class="network-detail-control__tooltip" role="tooltip"
+          data-testid="network-detail-tooltip">
+          <p><strong>Overview</strong> prioritizes the most useful connections, keeping dense networks clear and responsive.</p>
+          <p><strong>Detailed</strong> adds more connections for closer analysis while still limiting visual clutter.</p>
+          <p><strong>All links</strong> shows every available connection. Large networks may look crowded and respond more slowly.</p>
+        </div>
+      </div>
       @if (sigmaLoading) {
         <span class="network-detail-control__status" data-testid="network-display-status" role="status">
           <span class="network-detail-control__spinner" aria-hidden="true"></span>

@@ -36,7 +36,31 @@ describe('Sigma renderer migration', () => {
       .and('contain.text', 'Link detail')
       .and('not.contain.text', 'Sigma')
       .and('not.contain.text', 'WebGL')
-      .and('not.contain.text', 'Cytoscape');
+      .and('not.contain.text', 'Cytoscape')
+      .then($control => {
+        // GoldenLayout mounts this component virtually, so the component host
+        // receives the exact content bounds instead of nesting under .lm_content.
+        const container = $control.closest('twodcomponent')[0];
+        expect(container, 'GoldenLayout component bounds').to.exist;
+        const controlRect = $control[0].getBoundingClientRect();
+        const containerRect = container.getBoundingClientRect();
+        const topInset = controlRect.top - containerRect.top;
+        const rightInset = containerRect.right - controlRect.right;
+        expect(topInset, 'top inset').to.be.closeTo(12, 1);
+        expect(rightInset, 'right inset').to.be.closeTo(12, 1);
+      });
+    cy.get('[data-testid="network-detail-tooltip"]').should('not.be.visible');
+    cy.get('[data-testid="network-detail-info"]')
+      .focus()
+      .should('have.attr', 'aria-label', 'About link detail options');
+    cy.get('[data-testid="network-detail-tooltip"]')
+      .should('be.visible')
+      .and('contain.text', 'Overview')
+      .and('contain.text', 'Detailed')
+      .and('contain.text', 'All links')
+      .and('contain.text', 'Large networks may look crowded and respond more slowly.');
+    cy.get('[data-testid="network-detail-info"]').blur();
+    cy.get('[data-testid="network-detail-tooltip"]').should('not.be.visible');
     cy.get('[data-testid="sigma-network"]')
       .should('be.visible')
       .find('canvas.sigma-stage')

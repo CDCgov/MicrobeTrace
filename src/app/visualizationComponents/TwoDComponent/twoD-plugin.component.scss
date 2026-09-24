@@ -95,13 +95,13 @@
 
 .network-detail-control {
   position: absolute;
-  top: 46px;
-  right: 14px;
+  top: 12px;
+  right: 12px;
   z-index: 12;
   display: grid;
   gap: 7px;
   width: 272px;
-  max-width: calc(100% - 28px);
+  max-width: calc(100% - 24px);
   padding: 9px 10px 10px;
   border: 1px solid #d6e0ea;
   border-radius: 10px;
