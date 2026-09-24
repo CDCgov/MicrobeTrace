@@ -54,6 +54,40 @@ const closeTwoDSettingsDialog = (): void => {
   cy.contains('.p-dialog-title', '2D Network Settings').should('not.exist');
 };
 
+const expectExportToContainRenderedNodes = (
+  win: Window,
+  pngDataUrl: string,
+): Cypress.Promise<void> => new Cypress.Promise((resolve, reject) => {
+  const image = new win.Image();
+  image.onload = () => {
+    try {
+      const canvas = win.document.createElement('canvas');
+      canvas.width = image.naturalWidth;
+      canvas.height = image.naturalHeight;
+      const context = canvas.getContext('2d', { willReadFrequently: true });
+      expect(context, 'export pixel context').to.exist;
+      context!.drawImage(image, 0, 0);
+      const pixels = context!.getImageData(0, 0, canvas.width, canvas.height).data;
+      let saturatedNodePixels = 0;
+      for (let index = 0; index < pixels.length; index += 4) {
+        const red = pixels[index];
+        const green = pixels[index + 1];
+        const blue = pixels[index + 2];
+        const isRedNode = red > 180 && green < 120 && blue < 120;
+        const isGreenNode = green > 120 && red < 100 && blue < 160;
+        if (isRedNode || isGreenNode) saturatedNodePixels += 1;
+      }
+      expect(saturatedNodePixels, 'rendered red/green node pixels in Sigma export')
+        .to.be.greaterThan(250);
+      resolve();
+    } catch (error) {
+      reject(error);
+    }
+  };
+  image.onerror = () => reject(new Error('Unable to decode the Sigma export PNG.'));
+  image.src = pngDataUrl;
+});
+
 describe('Sigma settings parity', () => {
   beforeEach(loadSampleDataset);
 
@@ -712,10 +746,12 @@ describe('Sigma settings parity', () => {
 
     cy.window().then(win => {
       const twoD = (win as any).commonService.visuals.twoD;
+      const composite = twoD.exportRendererComposite(1);
       twoD.SelectedNetworkExportFilenameVariable = fileName;
       twoD.SelectedNetworkExportFileTypeListVariable = 'svg';
       twoD.SelectedNetworkExportScaleVariable = 2;
       twoD.exportVisualization(null);
+      return expectExportToContainRenderedNodes(win, composite.pngDataUrl);
     });
 
     cy.window({ timeout: 30000 }).should(win => {

@@ -1261,6 +1261,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         };
 
         if (this.sigmaActive && this.sigmaRenderer) {
+            this.sigmaRenderer.refreshForExport();
             const graph = this.sigmaRenderer.getGraph();
             const displayGraph = this.sigmaRenderer.getDisplayGraph();
             const features: NetworkNodeVisualFeatures[] = [];

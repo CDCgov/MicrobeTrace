@@ -889,6 +889,17 @@ export class SigmaNetworkRendererAdapter {
     return this.renderer;
   }
 
+  refreshForExport(): void {
+    // WebGL uses preserveDrawingBuffer=false for normal rendering efficiency.
+    // Repaint synchronously so the drawing buffer is populated in the same
+    // task that copies Sigma's canvases into the export composite.
+    this.renderer?.refresh({
+      partialGraph: { nodes: [], edges: [] },
+      skipIndexation: true,
+      schedule: false,
+    });
+  }
+
   usesCustomWebglNodeFeatures(): boolean {
     return this.customWebglNodeFeaturesActive;
   }
