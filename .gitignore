@@ -71,6 +71,10 @@ slr_linux.tgz
 cypress/screenshots/*
 cypress/downloads/*
 
+# Local PrimeUI license credentials and generated source
+/.env.local
+/src/environments/primeui-license.generated.ts
+
 # Maven
 target/
 

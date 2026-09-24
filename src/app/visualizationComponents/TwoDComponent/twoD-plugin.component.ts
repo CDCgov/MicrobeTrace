@@ -730,6 +730,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             setTimeout(() => {
                 if (
                     this.getNetworkLayout() === 'order-by-size'
+                    && !this.isTimelineFilteringActive()
                     && !this.commonService.session.network.allPinned
                 ) {
                     this.applyOrderByClusterSizeLayout();
@@ -1738,17 +1739,14 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
     this.thresholdSubscription = this.store.linkThreshold$
         .pipe(takeUntil(this.destroy$))
         .subscribe(newThreshold => {
+            this.threshold = newThreshold;
             this.syncNodeCollapseControlsFromWidgets();
             this.cdref.markForCheck();
 
-            if (!this.commonService.session.network.isFullyLoaded) return;
-
-            if(this.commonService.activeTab === '2D Network') {
-                if (this.threshold !== newThreshold) {
-                    console.log('--- TwoD partial threshold changed', newThreshold);
-                    this._partialUpdate();
-                }
-            }
+            // linkThreshold$ is emitted before link visibility and cluster membership
+            // are recalculated. The subsequent networkUpdated$ event renders the
+            // completed graph once; rendering here races that update and lays out the
+            // old components immediately before newly merged components arrive.
         });
         this.InitView();
 
@@ -6040,6 +6038,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             if (
                 this.cy
                 && this.getNetworkLayout() === 'order-by-size'
+                && !this.isTimelineFilteringActive()
                 && (!hadCytoscapeAtStart || timelineTick)
             ) {
                 this.applyOrderByClusterSizeLayout();
@@ -6971,7 +6970,10 @@ scaleLinkWidth() {
         //     }
         // });
 
-        if (this.getNetworkLayout() === 'order-by-size') {
+        if (
+            this.getNetworkLayout() === 'order-by-size'
+            && !this.isTimelineFilteringActive()
+        ) {
             this.applyOrderByClusterSizeLayout();
         } else {
             this.fit();

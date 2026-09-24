@@ -1,7 +1,13 @@
 /// <reference types="cypress" />
 
 import { Core } from 'cytoscape';
-import { ensureTwoDNetworkView, visitAppAndAcceptEula } from '../../support/journey-helpers';
+import {
+  ensureTwoDNetworkView,
+  openGlobalFilteringTab,
+  setGlobalLinkThreshold,
+  setTimelineRange,
+  visitAppAndAcceptEula,
+} from '../../support/journey-helpers';
 import { byTestId, testIds } from '../../support/selectors';
 
 interface RenderedComponentBounds {
@@ -147,6 +153,20 @@ const assertOrderedNonOverlappingRows = (rows: RenderedComponentRow[]): void => 
   });
 };
 
+const selectOrderByClusterSizeLayout = (): void => {
+  cy.get(byTestId(testIds.twodSettingsButton)).click();
+  cy.contains('.p-dialog-title', '2D Network Settings')
+    .should('be.visible')
+    .parents('.p-dialog')
+    .as('settingsDialog');
+
+  cy.get('@settingsDialog').contains('.nav-link', 'Network').click();
+  cy.get('@settingsDialog').find('.tab-pane.active').contains('p-accordion-panel', 'Display').click();
+  cy.get('@settingsDialog').find(byTestId(testIds.twodNetworkLayout)).click();
+  cy.contains('li[role="option"]', 'Order clusters by size').click();
+  cy.window().its('commonService.session.style.widgets.network-layout').should('equal', 'order-by-size');
+};
+
 describe('2D Network - Cluster Size Layout', () => {
   beforeEach(() => {
     cy.viewport(1024, 720);
@@ -163,19 +183,8 @@ describe('2D Network - Cluster Size Layout', () => {
       originalPositions = getRenderedNodePositions(win.cytoscapeInstance as Core);
     });
 
-    cy.get(byTestId(testIds.twodSettingsButton)).click();
-    cy.contains('.p-dialog-title', '2D Network Settings')
-      .should('be.visible')
-      .parents('.p-dialog')
-      .as('settingsDialog');
-
-    cy.get('@settingsDialog').contains('.nav-link', 'Network').click();
-    cy.get('@settingsDialog').find('.tab-pane.active').contains('p-accordion-panel', 'Display').click();
-
     cy.window().its('commonService.session.style.widgets.network-layout').should('equal', 'force-directed');
-    cy.get('@settingsDialog').find(byTestId(testIds.twodNetworkLayout)).should('contain.text', 'Force directed').click();
-    cy.contains('li[role="option"]', 'Order clusters by size').click();
-    cy.window().its('commonService.session.style.widgets.network-layout').should('equal', 'order-by-size');
+    selectOrderByClusterSizeLayout();
     cy.get('@settingsDialog').find(byTestId(testIds.twodNetworkLayout)).should('contain.text', 'Order clusters by size');
 
     cy.window().should((win: any) => {
@@ -249,5 +258,86 @@ describe('2D Network - Cluster Size Layout', () => {
         expect(restoredPosition.y, `${nodeId} y position`).to.be.closeTo(originalPosition.y, 0.01);
       });
     });
+  });
+
+  it('keeps ordered node positions stable as timeline nodes appear', () => {
+    let initialPositions: Map<string, RenderedNodePosition>;
+
+    selectOrderByClusterSizeLayout();
+    cy.closeSettingsPane('2D Network Settings');
+
+    cy.enableTimelineMode('Date of symptom onset Date');
+    cy.closeGlobalSettings();
+    setTimelineRange('2021-06-28', '2021-06-28');
+
+    cy.window().should((win: any) => {
+      const renderedPositions = getRenderedNodePositions(win.cytoscapeInstance as Core);
+      const expectedVisibleNodeCount = win.commonService.getVisibleNodes().length;
+
+      expect(renderedPositions.size, 'rendered timeline-start nodes').to.equal(expectedVisibleNodeCount);
+      expect(renderedPositions.size, 'timeline-start node count').to.be.greaterThan(0);
+    }).then((win: any) => {
+      initialPositions = getRenderedNodePositions(win.cytoscapeInstance as Core);
+    });
+
+    setTimelineRange('2021-06-28', '2021-07-16');
+
+    cy.window().should((win: any) => {
+      const expandedPositions = getRenderedNodePositions(win.cytoscapeInstance as Core);
+      const expectedVisibleNodeCount = win.commonService.getVisibleNodes().length;
+
+      expect(expandedPositions.size, 'rendered expanded-timeline nodes').to.equal(expectedVisibleNodeCount);
+      expect(expandedPositions.size, 'new timeline nodes appeared').to.be.greaterThan(initialPositions.size);
+      initialPositions.forEach((initialPosition, nodeId) => {
+        const expandedPosition = expandedPositions.get(nodeId);
+        expect(expandedPosition, `${nodeId} remains rendered`).to.exist;
+        if (!expandedPosition) return;
+
+        expect(expandedPosition.x, `${nodeId} x position`).to.be.closeTo(initialPosition.x, 0.01);
+        expect(expandedPosition.y, `${nodeId} y position`).to.be.closeTo(initialPosition.y, 0.01);
+      });
+    });
+  });
+
+  it('compacts components once after a threshold increase merges them', () => {
+    selectOrderByClusterSizeLayout();
+    cy.closeSettingsPane('2D Network Settings');
+
+    cy.window().then((win: any) => {
+      cy.spy(win.commonService.visuals.twoD as any, '_partialUpdate').as('thresholdLayoutRefresh');
+    });
+
+    openGlobalFilteringTab();
+    setGlobalLinkThreshold(25);
+    cy.closeGlobalSettings();
+
+    cy.window().should((win: any) => {
+      const cyInstance = win.cytoscapeInstance as Core;
+      const nodes = cyInstance.nodes()
+        .filter(node => !node.hasClass('parent') && !node.hasClass('hidden'));
+      const nodeIds = new Set(nodes.map(node => node.id()));
+      const edges = cyInstance.edges().filter((edge: any) => (
+        !edge.hasClass('hidden')
+        && nodeIds.has(edge.source().id())
+        && nodeIds.has(edge.target().id())
+      ));
+      const components = nodes.union(edges).components()
+        .map((component: any) => ({
+          size: component.nodes().length,
+          bounds: component.nodes().boundingBox({
+            includeLabels: false,
+            includeOverlays: false,
+          }),
+        }))
+        .sort((left, right) => left.size - right.size);
+
+      expect(components.map(component => component.size), 'merged component sizes').to.deep.equal([14, 19]);
+      expect(
+        Math.max(components[0].bounds.w, components[0].bounds.h),
+        'newly merged component is compact',
+      ).to.be.lessThan(275);
+    });
+
+    cy.get('@thresholdLayoutRefresh').should('have.been.calledOnce');
   });
 });
