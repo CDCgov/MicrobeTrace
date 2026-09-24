@@ -1115,6 +1115,9 @@ export class SigmaNetworkRendererAdapter {
         const focused = this.keyboardFocusedNodeId === String(attributes.raw.id);
         const inActiveNeighborhood = !activeNodeId || this.hoveredNeighborhood.has(String(attributes.raw.id));
         const selected = this.selectedNodeIds.has(String(attributes.raw.id));
+        const borderWidth = selected
+          ? Math.max(3, Number(attributes.borderWidth) || 0)
+          : Math.max(0, Number(attributes.borderWidth) || 0);
         return {
           ...displayData,
           color: attributes.iconVectorData || attributes.imageDataUri
@@ -1138,9 +1141,12 @@ export class SigmaNetworkRendererAdapter {
           // disable that default or every bordered node gets a dark halo.
           backdropShadowColor: 'rgba(0,0,0,0)',
           backdropShadowBlur: 0,
-          backdropPadding: 0,
+          // Sigma draws backdrop borders inward. Expanding the backdrop by
+          // half the requested width leaves the outer half visible after the
+          // node is painted, matching a conventional centered node stroke.
+          backdropPadding: borderWidth / 2,
           backdropBorderColor: selected ? this.selectedColor : attributes.borderColor,
-          backdropBorderWidth: selected ? Math.max(3, attributes.borderWidth) : attributes.borderWidth,
+          backdropBorderWidth: borderWidth,
           highlighted: selected || state.isHovered || focused,
           zIndex: selected || state.isHovered || focused ? 20 : 1,
         };

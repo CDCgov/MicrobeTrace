@@ -89,6 +89,21 @@ const expectExportToContainRenderedNodes = (
   image.src = pngDataUrl;
 });
 
+const countNodeBorderPixels = (canvas: HTMLCanvasElement): number => {
+  const context = canvas.getContext('2d', { willReadFrequently: true });
+  expect(context, 'border comparison context').to.exist;
+  const pixels = context!.getImageData(0, 0, canvas.width, canvas.height).data;
+  let count = 0;
+  for (let index = 0; index < pixels.length; index += 4) {
+    const red = pixels[index];
+    const green = pixels[index + 1];
+    const blue = pixels[index + 2];
+    const alpha = pixels[index + 3];
+    if (red <= 45 && green <= 52 && blue >= 15 && blue <= 70 && alpha >= 220) count += 1;
+  }
+  return count;
+};
+
 describe('Sigma settings parity', () => {
   beforeEach(loadSampleDataset);
 
@@ -105,6 +120,45 @@ describe('Sigma settings parity', () => {
     openLinkShapesPanel();
     cy.get('@linksTab').find('#link-opacity').should('have.value', '1');
     closeTwoDSettingsDialog();
+  });
+
+  it('visibly applies border width to standard node shapes', () => {
+    let pixelsWithoutBorders = 0;
+
+    cy.window().then(async win => {
+      const twoD = (win as any).commonService.visuals.twoD;
+      twoD.onNodeBorderWidthChange(0);
+      const composite = await twoD.exportRendererComposite(1, false);
+      pixelsWithoutBorders = countNodeBorderPixels(composite.canvas);
+    });
+
+    cy.window().then(async win => {
+      const twoD = (win as any).commonService.visuals.twoD;
+      twoD.onNodeBorderWidthChange(8);
+      const graph = twoD.sigmaRenderer.getGraph();
+      const nodeId = graph.nodes().find((id: string) => {
+        const attributes = graph.getNodeAttributes(id);
+        return !attributes.iconVectorData && !attributes.imageDataUri;
+      });
+      expect(nodeId, 'standard rendered node').to.exist;
+      const renderer = twoD.sigmaRenderer.getRenderer();
+      const reducedNode = renderer.nodeReducer(
+        nodeId,
+        renderer.getNodeDisplayData(nodeId),
+        graph.getNodeAttributes(nodeId),
+        renderer.getNodeState(nodeId),
+      );
+      expect(reducedNode.backdropVisibility).to.equal('visible');
+      expect(reducedNode.backdropBorderWidth).to.equal(8);
+      expect(reducedNode.backdropPadding).to.equal(4);
+
+      const composite = await twoD.exportRendererComposite(1, false);
+      const pixelsWithBorders = countNodeBorderPixels(composite.canvas);
+      expect(
+        pixelsWithBorders,
+        'dark outline pixels after increasing node border width',
+      ).to.be.greaterThan(pixelsWithoutBorders + 500);
+    });
   });
 
   it('applies node labels, size, border, tooltip, colors, shapes, selection color, and background live', () => {
@@ -161,6 +215,7 @@ describe('Sigma settings parity', () => {
       // backdrop is deliberately hidden so it cannot add a circular border.
       expect(reducedNode.backdropVisibility).to.equal('hidden');
       expect(reducedNode.backdropBorderWidth).to.equal(5);
+      expect(reducedNode.backdropPadding).to.equal(2.5);
       expect(reducedNode.backdropShadowColor).to.equal('rgba(0,0,0,0)');
       expect(reducedNode.backdropShadowBlur).to.equal(0);
     });
@@ -180,6 +235,7 @@ describe('Sigma settings parity', () => {
       );
       expect(graph.getNodeAttribute(nodeId, 'borderWidth')).to.equal(0);
       expect(reducedNode.backdropVisibility).to.equal('hidden');
+      expect(reducedNode.backdropPadding).to.equal(0);
       expect(reducedNode.backdropShadowBlur).to.equal(0);
     });
 
