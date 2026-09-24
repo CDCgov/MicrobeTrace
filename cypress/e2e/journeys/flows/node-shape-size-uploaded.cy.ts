@@ -181,6 +181,15 @@ describe('Journey Flow - Uploaded node shapes and sizes without style', () => {
 
     openNodeShapesPanel();
 
+    cy.get('@nodesTab').find('#open-global-shape-settings')
+      .should('be.visible')
+      .and('contain.text', 'Show Shapes')
+      .and(($button) => {
+        const rect = $button.get(0).getBoundingClientRect();
+        expect(rect.width, 'Show Shapes button width').to.be.greaterThan(100);
+        expect(rect.height, 'Show Shapes button height').to.be.greaterThan(30);
+      });
+
     cy.window().its('commonService.session.style.widgets.node-symbol-variable').should('equal', 'None');
 
     openGlobalShapeSettingsFromTwoD();
