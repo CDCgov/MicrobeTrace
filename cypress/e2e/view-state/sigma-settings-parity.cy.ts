@@ -1,6 +1,10 @@
 /// <reference types="cypress" />
 
-import { installSaveAsCaptureHook } from '../../support/journey-helpers';
+import {
+  expandAccordionTabByHeader,
+  installSaveAsCaptureHook,
+  openTwoDSettingsDialog,
+} from '../../support/journey-helpers';
 
 const loadSampleDataset = (): void => {
   cy.visit('/?skipEula=1');
@@ -23,6 +27,21 @@ const expectSigmaGraph = (assertion: (win: any, twoD: any, graph: any) => void):
     expect(graph, 'Sigma graph').to.exist;
     assertion(appWindow, twoD, graph);
   });
+};
+
+const openNetworkDisplayPanel = (): void => {
+  openTwoDSettingsDialog();
+  cy.get('@twoDSettings').contains('.nav-link', 'Network').click({ force: true });
+  cy.get('@twoDSettings')
+    .find('.tab-pane:visible', { timeout: 15000 })
+    .should('exist')
+    .as('networkTab');
+  expandAccordionTabByHeader('@networkTab', 'Display');
+};
+
+const closeTwoDSettingsDialog = (): void => {
+  cy.get('@twoDSettings').find('button.p-dialog-close-button').click({ force: true });
+  cy.contains('.p-dialog-title', '2D Network Settings').should('not.exist');
 };
 
 describe('Sigma settings parity', () => {
@@ -277,6 +296,104 @@ describe('Sigma settings parity', () => {
           'dashed edge layer is below the node overlay',
         ).to.be.greaterThan(0);
       });
+    });
+  });
+
+  it('ties Sigma neighbor emphasis to its setting and clears hover emphasis on stage clicks', () => {
+    expectSigmaGraph((_win, twoD) => {
+      expect(twoD.widgets['node-highlight'], 'sample session neighbor setting').to.equal(true);
+      expect(twoD.SelectedNetworkNeighborTypeVariable, 'display setting selection').to.equal('Highlighted');
+      expect((twoD.sigmaRenderer as any).highlightNeighbors, 'Sigma neighbor setting').to.equal(true);
+    });
+
+    openNetworkDisplayPanel();
+    cy.get('@networkTab')
+      .find('#dont-highlight-neighbors-highlight-neighbors')
+      .contains('p-togglebutton', 'Highlighted')
+      .should('have.attr', 'aria-pressed', 'true');
+    closeTwoDSettingsDialog();
+
+    cy.window().then(win => {
+      const twoD = (win as any).commonService.visuals.twoD;
+      const adapter = twoD.sigmaRenderer as any;
+      const graph = adapter.getGraph();
+      const renderer = adapter.getRenderer();
+      const edgeId = graph.edges()[0];
+      const [nodeId] = graph.extremities(edgeId);
+      const nonNeighborId = graph.nodes().find((candidate: string) => (
+        candidate !== nodeId && !graph.areNeighbors(nodeId, candidate)
+      ));
+      expect(nonNeighborId, 'non-neighbor node').to.exist;
+
+      adapter.handleNodeHover(nodeId, new win.MouseEvent('mousemove', {
+        clientX: 140,
+        clientY: 140,
+      }));
+
+      const dimmed = renderer.nodeReducer(
+        nonNeighborId,
+        renderer.getNodeDisplayData(nonNeighborId),
+        graph.getNodeAttributes(nonNeighborId),
+        renderer.getNodeState(nonNeighborId),
+      );
+      expect(dimmed.opacity, 'non-neighbor opacity while highlighted').to.equal(0.12);
+      expect(adapter.getDisplayGraph().edges().every((candidate: string) => {
+        const [sourceId, targetId] = adapter.getDisplayGraph().extremities(candidate);
+        return sourceId === nodeId || targetId === nodeId;
+      }), 'hover edge projection only contains incident links').to.equal(true);
+
+      renderer.emit('clickStage', {});
+
+      expect(adapter.hoveredNodeId, 'hover cleared by whitespace click').to.equal(null);
+      expect(adapter.getSelectedNodeIds(), 'whitespace click does not select a node group').to.deep.equal([]);
+      const restored = renderer.nodeReducer(
+        nonNeighborId,
+        renderer.getNodeDisplayData(nonNeighborId),
+        graph.getNodeAttributes(nonNeighborId),
+        renderer.getNodeState(nonNeighborId),
+      );
+      expect(restored.opacity, 'non-neighbor opacity after whitespace click').to.be.greaterThan(0.12);
+    });
+
+    openNetworkDisplayPanel();
+    cy.get('@networkTab')
+      .find('#dont-highlight-neighbors-highlight-neighbors')
+      .contains('p-togglebutton', 'Normal')
+      .click({ force: true })
+      .should('have.attr', 'aria-pressed', 'true');
+    closeTwoDSettingsDialog();
+
+    cy.window().then(win => {
+      const twoD = (win as any).commonService.visuals.twoD;
+      const adapter = twoD.sigmaRenderer as any;
+      const graph = adapter.getGraph();
+      const renderer = adapter.getRenderer();
+      const edgeId = graph.edges()[0];
+      const [nodeId] = graph.extremities(edgeId);
+      const nonNeighborId = graph.nodes().find((candidate: string) => (
+        candidate !== nodeId && !graph.areNeighbors(nodeId, candidate)
+      ));
+      const edgeIdsBeforeHover = adapter.getDisplayGraph().edges().sort();
+
+      adapter.handleNodeHover(nodeId, new win.MouseEvent('mousemove', {
+        clientX: 140,
+        clientY: 140,
+      }));
+
+      expect(twoD.widgets['node-highlight']).to.equal(false);
+      expect(adapter.highlightNeighbors).to.equal(false);
+      expect(Array.from(adapter.hoveredNeighborhood), 'disabled setting has no active neighborhood').to.deep.equal([]);
+      expect(adapter.getDisplayGraph().edges().sort(), 'disabled setting keeps the normal edge projection')
+        .to.deep.equal(edgeIdsBeforeHover);
+      const normal = renderer.nodeReducer(
+        nonNeighborId,
+        renderer.getNodeDisplayData(nonNeighborId),
+        graph.getNodeAttributes(nonNeighborId),
+        renderer.getNodeState(nonNeighborId),
+      );
+      expect(normal.opacity, 'disabled setting does not dim non-neighbors')
+        .to.equal(graph.getNodeAttribute(nonNeighborId, 'opacity'));
+      adapter.handleNodeHover(null, new win.MouseEvent('mouseout'));
     });
   });
 

@@ -11154,7 +11154,7 @@
             "node-color-table-counts": true,
             "node-color-table-frequencies": false,
             "node-color-variable": "State",
-            "node-highlight": false,
+            "node-highlight": true,
             "node-label-size": 16,
             "node-label-variable": "None",
             "node-radius": 20,

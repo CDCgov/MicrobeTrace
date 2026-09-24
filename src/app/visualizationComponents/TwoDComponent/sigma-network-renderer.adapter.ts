@@ -639,7 +639,7 @@ export class SigmaNetworkRendererAdapter {
   private nodeDraggingEnabled = true;
   private renderEdgeLabels = false;
   private edgeLabelSize = 12;
-  private highlightNeighbors = true;
+  private highlightNeighbors = false;
   private iconPathCache = new Map<string, Path2D>();
   private nodeImageCache = new Map<string, HTMLImageElement>();
 
@@ -858,8 +858,10 @@ export class SigmaNetworkRendererAdapter {
   }
 
   setNeighborHighlighting(enabled: boolean): void {
-    this.highlightNeighbors = enabled;
+    const changed = this.highlightNeighbors !== Boolean(enabled);
+    this.highlightNeighbors = Boolean(enabled);
     this.rebuildActiveNeighborhood();
+    if (changed && this.renderer && this.rebuildDisplayGraph()) return;
     this.renderer?.refresh();
   }
 
@@ -1231,6 +1233,10 @@ export class SigmaNetworkRendererAdapter {
       this.callbacks.onGroupToggle?.(group.label);
     });
     this.renderer.on('clickStage', () => {
+      // Pointer transitions can miss leaveNode when the cursor moves directly
+      // from a node into a stage click. Treat whitespace as an explicit end to
+      // the hover interaction so neighbor emphasis can never become sticky.
+      this.handleNodeHover(null);
       if (this.suppressStageClick) {
         this.suppressStageClick = false;
         return;
@@ -1592,7 +1598,7 @@ export class SigmaNetworkRendererAdapter {
       this.callbacks.onNodeHover?.(null, event);
     }
     this.rebuildActiveNeighborhood();
-    this.rebuildDisplayGraph(true);
+    if (this.highlightNeighbors) this.rebuildDisplayGraph(true);
     this.emitSummary();
   }
 
@@ -1745,7 +1751,9 @@ export class SigmaNetworkRendererAdapter {
 
   private selectDisplayEdgeIds(): Set<string> {
     if (this.edgeDetailMode === 'all') return new Set(this.rankedEdges.map(edge => edge.id));
-    if (this.hoveredNodeId) return new Set(this.incidentEdgeIdsByNode.get(this.hoveredNodeId) || []);
+    if (this.highlightNeighbors && this.hoveredNodeId) {
+      return new Set(this.incidentEdgeIdsByNode.get(this.hoveredNodeId) || []);
+    }
     // A single selected node benefits from seeing every incident link. Multi-
     // selection is a node-only state: retain the normal viewport projection so
     // a dense network does not materialize or emphasize thousands of links.

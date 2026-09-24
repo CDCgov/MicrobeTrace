@@ -167,4 +167,37 @@ describe('Sigma network renderer adapter', () => {
     expect(adapter.getSelectedNodeIds()).toEqual(['node-1']);
     expect(callbackCount).toBe(1);
   });
+
+  it('only projects a hovered neighborhood when neighbor highlighting is enabled', () => {
+    const adapter = new SigmaNetworkRendererAdapter(document.createElement('div'), '#ff2d55');
+    const graph = adapter.getGraph() as any;
+    graph.addNode('a', {});
+    graph.addNode('b', {});
+    graph.addNode('c', {});
+    graph.addEdgeWithKey('a-b', 'a', 'b', {});
+    graph.addEdgeWithKey('b-c', 'b', 'c', {});
+    (adapter as any).rankedEdges = [
+      { id: 'a-b', sourceId: 'a', targetId: 'b', isBackbone: false },
+      { id: 'b-c', sourceId: 'b', targetId: 'c', isBackbone: false },
+    ];
+    (adapter as any).incidentEdgeIdsByNode = new Map([
+      ['a', ['a-b']],
+      ['b', ['a-b', 'b-c']],
+      ['c', ['b-c']],
+    ]);
+    (adapter as any).hoveredNodeId = 'a';
+    (adapter as any).resolveViewportNodes = () => ({
+      core: new Set(['a', 'b', 'c']),
+      overscan: new Set(['a', 'b', 'c']),
+    });
+    (adapter as any).resolveDisplayEdgeBudget = () => 10;
+
+    adapter.setNeighborHighlighting(false);
+    expect(Array.from((adapter as any).selectDisplayEdgeIds()).sort()).toEqual(['a-b', 'b-c']);
+    expect(Array.from((adapter as any).hoveredNeighborhood)).toEqual([]);
+
+    adapter.setNeighborHighlighting(true);
+    expect(Array.from((adapter as any).selectDisplayEdgeIds())).toEqual(['a-b']);
+    expect(Array.from((adapter as any).hoveredNeighborhood).sort()).toEqual(['a', 'b']);
+  });
 });
