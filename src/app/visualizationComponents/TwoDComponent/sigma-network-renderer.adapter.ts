@@ -96,6 +96,22 @@ export interface SigmaNodeIconVectorData {
   fillPath: string;
 }
 
+/**
+ * Positions icon-font SVG paths on Sigma's screen-space canvas. The custom
+ * paths use an upward-positive Y axis, so the canvas Y scale must be inverted
+ * to match their SVG previews and Cytoscape rendering.
+ */
+export function applySigmaIconCanvasTransform(
+  context: Pick<CanvasRenderingContext2D, 'translate' | 'scale'>,
+  point: { x: number; y: number },
+  iconScale: number,
+  icon: Pick<SigmaNodeIconVectorData, 'width' | 'height'>,
+): void {
+  context.translate(point.x, point.y);
+  context.scale(iconScale, -iconScale);
+  context.translate(-icon.width / 2, -icon.height / 2);
+}
+
 const MICROBETRACE_SIGMA_EDGE_PRIMITIVES: EdgePrimitives = {
   paths: [pathLine(), pathLoop()],
   extremities: [extremityArrow({ lengthRatio: 2.5, widthRatio: 2.2, margin: 2 })],
@@ -2036,9 +2052,7 @@ export class SigmaNetworkRendererAdapter {
           );
           context.save();
           context.globalAlpha = inActiveNeighborhood ? 1 : 0.12;
-          context.translate(point.x, point.y);
-          context.scale(iconScale, iconScale);
-          context.translate(-icon.width / 2, -icon.height / 2);
+          applySigmaIconCanvasTransform(context, point, iconScale, icon);
           context.strokeStyle = selected ? this.selectedColor : '#0ea5e9';
           context.lineWidth = Math.max(1, 3 / Math.max(iconScale, 0.01));
           context.stroke(outlinePath);
@@ -2057,9 +2071,7 @@ export class SigmaNetworkRendererAdapter {
           : Number(attributes.borderWidth) || 0;
         context.save();
         context.globalAlpha = inActiveNeighborhood ? Number(attributes.opacity) : 0.12;
-        context.translate(point.x, point.y);
-        context.scale(iconScale, iconScale);
-        context.translate(-icon.width / 2, -icon.height / 2);
+        applySigmaIconCanvasTransform(context, point, iconScale, icon);
         context.fillStyle = String(attributes.color);
         context.fill(fillPath);
         if (outlineWidth > 0) {

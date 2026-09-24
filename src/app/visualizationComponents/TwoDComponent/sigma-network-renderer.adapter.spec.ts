@@ -1,4 +1,5 @@
 import {
+  applySigmaIconCanvasTransform,
   assignSigmaOverviewPositions,
   clipSigmaEdgeSegment,
   selectSigmaLayoutBackbone,
@@ -6,6 +7,22 @@ import {
 } from './sigma-network-renderer.adapter';
 
 describe('Sigma network renderer adapter', () => {
+  it('flips custom SVG paths upright while centering them on the Sigma canvas', () => {
+    const context = {
+      translate: jasmine.createSpy('translate'),
+      scale: jasmine.createSpy('scale'),
+    } as Pick<CanvasRenderingContext2D, 'translate' | 'scale'>;
+
+    applySigmaIconCanvasTransform(context, { x: 120, y: 80 }, 0.5, {
+      width: 300,
+      height: 200,
+    });
+
+    expect(context.translate).toHaveBeenCalledWith(120, 80);
+    expect(context.scale).toHaveBeenCalledOnceWith(0.5, -0.5);
+    expect(context.translate).toHaveBeenCalledWith(-150, -100);
+  });
+
   it('clips supplemental straight edges to node boundaries', () => {
     const horizontal = clipSigmaEdgeSegment(
       { x: 0, y: 0, radius: 10, shape: 'circle' },
