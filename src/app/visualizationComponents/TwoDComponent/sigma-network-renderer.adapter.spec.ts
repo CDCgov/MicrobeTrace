@@ -1,10 +1,36 @@
 import {
   assignSigmaOverviewPositions,
+  clipSigmaEdgeSegment,
   selectSigmaLayoutBackbone,
   SigmaNetworkRendererAdapter,
 } from './sigma-network-renderer.adapter';
 
 describe('Sigma network renderer adapter', () => {
+  it('clips supplemental straight edges to node boundaries', () => {
+    const horizontal = clipSigmaEdgeSegment(
+      { x: 0, y: 0, radius: 10, shape: 'circle' },
+      { x: 100, y: 0, radius: 20, shape: 'circle' },
+    );
+    const diagonalSquare = clipSigmaEdgeSegment(
+      { x: 0, y: 0, radius: 10, shape: 'square' },
+      { x: 100, y: 100, radius: 10, shape: 'square' },
+    );
+    const covered = clipSigmaEdgeSegment(
+      { x: 0, y: 0, radius: 10, shape: 'circle' },
+      { x: 15, y: 0, radius: 10, shape: 'circle' },
+    );
+
+    expect(horizontal).toEqual({
+      source: { x: 10, y: 0 },
+      target: { x: 80, y: 0 },
+    });
+    expect(diagonalSquare!.source.x).toBeCloseTo(10, 6);
+    expect(diagonalSquare!.source.y).toBeCloseTo(10, 6);
+    expect(diagonalSquare!.target.x).toBeCloseTo(90, 6);
+    expect(diagonalSquare!.target.y).toBeCloseTo(90, 6);
+    expect(covered).toBeNull();
+  });
+
   it('keeps small graph layouts exact while returning safe link copies', () => {
     const links = [{ id: 'a-b', source: 'a', target: 'b', distance: 0.1 }];
 

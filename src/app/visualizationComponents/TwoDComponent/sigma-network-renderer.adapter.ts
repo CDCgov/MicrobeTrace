@@ -23,6 +23,72 @@ import {
 export type SigmaEdgeDetailMode = 'overview' | 'detail' | 'all';
 export type SigmaNodeShape = 'circle' | 'square' | 'triangle' | 'diamond';
 
+export interface SigmaEdgeClipEndpoint {
+  x: number;
+  y: number;
+  radius: number;
+  shape: SigmaNodeShape;
+}
+
+const sigmaNodeBoundaryDistance = (
+  shape: SigmaNodeShape,
+  radius: number,
+  directionX: number,
+  directionY: number,
+): number => {
+  const safeRadius = Math.max(0, Number(radius) || 0);
+  if (safeRadius === 0) return 0;
+  const absX = Math.abs(directionX);
+  const absY = Math.abs(directionY);
+  if (shape === 'square') return safeRadius / Math.max(absX, absY, Number.EPSILON);
+  if (shape === 'diamond') return safeRadius / Math.max(absX + absY, Number.EPSILON);
+  // Sigma's triangle is not radially symmetric. Its circumradius is the safe
+  // clipping boundary for every approach angle and prevents an upper overlay
+  // stroke from entering the glyph.
+  return safeRadius;
+};
+
+/**
+ * Clips a straight overlay edge to the visible source and target glyphs.
+ * Sigma's primary WebGL edges are naturally below its nodes, but supplemental
+ * Canvas strokes (such as MicrobeTrace's second, dashed origin color) need
+ * their endpoints clipped explicitly because their layer is above WebGL.
+ */
+export function clipSigmaEdgeSegment(
+  source: SigmaEdgeClipEndpoint,
+  target: SigmaEdgeClipEndpoint,
+): { source: SigmaViewportPoint; target: SigmaViewportPoint } | null {
+  const deltaX = target.x - source.x;
+  const deltaY = target.y - source.y;
+  const length = Math.hypot(deltaX, deltaY);
+  if (!Number.isFinite(length) || length <= Number.EPSILON) return null;
+  const directionX = deltaX / length;
+  const directionY = deltaY / length;
+  const sourceOffset = sigmaNodeBoundaryDistance(
+    source.shape,
+    source.radius,
+    directionX,
+    directionY,
+  );
+  const targetOffset = sigmaNodeBoundaryDistance(
+    target.shape,
+    target.radius,
+    -directionX,
+    -directionY,
+  );
+  if (sourceOffset + targetOffset >= length) return null;
+  return {
+    source: {
+      x: source.x + directionX * sourceOffset,
+      y: source.y + directionY * sourceOffset,
+    },
+    target: {
+      x: target.x - directionX * targetOffset,
+      y: target.y - directionY * targetOffset,
+    },
+  };
+}
+
 export interface SigmaNodeIconVectorData {
   width: number;
   height: number;
@@ -538,6 +604,7 @@ export class SigmaNetworkRendererAdapter {
   private renderer: Sigma<SigmaNodeAttributes, SigmaEdgeAttributes> | null = null;
   private geographicLayer: HTMLCanvasElement | null = null;
   private groupLayer: HTMLCanvasElement | null = null;
+  private edgeOverlayLayer: HTMLCanvasElement | null = null;
   private edgeLabelLayer: HTMLCanvasElement | null = null;
   private featureLayer: HTMLCanvasElement | null = null;
   private selectionLayer: HTMLCanvasElement | null = null;
@@ -749,6 +816,7 @@ export class SigmaNetworkRendererAdapter {
     this.renderer.refresh();
     this.drawGeographicOverlay();
     this.drawGroupHulls();
+    this.drawEdgeOverlays();
     this.drawNodeFeatures();
     this.drawEdgeLabels();
     this.emitSummary();
@@ -777,6 +845,7 @@ export class SigmaNetworkRendererAdapter {
     this.renderer?.resize();
     this.drawGeographicOverlay();
     this.drawGroupHulls();
+    this.drawEdgeOverlays();
     this.drawNodeFeatures();
     this.drawEdgeLabels();
     this.drawSelectionBox();
@@ -896,6 +965,7 @@ export class SigmaNetworkRendererAdapter {
     this.renderer = null;
     this.geographicLayer = null;
     this.groupLayer = null;
+    this.edgeOverlayLayer = null;
     this.edgeLabelLayer = null;
     this.featureLayer = null;
     this.selectionLayer = null;
@@ -908,6 +978,7 @@ export class SigmaNetworkRendererAdapter {
       this.renderer.refresh();
       this.drawGeographicOverlay();
       this.drawGroupHulls();
+      this.drawEdgeOverlays();
       this.drawNodeFeatures();
       this.drawEdgeLabels();
       return this.hasActiveWebglContext();
@@ -947,6 +1018,7 @@ export class SigmaNetworkRendererAdapter {
     this.renderer = null;
     this.geographicLayer = null;
     this.groupLayer = null;
+    this.edgeOverlayLayer = null;
     this.edgeLabelLayer = null;
     this.featureLayer = null;
     this.selectionLayer = null;
@@ -1100,15 +1172,25 @@ export class SigmaNetworkRendererAdapter {
     });
     this.groupLayer.dataset.testid = 'network-group-hull-overlay';
     this.groupLayer.dataset.renderer = 'sigma';
-    this.edgeLabelLayer = this.renderer.createCanvas('microbetrace-edge-labels', {
+    // Two-origin links need a second, dashed stroke above the primary WebGL
+    // edge. Its endpoints are clipped to node boundaries when drawn, and the
+    // Canvas glyph layer remains above it for custom and mixed-value nodes.
+    this.edgeOverlayLayer = this.renderer.createCanvas('microbetrace-edge-overlays', {
       afterLayer: 'stage',
+      style: { pointerEvents: 'none' },
+    });
+    this.edgeOverlayLayer.dataset.testid = 'network-edge-overlay';
+    this.edgeOverlayLayer.dataset.renderer = 'sigma';
+    this.edgeOverlayLayer.setAttribute('aria-hidden', 'true');
+    this.edgeLabelLayer = this.renderer.createCanvas('microbetrace-edge-labels', {
+      afterLayer: 'microbetrace-edge-overlays',
       style: { pointerEvents: 'none' },
     });
     this.edgeLabelLayer.dataset.testid = 'network-edge-label-overlay';
     this.edgeLabelLayer.dataset.renderer = 'sigma';
     this.edgeLabelLayer.setAttribute('aria-hidden', 'true');
     this.featureLayer = this.renderer.createCanvas('microbetrace-node-features', {
-      afterLayer: 'stage',
+      afterLayer: 'microbetrace-edge-labels',
       style: { pointerEvents: 'none' },
     });
     this.featureLayer.dataset.testid = 'network-node-feature-overlay';
@@ -1117,7 +1199,7 @@ export class SigmaNetworkRendererAdapter {
       ? 'webgl-program'
       : 'canvas-overlay';
     this.selectionLayer = this.renderer.createCanvas('microbetrace-selection', {
-      afterLayer: 'stage',
+      afterLayer: 'microbetrace-node-features',
       style: { pointerEvents: 'none' },
     });
     this.selectionMouseLayer = this.renderer.getMouseLayer();
@@ -1127,6 +1209,7 @@ export class SigmaNetworkRendererAdapter {
     this.renderer.on('afterRender', () => {
       this.drawGeographicOverlay();
       this.drawGroupHulls();
+      this.drawEdgeOverlays();
       this.drawNodeFeatures();
       this.drawEdgeLabels();
     });
@@ -2005,16 +2088,15 @@ export class SigmaNetworkRendererAdapter {
     this.featureLayer.dataset.pendingImageCount = String(pendingImageCount);
   }
 
-  private drawEdgeLabels(): void {
-    if (!this.renderer || !this.edgeLabelLayer) return;
-    const prepared = this.prepareOverlayCanvas(this.edgeLabelLayer);
+  private drawEdgeOverlays(): void {
+    if (!this.renderer || !this.edgeOverlayLayer) return;
+    const prepared = this.prepareOverlayCanvas(this.edgeOverlayLayer);
     if (!prepared) return;
-    this.edgeLabelLayer.dataset.labelSize = String(this.edgeLabelSize);
     const { context, width, height } = prepared;
     const overlayEdges = this.displayGraph.edges().filter(edgeId => (
       Boolean(this.displayGraph.getEdgeAttribute(edgeId, 'overlayDashColor'))
     ));
-    this.edgeLabelLayer.dataset.duoLinkCount = String(overlayEdges.length);
+    this.edgeOverlayLayer.dataset.duoLinkCount = String(overlayEdges.length);
 
     // Cytoscape represented a two-origin link as a solid edge for the first
     // origin with a dashed edge for the second. Keep one resident Sigma edge
@@ -2044,12 +2126,49 @@ export class SigmaNetworkRendererAdapter {
         const radius = this.renderer!.scaleSize(Number(source.size)) + context.lineWidth * 2 + 6;
         context.arc(sourcePoint.x + radius * 0.45, sourcePoint.y - radius * 0.45, radius, 0.35, Math.PI * 1.85);
       } else {
-        context.moveTo(sourcePoint.x, sourcePoint.y);
-        context.lineTo(targetPoint.x, targetPoint.y);
+        const clipped = clipSigmaEdgeSegment(
+          {
+            ...sourcePoint,
+            radius: this.getOverlayNodeRadius(sourceId, source),
+            shape: source.shape,
+          },
+          {
+            ...targetPoint,
+            radius: this.getOverlayNodeRadius(targetId, target),
+            shape: target.shape,
+          },
+        );
+        if (!clipped) {
+          context.restore();
+          return;
+        }
+        context.moveTo(clipped.source.x, clipped.source.y);
+        context.lineTo(clipped.target.x, clipped.target.y);
       }
       context.stroke();
       context.restore();
     });
+  }
+
+  private getOverlayNodeRadius(nodeId: string, attributes: SigmaNodeAttributes): number {
+    if (!this.renderer) return 0;
+    const emphasized = this.selectedNodeIds.has(nodeId)
+      || this.hoveredNodeId === nodeId
+      || this.keyboardFocusedNodeId === nodeId;
+    const emphasisScale = emphasized ? 1.35 : 1;
+    const featureScale = attributes.iconVectorData || attributes.imageDataUri
+      ? 1
+      : Number(attributes.mtFeatureScale || 1);
+    const radius = this.renderer.scaleSize(Number(attributes.size) * featureScale) * emphasisScale;
+    return radius + Math.max(0, Number(attributes.borderWidth) || 0) / 2;
+  }
+
+  private drawEdgeLabels(): void {
+    if (!this.renderer || !this.edgeLabelLayer) return;
+    const prepared = this.prepareOverlayCanvas(this.edgeLabelLayer);
+    if (!prepared) return;
+    this.edgeLabelLayer.dataset.labelSize = String(this.edgeLabelSize);
+    const { context, width, height } = prepared;
 
     if (!this.renderEdgeLabels) return;
 

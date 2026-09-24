@@ -259,9 +259,25 @@ describe('Sigma settings parity', () => {
       expect(graph.getEdgeAttribute(dualOriginEdge, 'overlayDashColor')).to.equal('#0ea5e9');
       expect(graph.getEdgeAttribute(dualOriginEdge, 'overlayDashOpacity')).to.equal(0.6);
     });
-    cy.get('[data-testid="network-edge-label-overlay"]')
+    cy.get('[data-testid="network-edge-overlay"]')
+      .should('have.attr', 'data-renderer', 'sigma')
       .invoke('attr', 'data-duo-link-count')
       .then(value => expect(Number(value)).to.be.greaterThan(0));
+    cy.get('[data-testid="network-edge-overlay"]').then($edgeOverlay => {
+      const stage = $edgeOverlay[0].parentElement?.querySelector('.sigma-stage');
+      expect(stage, 'Sigma WebGL stage').not.to.be.null;
+      expect(
+        stage!.compareDocumentPosition($edgeOverlay[0]) & Node.DOCUMENT_POSITION_FOLLOWING,
+        'clipped dashed edge layer is above the primary WebGL edge',
+      ).to.be.greaterThan(0);
+      cy.get('[data-testid="network-node-feature-overlay"]').then($nodeOverlay => {
+        const relationship = $edgeOverlay[0].compareDocumentPosition($nodeOverlay[0]);
+        expect(
+          relationship & Node.DOCUMENT_POSITION_FOLLOWING,
+          'dashed edge layer is below the node overlay',
+        ).to.be.greaterThan(0);
+      });
+    });
   });
 
   it('uses configurable Sigma hulls for every group size and preserves network display settings', () => {
