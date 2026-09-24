@@ -56,7 +56,7 @@ describe('Sigma renderer migration', () => {
       .should('have.class', 'active');
     cy.get('[data-testid="network-renderer-banner"]')
       .should('not.contain.text', 'fallback');
-    cy.window().then(win => {
+    cy.window().then(async win => {
       const twoD = (win as any).commonService.visuals.twoD;
       const initialState = twoD.getRendererViewState();
       expect(initialState).to.not.equal(null);
@@ -69,7 +69,7 @@ describe('Sigma renderer migration', () => {
       expect((win as any).commonService.session.meta.rendererViewState.edgeDetailMode)
         .to.equal('detail');
 
-      const composite = twoD.exportRendererComposite(1);
+      const composite = await twoD.exportRendererComposite(1);
       expect(composite.metadata.renderer).to.equal('sigma');
       expect(composite.metadata.residentNodeCount).to.equal(33);
       expect(composite.metadata.residentEdgeCount).to.equal(74);
@@ -125,7 +125,7 @@ describe('Sigma renderer migration', () => {
     });
     cy.get('[data-testid="sigma-renderer-summary"]', { timeout: 20000 })
       .should('contain.text', '33 nodes');
-    cy.window().then(win => {
+    cy.window().then(async win => {
       const twoD = (win as any).commonService.visuals.twoD;
       const renderer = twoD.sigmaRenderer;
       const firstNode = renderer.getGraph().nodes()[0];
@@ -147,7 +147,7 @@ describe('Sigma renderer migration', () => {
       const expectedQcOverlays = (win as any).commonService.session.data.nodes
         .filter((node: any) => String(node.Lineage ?? '').trim().length > 0)
         .length;
-      expect(twoD.exportRendererComposite(1).metadata.qcOverlayNodeCount)
+      expect((await twoD.exportRendererComposite(1)).metadata.qcOverlayNodeCount)
         .to.equal(expectedQcOverlays);
     });
     cy.window().then(win => {

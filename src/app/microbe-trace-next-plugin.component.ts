@@ -71,6 +71,7 @@ import {
     NormalizedGlobalSettingsDialogRequest
 } from './helperClasses/globalSettingsDialogRequest';
 import { AnalyticsService } from './contactTraceCommonServices/analytics.service';
+import { encodeCanvasOffMainThread } from './visualizationComponents/TwoDComponent/canvas-export-encoder';
 
 type ThresholdSweepSnapshot = ComponentStructureMetrics & {
     threshold: number;
@@ -493,7 +494,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         private cdref: ChangeDetectorRef,
         private el: ElementRef, 
         private store: CommonStoreService,
-        private exportService: ExportService,
+        public exportService: ExportService,
         private graphMLService: GraphMLService,
         private embedHandoffService: EmbedHandoffService,
         private colorAssignmentService: ColorAssignmentService,
@@ -552,6 +553,18 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
 
         this.exportService.exportSVG$.subscribe((info) => {
             this.performExportSVG(info.element, info.mainSVGString, info.exportNodeTable, info.exportLinkTable, info.exportNodeShapeTable);
+        });
+
+        this.exportService.rendererRasterExport$.subscribe((info) => {
+            this.performRendererRasterExport(
+                info.canvas,
+                info.width,
+                info.height,
+                info.element,
+                info.exportNodeTable,
+                info.exportLinkTable,
+                info.exportNodeShapeTable
+            );
         });
 
          // Add debounce subscription
@@ -1175,13 +1188,38 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
             ?? (document.querySelector('#polygon-color-table') as HTMLTableElement | undefined);
     }
 
+    private getRasterExportEncoding(options: ExportOptions): { filetype: string, mimeType: string, quality?: number } {
+        const filetype = String(options.filetype || 'png').toLowerCase();
+        if (filetype === 'png') {
+            return { filetype, mimeType: 'image/png' };
+        }
+        if (filetype === 'jpeg' || filetype === 'jpg') {
+            return { filetype, mimeType: 'image/jpeg', quality: Number(options.quality) || 0.92 };
+        }
+        if (filetype === 'webp') {
+            return { filetype, mimeType: 'image/webp', quality: Number(options.quality) || 0.92 };
+        }
+
+        throw new Error(`Unsupported file type: ${filetype}`);
+    }
+
+    private exportCanvasToBlob(canvas: HTMLCanvasElement, mimeType: string, quality?: number): Promise<Blob> {
+        return encodeCanvasOffMainThread(canvas, mimeType, quality);
+    }
+
     private async performExport(
         elementsForExport: HTMLElement[] = [this.visualWrapperRef.nativeElement],
         exportNodeTable: boolean = false,
         exportLinkTable: boolean = false,
         exportNodeShapeTable: boolean = false
     ): Promise<void> {
+        if (!this.exportService.getExportProgress().active) {
+            this.exportService.beginExport('Preparing image export', 5);
+        }
+        await this.exportService.waitForUiPaint();
+
         if (!elementsForExport[0] && !exportNodeTable && !exportLinkTable && !exportNodeShapeTable) {
+            this.exportService.failExport('Nothing is available to export');
             console.error('Visual wrapper container not found');
             return;
         }
@@ -1189,6 +1227,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         try {
             // Retrieve export options from the service
             const options: ExportOptions = this.exportService.getExportOptions();
+            this.exportService.updateExportProgress('Preparing visible content', 12);
             const mapLibreCanvasSnapshots = elementsForExport.flatMap((element) =>
                 Array.from(element.querySelectorAll<HTMLCanvasElement>('canvas.maplibregl-canvas')).map((canvas) => ({
                     dataUrl: canvas.toDataURL('image/png'),
@@ -1262,24 +1301,27 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
             const globalTablesForExport = this.getGlobalTablesForExport(exportNodeTable, exportLinkTable, exportNodeShapeTable);
             elementsForExport.splice(pos, 0, ...globalTablesForExport);
             if (elementsForExport.length === 0) {
-                console.error('No export elements found');
-                return;
+                throw new Error('No export elements found');
             }
 
-            const canvasArray = await Promise.all(
-                elementsForExport.map((input) => { 
-                    // As of July 2025, a change in Chrome (and other browsers) slowed down this export dramatically (2+ mins for single image), a temp change is to
-                    // update html2canvas.js (line 5626) file in node_modules as described here: https://github.com/niklasvh/html2canvas/pull/3252/commits/37b75f50d2550acf7d90630acdc29d346282d0a4;
-                    // this is a temp fix, if unresolved (by html2canvas) consider switching to snapdom
-                    return html2canvas(input, settings);
-                })
-            );
+            const canvasArray: HTMLCanvasElement[] = [];
+            for (let index = 0; index < elementsForExport.length; index++) {
+                const progress = 20 + Math.round((index / elementsForExport.length) * 50);
+                this.exportService.updateExportProgress(
+                    elementsForExport.length === 1
+                        ? 'Rendering image'
+                        : `Rendering export section ${index + 1} of ${elementsForExport.length}`,
+                    progress
+                );
+                await this.exportService.waitForUiPaint();
+                canvasArray.push(await html2canvas(elementsForExport[index], settings));
+            }
 
+            this.exportService.updateExportProgress('Composing final image', 75);
             const canvas = document.createElement('canvas');
             const context = canvas.getContext('2d');
             if (!context) {
-                console.error('Unable to create export canvas context.');
-                return;
+                throw new Error('Unable to create export canvas context.');
             }
 
             // Set the width and height of the combined canvas
@@ -1337,37 +1379,131 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
                 }
             }
 
-            const filetype = options.filetype.toLowerCase();
+            const { filetype, mimeType, quality } = this.getRasterExportEncoding(options);
             const filename = options.filename || 'network_export';
-            let mimeType = '';
-            let quality: number | undefined;
-    
-            if (filetype === 'png') {
-                mimeType = 'image/png';
-            } else if (filetype === 'jpeg' || filetype === 'jpg') {
-                mimeType = 'image/jpeg';
-                quality = options.quality || 0.92;
-            } else if (filetype === 'webp') {
-                mimeType = 'image/webp';
-                quality = options.quality || 0.92;
-            } else {
-                console.error('Unsupported file type:', filetype);
-                return;
-            }
 
-            const blob = await new Promise<Blob | null>((resolve) => {
-                canvas.toBlob((createdBlob) => resolve(createdBlob), mimeType, quality);
-            });
-            if (!blob) {
-                console.error('Unable to create export blob.');
-                return;
-            }
+            this.exportService.updateExportProgress('Encoding image file', 90);
+            const blob = await this.exportCanvasToBlob(canvas, mimeType, quality);
 
             this.saveGeneratedFile(blob, `${filename}.${filetype}`);
-    
+            this.exportService.completeExport();
             console.log('Export completed successfully.');
         } catch (error) {
+            this.exportService.failExport();
             console.error('Error during export:', error);
+        }
+    }
+
+    private async loadTableExportImage(svg: string, width: number, height: number): Promise<HTMLImageElement> {
+        const svgDocument = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">${svg}</svg>`;
+        const objectUrl = URL.createObjectURL(new Blob([svgDocument], { type: 'image/svg+xml;charset=utf-8' }));
+
+        try {
+            const image = new Image();
+            await new Promise<void>((resolve, reject) => {
+                image.onload = () => resolve();
+                image.onerror = () => reject(new Error('Unable to decode an export table.'));
+                image.src = objectUrl;
+            });
+            return image;
+        } finally {
+            URL.revokeObjectURL(objectUrl);
+        }
+    }
+
+    private async performRendererRasterExport(
+        networkCanvas: HTMLCanvasElement,
+        networkWidth: number,
+        networkHeight: number,
+        elementsForExport: HTMLTableElement[],
+        exportNodeTable: boolean = false,
+        exportLinkTable: boolean = false,
+        exportNodeShapeTable: boolean = false
+    ): Promise<void> {
+        if (!this.exportService.getExportProgress().active) {
+            this.exportService.beginExport('Preparing image export', 5);
+        }
+        await this.exportService.waitForUiPaint();
+
+        try {
+            const options = this.exportService.getExportOptions();
+            const tableElements = [
+                ...this.getGlobalTablesForExport(exportNodeTable, exportLinkTable, exportNodeShapeTable),
+                ...elementsForExport,
+            ];
+            const tableExports = tableElements.map(element => this.exportService.exportTableAsSVG(element, true));
+            const tableImages: HTMLImageElement[] = [];
+
+            for (let index = 0; index < tableExports.length; index++) {
+                const table = tableExports[index];
+                this.exportService.updateExportProgress(
+                    `Preparing key table ${index + 1} of ${tableExports.length}`,
+                    55 + Math.round(((index + 1) / Math.max(1, tableExports.length)) * 15)
+                );
+                tableImages.push(await this.loadTableExportImage(table.svg, table.width, table.height));
+            }
+
+            let width = networkWidth + 5;
+            let height = networkHeight + 5;
+            let currentOffsetX = width;
+            let currentOffsetY = 5;
+            let currentColWidth = 0;
+            const tableOffsets: Array<[number, number]> = [];
+
+            tableExports.forEach((table, index) => {
+                if (index === 0) {
+                    width += table.width;
+                    height = Math.max(height, table.height);
+                    currentColWidth = table.width;
+                } else if (table.height > height) {
+                    width += table.width + 5;
+                    height = table.height + 5;
+                    currentOffsetX += currentColWidth;
+                    currentOffsetY = 5;
+                    currentColWidth = table.width;
+                } else if (currentOffsetY + table.height + 5 > height) {
+                    width += table.width + 5;
+                    currentOffsetX += currentColWidth;
+                    currentOffsetY = 5;
+                    currentColWidth = table.width;
+                } else if (table.width + 5 > currentColWidth) {
+                    width += table.width - currentColWidth + 5;
+                    currentColWidth = table.width + 5;
+                }
+
+                tableOffsets.push([currentOffsetX, currentOffsetY]);
+                currentOffsetY += table.height + 5;
+            });
+
+            const finalWidth = width + 5;
+            const finalHeight = height + 5;
+            const scale = Math.max(0.1, Number(options.scale) || 1);
+            const output = document.createElement('canvas');
+            output.width = Math.max(1, Math.round(finalWidth * scale));
+            output.height = Math.max(1, Math.round(finalHeight * scale));
+            const context = output.getContext('2d');
+            if (!context) {
+                throw new Error('Unable to create the renderer export canvas.');
+            }
+
+            this.exportService.updateExportProgress('Composing final image', 78);
+            context.setTransform(scale, 0, 0, scale, 0, 0);
+            context.fillStyle = '#ffffff';
+            context.fillRect(0, 0, finalWidth, finalHeight);
+            context.drawImage(networkCanvas, 0, 0, networkWidth, networkHeight);
+            tableImages.forEach((image, index) => {
+                const [x, y] = tableOffsets[index];
+                context.drawImage(image, x, y, tableExports[index].width, tableExports[index].height);
+            });
+
+            const { filetype, mimeType, quality } = this.getRasterExportEncoding(options);
+            this.exportService.updateExportProgress('Encoding image file', 90);
+            const blob = await this.exportCanvasToBlob(output, mimeType, quality);
+            this.saveGeneratedFile(blob, `${options.filename || 'network_export'}.${filetype}`);
+            this.exportService.completeExport();
+        } catch (error) {
+            this.exportService.failExport();
+            console.error('Error during renderer raster export:', error);
         }
     }
 
@@ -1378,100 +1514,115 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         exportLinkTable: boolean = false,
         exportNodeShapeTable: boolean = false
     ): Promise<void> {
-        console.log('Exporting SVG');
-        const hasMainVisual = mainSVGString !== '';
-        if (mainSVGString == '') {
-            mainSVGString = '<svg version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"></svg>'
+        if (!this.exportService.getExportProgress().active) {
+            this.exportService.beginExport('Preparing image export', 5);
         }
+        await this.exportService.waitForUiPaint();
 
-        const globalTablesForExport = this.getGlobalTablesForExport(exportNodeTable, exportLinkTable, exportNodeShapeTable);
-        elementsForExport.unshift(...globalTablesForExport);
-        if (elementsForExport.length === 0 && !hasMainVisual) {
-            console.error('No table elements found for SVG export');
-            return;
-        }
+        try {
+            console.log('Exporting SVG');
+            this.exportService.updateExportProgress('Composing network and key tables', 55);
+            const hasMainVisual = mainSVGString !== '';
+            if (mainSVGString == '') {
+                mainSVGString = '<svg version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"></svg>'
+            }
 
-        const options: ExportOptions = this.exportService.getExportOptions();
-        
-        const parser = new DOMParser();
-        const doc = parser.parseFromString(mainSVGString, 'image/svg+xml');
-        const svg1 = doc.documentElement;
-        
-        // i'll need some way to check when to add new col to export; but for now do this;            
-        let width = parseFloat(svg1.getAttribute('width'))+5 || 5;
-        let height = parseFloat(svg1.getAttribute('height'))+5 || 5; 
-        let tableSVGStrings = '';
-        let currentOffsetX = width;
-        let currentOffsetY = 5;
-        let currentColWidth = 0;
+            const globalTablesForExport = this.getGlobalTablesForExport(exportNodeTable, exportLinkTable, exportNodeShapeTable);
+            elementsForExport.unshift(...globalTablesForExport);
+            if (elementsForExport.length === 0 && !hasMainVisual) {
+                throw new Error('No table elements found for export');
+            }
 
-        elementsForExport.forEach((element, index) => {
-            let output = this.exportService.exportTableAsSVG(element, true);
-            
-            // exact logic from exporting a png
-            if (index == 0) {
-                width += output.width;
-                height = Math.max(height, output.height);
-                currentColWidth = output.width;
-            } else {
-                // if need to add a new column
-                if (output.height > height) {
-                    width += output.width+5;
-                    height = output.height +5;
-                    currentOffsetX += currentColWidth;
-                    currentOffsetY = 5;
+            const options: ExportOptions = this.exportService.getExportOptions();
+
+            const parser = new DOMParser();
+            const doc = parser.parseFromString(mainSVGString, 'image/svg+xml');
+            const svg1 = doc.documentElement;
+
+            // i'll need some way to check when to add new col to export; but for now do this;
+            let width = parseFloat(svg1.getAttribute('width'))+5 || 5;
+            let height = parseFloat(svg1.getAttribute('height'))+5 || 5;
+            let tableSVGStrings = '';
+            let currentOffsetX = width;
+            let currentOffsetY = 5;
+            let currentColWidth = 0;
+
+            elementsForExport.forEach((element, index) => {
+                let output = this.exportService.exportTableAsSVG(element, true);
+
+                // exact logic from exporting a png
+                if (index == 0) {
+                    width += output.width;
+                    height = Math.max(height, output.height);
                     currentColWidth = output.width;
-                } else if (currentOffsetY+output.height + 5 > height) { // need to add a new column
-                    width += output.width+5;
-                    currentOffsetX += currentColWidth;
-                    currentOffsetY = 5;
-                    currentColWidth = output.width;
-                } else { // don't need to add a new column
-                    if (output.width+5 > currentColWidth) {
+                } else {
+                    // if need to add a new column
+                    if (output.height > height) {
+                        width += output.width+5;
+                        height = output.height +5;
+                        currentOffsetX += currentColWidth;
+                        currentOffsetY = 5;
+                        currentColWidth = output.width;
+                    } else if (currentOffsetY+output.height + 5 > height) { // need to add a new column
+                        width += output.width+5;
+                        currentOffsetX += currentColWidth;
+                        currentOffsetY = 5;
+                        currentColWidth = output.width;
+                    } else if (output.width+5 > currentColWidth) { // don't need to add a new column
                         width += (output.width - currentColWidth +5);
                         currentColWidth = output.width+5;
                     }
                 }
-            }
-            let updatedSVGString = output.svg.replace('<g>', `<g transform="translate(${currentOffsetX}, ${currentOffsetY})" fill="none">`);
-            tableSVGStrings += updatedSVGString;
+                let updatedSVGString = output.svg.replace('<g>', `<g transform="translate(${currentOffsetX}, ${currentOffsetY})" fill="none">`);
+                tableSVGStrings += updatedSVGString;
 
-            currentOffsetY += output.height+5;
-        });
+                currentOffsetY += output.height+5;
+            });
 
-        svg1.style.width = `${width + 5}px`
-        svg1.style.height = `${height + 5 }px`
-        svg1.setAttribute('width', `${width+5}`);
-        svg1.setAttribute('height', `${height+5}`);
-        svg1.setAttribute('viewBox', `0 0 ${width+5} ${height+5}`);
+            svg1.style.width = `${width + 5}px`
+            svg1.style.height = `${height + 5 }px`
+            svg1.setAttribute('width', `${width+5}`);
+            svg1.setAttribute('height', `${height+5}`);
+            svg1.setAttribute('viewBox', `0 0 ${width+5} ${height+5}`);
 
-        const rect = doc.createElementNS('http://www.w3.org/2000/svg', 'rect')
-        rect.setAttribute('x', '0')
-        rect.setAttribute('y', '0')
-        rect.setAttribute('width', `${width+5}`);
-        rect.setAttribute('height', `${height+5}`);
-        rect.setAttribute('fill', 'white');
-        svg1.insertBefore(rect, svg1.firstChild);
+            const rect = doc.createElementNS('http://www.w3.org/2000/svg', 'rect')
+            rect.setAttribute('x', '0')
+            rect.setAttribute('y', '0')
+            rect.setAttribute('width', `${width+5}`);
+            rect.setAttribute('height', `${height+5}`);
+            rect.setAttribute('fill', 'white');
+            svg1.insertBefore(rect, svg1.firstChild);
 
-        let mainSVG = String(svg1.outerHTML);
-        let combinedSvgString: string;
-        if (mainSVG.endsWith('/>')) {
-            combinedSvgString = mainSVG.replace('/>', '>' + tableSVGStrings + '</svg>')
-        } else {
-            const closingSvgIndex = mainSVG.lastIndexOf('</svg>');
-            if (closingSvgIndex >= 0) {
-                combinedSvgString =
-                    mainSVG.slice(0, closingSvgIndex)
-                    + tableSVGStrings
-                    + mainSVG.slice(closingSvgIndex);
+            let mainSVG = String(svg1.outerHTML);
+            let combinedSvgString: string;
+            if (mainSVG.endsWith('/>')) {
+                combinedSvgString = mainSVG.replace('/>', '>' + tableSVGStrings + '</svg>')
             } else {
-                combinedSvgString = mainSVG + tableSVGStrings;
+                const closingSvgIndex = mainSVG.lastIndexOf('</svg>');
+                if (closingSvgIndex >= 0) {
+                    combinedSvgString =
+                        mainSVG.slice(0, closingSvgIndex)
+                        + tableSVGStrings
+                        + mainSVG.slice(closingSvgIndex);
+                } else {
+                    combinedSvgString = mainSVG + tableSVGStrings;
+                }
             }
-        }
 
-        let blob = new Blob([combinedSvgString], { type: 'image/svg+xml;charset=utf-8' });
-        
-        this.saveGeneratedFile(blob, `${options.filename}.svg`);
+            const filetype = String(options.filetype || 'svg').toLowerCase();
+            if (filetype !== 'svg') {
+                throw new Error(`The SVG export pipeline cannot write ${filetype}.`);
+            }
+            this.exportService.updateExportProgress('Writing SVG file', 88);
+            await this.exportService.waitForUiPaint();
+
+            const blob = new Blob([combinedSvgString], { type: 'image/svg+xml;charset=utf-8' });
+            this.saveGeneratedFile(blob, `${options.filename || 'network_export'}.svg`);
+            this.exportService.completeExport();
+        } catch (error) {
+            this.exportService.failExport();
+            console.error('Error during SVG-based export:', error);
+        }
     }
 
     /**

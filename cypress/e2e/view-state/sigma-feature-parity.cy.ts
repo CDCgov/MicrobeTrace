@@ -128,7 +128,7 @@ describe('Sigma renderer feature parity', () => {
       }));
     });
 
-    cy.window().should(win => {
+    cy.window().then(async win => {
       const appWindow = win as any;
       const twoD = appWindow.commonService.visuals.twoD;
       expect(twoD.sigmaRenderer.getSelectedNodeIds(), 'Sigma box-selected nodes')
@@ -138,7 +138,7 @@ describe('Sigma renderer feature parity', () => {
         'session selection synchronized from Sigma box selection',
       ).to.have.length(33);
 
-      const composite = twoD.exportRendererComposite(1);
+      const composite = await twoD.exportRendererComposite(1);
       expect(composite.metadata.renderer).to.equal('sigma');
       expect(composite.metadata.geographicOverlayActive).to.equal(true);
       expect(composite.metadata.residentNodeCount).to.equal(33);

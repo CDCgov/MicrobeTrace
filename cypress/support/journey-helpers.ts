@@ -192,7 +192,7 @@ export function installSaveAsCaptureHook(): void {
         reader.readAsDataURL(blob);
       };
 
-      if (content instanceof Blob) {
+      if (content instanceof w.Blob || Object.prototype.toString.call(content) === '[object Blob]') {
         persistBlob(content);
         return;
       }

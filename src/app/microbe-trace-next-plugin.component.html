@@ -1,4 +1,34 @@
 <div class="m-content">
+  @if (exportService.exportProgress$ | async; as exportProgress) {
+    @if (exportProgress.active) {
+      <div
+        class="export-progress-overlay"
+        data-testid="export-progress-overlay"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="export-progress-title"
+        [attr.aria-busy]="exportProgress.active">
+        <div class="export-progress-card">
+          <div class="export-progress-spinner" aria-hidden="true"></div>
+          <div class="export-progress-content">
+            <h2 id="export-progress-title">Exporting image</h2>
+            <p data-testid="export-progress-stage">{{ exportProgress.stage }}</p>
+            <div
+              class="export-progress-track"
+              role="progressbar"
+              aria-label="Image export progress"
+              aria-valuemin="0"
+              aria-valuemax="100"
+              [attr.aria-valuenow]="exportProgress.progress">
+              <div class="export-progress-value" [style.width.%]="exportProgress.progress"></div>
+            </div>
+            <span class="export-progress-percent">{{ exportProgress.progress }}%</span>
+            <small>Keep this page open while the image is prepared.</small>
+          </div>
+        </div>
+      </div>
+    }
+  }
   <div class="m-portlet m-portlet--mobile" style="height:100%;">
 
     @if (!officialInstance()) {

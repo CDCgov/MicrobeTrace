@@ -1,3 +1,5 @@
+import { encodeCanvasOffMainThread } from './canvas-export-encoder';
+
 export interface NetworkRendererExportMetadata {
   renderer: string;
   residentNodeCount: number;
@@ -16,6 +18,7 @@ export interface NetworkRendererCompositeExport {
   height: number;
   pixelRatio: number;
   canvasLayerCount: number;
+  canvas: HTMLCanvasElement;
   pngDataUrl: string;
   svg: string;
   metadata: NetworkRendererExportMetadata;
@@ -30,12 +33,24 @@ function escapeXml(value: string): string {
     .replace(/'/g, '&apos;');
 }
 
-export function captureNetworkRendererComposite(
+function canvasToPngDataUrl(canvas: HTMLCanvasElement): Promise<string> {
+  return encodeCanvasOffMainThread(canvas, 'image/png').then(blob => (
+    new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result));
+      reader.onerror = () => reject(reader.error ?? new Error('Unable to read the network export image.'));
+      reader.readAsDataURL(blob);
+    })
+  ));
+}
+
+export async function captureNetworkRendererComposite(
   host: HTMLElement,
   metadata: NetworkRendererExportMetadata,
   backgroundColor = '#ffffff',
   requestedPixelRatio = window.devicePixelRatio || 1,
-): NetworkRendererCompositeExport {
+  encodePng = true,
+): Promise<NetworkRendererCompositeExport> {
   const hostBounds = host.getBoundingClientRect();
   const width = Math.max(1, Math.round(hostBounds.width));
   const height = Math.max(1, Math.round(hostBounds.height));
@@ -73,20 +88,27 @@ export function captureNetworkRendererComposite(
     context.restore();
   });
 
-  const pngDataUrl = output.toDataURL('image/png');
+  // Canvas.toDataURL performs PNG compression synchronously and can keep the
+  // browser's main thread busy long enough to trigger an "unresponsive page"
+  // warning for a large/high-DPI export. toBlob schedules the encoder
+  // asynchronously so the progress UI and browser event loop stay responsive.
+  const pngDataUrl = encodePng ? await canvasToPngDataUrl(output) : '';
   const metadataJson = escapeXml(JSON.stringify(metadata));
-  const svg = [
-    `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">`,
-    `<metadata id="microbetrace-renderer-export-metadata">${metadataJson}</metadata>`,
-    `<image width="${width}" height="${height}" href="${pngDataUrl}"/>`,
-    '</svg>',
-  ].join('');
+  const svg = encodePng
+    ? [
+        `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">`,
+        `<metadata id="microbetrace-renderer-export-metadata">${metadataJson}</metadata>`,
+        `<image width="${width}" height="${height}" href="${pngDataUrl}"/>`,
+        '</svg>',
+      ].join('')
+    : '';
 
   return {
     width,
     height,
     pixelRatio,
     canvasLayerCount: layers.length,
+    canvas: output,
     pngDataUrl,
     svg,
     metadata,

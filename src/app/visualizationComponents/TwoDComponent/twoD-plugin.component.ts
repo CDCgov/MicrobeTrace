@@ -1243,7 +1243,10 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         return { ...networkData, nodes: result.nodes };
     }
 
-    public exportRendererComposite(pixelRatio?: number): NetworkRendererCompositeExport {
+    public async exportRendererComposite(
+        pixelRatio?: number,
+        encodePng: boolean = true
+    ): Promise<NetworkRendererCompositeExport> {
         const host = (this.sigmaActive
             ? this.sigmaContainer?.nativeElement
             : this.cyContainer?.nativeElement) as HTMLElement | undefined;
@@ -1293,7 +1296,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             collapsedGroupIds,
             geographicOverlayActive: Boolean(this.rendererGeographicProjection),
             ...featureSummary
-        }, String(this.widgets?.['background-color'] || '#ffffff'), pixelRatio);
+        }, String(this.widgets?.['background-color'] || '#ffffff'), pixelRatio, encodePng);
     }
 
     private isCytoscapeContainerReady(): boolean {
@@ -4292,7 +4295,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
     /**
      * Hides export pane, sets isExporting variable to true and calls exportWork2 to export the twoD network image
      */
-    exportVisualization(event) {
+    async exportVisualization(event): Promise<void> {
 
         // Prepare export options
         const exportOptions: ExportOptions = {
@@ -4302,65 +4305,90 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             quality: this.SelectedNetworkExportQualityVariable,
         };
     
-        // Set export options in the service
+        // Set export options in the service and allow the global progress
+        // overlay to paint before any canvas readback work begins.
         this.exportService.setExportOptions(exportOptions);
+        this.Show2DExportPane = false;
+        this.exportService.beginExport('Preparing network image', 5);
+        await this.exportService.waitForUiPaint();
         const polygonColorTableElement = this.getPolygonColorTableElementForExport();
         const shouldExportPolygonColorTable = this.shouldDisplayPolygonColorTable();
 
-        if (this.sigmaActive && this.SelectedNetworkExportFileTypeListVariable === 'svg') {
-            const composite = this.exportRendererComposite(this.SelectedNetworkExportScaleVariable);
-            const elementsToExport: HTMLTableElement[] = [];
-            if (shouldExportPolygonColorTable && polygonColorTableElement) {
-                elementsToExport.push(polygonColorTableElement);
+        try {
+            if (this.sigmaActive) {
+                this.exportService.updateExportProgress('Capturing visible network layers', 15);
+                const composite = await this.exportRendererComposite(
+                    this.SelectedNetworkExportScaleVariable,
+                    this.SelectedNetworkExportFileTypeListVariable === 'svg'
+                );
+                const elementsToExport: HTMLTableElement[] = [];
+                if (shouldExportPolygonColorTable && polygonColorTableElement) {
+                    elementsToExport.push(polygonColorTableElement);
+                }
+                if (window.getComputedStyle(this.networkStatisticsTable.nativeElement.parentElement).display === 'block') {
+                    elementsToExport.push(this.networkStatisticsTable.nativeElement);
+                }
+                this.exportService.updateExportProgress('Composing network and key tables', 45);
+                if (this.SelectedNetworkExportFileTypeListVariable === 'svg') {
+                    this.exportService.requestSVGExport(elementsToExport, composite.svg, true, true, true);
+                } else {
+                    // Raster exports compose the captured renderer canvas directly.
+                    // This avoids both a full DOM clone and a nested SVG/PNG decode.
+                    this.exportService.requestRendererRasterExport(
+                        composite.canvas,
+                        composite.width,
+                        composite.height,
+                        elementsToExport,
+                        true,
+                        true,
+                        true
+                    );
+                }
+                return;
             }
-            if (window.getComputedStyle(this.networkStatisticsTable.nativeElement.parentElement).display === 'block') {
-                elementsToExport.push(this.networkStatisticsTable.nativeElement);
+
+            if (this.SelectedNetworkExportFileTypeListVariable == 'svg') {
+
+                this.exportService.updateExportProgress('Building network SVG', 20);
+                let options = { scale: 1, full: true, bg: this.commonService.session.style.widgets['background-color'] || '#ffffff'};
+                let content = (this.cy as any).svg(options);
+
+                // Add 10px of padding around network
+                const parser = new DOMParser();
+                const doc = parser.parseFromString(content, 'image/svg+xml');
+                this.addCollapsedPieSvgExportImages(doc);
+                this.replaceExportedCustomNodeImagesWithVectorShapes(doc);
+                this.addCollapsedPieSvgExportOutlines(doc);
+                const svg1 = doc.documentElement;
+                svg1.setAttribute('height', (parseFloat(svg1.getAttribute('height'))+20).toString());
+                svg1.setAttribute('width', (parseFloat(svg1.getAttribute('width'))+20).toString());
+                let svgString = new XMLSerializer().serializeToString(svg1);
+                content = svgString.replace('<g>', `<g transform="translate(10, 10)">`)
+
+                let elementsToExport: HTMLTableElement[] = [];
+                if (shouldExportPolygonColorTable && polygonColorTableElement) {
+                    elementsToExport.push(polygonColorTableElement);
+                }
+                if (window.getComputedStyle(this.networkStatisticsTable.nativeElement.parentElement).display == 'block') {
+                    elementsToExport.push(this.networkStatisticsTable.nativeElement)
+                }
+                this.exportService.requestSVGExport(elementsToExport, content, true, true, true);
+
+            } else {
+                // Request export
+                let elementsToExport: HTMLElement[] = [this.exportContainer.nativeElement];
+                if (shouldExportPolygonColorTable && polygonColorTableElement) {
+                    elementsToExport.push(polygonColorTableElement);
+                }
+                if (window.getComputedStyle(this.networkStatisticsTable.nativeElement.parentElement).display == 'block') {
+                    elementsToExport.push(this.networkStatisticsTable.nativeElement);
+                }
+                this.exportService.requestExport(elementsToExport, true, true, true);
             }
-            this.exportService.requestSVGExport(elementsToExport, composite.svg, true, true, true);
-            this.Show2DExportPane = false;
-            return;
+        } catch (error) {
+            this.exportService.failExport('Export could not be completed');
+            console.error('Error preparing network export:', error);
         }
-
-        if (this.SelectedNetworkExportFileTypeListVariable == 'svg') {
-
-            let options = { scale: 1, full: true, bg: this.commonService.session.style.widgets['background-color'] || '#ffffff'};
-            let content = (this.cy as any).svg(options);
-
-            // Add 10px of padding around network
-            const parser = new DOMParser();
-            const doc = parser.parseFromString(content, 'image/svg+xml');
-            this.addCollapsedPieSvgExportImages(doc);
-            this.replaceExportedCustomNodeImagesWithVectorShapes(doc);
-            this.addCollapsedPieSvgExportOutlines(doc);
-            const svg1 = doc.documentElement;          
-            svg1.setAttribute('height', (parseFloat(svg1.getAttribute('height'))+20).toString());
-            svg1.setAttribute('width', (parseFloat(svg1.getAttribute('width'))+20).toString());
-            let svgString = new XMLSerializer().serializeToString(svg1);
-            content = svgString.replace('<g>', `<g transform="translate(10, 10)">`)
-
-            let elementsToExport: HTMLTableElement[] = [];
-            if (shouldExportPolygonColorTable && polygonColorTableElement) {
-                elementsToExport.push(polygonColorTableElement);
-            }
-            if (window.getComputedStyle(this.networkStatisticsTable.nativeElement.parentElement).display == 'block') {
-                elementsToExport.push(this.networkStatisticsTable.nativeElement)
-            }
-            this.exportService.requestSVGExport(elementsToExport, content, true, true, true); 
-
-        } else {
-            // Request export
-            let elementsToExport: HTMLElement[] = [this.exportContainer.nativeElement];
-            if (shouldExportPolygonColorTable && polygonColorTableElement) {
-                elementsToExport.push(polygonColorTableElement);
-            }
-            if (window.getComputedStyle(this.networkStatisticsTable.nativeElement.parentElement).display == 'block') {
-                elementsToExport.push(this.networkStatisticsTable.nativeElement);
-            }
-            this.exportService.requestExport(elementsToExport, true, true, true);
-        }
-    
-        // Optionally, close the export modal after initiating the export
-        this.Show2DExportPane = false;
     }
 
     /**

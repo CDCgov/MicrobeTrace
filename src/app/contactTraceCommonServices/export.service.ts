@@ -1,5 +1,5 @@
 import { Injectable } from '@angular/core';
-import { Subject, Observable } from 'rxjs';
+import { BehaviorSubject, Subject, Observable } from 'rxjs';
 import { getNodeShapePreviewDataUri } from './node-shapes';
 
 export interface ExportOptions {
@@ -9,12 +9,26 @@ export interface ExportOptions {
   quality: number;
 }
 
+export interface ExportProgressState {
+  active: boolean;
+  progress: number;
+  stage: string;
+  startedAt: number | null;
+}
+
 @Injectable({
   providedIn: 'root'
 })
 export class ExportService {
   private readonly nodeShapeExportPrefix = 'nodeShape|';
   private textMeasureContext: CanvasRenderingContext2D | null = null;
+  private readonly exportProgressSource = new BehaviorSubject<ExportProgressState>({
+    active: false,
+    progress: 0,
+    stage: '',
+    startedAt: null,
+  });
+  readonly exportProgress$ = this.exportProgressSource.asObservable();
 
   private exportRequestedSource = new Subject<{
     element: HTMLElement[],
@@ -44,6 +58,17 @@ export class ExportService {
     exportNodeShapeTable: boolean
   }> = this.exportSVGSource.asObservable();
 
+  private rendererRasterExportSource = new Subject<{
+    canvas: HTMLCanvasElement,
+    width: number,
+    height: number,
+    element: HTMLTableElement[],
+    exportNodeTable: boolean,
+    exportLinkTable: boolean,
+    exportNodeShapeTable: boolean
+  }>();
+  rendererRasterExport$ = this.rendererRasterExportSource.asObservable();
+
   private exportOptions: ExportOptions = {
     filename: 'network_export',
     filetype: 'png',
@@ -52,6 +77,60 @@ export class ExportService {
   };
 
   constructor() {}
+
+  beginExport(stage = 'Preparing export', progress = 0): void {
+    const current = this.exportProgressSource.value;
+    this.exportProgressSource.next({
+      active: true,
+      progress: this.normalizeProgress(progress),
+      stage,
+      startedAt: current.active ? current.startedAt : Date.now(),
+    });
+  }
+
+  updateExportProgress(stage: string, progress: number): void {
+    const current = this.exportProgressSource.value;
+    this.exportProgressSource.next({
+      active: true,
+      progress: Math.max(current.progress, this.normalizeProgress(progress)),
+      stage,
+      startedAt: current.startedAt ?? Date.now(),
+    });
+  }
+
+  completeExport(): void {
+    this.exportProgressSource.next({
+      active: false,
+      progress: 100,
+      stage: 'Export complete',
+      startedAt: null,
+    });
+  }
+
+  failExport(stage = 'Export could not be completed'): void {
+    this.exportProgressSource.next({
+      active: false,
+      progress: 0,
+      stage,
+      startedAt: null,
+    });
+  }
+
+  getExportProgress(): ExportProgressState {
+    return this.exportProgressSource.value;
+  }
+
+  waitForUiPaint(): Promise<void> {
+    return new Promise(resolve => {
+      const scheduleFrame = window.requestAnimationFrame?.bind(window)
+        ?? ((callback: FrameRequestCallback) => window.setTimeout(() => callback(Date.now()), 0));
+      scheduleFrame(() => scheduleFrame(() => resolve()));
+    });
+  }
+
+  private normalizeProgress(progress: number): number {
+    return Math.max(0, Math.min(100, Math.round(Number(progress) || 0)));
+  }
 
   /**
    * Sets the export options.
@@ -101,6 +180,26 @@ export class ExportService {
     exportNodeShapeTable: boolean = false
   ): void {
     this.exportSVGSource.next({ element, mainSVGString, exportNodeTable, exportLinkTable, exportNodeShapeTable });
+  }
+
+  requestRendererRasterExport(
+    canvas: HTMLCanvasElement,
+    width: number,
+    height: number,
+    element: HTMLTableElement[],
+    exportNodeTable: boolean,
+    exportLinkTable: boolean,
+    exportNodeShapeTable: boolean = false
+  ): void {
+    this.rendererRasterExportSource.next({
+      canvas,
+      width,
+      height,
+      element,
+      exportNodeTable,
+      exportLinkTable,
+      exportNodeShapeTable,
+    });
   }
 
   private getTextMeasureContext(): CanvasRenderingContext2D | null {

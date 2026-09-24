@@ -4,6 +4,7 @@ import {
   expandAccordionTabByHeader,
   installSaveAsCaptureHook,
   openTwoDSettingsDialog,
+  writeCapturedDownloadToDisk,
 } from '../../support/journey-helpers';
 
 const loadSampleDataset = (): void => {
@@ -786,6 +787,63 @@ describe('Sigma settings parity', () => {
       cy.writeFile(`${Cypress.config('downloadsFolder')}/${fileName}.svg`, svg);
       return expectExportToContainRenderedNodes(win, pngDataUrl);
     });
+  });
+
+  it('keeps Sigma raster export responsive with visible progress and rendered nodes', () => {
+    const fileName = `sigma-responsive-export-${Date.now()}`;
+    installSaveAsCaptureHook();
+
+    cy.window().then(win => {
+      const appWindow = win as any;
+      const twoD = appWindow.commonService.visuals.twoD;
+      twoD.SelectedNetworkExportFilenameVariable = fileName;
+      twoD.SelectedNetworkExportFileTypeListVariable = 'png';
+      twoD.SelectedNetworkExportScaleVariable = 2;
+      appWindow.__sigmaExportStartedAt = win.performance.now();
+      appWindow.__sigmaExportLastHeartbeat = appWindow.__sigmaExportStartedAt;
+      appWindow.__sigmaExportMaxEventLoopGap = 0;
+      appWindow.__sigmaExportHeartbeatTimer = win.setInterval(() => {
+        const now = win.performance.now();
+        appWindow.__sigmaExportMaxEventLoopGap = Math.max(
+          appWindow.__sigmaExportMaxEventLoopGap,
+          now - appWindow.__sigmaExportLastHeartbeat,
+        );
+        appWindow.__sigmaExportLastHeartbeat = now;
+      }, 50);
+      void twoD.exportVisualization(null);
+
+      const progress = appWindow.commonService.visuals.microbeTrace.exportService.getExportProgress();
+      expect(progress.active, 'export progress starts before canvas capture').to.equal(true);
+      expect(progress.progress).to.be.greaterThan(0);
+    });
+
+    cy.get('[data-testid="export-progress-overlay"]')
+      .should('be.visible')
+      .find('[role="progressbar"]')
+      .should('have.attr', 'aria-valuenow')
+      .then(value => expect(Number(value)).to.be.greaterThan(0));
+
+    cy.window({ timeout: 30000 }).should(win => {
+      const appWindow = win as any;
+      const downloads = appWindow.__mtCapturedDownloads || [];
+      const captured = downloads.find((download: any) => download.fileName === `${fileName}.png`);
+      expect(captured, 'captured Sigma PNG').to.exist;
+      expect(captured.dataUrl, 'PNG encoding').to.match(/^data:image\/png;base64,/);
+      appWindow.__sigmaExportMaxEventLoopGap = Math.max(
+        appWindow.__sigmaExportMaxEventLoopGap,
+        win.performance.now() - appWindow.__sigmaExportLastHeartbeat,
+      );
+      win.clearInterval(appWindow.__sigmaExportHeartbeatTimer);
+      expect(win.performance.now() - appWindow.__sigmaExportStartedAt, 'sample Sigma PNG export duration')
+        .to.be.lessThan(15000);
+      expect(appWindow.__sigmaExportMaxEventLoopGap, 'longest browser event-loop gap during export')
+        .to.be.lessThan(2500);
+    });
+    cy.get('[data-testid="export-progress-overlay"]').should('not.exist');
+    writeCapturedDownloadToDisk(
+      `${fileName}.png`,
+      `${Cypress.config('downloadsFolder')}/${fileName}.png`,
+    );
   });
 
   it('keeps scientific overlays and node collapse on the Sigma path', () => {

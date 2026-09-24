@@ -2,6 +2,7 @@
   "name": "MicrobeTrace",
   "version": "2.3.0",
   "scripts": {
+    "postinstall": "node scripts/patch-html2canvas-chrome-custom-properties.js",
     "ng": "ng",
     "prestart": "node scripts/generate-primeui-license.js",
     "start": "ng serve -c development",
