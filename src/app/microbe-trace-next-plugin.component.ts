@@ -1443,6 +1443,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         svg1.style.height = `${height + 5 }px`
         svg1.setAttribute('width', `${width+5}`);
         svg1.setAttribute('height', `${height+5}`);
+        svg1.setAttribute('viewBox', `0 0 ${width+5} ${height+5}`);
 
         const rect = doc.createElementNS('http://www.w3.org/2000/svg', 'rect')
         rect.setAttribute('x', '0')

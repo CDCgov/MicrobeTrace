@@ -770,6 +770,9 @@ describe('Sigma settings parity', () => {
       const captured = downloads.find((download: any) => download.fileName === `${fileName}.svg`);
       const svg = win.atob(String(captured.dataUrl).split(',')[1] || '');
       const document = new win.DOMParser().parseFromString(svg, 'image/svg+xml');
+      const root = document.documentElement;
+      expect(root.getAttribute('viewBox'), 'final SVG viewBox includes network and tables')
+        .to.equal(`0 0 ${root.getAttribute('width')} ${root.getAttribute('height')}`);
       const networkImage = document.querySelector('svg > image');
       const pngDataUrl = networkImage?.getAttribute('href') || '';
       expect(pngDataUrl, 'final SVG embedded network PNG').to.match(/^data:image\/png;base64,/);
