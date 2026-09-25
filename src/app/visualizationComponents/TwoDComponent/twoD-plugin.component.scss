@@ -186,6 +186,28 @@
   font-weight: 600;
 }
 
+.network-detail-control__metrics {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 6px;
+  padding: 1px 3px 0;
+  color: #64748b;
+  font-size: 11px;
+  line-height: 1.25;
+  white-space: nowrap;
+}
+
+.network-detail-control__metrics strong {
+  color: #334155;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+
+.network-detail-control__metrics-separator {
+  color: #cbd5e1;
+}
+
 @keyframes network-detail-spin {
   to { transform: rotate(360deg); }
 }

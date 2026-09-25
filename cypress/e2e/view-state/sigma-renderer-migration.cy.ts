@@ -82,9 +82,9 @@ describe('Sigma renderer migration', () => {
       .should('exist');
     cy.get('#cy').should('not.exist');
     cy.get('[data-testid="network-render-summary"]')
+      .should('be.visible')
       .should('contain.text', '33 nodes')
-      .and('contain.text', '74 available links')
-      .and('contain.text', '74 links displayed');
+      .and('contain.text', '74 links shown');
     cy.get('[data-testid="renderer-accessible-feature-summary"]')
       .should('contain.text', '33 network nodes');
     cy.window().then(win => {
@@ -129,7 +129,7 @@ describe('Sigma renderer migration', () => {
       .click({ force: true });
     cy.get('[data-testid="network-render-summary"]', { timeout: 20000 })
       .should('contain.text', '33 nodes')
-      .and('contain.text', '74 available links');
+      .and('contain.text', '74 links shown');
     cy.get('[data-testid="sigma-network"]').focus().trigger('keydown', { key: 'ArrowRight' });
     cy.get('[data-testid="network-renderer-live-status"]').should('contain.text', 'Node 2 of 33');
     cy.get('[data-testid="sigma-network"]').trigger('keydown', { key: 'Enter' });

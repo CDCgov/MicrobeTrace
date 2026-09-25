@@ -59,18 +59,8 @@
         <span class="network-detail-control__status" data-testid="network-display-status" role="status">
           {{ sigmaRecoveryMessage }}
         </span>
-      } @else if (sigmaSummary.drawnLinkCount < sigmaSummary.residentLinkCount) {
-        <span class="network-detail-control__status" data-testid="network-detail-summary">
-          {{ sigmaSummary.drawnLinkCount.toLocaleString() }} of
-          {{ sigmaSummary.residentLinkCount.toLocaleString() }} links shown
-        </span>
       }
     </div>
-    <span class="sr-only" data-testid="network-render-summary">
-      {{ sigmaSummary.residentNodeCount.toLocaleString() }} nodes;
-      {{ sigmaSummary.residentLinkCount.toLocaleString() }} available links;
-      {{ sigmaSummary.drawnLinkCount.toLocaleString() }} links displayed
-    </span>
     <div class="network-detail-control__segments" role="group" aria-label="Link detail level">
       <button type="button" data-testid="network-detail-overview"
         [class.active]="sigmaSummary.edgeDetailMode === 'overview'"
@@ -88,6 +78,20 @@
         title="Draw every link remaining after filters and Link Threshold."
         (click)="setSigmaEdgeDetailMode('all')">All links</button>
     </div>
+    @if (!sigmaLoading) {
+      <div class="network-detail-control__metrics" data-testid="network-render-summary"
+        aria-live="polite" aria-atomic="true">
+        <span><strong>{{ sigmaSummary.residentNodeCount.toLocaleString() }}</strong> nodes</span>
+        <span class="network-detail-control__metrics-separator" aria-hidden="true">&bull;</span>
+        <span>
+          <strong>{{ sigmaSummary.drawnLinkCount.toLocaleString() }}</strong>
+          @if (sigmaSummary.drawnLinkCount < sigmaSummary.residentLinkCount) {
+            of <strong>{{ sigmaSummary.residentLinkCount.toLocaleString() }}</strong>
+          }
+          links shown
+        </span>
+      </div>
+    }
   </div>
 }
 
