@@ -2297,34 +2297,10 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
             timings: treeReady.timings
           });
 
-          const activeThreshold = this.applyPatristicDistanceDefaults(treeReady.maxDistance);
-          const requeryStart = Date.now();
-          const patristicResult = await this.workerComputeService.ensurePatristicEdgesForThreshold(
-            activeThreshold,
-            this.commonService.addLink.bind(this.commonService),
-            this.commonService.filterXSS,
-            this.commonService.session,
-            {
-              origin,
-              distanceOrigin: file.name,
-              check,
-              newickString: normalizedNewick,
-            }
-          );
-
-          if (!isCurrentLoad()) return;
-
-          const leafNames = patristicResult?.leafNames?.length
-            ? patristicResult.leafNames
+          this.applyPatristicDistanceDefaults(treeReady.maxDistance);
+          const leafNames = treeReady.leafNames?.length
+            ? treeReady.leafNames.map(this.commonService.filterXSS)
             : this.workerComputeService.getPatristicLeafNames().map(this.commonService.filterXSS);
-
-          this.commonService.recordPerformanceTiming('ingestion', 'computeNewickPatristicEdges', requeryStart, {
-            file: file.name,
-            leaves: leafNames.length,
-            threshold: activeThreshold,
-            totalLinks: patristicResult?.totalLinks ?? 0,
-            newLinks: patristicResult?.newLinks ?? 0
-          });
           let newNodes = 0;
           const mergeStart = Date.now();
           for (const source of leafNames) {
@@ -2354,6 +2330,35 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
             sampledPairs: analysisResult.edges.length,
             skipped: analysisResult.skipped,
             skipReason: analysisResult.skipReason
+          });
+
+          // Newick threshold analysis must be available before the first edge
+          // query so Smart Launch cannot generate a guardrailed partial network
+          // with the pre-launch default and apply its recommendation afterward.
+          this.applySmartLaunchRecommendation();
+          const activeThreshold = Number(this.commonService.session.style.widgets['link-threshold']);
+          const requeryStart = Date.now();
+          const patristicResult = await this.workerComputeService.ensurePatristicEdgesForThreshold(
+            activeThreshold,
+            this.commonService.addLink.bind(this.commonService),
+            this.commonService.filterXSS,
+            this.commonService.session,
+            {
+              origin,
+              distanceOrigin: file.name,
+              check,
+              newickString: normalizedNewick,
+            }
+          );
+
+          if (!isCurrentLoad()) return;
+
+          this.commonService.recordPerformanceTiming('ingestion', 'computeNewickPatristicEdges', requeryStart, {
+            file: file.name,
+            leaves: leafNames.length,
+            threshold: activeThreshold,
+            totalLinks: patristicResult?.totalLinks ?? 0,
+            newLinks: patristicResult?.newLinks ?? 0
           });
 
           let newLinks = patristicResult?.newLinks ?? 0;

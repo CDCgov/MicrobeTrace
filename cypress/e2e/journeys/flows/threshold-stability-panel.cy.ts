@@ -8,7 +8,6 @@ import {
   launchAndWaitForProcessing,
   launchProfileToTwoD,
   openGlobalFilteringTab,
-  setGlobalLinkThreshold,
   visitAppAndAcceptEula,
   waitForProcessingDialogToClear,
 } from '../../../support/journey-helpers';
@@ -16,6 +15,26 @@ import {
 describe('Journey Flow - Threshold Stability Panel', () => {
   const profile = getProfile('nn-angulartesting-tn93-edgelist');
   const mixedOriginProfile = getProfile('threshold-score-genetic-policy');
+  const newickProfile = {
+    ...getProfile('load-twod-newick-tn93-angular-testing'),
+    preLaunch: {
+      metric: 'snps' as const,
+      threshold: 16,
+      defaultView: '2D Network' as const,
+    },
+  };
+
+  const applyNewickGuardrail = (): void => {
+    cy.window().then((win: any) => {
+      win.commonService.session.meta.guardrails = {
+        ...(win.commonService.session.meta.guardrails || {}),
+        // This fixture has 14 links at the default 0.015 threshold and 11 at
+        // its composite recommendation, so 12 distinguishes the two paths.
+        newickVisibleLinkWarningThreshold: 12,
+        newickVisibleLinkHardLimit: 12,
+      };
+    });
+  };
 
   it('smart launches with the highest composite-score threshold', () => {
     visitAppAndAcceptEula();
@@ -70,6 +89,47 @@ describe('Journey Flow - Threshold Stability Panel', () => {
 
       expect(recommendedThreshold, 'fixture recommendation').to.equal(2);
       expect(selectedThreshold, 'Smart Launch threshold').to.equal(recommendedThreshold);
+    });
+  });
+
+  it('uses the composite recommendation for the first Newick edge query during Smart Launch', () => {
+    visitAppAndAcceptEula();
+    cy.loadFiles(newickProfile.files);
+    applyPreLaunchFileSettings(newickProfile);
+    ensurePreLaunchProfileSynced(newickProfile);
+    applyNewickGuardrail();
+
+    cy.get('[data-testid="files-smart-launch-button"]').click({ force: true });
+    waitForProcessingDialogToClear(60000);
+    cy.window({ timeout: 60000 })
+      .its('commonService.session.network.isFullyLoaded')
+      .should('equal', true);
+
+    cy.get('#network-guardrail-warning').should('not.exist');
+    cy.window().should((win: any) => {
+      const commonService = win.commonService;
+      const metric = commonService.session.style.widgets['link-sort-variable'];
+      const summary = commonService.getThresholdSweepSummary(metric);
+      const recommendedThreshold = Number(summary.thresholds[summary.recommendedIndex]);
+      const selectedThreshold = Number(commonService.session.style.widgets['link-threshold']);
+      const edgeGeneration = commonService.session.meta.performance.patristic.edgeGeneration;
+      const expectedEdges = commonService.temp.analysis.storedDistanceCache[metric].sortedEdges
+        .filter((edge: any) => Number(edge.value) <= recommendedThreshold);
+      const generatedEdges = commonService.session.data.links
+        .filter((link: any) => link.hasDistance === true && Number(link[metric]) <= recommendedThreshold);
+      const warnings = commonService.session.warnings || [];
+
+      expect(recommendedThreshold, 'fixture recommendation').to.be.lessThan(0.015);
+      expect(selectedThreshold, 'Smart Launch threshold').to.equal(recommendedThreshold);
+      expect(Number(edgeGeneration.threshold), 'initial patristic edge query threshold')
+        .to.equal(recommendedThreshold);
+      expect(edgeGeneration.guardrail, 'recommended threshold stays below the guardrail').to.equal(undefined);
+      expect(generatedEdges.length, 'complete recommended-threshold Newick edge set')
+        .to.equal(expectedEdges.length);
+      expect(
+        warnings.filter((warning: any) => warning?.type === 'newick-visible-link-guardrail'),
+        'Newick guardrail warnings',
+      ).to.have.length(0);
     });
   });
 
@@ -297,33 +357,22 @@ describe('Journey Flow - Threshold Stability Panel', () => {
     });
   });
 
-  it('keeps Newick threshold guidance available when render links are guardrailed', () => {
-    const newickProfile = {
-      ...getProfile('load-twod-newick-tn93-angular-testing'),
-      preLaunch: {
-        metric: 'snps' as const,
-        threshold: 16,
-        defaultView: '2D Network' as const,
-      },
-    };
-
+  it('applies the composite Newick recommendation from Global Settings after a guardrailed load', () => {
     visitAppAndAcceptEula();
     cy.loadFiles(newickProfile.files);
     applyPreLaunchFileSettings(newickProfile);
     ensurePreLaunchProfileSynced(newickProfile);
-    cy.window().then((win: any) => {
-      win.commonService.session.meta.guardrails = {
-        ...(win.commonService.session.meta.guardrails || {}),
-        newickVisibleLinkWarningThreshold: 1,
-        newickVisibleLinkHardLimit: 1,
-      };
-    });
+    applyNewickGuardrail();
     launchAndWaitForProcessing(60000);
     ensureTwoDNetworkView();
 
     cy.window().then((win: any) => {
       expect(win.commonService.session.style.widgets['default-distance-metric']).to.equal('tn93');
       expect(Number(win.commonService.session.style.widgets['link-threshold'])).to.equal(0.015);
+      expect(
+        win.commonService.session.meta.performance.patristic.edgeGeneration.guardrail.hardLimitHit,
+        'default threshold hits the test guardrail',
+      ).to.equal(true);
     });
     cy.get('#network-guardrail-warning', { timeout: 15000 })
       .should('be.visible')
@@ -343,14 +392,42 @@ describe('Journey Flow - Threshold Stability Panel', () => {
       .should('be.visible')
       .and('contain', 'Genetic-link analysis only.');
 
-    setGlobalLinkThreshold(0);
+    cy.get('[data-testid="threshold-score-apply"]')
+      .should('be.visible')
+      .then(($button) => {
+        expect(
+          Number.isFinite(Number($button.attr('data-threshold'))),
+          'recommended threshold button value',
+        ).to.equal(true);
+        cy.wrap($button).click({ force: true });
+      });
     waitForProcessingDialogToClear();
 
-    cy.get('#network-guardrail-warning').should('not.exist');
-    cy.window().then((win: any) => {
-      const warnings = win.commonService.session.warnings || [];
-      const newickWarnings = warnings.filter((warning: any) => warning?.type === 'newick-visible-link-guardrail');
-      expect(newickWarnings).to.have.length(0);
+    cy.get('#network-guardrail-warning', { timeout: 15000 }).should('not.exist');
+    cy.window().should((win: any) => {
+      const commonService = win.commonService;
+      const metric = commonService.session.style.widgets['link-sort-variable'];
+      const summary = commonService.getThresholdSweepSummary(metric);
+      const recommendedThreshold = Number(summary.thresholds[summary.recommendedIndex]);
+      const selectedThreshold = Number(commonService.session.style.widgets['link-threshold']);
+      const edgeGeneration = commonService.session.meta.performance.patristic.edgeGeneration;
+      const expectedEdges = commonService.temp.analysis.storedDistanceCache[metric].sortedEdges
+        .filter((edge: any) => Number(edge.value) <= recommendedThreshold);
+      const generatedEdges = commonService.session.data.links
+        .filter((link: any) => link.hasDistance === true && Number(link[metric]) <= recommendedThreshold);
+      const warnings = commonService.session.warnings || [];
+
+      expect(selectedThreshold, 'Global Settings applies the recommended threshold')
+        .to.equal(recommendedThreshold);
+      expect(Number(edgeGeneration.threshold), 'Global Settings re-queries Newick edges at the recommendation')
+        .to.equal(recommendedThreshold);
+      expect(edgeGeneration.guardrail, 'recommended threshold clears the guardrail').to.equal(undefined);
+      expect(generatedEdges.length, 'complete recommended-threshold Newick edge set')
+        .to.equal(expectedEdges.length);
+      expect(
+        warnings.filter((warning: any) => warning?.type === 'newick-visible-link-guardrail'),
+        'Newick guardrail warnings',
+      ).to.have.length(0);
     });
   });
 });
