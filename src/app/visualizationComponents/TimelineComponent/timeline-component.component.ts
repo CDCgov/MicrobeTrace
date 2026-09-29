@@ -27,7 +27,6 @@ type EpiCurveDataInclusionSummary = {
   plottedRecords: number;
   invalidDateRecords: number;
   invalidValueRecords: number;
-  text: string;
 };
 
 type EpiCurveLegendItem = {
@@ -120,6 +119,7 @@ export class TimelineComponent extends BaseComponentDirective implements OnInit,
 
   ShowEpiSettingsPane: boolean = false;
   ShowEpiExportPane: boolean = false;
+  ShowEpiExclusionPane: boolean = false;
   EpiExportFileName: string = "";
   EpiExportFileType: string = "png";
   SelectedNetworkExportScaleVariable: any = 1;
@@ -228,7 +228,7 @@ export class TimelineComponent extends BaseComponentDirective implements OnInit,
     });
   }
 
-  private getFieldLabel(field): string {
+  getFieldLabel(field): string {
     return this.commonService.capitalize(String(field || '').replace("_", ""));
   }
 
@@ -365,22 +365,11 @@ export class TimelineComponent extends BaseComponentDirective implements OnInit,
       plottedRecords += 1;
     });
 
-    const totalRecords = nodes.length;
-    const recordLabel = totalRecords == 1 ? 'record' : 'records';
-    const details = [];
-    if (invalidDateRecords > 0) {
-      details.push(`${invalidDateRecords} missing or invalid ${invalidDateRecords == 1 ? 'date' : 'dates'}`);
-    }
-    if (invalidValueRecords > 0) {
-      details.push(`${invalidValueRecords} missing or nonnumeric ${invalidValueRecords == 1 ? 'value' : 'values'}`);
-    }
-
     return {
-      totalRecords,
+      totalRecords: nodes.length,
       plottedRecords,
       invalidDateRecords,
       invalidValueRecords,
-      text: `${plottedRecords} of ${totalRecords} ${recordLabel} plotted${details.length > 0 ? ` · ${details.join(' · ')}` : ''}`,
     };
   }
 
@@ -568,6 +557,18 @@ export class TimelineComponent extends BaseComponentDirective implements OnInit,
   get visibleSeriesIndexes(): number[] {
     const count = this.selectedGraphType == 'Single Date Field' ? 1 : this.seriesCount;
     return Array.from({ length: count }, (_, index) => index);
+  }
+
+  hasExcludedDataPoints(): boolean {
+    return this.visibleSeriesIndexes.some(index => {
+      const summary = this.seriesDataInclusionSummaries[index];
+      return summary != null
+        && (summary.invalidDateRecords > 0 || summary.invalidValueRecords > 0);
+    });
+  }
+
+  openExclusionDetails(): void {
+    this.ShowEpiExclusionPane = true;
   }
 
   getSeriesDateLabel(index: number): string {

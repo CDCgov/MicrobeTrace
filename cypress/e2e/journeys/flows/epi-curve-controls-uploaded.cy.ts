@@ -220,15 +220,18 @@ describe('Journey Flow - Epi Curve controls on uploaded data', () => {
   });
 
   it('reports how many records contribute to each configured series', () => {
-    getEpiSettingsDialog()
-      .find('#epi-data-inclusion-summary-1')
-      .should('have.text', '30 of 33 records plotted · 3 missing or invalid dates');
+    getEpiSettingsDialog().find('#epi-data-inclusion-summary-1').should('not.exist');
+    cy.get('[data-testid="epi-excluded-data-button"]')
+      .should('be.visible')
+      .click({ force: true });
+    cy.get('[data-testid="epi-excluded-data-dialog"]')
+      .should('contain.text', '30 of 33 records plotted.')
+      .and('contain.text', '3 records were excluded because their dates in Date of symptom onset Date are missing or invalid.');
+    cy.closeSettingsPane('Excluded Data Points');
 
     selectEpiCurveDropdown('Graph Type', 'Multi: Side by Side');
     selectEpiCurveDropdown('Value Field 1', 'Zipcode');
-    getEpiSettingsDialog()
-      .find('#epi-data-inclusion-summary-1')
-      .should('have.text', '30 of 33 records plotted · 3 missing or invalid dates');
+    cy.get('[data-testid="epi-excluded-data-button"]').should('be.visible');
 
     cy.window().then((win) => {
       const epiCurve = Cypress._.get(win, 'commonService.visuals.epiCurve');
@@ -242,9 +245,11 @@ describe('Journey Flow - Epi Curve controls on uploaded data', () => {
       epiCurve.cdref.detectChanges();
     });
 
-    getEpiSettingsDialog()
-      .find('#epi-data-inclusion-summary-1')
-      .should('have.text', '29 of 33 records plotted · 3 missing or invalid dates · 1 missing or nonnumeric value');
+    cy.get('[data-testid="epi-excluded-data-button"]').click({ force: true });
+    cy.get('[data-testid="epi-excluded-data-dialog"]')
+      .should('contain.text', '29 of 33 records plotted.')
+      .and('contain.text', '3 records were excluded because their dates in Date of symptom onset Date are missing or invalid.')
+      .and('contain.text', '1 record was excluded because its value in Zipcode is missing or nonnumeric.');
   });
 
   it('offers compatible date and numeric fields and explains invalid saved selections', () => {

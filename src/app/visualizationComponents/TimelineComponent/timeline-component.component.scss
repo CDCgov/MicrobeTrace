@@ -121,23 +121,48 @@
     margin: -2px 0 8px;
   }
 
-  .epi-data-inclusion-summary {
-    align-items: flex-start;
-    background: #eef6ff;
-    border: 1px solid #c9def5;
-    border-radius: 4px;
-    color: #24496b;
-    display: flex;
-    font-size: 0.8rem;
-    gap: 6px;
-    line-height: 1.35;
-    margin: -2px 0 8px;
-    padding: 6px 8px;
+  .epi-excluded-data-button {
+    color: #dc3545;
+    cursor: pointer;
   }
 
-  .epi-data-inclusion-summary .pi {
+  .epi-excluded-data-button .pi {
+    font-size: 1rem;
+    font-weight: 700;
+  }
+
+  .epi-exclusion-dialog__intro {
+    color: #495057;
+    margin: 0 0 12px;
+  }
+
+  .epi-exclusion-dialog__series {
+    border-top: 1px solid #dee2e6;
+    padding: 12px 0 4px;
+  }
+
+  .epi-exclusion-dialog__series h6 {
+    color: #343a40;
+    font-weight: 600;
+    margin: 0 0 6px;
+  }
+
+  .epi-exclusion-dialog__series p {
+    margin: 0 0 8px;
+  }
+
+  .epi-exclusion-dialog__reason {
+    align-items: flex-start;
+    color: #721c24;
+    display: flex;
+    gap: 7px;
+    line-height: 1.4;
+    margin-bottom: 7px;
+  }
+
+  .epi-exclusion-dialog__reason .pi {
     flex: 0 0 auto;
-    margin-top: 2px;
+    margin-top: 3px;
   }
 
   .epi-series-list {
