@@ -60,6 +60,8 @@ export const testIds = {
   twodRecalculateLayoutButton: 'twod-recalculate-layout-button',
   transmissionChainSettingsButton: 'transmission-chain-settings-button',
   transmissionChainSettingsDialog: 'transmission-chain-settings-dialog',
+  transmissionChainExcludedNodesButton: 'transmission-chain-excluded-nodes-button',
+  transmissionChainExcludedNodesDialog: 'transmission-chain-excluded-nodes-dialog',
   bubbleCanvas: 'bubble-canvas',
   bubbleSettingsButton: 'bubble-settings-button',
   bubbleSettingsDialog: 'bubble-settings-dialog',

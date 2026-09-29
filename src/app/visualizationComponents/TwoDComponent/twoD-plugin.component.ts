@@ -40,6 +40,16 @@ import { createGlobalSettingsDialogRequest, GlobalSettingsDialogRequest } from '
 type NetworkLayoutMode = 'Force Directed' | 'Timeline';
 type TransmissionChainLineStyle = 'Stepped' | 'Straight' | 'Curved' | 'Fanout';
 
+const TIMELINE_AXIS_BOTTOM_OFFSET = 48;
+const TIMELINE_AXIS_GRID_GAP = 8;
+const TIMELINE_NODE_AXIS_GAP = 8;
+const TIMELINE_VIEWPORT_PADDING = {
+    top: 30,
+    right: 30,
+    bottom: TIMELINE_AXIS_BOTTOM_OFFSET + TIMELINE_AXIS_GRID_GAP + TIMELINE_NODE_AXIS_GAP,
+    left: 30
+};
+
 interface CustomNodeSvgExportReplacement {
     exportHeight: number;
     exportWidth: number;
@@ -785,6 +795,8 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
     ];
     SelectedTransmissionChainLinkOriginVariables: string[] = [];
     SelectedTransmissionChainLineStyleVariable: TransmissionChainLineStyle = 'Stepped';
+    nodesWithoutTimelineDate: { index: number | string; ID: string }[] = [];
+    showExcludedTimelineNodesDialog: boolean = false;
     private transmissionChainInitialSettingsOpened = false;
 
     SelecetedNetworkLinkStrengthVariable: any = 0.123;
@@ -1433,8 +1445,48 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         }
     }
 
+    private updateNodesWithoutTimelineDate(nodes: { index: number | string; ID: string }[]): void {
+        const unchanged = nodes.length === this.nodesWithoutTimelineDate.length
+            && nodes.every((node, index) => (
+                node.index === this.nodesWithoutTimelineDate[index]?.index
+                && node.ID === this.nodesWithoutTimelineDate[index]?.ID
+            ));
+
+        if (!unchanged) {
+            this.nodesWithoutTimelineDate = nodes;
+            this.cdref.markForCheck();
+        }
+    }
+
+    private excludeTransmissionChainNodesWithoutDates(nodes: any[]): any[] {
+        const field = this.getNetworkTimelineDateField();
+        if (!this.isTransmissionChainView || field === 'None') {
+            this.updateNodesWithoutTimelineDate([]);
+            return nodes;
+        }
+
+        const includedNodes: any[] = [];
+        const excludedNodes: { index: number | string; ID: string }[] = [];
+
+        nodes.forEach(node => {
+            if (this.getTimelineLayoutTimestamp(node, field) !== null) {
+                includedNodes.push(node);
+                return;
+            }
+
+            excludedNodes.push({
+                index: node?.index ?? '',
+                ID: this.getNodeId(node)
+            });
+        });
+
+        this.updateNodesWithoutTimelineDate(excludedNodes);
+        return includedNodes;
+    }
+
     private getVisibleNetworkDataForRender(filterLinksByVisibleNodes = this.isTimelineFilteringActive()) {
-        const nodes = this.commonService.getVisibleNodes();
+        let nodes = this.commonService.getVisibleNodes();
+        nodes = this.excludeTransmissionChainNodesWithoutDates(nodes);
 
         if (this.shouldShowBlankTransmissionChainView()) {
             this.syncTransmissionChainLinkOriginOptions();
@@ -1444,8 +1496,8 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         let links = this.commonService.getVisibleLinks(true);
         links = this.filterTransmissionChainLinks(links);
 
-        if (filterLinksByVisibleNodes) {
-            const visibleNodeIds = new Set(nodes.map(node => String(node._id ?? node.id ?? '')));
+        if (filterLinksByVisibleNodes || this.isTransmissionChainView) {
+            const visibleNodeIds = new Set(nodes.map(node => this.getNodeId(node)));
             links = links.filter(link =>
                 visibleNodeIds.has(this.getLinkEndpointId(link.source)) &&
                 visibleNodeIds.has(this.getLinkEndpointId(link.target))
@@ -2782,6 +2834,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         this.syncNetworkContainerBounds();
         if (this.cy) {
             this.cy.resize();
+            this.fitTimelineNodesWithinAxes();
         }
         if (this.timelineAxisUpdateTimeout) {
             clearTimeout(this.timelineAxisUpdateTimeout);
@@ -3010,10 +3063,10 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         const zoom = this.cy.zoom();
         const renderedX = (modelX: number): number => (modelX * zoom) + pan.x;
         const renderedY = (modelY: number): number => (modelY * zoom) + pan.y;
-        const axisY = Math.max(24, height - 48);
+        const axisY = Math.max(24, height - TIMELINE_AXIS_BOTTOM_OFFSET);
         const axisLabelY = Math.min(height - 12, axisY + 18);
         this.updateTimelineStatisticsOffset(screenTop + axisLabelY - 18);
-        const gridBottom = Math.max(0, axisY - 8);
+        const gridBottom = Math.max(0, axisY - TIMELINE_AXIS_GRID_GAP);
 
         let noDateAxisX: number | null = null;
         if (this.timelineLayoutMetadata.hasNoDateNodes && this.timelineLayoutMetadata.noDateX !== null) {
@@ -3204,7 +3257,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             : link.origin
                 ? [link.origin]
                 : [];
-        if (!this.isTransmissionChainView && (this.widgets['link-color-variable'] == 'Origin' || this.widgets['link-color-variable'] == 'origin') && linkOrigins.length > 1) {
+        if ((this.widgets['link-color-variable'] == 'Origin' || this.widgets['link-color-variable'] == 'origin') && linkOrigins.length > 1) {
             return linkOrigins.map((originItem: any, index) => ({
                 data: {
                     // Include any additional edge-specific data properties
@@ -6494,10 +6547,6 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
     }
 
     private shouldRenderSplitOriginLinks(): boolean {
-        if (this.isTransmissionChainView) {
-            return false;
-        }
-
         const linkColorVariable = String(this.widgets?.['link-color-variable'] ?? 'None').toLowerCase();
         if (linkColorVariable !== 'origin') {
             return false;
@@ -8348,16 +8397,78 @@ scaleLinkWidth() {
     /**
      * centers the view
      */
+    private fitTimelineNodesWithinAxes(): boolean {
+        if (!this.cy || !this.isTimelineLayoutActive() || !this.timelineLayoutMetadata.active) {
+            return false;
+        }
+
+        const { width, height } = this.getTimelineAxisOverlayFrame();
+        if (!width || !height) {
+            return false;
+        }
+
+        const visibleLeafNodes = this.cy.nodes(':visible').filter(node => (
+            !node.hasClass('hidden')
+            && !node.hasClass('parent')
+            && node.children().length === 0
+        ));
+        if (visibleLeafNodes.empty()) {
+            return false;
+        }
+
+        const nodeBounds = this.isTimelineFilteringActive() && this.timelineCompleteFitBoundingBox
+            ? this.timelineCompleteFitBoundingBox
+            : visibleLeafNodes.boundingBox({ includeLabels: false, includeOverlays: false });
+        const boundsWidth = nodeBounds.x2 - nodeBounds.x1;
+        const boundsHeight = nodeBounds.y2 - nodeBounds.y1;
+        const availableWidth = width - TIMELINE_VIEWPORT_PADDING.left - TIMELINE_VIEWPORT_PADDING.right;
+        const availableHeight = height - TIMELINE_VIEWPORT_PADDING.top - TIMELINE_VIEWPORT_PADDING.bottom;
+
+        if (
+            ![nodeBounds.x1, nodeBounds.y1, nodeBounds.x2, nodeBounds.y2, boundsWidth, boundsHeight]
+                .every(value => Number.isFinite(value))
+            || boundsWidth <= 0
+            || boundsHeight <= 0
+            || availableWidth <= 0
+            || availableHeight <= 0
+        ) {
+            return false;
+        }
+
+        const zoom = Math.min(
+            this.cy.maxZoom(),
+            Math.max(
+                this.cy.minZoom(),
+                Math.min(availableWidth / boundsWidth, availableHeight / boundsHeight)
+            )
+        );
+        const renderedWidth = boundsWidth * zoom;
+        const renderedHeight = boundsHeight * zoom;
+        const pan = {
+            x: TIMELINE_VIEWPORT_PADDING.left
+                + ((availableWidth - renderedWidth) / 2)
+                - (nodeBounds.x1 * zoom),
+            y: TIMELINE_VIEWPORT_PADDING.top
+                + ((availableHeight - renderedHeight) / 2)
+                - (nodeBounds.y1 * zoom)
+        };
+
+        this.cy.viewport({ zoom, pan });
+        return true;
+    }
+
     fit() {
         if (this.cy) {
             this.syncNetworkContainerBounds();
             this.cy.resize();
-            if (this.isTimelineFilteringActive() && this.timelineCompleteFitBoundingBox) {
-                // Cytoscape accepts a bounding box at runtime, although its public
-                // TypeScript signature only advertises an element collection here.
-                (this.cy as any).fit(this.timelineCompleteFitBoundingBox, 30);
-            } else {
-                this.cy.fit(this.cy.nodes(), 30);
+            if (!this.fitTimelineNodesWithinAxes()) {
+                if (this.isTimelineFilteringActive() && this.timelineCompleteFitBoundingBox) {
+                    // Cytoscape accepts a bounding box at runtime, although its public
+                    // TypeScript signature only advertises an element collection here.
+                    (this.cy as any).fit(this.timelineCompleteFitBoundingBox, 30);
+                } else {
+                    this.cy.fit(this.cy.nodes(), 30);
+                }
             }
             this.scheduleTimelineAxisOverlayUpdate();
         }
@@ -8420,6 +8531,10 @@ scaleLinkWidth() {
      */
     openCenter() {
         this.fit();
+    }
+
+    showExcludedTimelineNodes(): void {
+        this.showExcludedTimelineNodesDialog = true;
     }
 
     /**
@@ -8941,7 +9056,7 @@ scaleLinkWidth() {
         if (!this.cy) return;
         this.widgets = this.commonService.session.style.widgets;
 
-        // Origin coloring in 2D adds or removes duplicate dashed edges for
+        // Origin coloring adds or removes duplicate dashed edges for
         // mixed-origin links, so a recolor-only update is unsafe whenever the
         // rendered topology no longer matches the active mode.
         if (this.shouldRenderSplitOriginLinks() !== this.renderedHasSplitOriginLinks()) {
@@ -8978,6 +9093,9 @@ scaleLinkWidth() {
                 );
 	        });
         this.cy.style().update(); // Refresh Cytoscape styles to apply changes
+        if (this.isTimelineLayoutActive()) {
+            this.fit();
+        }
     }
 
      /**
@@ -8992,6 +9110,9 @@ scaleLinkWidth() {
 	            node.data('borderWidth', newBorderWidth);
 	        });
         this.cy.style().update(); // Refresh Cytoscape styles to apply changes
+        if (this.isTimelineLayoutActive()) {
+            this.fit();
+        }
     }
 
     /**

@@ -17,11 +17,18 @@
       [style.background]="commonService.session.network.allPinned ? 'lightblue': null"
       ><i class="flaticon-pin primary"></i></a>
     </span>
-    <span style="overflow: visible; position: relative; width: 110px;">
-      <a  title="Recalculate Layout. Disabled when nodes are pinned." data-testid="twod-recalculate-layout-button" class="btn btn-sm btn-clean btn-icon btn-icon-md" style="float:left" (click)="updateLayout()"
-        [ngClass]="commonService.session.network.allPinned ? 'disabled' : ''">
-        <i class="flaticon-refresh primary"></i></a>
+    @if (!isTransmissionChainView) {
+      <span style="overflow: visible; position: relative; width: 110px;">
+        <a title="Recalculate Layout. Disabled when nodes are pinned." data-testid="twod-recalculate-layout-button" class="btn btn-sm btn-clean btn-icon btn-icon-md" style="float:left" (click)="updateLayout()"
+          [ngClass]="commonService.session.network.allPinned ? 'disabled' : ''">
+          <i class="flaticon-refresh primary"></i></a>
       </span>
+    }
+      @if (isTransmissionChainView) {
+        <span style="overflow: visible; position: relative; width: 110px;">
+          <a data-testid="transmission-chain-excluded-nodes-button" title="Nodes without Timeline Date Data" aria-label="Nodes excluded from Transmission Chain View because they lack timeline date data" class="btn btn-sm btn-clean btn-icon btn-icon-md" style="float:left" [ngStyle]="{ color: nodesWithoutTimelineDate.length === 0 ? '#005DAA' : 'red' }" (click)="showExcludedTimelineNodes()">{{ nodesWithoutTimelineDate.length }}</a>
+        </span>
+      }
     </div>
 
     <!-- <div #cy id="cy" style="width: 100%; height: 100%;"></div> -->
@@ -363,6 +370,7 @@
     </div>
   </tab>
 }
+@if (!isTransmissionChainView) {
 <tab heading="{{'Grouping' | localize}}" customClass="m-tabs__item">
   <p-accordion [value]="null" [multiple]="true">
     <p-accordion-panel value="grouping-controls" style="color:#495057">
@@ -462,8 +470,27 @@
 }
 </p-accordion>
 </tab>
+}
 </tabset>
 </p-dialog>
+}
+
+@if (isTransmissionChainView && viewActive) {
+  <p-dialog data-testid="transmission-chain-excluded-nodes-dialog" header="Excluded Nodes" [(visible)]="showExcludedTimelineNodesDialog" [style]="{ 'width': '35rem', 'max-height': '40rem' }">
+    @if (SelectedNetworkTimelineDateFieldVariable === 'None') {
+      <span class="text-surface-500 dark:text-surface-400 block mb-8">Select a Date Field to identify nodes that cannot be placed on the timeline.</span>
+    } @else if (nodesWithoutTimelineDate.length === 0) {
+      <span class="text-surface-500 dark:text-surface-400 block mb-8">All visible nodes contain valid {{ SelectedNetworkTimelineDateFieldVariable }} data.</span>
+    } @else {
+      <span class="text-surface-500 dark:text-surface-400 block mb-8">The following nodes don't contain valid {{ SelectedNetworkTimelineDateFieldVariable }} data and were omitted from Transmission Chain View:
+        <ol>
+          @for (node of nodesWithoutTimelineDate; track node.ID) {
+            <li><span>Index: {{ node.index }}, ID: {{ node.ID }}</span></li>
+          }
+        </ol>
+      </span>
+    }
+  </p-dialog>
 }
 
 

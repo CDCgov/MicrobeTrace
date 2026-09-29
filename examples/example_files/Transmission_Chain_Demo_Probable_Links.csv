@@ -1,9 +1,0 @@
-source,target,relationship,confidence,contact_setting
-A03,A07,probable transmission,Medium,Central Hospital - Ward 4
-A05,A09,probable transmission,Medium,Community event
-A07,A08,probable transmission,Medium,Patient visit
-A10,A11,probable transmission,Medium,School event
-B03,B05,probable transmission,Medium,Household B
-B05,B06,probable transmission,Medium,Northside Clinic - Intake
-B08,B09,probable transmission,Low,Community contact
-C05,C06,probable transmission,Medium,Riverside Care visit

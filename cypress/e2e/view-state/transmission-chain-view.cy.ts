@@ -21,7 +21,7 @@ const leafNodes = (cyInstance: Core) =>
     .filter((node) => node.children().length === 0 && !node.hasClass('parent') && !node.hasClass('hidden'));
 
 const getDataNodeId = (node: any): string =>
-  String(node?.id ?? node?.Id ?? node?.ID ?? node?.name ?? node?.Name ?? '');
+  String(node?._id ?? node?.id ?? node?.Id ?? node?.ID ?? node?.name ?? node?.Name ?? '');
 
 const getTransmissionClusterValue = (node: any): string =>
   String(
@@ -104,6 +104,11 @@ const selectDateField = (): void => {
 
 const selectYAxisField = (): void => {
   cy.get('@dialogContainer').contains('.nav-link', 'Layout').click({ force: true });
+  cy.get('body').then(($body) => {
+    if ($body.find('.p-select-overlay:visible').length) {
+      cy.get('body').type('{esc}', { force: true });
+    }
+  });
   cy.get('@dialogContainer').find('#transmission-chain-y-axis-field', { timeout: 10000 }).click({ force: true });
   cy.get('.p-select-overlay:visible', { timeout: 10000 }).last().then(($overlay) => {
     const scrollable = $overlay
@@ -186,6 +191,27 @@ const expectTransmissionChainSizing = (
   expect(parseFloat(edge.style('width')), 'rendered link width').to.be.closeTo(expectedLinkWidth, 0.5);
 };
 
+const expectVisibleNodesWithinTimelineAxes = (cyInstance: Core): void => {
+  const timelineOverlay = cyInstance.container()?.parentElement
+    ?.querySelector('.timeline-axis-overlay:not(.hidden)');
+  const baseline = timelineOverlay?.querySelector('.timeline-axis-baseline');
+  const axisY = Number(baseline?.getAttribute('y1'));
+  const plotBottom = axisY - 8;
+  const width = cyInstance.width();
+
+  expect(baseline, 'timeline axis baseline').to.exist;
+  expect(Number.isFinite(axisY), 'timeline axis y coordinate').to.equal(true);
+
+  leafNodes(cyInstance).forEach((node) => {
+    const bounds = node.renderedBoundingBox({ includeLabels: false, includeOverlays: false });
+
+    expect(bounds.x1, `${node.id()} left edge`).to.be.at.least(0);
+    expect(bounds.x2, `${node.id()} right edge`).to.be.at.most(width);
+    expect(bounds.y1, `${node.id()} top edge`).to.be.at.least(0);
+    expect(bounds.y2, `${node.id()} bottom edge`).to.be.at.most(plotBottom);
+  });
+};
+
 const getFirstVisibleOrigin = (): Cypress.Chainable<string> =>
   cy.window().then((win: any) => {
     const origins = (win.commonService.getVisibleLinks(true) || [])
@@ -207,6 +233,8 @@ describe('Transmission Chain View', () => {
   it('opens as a dedicated view with transmission chain settings', () => {
     cy.get('.lm_tab.lm_active', { timeout: 20000 }).should('contain.text', 'Transmission Chain View');
     cy.get('@dialogContainer').contains('.nav-link', 'Layout').should('exist');
+    cy.get('@dialogContainer').contains('.nav-link', 'Grouping').should('not.exist');
+    cy.get(`${byTestId(testIds.twodRecalculateLayoutButton)}:visible`).should('not.exist');
     cy.get('@dialogContainer').find('#transmission-chain-date-field').should('exist');
     cy.get('@dialogContainer').find('#transmission-chain-y-axis-field').should('exist');
     cy.get('@dialogContainer').find('#transmission-chain-link-origins').should('exist');
@@ -253,6 +281,67 @@ describe('Transmission Chain View', () => {
       const visibleEdges = cyInstance.edges(':visible');
       expect(visibleEdges.length, 'visible chain links').to.be.greaterThan(0);
       expect(visibleEdges.first().style('curve-style'), 'edge routing').to.equal('taxi');
+    });
+  });
+
+  it('keeps every node within the timeline axes after resizing and changing node size', () => {
+    cy.viewport(1000, 500);
+    selectDateField();
+
+    getTransmissionCy().should((cyInstance) => {
+      expectVisibleNodesWithinTimelineAxes(cyInstance);
+    });
+
+    openNodeSizePanel();
+    cy.get('@dialogContainer').find('.tab-pane.active #node-radius')
+      .invoke('val', 100)
+      .trigger('change', { force: true });
+
+    getTransmissionCy().should((cyInstance) => {
+      expectVisibleNodesWithinTimelineAxes(cyInstance);
+    });
+  });
+
+  it('omits nodes without timeline dates and explains why they were excluded', () => {
+    cy.window().then((win: any) => {
+      const node = win.commonService.getVisibleNodes()[0];
+      expect(node, 'node to make undated').to.exist;
+
+      node[dateField] = null;
+      node._rawDateValues = {
+        ...(node._rawDateValues || {}),
+        [dateField]: '',
+      };
+      cy.wrap(getDataNodeId(node), { log: false }).as('undatedNodeId');
+    });
+
+    selectDateField();
+
+    cy.get<string>('@undatedNodeId').then((undatedNodeId) => {
+      getTransmissionCy().should((cyInstance) => {
+        const excludedNode = cyInstance.getElementById(undatedNodeId);
+        expect(
+          excludedNode.empty() || excludedNode.hasClass('hidden'),
+          `${undatedNodeId} excluded from the timeline`,
+        ).to.equal(true);
+        const linksToExcludedNode = cyInstance.edges().filter((edge) => (
+          edge.source().id() === undatedNodeId || edge.target().id() === undatedNodeId
+        ));
+        expect(linksToExcludedNode.length, 'links to excluded node')
+          .to.equal(0);
+      });
+
+      cy.get('.timeline-axis-no-date-label').should('not.exist');
+      cy.get(byTestId(testIds.transmissionChainExcludedNodesButton))
+        .should('be.visible')
+        .invoke('text')
+        .then((text) => expect(Number(text.trim()), 'excluded node count').to.be.greaterThan(0));
+      cy.get(byTestId(testIds.transmissionChainExcludedNodesButton)).click({ force: true });
+      cy.get(byTestId(testIds.transmissionChainExcludedNodesDialog))
+        .should('be.visible')
+        .and('contain.text', dateField)
+        .and('contain.text', undatedNodeId)
+        .and('contain.text', 'omitted from Transmission Chain View');
     });
   });
 
@@ -415,18 +504,30 @@ describe('Transmission Chain View', () => {
     selectDateField();
 
     getFirstVisibleOrigin().then((origin) => {
-      let expectedLinks = 0;
-      cy.window().then((win: any) => {
-        expectedLinks = win.commonService.getVisibleLinks(true)
-          .filter((link: any) => (Array.isArray(link.origin) ? link.origin : [link.origin])
-            .some((linkOrigin: any) => String(linkOrigin || '').trim() === origin))
-          .length;
+      let expectedRenderedEdges = 0;
+      getTransmissionCy().then((cyInstance) => {
+        const renderedNodeIds = new Set(cyInstance.nodes(':visible').map((node) => node.id()));
 
-        win.commonService.visuals.transmissionChain.onTransmissionChainLinkOriginsChange([origin]);
+        cy.window().then((win: any) => {
+          expectedRenderedEdges = win.commonService.getVisibleLinks(true)
+            .filter((link: any) => (
+              renderedNodeIds.has(String(link.source))
+              && renderedNodeIds.has(String(link.target))
+              && (Array.isArray(link.origin) ? link.origin : [link.origin])
+                .some((linkOrigin: any) => String(linkOrigin || '').trim() === origin)
+            ))
+            .reduce((count: number, link: any) => {
+              const origins = Array.isArray(link.origin) ? link.origin : [link.origin];
+              return count + Math.max(1, origins.filter(Boolean).length);
+            }, 0);
+
+          win.commonService.visuals.transmissionChain.onTransmissionChainLinkOriginsChange([origin]);
+        });
       });
 
       getTransmissionCy().should((cyInstance) => {
-        expect(cyInstance.edges(':visible').length, `visible links for ${origin}`).to.equal(expectedLinks);
+        expect(cyInstance.edges(':visible').length, `visible rendered edges for ${origin}`)
+          .to.equal(expectedRenderedEdges);
       });
     });
   });
@@ -444,19 +545,44 @@ describe('Transmission Chain View', () => {
     });
   });
 
-  it('matches multi-origin links when any selected origin is enabled', () => {
+  it('renders a selected multi-origin link as a solid-and-dashed duo-link', () => {
     selectDateField();
 
     const syntheticOrigin = 'Synthetic Transmission Origin';
-    cy.window().then((win: any) => {
-      const link = win.commonService.session.data.links.find((candidate: any) => candidate.visible);
-      expect(link, 'visible link for synthetic origin').to.exist;
-      link.origin = Array.from(new Set([...(Array.isArray(link.origin) ? link.origin : [link.origin]), syntheticOrigin]));
-      win.commonService.visuals.transmissionChain.onTransmissionChainLinkOriginsChange([syntheticOrigin]);
+    getTransmissionCy().then((cyInstance) => {
+      const renderedLink = cyInstance.edges(':visible').first();
+      const source = String(renderedLink.data('source'));
+      const target = String(renderedLink.data('target'));
+
+      cy.window().then((win: any) => {
+        const link = win.commonService.session.data.links.find((candidate: any) => (
+          String(candidate.source) === source && String(candidate.target) === target
+        ));
+        expect(link, 'rendered link for synthetic origin').to.exist;
+        const originalOrigin = String(
+          (Array.isArray(link.origin) ? link.origin : [link.origin]).find(Boolean),
+        );
+        link.origin = [originalOrigin, syntheticOrigin];
+        win.commonService.visuals.transmissionChain.onTransmissionChainLinkOriginsChange([syntheticOrigin]);
+      });
     });
 
     getTransmissionCy().should((cyInstance) => {
-      expect(cyInstance.edges(':visible').length, 'synthetic-origin visible links').to.equal(1);
+      const duoEdges = cyInstance.edges(':visible').toArray();
+
+      expect(duoEdges.length, 'rendered halves of the selected duo-link').to.equal(2);
+      expect(
+        duoEdges.filter((edge) => Boolean(edge.data('secondLink'))).length,
+        'dashed overlay edge',
+      ).to.equal(1);
+      expect(
+        duoEdges.map((edge) => edge.style('line-style')).sort(),
+        'solid and dashed origin styles',
+      ).to.deep.equal(['dashed', 'solid']);
+      expect(
+        duoEdges.flatMap((edge) => edge.data('origin')).sort(),
+        'both link origins retained',
+      ).to.include(syntheticOrigin);
     });
   });
 });
