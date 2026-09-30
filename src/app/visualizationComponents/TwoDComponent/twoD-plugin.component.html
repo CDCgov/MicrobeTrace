@@ -1,6 +1,6 @@
 
 
-<span id="tooltip" style="background-color: white;"></span>
+<span #tooltipElement [id]="isTransmissionChainView ? 'transmission-chain-tooltip' : 'tooltip'" style="background-color: white;"></span>
 
 <div #toolBtnContainer id="tool-btn-container" class="m-portlet">
   <span style="overflow: visible; position: relative; width: 110px;">
@@ -10,7 +10,7 @@
     <a title="Export Screen" class="btn btn-sm btn-clean btn-icon btn-icon-md" style="float:left" (click)="openExport()"><i class="flaticon-download primary"></i></a>
   </span>
   <span style="overflow: visible; position: relative; width: 110px;">
-    <a title="Center Screen" class="btn btn-sm btn-clean btn-icon btn-icon-md" style="float:left" (click)="openCenter()"><i class="flaticon-eye primary"></i></a>
+    <a title="Center Screen" [attr.data-testid]="isTransmissionChainView ? 'transmission-chain-center-button' : 'twod-center-button'" class="btn btn-sm btn-clean btn-icon btn-icon-md" style="float:left" (click)="openCenter()"><i class="flaticon-eye primary"></i></a>
   </span>
   <span style="overflow: visible; position: relative; width: 110px;">
     <a title="Pin All Nodes" data-testid="twod-pin-all-button" class="btn btn-sm btn-clean btn-icon btn-icon-md" style="float:left" (click)="pinNodes()"
@@ -278,7 +278,7 @@
                   <p-select-button id="link-directed-undirected" [options]="ArrowTypes" [allowEmpty]="false" fluid [(ngModel)]="SelectedLinkArrowTypeVariable" (ngModelChange)="onLinkDirectedUndirectedChange($event)"></p-select-button>
                 </div>
               </div>
-              <div id="link-bidirectional-row" class="form-group row display-none" title="Should links be bidirectional?">
+              <div id="link-bidirectional-row" class="form-group row" [class.display-none]="SelectedLinkArrowTypeVariable !== 'Show'" title="Should links be bidirectional?">
                 <div class="col-4">Bidirectional</div>
                 <div class="col-8">
                   <p-select-button id="link-bidirectional" [options]="hideShowOptionsString" [allowEmpty]="false" fluid [(ngModel)]="SelectedLinkBidirectionalTypeVariable" (ngModelChange)="onLinkBidirectionalChange($event)"></p-select-button>
@@ -476,7 +476,14 @@
 }
 
 @if (isTransmissionChainView && viewActive) {
-  <p-dialog data-testid="transmission-chain-excluded-nodes-dialog" header="Excluded Nodes" [(visible)]="showExcludedTimelineNodesDialog" [style]="{ 'width': '35rem', 'max-height': '40rem' }">
+  <p-dialog
+    data-testid="transmission-chain-excluded-nodes-dialog"
+    header="Excluded Nodes"
+    styleClass="transmission-chain-excluded-nodes-dialog"
+    appendTo="body"
+    [baseZIndex]="2000"
+    [(visible)]="showExcludedTimelineNodesDialog"
+    [style]="{ 'width': '35rem', 'max-height': '40rem' }">
     @if (SelectedNetworkTimelineDateFieldVariable === 'None') {
       <span class="text-surface-500 dark:text-surface-400 block mb-8">Select a Date Field to identify nodes that cannot be placed on the timeline.</span>
     } @else if (nodesWithoutTimelineDate.length === 0) {

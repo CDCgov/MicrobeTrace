@@ -131,6 +131,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
     // Reference to the Cytoscape container
     @ViewChild('cy', { static: false }) cyContainer: ElementRef;
     @ViewChild('exportContainer') exportContainer: ElementRef;
+    @ViewChild('tooltipElement', { static: false }) tooltipElement: ElementRef<HTMLElement>;
     @ViewChild('timelineAxisOverlay', { static: false }) timelineAxisOverlay: ElementRef<SVGSVGElement>;
     @ViewChild('toolBtnContainer', { static: false }) toolBtnContainer: ElementRef<HTMLElement>;
     @ViewChild('polygonColorTable') polygonColorTable!: ElementRef;
@@ -1161,27 +1162,79 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         );
     }
 
-    private enforceTimelineNodeX(node: cytoscape.NodeSingular): boolean {
+    private getTimelineNodeYAxisRange(node: cytoscape.NodeSingular): { minY: number; maxY: number } | null {
+        const groups = this.timelineLayoutMetadata.yAxisGroups;
+        if (
+            !this.isTransmissionChainView
+            || this.getTransmissionChainYAxisField() === 'None'
+            || groups.length === 0
+        ) {
+            return null;
+        }
+
+        const fullNode = this.getFullNodeDataForCyNode(node);
+        const groupKey = `y-axis:${this.getTransmissionChainYAxisValue(fullNode)}`;
+        const groupIndex = groups.findIndex(group => group.key === groupKey);
+        if (groupIndex < 0) {
+            return null;
+        }
+
+        const group = groups[groupIndex];
+        const previousGroup = groups[groupIndex - 1];
+        const nextGroup = groups[groupIndex + 1];
+        const nodeHalfHeight = Math.max(0, Number(node.outerHeight()) / 2 || 0);
+        const lowerBoundary = previousGroup
+            ? (previousGroup.maxY + group.minY) / 2
+            : group.minY - Math.max(
+                nextGroup ? (nextGroup.minY - group.maxY) / 2 : 0,
+                nodeHalfHeight + 24
+            );
+        const upperBoundary = nextGroup
+            ? (group.maxY + nextGroup.minY) / 2
+            : group.maxY + Math.max(
+                previousGroup ? (group.minY - previousGroup.maxY) / 2 : 0,
+                nodeHalfHeight + 24
+            );
+        const minY = lowerBoundary + nodeHalfHeight;
+        const maxY = upperBoundary - nodeHalfHeight;
+
+        if (minY > maxY) {
+            return { minY: group.centerY, maxY: group.centerY };
+        }
+
+        return { minY, maxY };
+    }
+
+    private enforceTimelineNodePosition(node: cytoscape.NodeSingular): boolean {
         if (!this.shouldLockTimelineNodeX(node)) return false;
 
         const timelineX = Number(node.data('timelineX'));
-        if (!Number.isFinite(timelineX)) return false;
-
         const currentPosition = node.position();
-        if (Math.abs(currentPosition.x - timelineX) < 0.5) return false;
+        const yAxisRange = this.getTimelineNodeYAxisRange(node);
+        const constrainedPosition = {
+            x: Number.isFinite(timelineX) ? timelineX : currentPosition.x,
+            y: yAxisRange
+                ? Math.min(yAxisRange.maxY, Math.max(yAxisRange.minY, currentPosition.y))
+                : currentPosition.y
+        };
+        if (
+            Math.abs(currentPosition.x - constrainedPosition.x) < 0.5
+            && Math.abs(currentPosition.y - constrainedPosition.y) < 0.5
+        ) {
+            return false;
+        }
 
-        const lockedPosition = { x: timelineX, y: currentPosition.y };
         this.applyingTimelinePositionLock = true;
-        node.position(lockedPosition);
+        node.position(constrainedPosition);
         this.applyingTimelinePositionLock = false;
-        this.nodePositions.set(node.id(), lockedPosition);
+        this.nodePositions.set(node.id(), constrainedPosition);
         return true;
     }
 
-    private applyTimelineNodeXLocks(): void {
+    private applyTimelineNodePositionConstraints(): void {
         if (!this.cy || !this.isTimelineLayoutActive()) return;
 
-        this.cy.nodes(':visible').forEach(node => this.enforceTimelineNodeX(node));
+        this.cy.nodes(':visible').forEach(node => this.enforceTimelineNodePosition(node));
     }
 
     private isCytoscapeContainerReady(): boolean {
@@ -2599,8 +2652,21 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
 
         const spacingScale = this.getNetworkTimelineVerticalSpacingScale();
         const maxNodeSize = Math.max(...nodes.map(node => this.getTimelineNodeVerticalRadius(node)), 20);
-        const laneGap = Math.max(44, (maxNodeSize * 1.8) + 14) * spacingScale;
-        const groupGap = Math.max(laneGap * 1.65, (maxNodeSize * 2.7) + 36) * spacingScale;
+        const rawLinkLength = Number(this.SelectedLinkLengthVariable ?? this.widgets['link-length']);
+        const linkLength = Number.isFinite(rawLinkLength)
+            ? Math.max(20, Math.min(170, rawLinkLength))
+            : 50;
+        const linkLengthScale = linkLength / 50;
+        const baseLaneGap = Math.max(44, (maxNodeSize * 1.8) + 14);
+        const nodeSizedGroupGap = (maxNodeSize * 2.7) + 36;
+        const minimumLaneGap = Math.max(44, (maxNodeSize * 1.45) + 8);
+        const minimumGroupGap = Math.max(minimumLaneGap * 1.35, (maxNodeSize * 2.2) + 24);
+        const laneGap = Math.max(minimumLaneGap, baseLaneGap * linkLengthScale) * spacingScale;
+        const groupGap = Math.max(
+            minimumGroupGap,
+            laneGap * 1.65,
+            nodeSizedGroupGap * linkLengthScale
+        ) * spacingScale;
         let nextGroupTop = 0;
 
         const yAxisField = this.getTransmissionChainYAxisField();
@@ -3401,10 +3467,12 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                 }
             },
             {
-                selector: 'node[bgOpacity]',
+                selector: 'node[bgOpacity][!pieBackgroundImage]',
                 css: {
                     // @ts-ignore
                     'background-opacity': 'data(bgOpacity)',
+                    // @ts-ignore
+                    'border-opacity': 'data(bgOpacity)',
                 }
             },
             {
@@ -3681,7 +3749,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         this.cy.on('pan zoom resize', () => this.scheduleTimelineAxisOverlayUpdate());
         this.cy.on('position', 'node', (evt) => {
             if (!this.applyingTimelinePositionLock) {
-                this.enforceTimelineNodeX(evt.target);
+                this.enforceTimelineNodePosition(evt.target);
             }
             this.scheduleTimelineAxisOverlayUpdate();
         });
@@ -4142,6 +4210,9 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
 
     updateNodePos(node: cytoscape.NodeSingular): void {
         const nodeId = node.id();
+        if (this.isTimelineLayoutActive()) {
+            this.enforceTimelineNodePosition(node);
+        }
         // This is for REAL user events. It reads the now-updated position from Cytoscape.
         let newPosition = node.position();
         if (node.data('isCollapsedAggregate')) {
@@ -4149,14 +4220,6 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             this.scheduleTimelineAxisOverlayUpdate();
             return;
         }
-        if (this.isTimelineLayoutActive()) {
-            const timelineX = Number(node.data('timelineX'));
-            if (Number.isFinite(timelineX)) {
-                newPosition = { x: timelineX, y: newPosition.y };
-                node.position(newPosition);
-            }
-        }
-
         this.nodePositions.set(nodeId, newPosition);
         this.commonService.updateNodePosition(nodeId, newPosition);
         this.scheduleTimelineAxisOverlayUpdate();
@@ -5788,6 +5851,10 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
      * @param d a node
      */
     showNodeTooltip(d, event) {
+        const tooltipElement = this.tooltipElement?.nativeElement;
+        if (!tooltipElement) {
+            return;
+        }
 
         // Only show tooltip for nodes, not parent/group nodes
         if(d.isParent) {
@@ -5830,7 +5897,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         }
 
         let [X, Y] = this.getRelativeMousePosition(event);
-        d3.select('#tooltip')
+        d3.select(tooltipElement)
             .html(tooltipHtml)
             .style('position', 'absolute')
             .style('left', (X+ 10) + 'px')
@@ -5845,6 +5912,11 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
      * @param d link
      */
     showLinkTooltip(d, event) {
+        const tooltipElement = this.tooltipElement?.nativeElement;
+        if (!tooltipElement) {
+            return;
+        }
+
         let v: any = this.SelectedLinkTooltipVariable;
 
         if (v == 'None') return;
@@ -5895,7 +5967,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         }
 
         let [X, Y] = this.getRelativeMousePosition(event);
-        d3.select('#tooltip')
+        d3.select(tooltipElement)
             .html(tooltipHtml)
             .style('position', 'absolute')
             .style('left', (X + 10) + 'px')
@@ -5912,7 +5984,11 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         if (this.widgets['node-highlight']) {
             this.selectedNodeId = undefined;
         }
-        let tooltip = d3.select('#tooltip');
+        const tooltipElement = this.tooltipElement?.nativeElement;
+        if (!tooltipElement) {
+            return;
+        }
+        let tooltip = d3.select(tooltipElement);
         tooltip
             .transition().duration(100)
             .style('opacity', 0)
@@ -7008,7 +7084,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             this.cy.elements().remove();
             const newElements = this.mapDataToCytoscapeElements(this.data, true);
             this.cy.add(newElements);
-            this.applyTimelineNodeXLocks();
+            this.applyTimelineNodePositionConstraints();
             this.updateEdgeRoutingStyles();
             this.recordTwoDRenderTiming('twoDTimelineUpdate', timelineUpdateStart, {
                 nodes: newElements.nodes.length,
@@ -7393,7 +7469,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
               this.store.setNetworkUpdated(false);
               this.setNetworkRendering(false);
               this.commonService.demoNetworkRendered = true;
-              this.applyTimelineNodeXLocks();
+              this.applyTimelineNodePositionConstraints();
               this.scheduleTimelineAxisOverlayUpdate();
 
               if (this.pendingPartialUpdate) {
@@ -7769,8 +7845,13 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             this.SelectedLinkLengthVariable = this.widgets['link-length'];
             return;
         }
+
+        const requestedLength = Number(e?.target?.value ?? e ?? this.SelectedLinkLengthVariable);
+        if (Number.isFinite(requestedLength)) {
+            this.SelectedLinkLengthVariable = requestedLength;
+        }
         this.widgets['link-length'] = this.SelectedLinkLengthVariable;
-        this.updateLayout();
+        void this.updateLayout();
     }
 
    /**
@@ -7827,20 +7908,15 @@ private updateArrowStyles(): void {
      * Updates link-directed widget. When directed, links have an arrow added; when undirected, links have no arrow
      */
     onLinkDirectedUndirectedChange(e: string) {
-        if (e === "Show") {
-          $('#link-bidirectional-row').slideDown().css('display', 'flex');
-          this.widgets['link-directed'] = true;
-        } else {
-          this.widgets['link-directed'] = false;
-          $("#link-bidirectional-row").slideUp();
-        }
-      
+        this.SelectedLinkArrowTypeVariable = e;
+        this.widgets['link-directed'] = e === "Show";
         this.updateArrowStyles();
       }
 
 
 
       onLinkBidirectionalChange(e: string) {
+        this.SelectedLinkBidirectionalTypeVariable = e;
         this.widgets['link-bidirectional'] = (e === "Show");
         this.updateArrowStyles();
       }
@@ -7978,7 +8054,19 @@ private updateArrowStyles(): void {
         this.SelectedTransmissionChainYAxisFieldVariable = nextField;
 
         if (this.isTimelineLayoutActive()) {
-            this.updateLayout();
+            // A Y-axis change produces a different vertical layout, so bounds
+            // captured for timeline filtering no longer describe the graph.
+            // Let the completed layout fit against its newly rendered nodes.
+            this.timelineCompleteFitBoundingBox = null;
+            void this.updateLayout().then(() => {
+                if (
+                    !this.isDestroyed
+                    && this.isTimelineLayoutActive()
+                    && this.getTransmissionChainYAxisField() === nextField
+                ) {
+                    this.fit();
+                }
+            });
         }
     }
 
@@ -8530,6 +8618,12 @@ scaleLinkWidth() {
      * On click of center button, show centers the view
      */
     openCenter() {
+        if (this.isTimelineLayoutActive()) {
+            // Center Screen is an explicit request to fit the layout that is
+            // currently rendered. A cached pre-filter or pre-Y-axis bounding
+            // box can otherwise leave the current timeline outside the axes.
+            this.timelineCompleteFitBoundingBox = null;
+        }
         this.fit();
     }
 
@@ -8753,7 +8847,7 @@ scaleLinkWidth() {
         //     }
         // });
 
-        this.applyTimelineNodeXLocks();
+        this.applyTimelineNodePositionConstraints();
         this.updateEdgeRoutingStyles();
         this.fit();
         this.scheduleTimelineAxisOverlayUpdate();
