@@ -400,6 +400,18 @@ describe('Transmission Chain View', () => {
     cy.get('.timeline-y-axis-label').then(($labels) => {
       const labels = [...$labels].map((label) => label.textContent?.trim()).filter(Boolean);
       expect(labels, 'rendered Y-axis labels').to.include('Texas');
+      expect(
+        [...$labels].map((label) => Number(label.getAttribute('x'))),
+        'Y-axis labels remain left-aligned',
+      ).to.satisfy((positions: number[]) => positions.every((position) => position === 30));
+
+      const firstLabel = $labels.get(0).getBoundingClientRect();
+      const toolbar = Cypress.$(byTestId(testIds.transmissionChainSettingsButton))
+        .closest('#tool-btn-container')
+        .get(0)
+        .getBoundingClientRect();
+      expect(firstLabel.top, 'first Y-axis label starts below the toolbar')
+        .to.be.greaterThan(toolbar.bottom);
     });
   });
 
@@ -412,24 +424,10 @@ describe('Transmission Chain View', () => {
       const groups = component.timelineLayoutMetadata.yAxisGroups;
       const groupIndex = groups.findIndex((group: any) => group.label === 'Texas');
       const group = groups[groupIndex];
-      const previousGroup = groups[groupIndex - 1];
-      const nextGroup = groups[groupIndex + 1];
       const node = leafNodes(component.cy)
         .filter((candidate) => String(candidate.data(yAxisField)) === group.label)
         .first();
       const nodeHalfHeight = node.outerHeight() / 2;
-      const lowerBoundary = previousGroup
-        ? (previousGroup.maxY + group.minY) / 2
-        : group.minY - Math.max(
-          nextGroup ? (nextGroup.minY - group.maxY) / 2 : 0,
-          nodeHalfHeight + 24,
-        );
-      const upperBoundary = nextGroup
-        ? (group.maxY + nextGroup.minY) / 2
-        : group.maxY + Math.max(
-          previousGroup ? (group.minY - previousGroup.maxY) / 2 : 0,
-          nodeHalfHeight + 24,
-        );
       const timelineX = Number(node.data('timelineX'));
 
       expect(group, 'Texas Y-axis band').to.exist;
@@ -438,9 +436,18 @@ describe('Transmission Chain View', () => {
 
       expect(node.position('x'), 'node remains locked to its timeline date').to.equal(timelineX);
       expect(node.position('y'), 'node remains inside its categorical band')
-        .to.be.within(lowerBoundary + nodeHalfHeight, upperBoundary - nodeHalfHeight);
+        .to.be.within(group.boundaryMinY + nodeHalfHeight, group.boundaryMaxY - nodeHalfHeight);
       expect(node.position('y'), 'node does not enter the first category band')
         .to.not.equal(groups[0].centerY);
+
+      const zoom = component.cy.zoom();
+      const panY = component.cy.pan().y;
+      const band = Cypress.$(`.timeline-y-axis-group[data-y-axis-value="${group.label}"]`);
+      const startLineY = Number(band.find('.timeline-y-axis-boundary-start').attr('y1'));
+      const expectedStartLineY = (group.boundaryMinY * zoom) + panY;
+
+      expect(startLineY, 'category indicator matches the movement boundary')
+        .to.be.closeTo(expectedStartLineY, 0.5);
     });
   });
 
@@ -557,9 +564,12 @@ describe('Transmission Chain View', () => {
 
     cy.get(byTestId(testIds.transmissionChainCenterButton)).click({ force: true });
 
-    cy.window()
-      .its('commonService.visuals.transmissionChain.timelineCompleteFitBoundingBox')
-      .should('equal', null);
+    cy.window().should((win: any) => {
+      expect(
+        win.commonService.visuals.transmissionChain.timelineCompleteFitBoundingBox,
+        'stale timeline fit bounds',
+      ).to.equal(null);
+    });
     getTransmissionCy().should((cyInstance) => {
       expectVisibleNodesWithinTimelineAxes(cyInstance);
     });

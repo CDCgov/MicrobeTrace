@@ -43,6 +43,7 @@ type TransmissionChainLineStyle = 'Stepped' | 'Straight' | 'Curved' | 'Fanout';
 const TIMELINE_AXIS_BOTTOM_OFFSET = 48;
 const TIMELINE_AXIS_GRID_GAP = 8;
 const TIMELINE_NODE_AXIS_GAP = 8;
+const TIMELINE_TOOLBAR_GAP = 8;
 const TIMELINE_VIEWPORT_PADDING = {
     top: 30,
     right: 30,
@@ -86,6 +87,8 @@ interface TimelineYAxisGroup {
     minY: number;
     maxY: number;
     centerY: number;
+    boundaryMinY: number;
+    boundaryMaxY: number;
 }
 
 interface TimelineLayoutMetadata {
@@ -1180,23 +1183,9 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         }
 
         const group = groups[groupIndex];
-        const previousGroup = groups[groupIndex - 1];
-        const nextGroup = groups[groupIndex + 1];
         const nodeHalfHeight = Math.max(0, Number(node.outerHeight()) / 2 || 0);
-        const lowerBoundary = previousGroup
-            ? (previousGroup.maxY + group.minY) / 2
-            : group.minY - Math.max(
-                nextGroup ? (nextGroup.minY - group.maxY) / 2 : 0,
-                nodeHalfHeight + 24
-            );
-        const upperBoundary = nextGroup
-            ? (group.maxY + nextGroup.minY) / 2
-            : group.maxY + Math.max(
-                previousGroup ? (group.minY - previousGroup.maxY) / 2 : 0,
-                nodeHalfHeight + 24
-            );
-        const minY = lowerBoundary + nodeHalfHeight;
-        const maxY = upperBoundary - nodeHalfHeight;
+        const minY = group.boundaryMinY + nodeHalfHeight;
+        const maxY = group.boundaryMaxY - nodeHalfHeight;
 
         if (minY > maxY) {
             return { minY: group.centerY, maxY: group.centerY };
@@ -2470,15 +2459,39 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             groups.get(key)?.yValues.push(y);
         });
 
-        return Array.from(groups.entries())
+        const orderedGroups = Array.from(groups.entries())
             .map(([key, group]) => ({
                 key,
                 label: group.label,
                 minY: Math.min(...group.yValues),
                 maxY: Math.max(...group.yValues),
-                centerY: d3.mean(group.yValues) || 0
+                centerY: d3.mean(group.yValues) || 0,
+                boundaryMinY: 0,
+                boundaryMaxY: 0
             }))
             .sort((a, b) => a.centerY - b.centerY);
+
+        orderedGroups.forEach((group, index) => {
+            const previousGroup = orderedGroups[index - 1];
+            const nextGroup = orderedGroups[index + 1];
+            const groupSpan = Math.max(0, group.maxY - group.minY);
+            const outerPadding = Math.max(48, (groupSpan / 2) + 24);
+
+            group.boundaryMinY = previousGroup
+                ? (previousGroup.maxY + group.minY) / 2
+                : group.minY - Math.max(
+                    nextGroup ? (nextGroup.minY - group.maxY) / 2 : 0,
+                    outerPadding
+                );
+            group.boundaryMaxY = nextGroup
+                ? (group.maxY + nextGroup.minY) / 2
+                : group.maxY + Math.max(
+                    previousGroup ? (group.minY - previousGroup.maxY) / 2 : 0,
+                    outerPadding
+                );
+        });
+
+        return orderedGroups;
     }
 
     private getTransmissionChainConnectedComponentKeys(
@@ -3155,15 +3168,18 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             this.timelineLayoutMetadata.yAxisGroups.length > 0
         ) {
             const visibleGroups = this.timelineLayoutMetadata.yAxisGroups
-                .map(group => {
-                    const groupRenderedY = renderedY(group.centerY);
+                .map((group, index, groups) => {
+                    const renderedBoundaryMinY = renderedY(group.boundaryMinY);
+                    const renderedBoundaryMaxY = renderedY(group.boundaryMaxY);
                     return {
                         ...group,
-                        renderedY: groupRenderedY,
-                        labelX: groupRenderedY < 64 ? 228 : 30
+                        renderedBoundaryMinY,
+                        renderedBoundaryMaxY,
+                        isLastGroup: index === groups.length - 1,
+                        labelY: renderedBoundaryMinY + 18
                     };
                 })
-                .filter(group => group.renderedY >= -40 && group.renderedY <= axisY + 40);
+                .filter(group => group.renderedBoundaryMaxY >= -40 && group.renderedBoundaryMinY <= axisY + 40);
             const yAxisLayer = overlaySelection.append('g')
                 .attr('class', 'timeline-y-axis');
 
@@ -3190,11 +3206,24 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                 .attr('data-y-axis-value', group => group.label);
 
             yAxisGroups.append('line')
-                .attr('class', 'timeline-y-axis-gridline')
+                .attr('class', 'timeline-y-axis-gridline timeline-y-axis-boundary-start')
                 .attr('x1', 28)
                 .attr('x2', width)
-                .attr('y1', group => group.renderedY)
-                .attr('y2', group => group.renderedY)
+                .attr('y1', group => group.renderedBoundaryMinY)
+                .attr('y2', group => group.renderedBoundaryMinY)
+                .attr('stroke', '#464646')
+                .attr('stroke-opacity', 0.16)
+                .attr('stroke-width', 1)
+                .attr('stroke-dasharray', '3 5')
+                .attr('fill', 'none');
+
+            yAxisGroups.filter(group => group.isLastGroup)
+                .append('line')
+                .attr('class', 'timeline-y-axis-gridline timeline-y-axis-boundary-end')
+                .attr('x1', 28)
+                .attr('x2', width)
+                .attr('y1', group => group.renderedBoundaryMaxY)
+                .attr('y2', group => group.renderedBoundaryMaxY)
                 .attr('stroke', '#464646')
                 .attr('stroke-opacity', 0.16)
                 .attr('stroke-width', 1)
@@ -3203,8 +3232,8 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
 
             const yAxisLabels = yAxisGroups.append('text')
                 .attr('class', 'timeline-y-axis-label')
-                .attr('x', group => group.labelX)
-                .attr('y', group => group.renderedY - 6)
+                .attr('x', 30)
+                .attr('y', group => group.labelY)
                 .attr('fill', '#333333')
                 .attr('font-size', 13)
                 .attr('font-weight', 600)
@@ -8490,7 +8519,7 @@ scaleLinkWidth() {
             return false;
         }
 
-        const { width, height } = this.getTimelineAxisOverlayFrame();
+        const { width, height, screenTop } = this.getTimelineAxisOverlayFrame();
         if (!width || !height) {
             return false;
         }
@@ -8504,13 +8533,36 @@ scaleLinkWidth() {
             return false;
         }
 
-        const nodeBounds = this.isTimelineFilteringActive() && this.timelineCompleteFitBoundingBox
+        const visibleNodeBounds = this.isTimelineFilteringActive() && this.timelineCompleteFitBoundingBox
             ? this.timelineCompleteFitBoundingBox
             : visibleLeafNodes.boundingBox({ includeLabels: false, includeOverlays: false });
+        const hasCategoricalYAxis = this.isTransmissionChainView
+            && this.timelineLayoutMetadata.yAxisField !== 'None'
+            && this.timelineLayoutMetadata.yAxisGroups.length > 0;
+        const yAxisGroups = this.timelineLayoutMetadata.yAxisGroups;
+        const nodeBounds: TwoDViewportBoundingBox = {
+            x1: visibleNodeBounds.x1,
+            y1: hasCategoricalYAxis
+                ? Math.min(visibleNodeBounds.y1, yAxisGroups[0].boundaryMinY)
+                : visibleNodeBounds.y1,
+            x2: visibleNodeBounds.x2,
+            y2: hasCategoricalYAxis
+                ? Math.max(visibleNodeBounds.y2, yAxisGroups[yAxisGroups.length - 1].boundaryMaxY)
+                : visibleNodeBounds.y2
+        };
+        const toolbarRect = hasCategoricalYAxis
+            ? this.getRect(this.toolBtnContainer?.nativeElement)
+            : null;
+        const topPadding = Math.max(
+            TIMELINE_VIEWPORT_PADDING.top,
+            toolbarRect
+                ? Math.ceil(toolbarRect.bottom - screenTop + TIMELINE_TOOLBAR_GAP)
+                : 0
+        );
         const boundsWidth = nodeBounds.x2 - nodeBounds.x1;
         const boundsHeight = nodeBounds.y2 - nodeBounds.y1;
         const availableWidth = width - TIMELINE_VIEWPORT_PADDING.left - TIMELINE_VIEWPORT_PADDING.right;
-        const availableHeight = height - TIMELINE_VIEWPORT_PADDING.top - TIMELINE_VIEWPORT_PADDING.bottom;
+        const availableHeight = height - topPadding - TIMELINE_VIEWPORT_PADDING.bottom;
 
         if (
             ![nodeBounds.x1, nodeBounds.y1, nodeBounds.x2, nodeBounds.y2, boundsWidth, boundsHeight]
@@ -8536,7 +8588,7 @@ scaleLinkWidth() {
             x: TIMELINE_VIEWPORT_PADDING.left
                 + ((availableWidth - renderedWidth) / 2)
                 - (nodeBounds.x1 * zoom),
-            y: TIMELINE_VIEWPORT_PADDING.top
+            y: topPadding
                 + ((availableHeight - renderedHeight) / 2)
                 - (nodeBounds.y1 * zoom)
         };
