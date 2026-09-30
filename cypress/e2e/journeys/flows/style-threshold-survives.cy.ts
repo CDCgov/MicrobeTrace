@@ -38,9 +38,17 @@ describe('Journey Flow - Style survives threshold filtering', () => {
 
       const smallest = rankedByDegree[0];
       const largest = rankedByDegree[rankedByDegree.length - 1];
+      const widgets = win.commonService.session.style.widgets;
+      const mapNodeSize = (size: number): number => size / 100 * 40 + 10;
+      const expectedMinimumWidth = mapNodeSize(Number(widgets['node-radius-min']));
+      const expectedMaximumWidth = mapNodeSize(Number(widgets['node-radius-max']));
 
       expect(largest.degree, 'visible degree range after threshold').to.be.greaterThan(smallest.degree);
       expect(largest.width, 'higher visible degree still renders larger after threshold').to.be.greaterThan(smallest.width);
+      expect(smallest.width, 'minimum visible degree uses configured minimum size')
+        .to.be.closeTo(expectedMinimumWidth, 1);
+      expect(largest.width, 'maximum visible degree uses configured maximum size')
+        .to.be.closeTo(expectedMaximumWidth, 1);
     });
   };
 
