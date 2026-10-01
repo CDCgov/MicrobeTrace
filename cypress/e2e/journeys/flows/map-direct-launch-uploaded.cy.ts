@@ -11,6 +11,7 @@ import {
   openMapSettingsDialog,
   selectMapField,
   setMapNodeCollapsing,
+  useOfflineMapLayers,
   visitAppAndAcceptEula,
 } from '../../../support/journey-helpers';
 
@@ -29,6 +30,7 @@ const launchProfileDirectToMap = (profile: DatasetProfile): void => {
   cy.loadFiles(profile.files);
   applyPreLaunchFileSettings(profile);
   ensurePreLaunchProfileSynced(profile);
+  useOfflineMapLayers({ surviveLaunchReset: true });
 
   cy.get('#launch', { timeout: 15000 }).should('not.be.disabled').click({ force: true });
   cy.get('#loading-information', { timeout: 120000 }).should('not.exist');
