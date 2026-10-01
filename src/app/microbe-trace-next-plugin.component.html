@@ -1195,17 +1195,17 @@
   <!-- /.modal-dialog -->
 </p-dialog>
 
-<p-dialog id="session-stash-modal" [(visible)]="displayStashDialog" header="Save Session">
+<p-dialog id="session-stash-modal" [(visible)]="displayStashDialog" [modal]="true" [closable]="!localSessionLinkSaving" [baseZIndex]="1400" header="Save Session">
   <div class="modal-dialog" role="document">
     <div class="modal-content">
 
       <div class="modal-body">
         <div class="form-group row" title="What would you like to call this session?">
           <div class="col-7">
-            <input style="height:42px" type="text" id="stash-name" class="form-control form-control-sm" [(ngModel)]="saveFileName" placeholder="Name your session!">
+            <input style="height:42px" type="text" id="stash-name" class="form-control form-control-sm" [(ngModel)]="saveFileName" (ngModelChange)="clearLocalSessionLinkResult()" placeholder="Name your session!">
           </div>
           <div class="col-5">
-            <p-select [options]="saveFileTypeOptions" [(ngModel)]="selectedSaveFileType" appendTo="body"></p-select>
+            <p-select [options]="saveFileTypeOptions" [(ngModel)]="selectedSaveFileType" (ngModelChange)="clearLocalSessionLinkResult()" appendTo="body"></p-select>
           </div>
         </div>
         @if (selectedSaveFileType=='session') {
@@ -1222,14 +1222,34 @@
             </div>
           </div>
         }
+        @if (selectedSaveFileType === 'local-link') {
+          <p class="mb-2">Save this session in this browser and create a link you can bookmark. The link works only on this browser and this MicrobeTrace site. Clearing site data removes the session.</p>
+          @if (localSessionLinkUrl) {
+            <label for="local-session-link-url">Your local session link</label>
+            <div class="input-group">
+              <input id="local-session-link-url" class="form-control" type="text" [value]="localSessionLinkUrl" readonly aria-label="Local session link">
+              <button type="button" class="btn btn-primary" (click)="copyLocalSessionLink()">{{ localSessionLinkCopied ? 'Copied' : 'Copy link' }}</button>
+            </div>
+          }
+        }
+        @if (localSessionLinkError) {
+          <p class="text-danger" role="alert">{{ localSessionLinkError }}</p>
+        }
       </div>
       <div class="modal-footer">
-        <button type="button" class="btn btn-error" (click)="DisplayStashDialog('Cancel')">Cancel</button>
-        <button type="button" id="stash-data" class="btn btn-primary" (click)="DisplayStashDialog('Save')" [disabled]="saveFileName === undefined || saveFileName === ''">Save</button>
+        <button type="button" class="btn btn-error" (click)="DisplayStashDialog('Cancel')" [disabled]="localSessionLinkSaving">{{ localSessionLinkUrl ? 'Done' : 'Cancel' }}</button>
+        @if (!localSessionLinkUrl) {
+          <button type="button" id="stash-data" class="btn btn-primary" (click)="DisplayStashDialog('Save')" [disabled]="localSessionLinkSaving || saveFileName === undefined || saveFileName === ''">{{ localSessionLinkSaving ? 'Saving...' : 'Save' }}</button>
+        }
       </div>
     </div><!-- /.modal-content -->
   </div><!-- /.modal-dialog -->
 </p-dialog><!-- /.modal -->
+
+<p-dialog id="local-session-unavailable-dialog" header="Local session unavailable" [visible]="!!localSessionLinkLoadError" [closable]="false" [modal]="true" [baseZIndex]="1400" [style]="{ width: '440px', maxWidth: '90vw' }">
+  <p role="alert">{{ localSessionLinkLoadError }}</p>
+  <button type="button" class="btn btn-primary" (click)="localSessionLinkLoadError = null">OK</button>
+</p-dialog>
 
 <div class="view-controls">
   <p-dialog id="loading-information-modal" [(visible)]="displayloadingInformationModal" header="Processing Files...">
