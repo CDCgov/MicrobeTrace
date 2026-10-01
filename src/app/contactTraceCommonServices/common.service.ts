@@ -4315,10 +4315,15 @@ align(params): Promise<any> {
         $("#numberOfVisibleLinks").text(linkCount.toLocaleString());
         $("#numberOfSingletonNodes").text(singletons.toLocaleString());
         $("#numberOfDisjointComponents").text(clusterCount);
-        $("#currentLinkThreshold").text(this.formatDisplayedDistanceValue(
-            Number(this.session.style.widgets['link-threshold']),
-            this.session.style.widgets['link-sort-variable']
-        ));
+        const hasDistanceLinks = this.session.data.links.some(link => link?.hasDistance === true);
+        $("#link-threshold-statistic").prop("hidden", !hasDistanceLinks);
+        $("#currentLinkThreshold").text(hasDistanceLinks
+            ? this.formatDisplayedDistanceValue(
+                Number(this.session.style.widgets['link-threshold']),
+                this.session.style.widgets['link-sort-variable']
+            )
+            : ""
+        );
         this.recordPerformanceTiming('statistics', 'updateStatistics', start, {
             timelineMode,
             timelineDateField,

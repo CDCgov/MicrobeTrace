@@ -57,6 +57,7 @@ describe('2D Network - Threshold Display Sync', () => {
   });
 
   it('keeps sample SNP threshold synchronized after a TN93 metric round trip', () => {
+    cy.get('#link-threshold-statistic').should('be.visible');
     cy.get('#currentLinkThreshold').should('have.text', '16');
 
     openGlobalFilteringTab();

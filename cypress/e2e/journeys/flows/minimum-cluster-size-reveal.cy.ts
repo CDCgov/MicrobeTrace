@@ -25,6 +25,8 @@ describe('Journey Flow - Minimum Cluster Size and Reveal Everything', () => {
 
     launchProfileToTwoD(profile);
     assertAfterLaunchCounts(profile);
+    cy.get('#link-threshold-statistic').should('not.be.visible');
+    cy.get('#currentLinkThreshold').should('have.text', '');
 
     cy.window().then((win: any) => {
       const cyInstance = win.cytoscapeInstance;
