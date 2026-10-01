@@ -2076,6 +2076,8 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
     applyStyleFileSettings() {
         this.widgets = this.commonService.session.style.widgets;
 
+        this.applyStyleFileFilterSettings();
+
         if (this.SelectedClusterMinimumSizeVariable != this.widgets['cluster-minimum-size']){
             this.SelectedClusterMinimumSizeVariable = this.widgets['cluster-minimum-size'];
             this.onMinimumClusterSizeChanged();
@@ -2110,6 +2112,34 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         }
 
         this.applySavedNodeShapeSettingsFromSession();
+    }
+
+    private applyStyleFileFilterSettings(): void {
+        const importedMetric = String(
+            this.widgets['default-distance-metric'] ?? this.SelectedDistanceMetricVariable ?? 'snps'
+        ).toLowerCase();
+        const calculationMetric = this.commonService.normalizeDistanceMetric(importedMetric);
+
+        this.SelectedDistanceMetricVariable = importedMetric;
+        this.metric = calculationMetric;
+        this.commonService.GlobalSettingsModel.SelectedDistanceMetricVariable = importedMetric;
+        this.store.updatecurrentThresholdStepSize(calculationMetric);
+
+        const importedLinkSort = String(
+            this.widgets['link-sort-variable'] ?? this.SelectedLinkSortVariable ?? 'distance'
+        );
+        this.SelectedLinkSortVariable = importedLinkSort;
+        this.commonService.GlobalSettingsModel.SelectedLinkSortVariable = importedLinkSort;
+        this._lastLinkSortValue = importedLinkSort;
+
+        const importedThreshold = Number(this.widgets['link-threshold']);
+        if (!Number.isFinite(importedThreshold)) {
+            return;
+        }
+
+        this.SelectedLinkThresholdVariable = importedThreshold;
+        this.commonService.GlobalSettingsModel.SelectedLinkThresholdVariable = importedThreshold;
+        this.onLinkThresholdChanged(importedThreshold);
     }
 
     onEpsilonValueChange() {
