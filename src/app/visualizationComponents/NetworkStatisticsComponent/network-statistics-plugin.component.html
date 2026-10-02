@@ -31,7 +31,7 @@
 
     @if (networkStatisticsLayerSelected === 'compare') {
       <span class="network-statistics-calculation-mode" data-testid="network-statistics-detail-layer">
-        Detailed table: Combined
+        {{ networkStatisticsDetailLabel }}
       </span>
     }
     @if (networkStatisticsResult) {
@@ -80,7 +80,7 @@
   @if (IsDataAvailable == true && networkStatisticsLayerSelected === 'compare' && networkStatisticsComparisonRows.length > 0) {
     <section class="network-statistics-comparison" data-testid="network-statistics-layer-comparison" aria-labelledby="network-statistics-comparison-title">
       <div class="network-statistics-narrative-heading">
-        <h2 id="network-statistics-comparison-title">Network layer comparison</h2>
+        <h2 id="network-statistics-comparison-title">Network interpretation</h2>
         <span class="network-statistics-calculation-mode">Current visible network</span>
         <button
           type="button"
@@ -93,58 +93,63 @@
         </button>
       </div>
       @if (networkStatisticsComparisonExpanded) {
-        <div id="network-statistics-comparison-content" data-testid="network-statistics-comparison-content">
-          <p class="network-statistics-narrative-headline">
-            Layer-specific statistics are authoritative. Combined statistics describe the union of genetic and epidemiologic relationships and are supplementary.
-          </p>
+        @if (networkStatisticsComparisonInterpretation; as interpretation) {
+          <div id="network-statistics-comparison-content" data-testid="network-statistics-comparison-content">
+            <p class="network-statistics-narrative-headline" data-testid="network-statistics-comparison-headline">
+              {{ interpretation.headline }}
+            </p>
 
-          <div class="network-statistics-comparison-table-wrap">
-            <table class="network-statistics-comparison-table">
-          <thead>
-            <tr>
-              <th scope="col">Layer</th>
-              <th scope="col">Nodes</th>
-              <th scope="col">Links</th>
-              <th scope="col">Density</th>
-              <th scope="col">Mean degree</th>
-              <th scope="col">Median degree</th>
-              <th scope="col">Components</th>
-              <th scope="col">Largest component</th>
-              <th scope="col">Isolates</th>
-            </tr>
-          </thead>
-          <tbody>
-            @for (row of networkStatisticsComparisonRows; track row.layer) {
-              <tr [attr.data-testid]="'network-statistics-layer-row-' + row.layer.toLowerCase()">
-                <th scope="row">{{ row.layer }}</th>
-                <td>{{ row.nodeCount }}</td>
-                <td>{{ row.linkCount }}</td>
-                <td>{{ formatPercentage(row.density) }}</td>
-                <td>{{ formatCellValue('averageDegree', row.averageDegree) }}</td>
-                <td>{{ formatCellValue('medianDegree', row.medianDegree) }}</td>
-                <td>{{ row.componentCount }}</td>
-                <td>{{ row.largestComponentSize }}</td>
-                <td>{{ row.singletonCount }}</td>
-              </tr>
-            }
-          </tbody>
-            </table>
-          </div>
+            <div class="network-statistics-narrative-sections">
+              @for (section of interpretation.sections; track section.heading) {
+                <p data-testid="network-statistics-comparison-insight">
+                  <strong>{{ section.heading }}.</strong> {{ section.text }}
+                </p>
+              }
+            </div>
 
-          <h3>Edge evidence composition</h3>
-          <div class="network-statistics-evidence-grid" data-testid="network-statistics-evidence-composition">
-            @for (row of combinedEvidenceComposition; track row.label) {
-              <div class="network-statistics-evidence-item">
-                <span>{{ row.label }}</span>
-                <strong>{{ row.count }} · {{ formatPercentage(row.percent) }}</strong>
+            <div data-testid="network-statistics-evidence-composition">
+              <div class="network-statistics-evidence-heading d-flex align-items-baseline justify-content-between">
+                <h3>Evidence composition</h3>
+                <span class="network-statistics-calculation-mode">{{ combinedUniqueRelationshipCount }} total unique relationships</span>
               </div>
-            }
-          </div>
+              <div
+                class="network-statistics-evidence-bar"
+                role="img"
+                aria-label="Composition of unique relationships by evidence type">
+                @for (row of combinedEvidenceComposition; track row.label; let index = $index) {
+                  <span
+                    class="network-statistics-evidence-segment"
+                    [class]="'network-statistics-evidence-segment evidence-segment-' + index"
+                    [style.width.%]="row.percent * 100"
+                    [attr.title]="row.label + ': ' + row.count + ' (' + formatPercentage(row.percent) + ')'">
+                  </span>
+                }
+              </div>
+              <div class="network-statistics-evidence-grid">
+                @for (row of combinedEvidenceComposition; track row.label; let index = $index) {
+                  <div class="network-statistics-evidence-item d-flex align-items-center">
+                    <span class="network-statistics-evidence-key" [class]="'network-statistics-evidence-key evidence-segment-' + index"></span>
+                    <span>{{ row.label }}</span>
+                    <strong>{{ row.count }} · {{ formatPercentage(row.percent) }}</strong>
+                  </div>
+                }
+              </div>
+            </div>
 
-          <p class="network-statistics-narrative-caveat">
-            <strong>Component definitions.</strong> Genetic components use genetic links only; epidemiologic components use epidemiologic links only; combined components use any visible link. A relationship supported by both evidence types participates in both source layers but counts once in the combined graph.
-          </p>
-        </div>
+            <p class="network-statistics-narrative-caveat" data-testid="network-statistics-comparison-caveat">
+              <strong>Interpretation limits.</strong> {{ interpretation.caveat }}
+            </p>
+
+            <details class="network-statistics-narrative-method" data-testid="network-statistics-comparison-method">
+              <summary>Definitions and methodology</summary>
+              <ul>
+                @for (method of interpretation.methodology; track $index) {
+                  <li>{{ method }}</li>
+                }
+              </ul>
+            </details>
+          </div>
+        }
       }
     </section>
   }
@@ -192,7 +197,7 @@
             </p>
 
             <details class="network-statistics-narrative-method" data-testid="network-statistics-narrative-method">
-              <summary>How this was calculated</summary>
+              <summary>Definitions and methodology</summary>
               <ul>
                 @for (method of narrative.methodology; track $index) {
                   <li>{{ method }}</li>
@@ -269,7 +274,9 @@
             </tr>
           </ng-template>
           <ng-template #body let-datarow>
-            <tr class="ui-selectable-row">
+            <tr
+              class="ui-selectable-row"
+              [attr.data-testid]="datarow.layer ? 'network-statistics-layer-row-' + datarow.layer.toLowerCase() : null">
               @for (col of SelectedTableData.tableColumns; track col) {
                 <td class="network-statistics-cell" [style.min-width.px]="columnMinWidth">
                   {{ formatCellValue(col.field, datarow[col.field]) }}

@@ -115,31 +115,33 @@
   margin: 14px 0 8px;
 }
 
-.network-statistics-comparison-table-wrap {
-  overflow-x: auto;
+.network-statistics-evidence-heading {
+  gap: 12px;
 }
 
-.network-statistics-comparison-table {
-  border-collapse: collapse;
-  min-width: 940px;
-  width: 100%;
+.network-statistics-evidence-bar {
+  background: #dfe8ed;
+  border-radius: 5px;
+  display: flex;
+  height: 14px;
+  margin-bottom: 8px;
+  overflow: hidden;
 }
 
-.network-statistics-comparison-table th,
-.network-statistics-comparison-table td {
-  border: 1px solid #ccd8df;
-  padding: 7px 9px;
-  text-align: right;
-  white-space: nowrap;
+.evidence-segment-0 {
+  background: #2474a6;
 }
 
-.network-statistics-comparison-table th:first-child {
-  text-align: left;
+.evidence-segment-1 {
+  background: #e48a2a;
 }
 
-.network-statistics-comparison-table thead th {
-  background: #e6f0f6;
-  font-weight: 500;
+.evidence-segment-2 {
+  background: #6d4e9d;
+}
+
+.evidence-segment-3 {
+  background: #7b8790;
 }
 
 .network-statistics-evidence-grid {
@@ -151,10 +153,18 @@
 .network-statistics-evidence-item {
   background: #fff;
   border: 1px solid #ccd8df;
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
+  gap: 7px;
   padding: 9px 10px;
+}
+
+.network-statistics-evidence-item strong {
+  margin-left: auto;
+}
+
+.network-statistics-evidence-key {
+  flex: 0 0 10px;
+  height: 10px;
+  width: 10px;
 }
 
 .network-statistics-narrative-heading {

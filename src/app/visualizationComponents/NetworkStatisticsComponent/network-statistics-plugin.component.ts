@@ -17,6 +17,7 @@ import {
   buildNetworkStatisticsNarrative,
   buildNetworkStatisticsExportSections,
   NetworkStatisticsNarrative,
+  NetworkStatisticsNarrativeSection,
   NetworkStatisticsResult,
   serializeNetworkStatisticsCsv,
 } from '@app/contactTraceCommonServices/network-statistics';
@@ -43,6 +44,13 @@ interface NetworkStatisticsLayerComparisonRow {
   componentCount: number;
   largestComponentSize: number;
   singletonCount: number;
+}
+
+interface NetworkStatisticsComparisonInterpretation {
+  headline: string;
+  sections: NetworkStatisticsNarrativeSection[];
+  caveat: string;
+  methodology: string[];
 }
 
 interface NetworkStatisticsColumn {
@@ -160,6 +168,17 @@ export class NetworkStatisticsComponent
       { field: 'fraction', header: 'Fraction' },
     ],
   };
+  private readonly comparisonSummaryColumns: NetworkStatisticsColumn[] = [
+    { field: 'layer', header: 'Layer' },
+    { field: 'nodeCount', header: 'Nodes' },
+    { field: 'linkCount', header: 'Links' },
+    { field: 'density', header: 'Density' },
+    { field: 'averageDegree', header: 'Mean Degree' },
+    { field: 'medianDegree', header: 'Median Degree' },
+    { field: 'componentCount', header: 'Components' },
+    { field: 'largestComponentSize', header: 'Largest Component' },
+    { field: 'singletonCount', header: 'Isolates' },
+  ];
 
   private readonly nodeSelectedWindowHandler = () => {
     if (this.viewActive) {
@@ -248,6 +267,12 @@ export class NetworkStatisticsComponent
     }
   }
 
+  get networkStatisticsDetailLabel(): string {
+    return this.networkStatisticsLayerSelected === 'compare' && this.dataSetViewSelected === 'summary'
+      ? 'Detailed table: Layer comparison'
+      : `Detailed table: ${this.networkStatisticsLayerSelected === 'compare' ? 'Combined' : this.networkStatisticsLayerLabel}`;
+  }
+
   get networkStatisticsComparisonRows(): NetworkStatisticsLayerComparisonRow[] {
     const labels: Record<NetworkStatisticsLayer, string> = {
       genetic: 'Genetic',
@@ -288,8 +313,52 @@ export class NetworkStatisticsComponent
       ...(evidence.unclassifiedLinkCount > 0
         ? [{ label: 'Unclassified', count: evidence.unclassifiedLinkCount, percent: this.ratio(evidence.unclassifiedLinkCount, summary.linkCount) }]
         : []),
-      { label: 'Total unique relationships', count: summary.linkCount, percent: summary.linkCount > 0 ? 1 : 0 },
     ];
+  }
+
+  get combinedUniqueRelationshipCount(): number {
+    return this.networkStatisticsResults.combined?.summary.linkCount ?? 0;
+  }
+
+  get networkStatisticsComparisonInterpretation(): NetworkStatisticsComparisonInterpretation | null {
+    const genetic = this.networkStatisticsResults.genetic?.summary;
+    const epidemiologic = this.networkStatisticsResults.epidemiologic?.summary;
+    const combined = this.networkStatisticsResults.combined?.summary;
+    if (!genetic || !epidemiologic || !combined) {
+      return null;
+    }
+
+    const componentReduction = Math.max(genetic.componentCount - combined.componentCount, 0);
+    const largestComponentIncrease = Math.max(
+      combined.componentMetrics.largestClusterSize - genetic.componentMetrics.largestClusterSize,
+      0,
+    );
+    const overlapCount = combined.linkEvidence.duoLinkCount;
+    const overlapPercent = this.formatPercentage(this.ratio(overlapCount, combined.linkCount));
+    const bridgingText = componentReduction > 0
+      ? `Including epidemiologic evidence reduces the component count from ${genetic.componentCount} in the genetic layer to ${combined.componentCount} in the combined layer (${componentReduction} fewer). The largest component increases by ${largestComponentIncrease} ${largestComponentIncrease === 1 ? 'node' : 'nodes'}. This indicates that epidemiologic relationships bridge groups that are disconnected by genetic links alone.`
+      : `Including epidemiologic evidence does not reduce the ${genetic.componentCount} components present in the genetic layer. In this visible network, epidemiologic relationships do not join otherwise separate genetic components.`;
+    const overlapText = overlapCount > 0
+      ? `${overlapCount} of ${combined.linkCount} unique relationships (${overlapPercent}) are supported by both genetic and epidemiologic evidence. These dual-supported relationships participate in both source layers but count once in the combined graph.`
+      : `None of the ${combined.linkCount} unique relationships are supported by both genetic and epidemiologic evidence. Genetic and epidemiologic support occur on different visible node pairs.`;
+
+    return {
+      headline: `The visible network contains ${combined.nodeCount} nodes and ${combined.linkCount} unique relationships. Layer-specific statistics are authoritative; the combined layer is a supplementary view of connections supported by either evidence type.`,
+      sections: [
+        { heading: 'Cross-layer connectivity', text: bridgingText },
+        {
+          heading: 'Layer contribution',
+          text: `The genetic layer contains ${genetic.linkCount} links across ${genetic.componentCount} components; the epidemiologic layer contains ${epidemiologic.linkCount} links across ${epidemiologic.componentCount} components. Because some node pairs have both evidence types, these link counts should not be added to obtain the combined total.`,
+        },
+        { heading: 'Evidence overlap', text: overlapText },
+      ],
+      caveat: 'A combined component is not a genetic cluster. It may contain genetic groups joined only through epidemiologic evidence. These structural patterns support investigation but do not establish transmission direction or causality.',
+      methodology: [
+        'Genetic components use genetic links only; epidemiologic components use epidemiologic links only; combined components use any visible genetic or epidemiologic link.',
+        'The combined graph uses the union of the two edge sets. A node pair supported by both evidence types counts as one unique relationship, not two links.',
+        'All values use the currently visible nodes and links after filtering, thresholds, and hidden-layer settings are applied.',
+      ],
+    };
   }
 
   onNetworkStatisticsLayerChange(event: any): void {
@@ -732,7 +801,9 @@ export class NetworkStatisticsComponent
   }
 
   private syncSelectedTableData(): void {
-    const tableData = this.getTableData(this.dataSetViewSelected);
+    const tableData = this.networkStatisticsLayerSelected === 'compare' && this.dataSetViewSelected === 'summary'
+      ? this.createTableData('summary', this.comparisonSummaryColumns)
+      : this.getTableData(this.dataSetViewSelected);
     tableData.data = this.buildRowsForSection(this.dataSetViewSelected);
     this.SelectedTableData = tableData;
     this.updateTableDimensions();
@@ -748,12 +819,21 @@ export class NetworkStatisticsComponent
       return tableData;
     }
 
-    const columns = this.sectionColumns[section].map((column) => ({
+    tableData = this.createTableData(section, this.sectionColumns[section]);
+    this.TableDatas.push(tableData);
+    return tableData;
+  }
+
+  private createTableData(
+    section: NetworkStatisticsSection,
+    sourceColumns: NetworkStatisticsColumn[],
+  ): NetworkStatisticsTableData {
+    const columns = sourceColumns.map((column) => ({
       ...column,
       filterType: 'contains',
       filterValue: '',
     }));
-    tableData = {
+    return {
       tableType: section,
       data: [],
       tableColumns: [...columns],
@@ -762,8 +842,6 @@ export class NetworkStatisticsComponent
         value: column,
       })),
     };
-    this.TableDatas.push(tableData);
-    return tableData;
   }
 
   private buildRowsForSection(section: NetworkStatisticsSection): any[] {
@@ -774,6 +852,9 @@ export class NetworkStatisticsComponent
     const result = this.networkStatisticsResult;
     switch (section) {
       case 'summary':
+        if (this.networkStatisticsLayerSelected === 'compare') {
+          return this.networkStatisticsComparisonRows;
+        }
         return this.buildSummaryRows(result);
       case 'centrality':
         return result.centrality;

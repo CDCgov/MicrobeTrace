@@ -83,7 +83,7 @@ describe('Journey Flow - Network Statistics view', () => {
       .and('contain.text', 'Each visible node pair counts as one link')
       .and('contain.text', 'do not establish transmission direction or causality');
     cy.get('[data-testid="network-statistics-narrative-method"]')
-      .should('contain.text', 'How this was calculated')
+      .should('contain.text', 'Definitions and methodology')
       .and('not.contain.text', 'artificial intelligence');
     cy.get('[data-testid="network-statistics-calculation-mode"]')
       .invoke('text')
@@ -307,9 +307,12 @@ describe('Journey Flow - Network Statistics view', () => {
     cy.get('[data-testid="network-statistics-layer-comparison"]')
       .should('be.visible')
       .and('contain.text', 'Layer-specific statistics are authoritative')
-      .and('contain.text', 'counts once in the combined graph');
+      .and('contain.text', 'Cross-layer connectivity')
+      .and('contain.text', 'Evidence overlap')
+      .and('contain.text', 'count once in the combined graph');
+    cy.get('.network-statistics-comparison-table').should('not.exist');
     cy.get('[data-testid="network-statistics-detail-layer"]')
-      .should('contain.text', 'Detailed table: Combined');
+      .should('contain.text', 'Detailed table: Layer comparison');
     cy.get('[data-testid="network-statistics-table-shell"]')
       .should('exist');
     cy.get('[data-testid="network-statistics-layer-row-genetic"]')
@@ -327,7 +330,7 @@ describe('Journey Flow - Network Statistics view', () => {
       .and('contain.text', 'Epidemiologic only')
       .and('contain.text', 'Genetic + epidemiologic')
       .and('contain.text', '7')
-      .and('contain.text', 'Total unique relationships')
+      .and('contain.text', 'total unique relationships')
       .and('contain.text', '17');
     cy.get('[data-testid="network-statistics-comparison-toggle"]')
       .should('have.attr', 'aria-expanded', 'true')
