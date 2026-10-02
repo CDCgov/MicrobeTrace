@@ -4,6 +4,7 @@ export type DistanceMetric = 'tn93' | 'snps';
 
 export type DefaultView =
   | '2D Network'
+  | 'Transmission Chain View'
   | 'Table'
   | 'Network Statistics'
   | 'Map'

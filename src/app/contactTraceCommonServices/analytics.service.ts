@@ -23,6 +23,7 @@ const IGNORED_VIEWS = new Set([
 const VIRTUAL_PAGES: Record<string, VirtualPageDefinition> = {
     'Files': { path: 'files', title: 'Files View' },
     '2D Network': { path: '2d_network', title: '2D Network View' },
+    'Transmission Chain View': { path: 'transmission_chain', title: 'Transmission Chain View' },
     'Map': { path: 'map', title: 'Map View' },
     'Table': { path: 'table', title: 'Table View' },
     'Network Statistics': { path: 'network-statistics', title: 'Network Statistics View' },

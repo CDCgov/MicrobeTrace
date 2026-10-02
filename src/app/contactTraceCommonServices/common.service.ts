@@ -118,6 +118,7 @@ export class CommonService extends AppComponentBase implements OnInit {
 
     private readonly restorableDashboardViews = new Set<string>([
         '2D Network',
+        'Transmission Chain View',
         'Map',
         'Table',
         'Network Statistics',
@@ -133,10 +134,29 @@ export class CommonService extends AppComponentBase implements OnInit {
         'Waterfall'
     ]);
 
+    private readonly missingTimelineDateTokens = new Set([
+        '',
+        '0',
+        '0.0',
+        'na',
+        'n/a',
+        'nan',
+        'none',
+        'null',
+        'undefined',
+        'unknown',
+        'not available',
+        'invalid date'
+    ]);
+
     private readonly legacyViewNameMap: { [key: string]: string } = {
         '2d_network': '2D Network',
         '2dnetwork': '2D Network',
         'network': '2D Network',
+        'transmission_chain': 'Transmission Chain View',
+        'transmissionchain': 'Transmission Chain View',
+        'transmission_chain_view': 'Transmission Chain View',
+        'transmissionchainview': 'Transmission Chain View',
         'geo_map': 'Map',
         'geomap': 'Map',
         'map': 'Map',
@@ -524,7 +544,7 @@ export class CommonService extends AppComponentBase implements OnInit {
             'map-auto-expand-selected': true,
             'map-collapsing-on': true,
             'map-counties-show': false,
-            'map-countries-show': false,
+            'map-countries-show': true,
             'map-field-lat': 'None',
             'map-field-lon': 'None',
             'map-field-tract': 'None',
@@ -551,9 +571,17 @@ export class CommonService extends AppComponentBase implements OnInit {
             "mst-computed": false,
             'network-friction': 0.4,
             'network-gravity': 0.05,
+            'network-layout-mode': 'Force Directed',
             'network-link-strength': 0.124,
             'network-node-collapse-enabled': false,
             'network-node-collapse-threshold': 0,
+            'network-timeline-date-field': 'None',
+            'network-timeline-vertical-spacing': 100,
+            'transmission-chain-date-field': 'None',
+            'transmission-chain-y-axis-field': 'None',
+            'transmission-chain-link-origins': null,
+            'transmission-chain-line-style': 'Stepped',
+            'transmission-chain-vertical-spacing': 100,
             'node-charge': 200,
             'node-border-width' : 2.0,
             'node-color': '#1f77b4',
@@ -1302,9 +1330,14 @@ export class CommonService extends AppComponentBase implements OnInit {
             return false;
         }
 
+        if (typeof value === 'number' && value === 0) {
+            return false;
+        }
+
         if (typeof value === 'string') {
             const trimmed = value.trim();
-            if (trimmed === '' || trimmed.toLowerCase() === 'null') {
+            const normalized = trimmed.toLowerCase();
+            if (this.missingTimelineDateTokens.has(normalized)) {
                 return false;
             }
         }
@@ -1372,6 +1405,74 @@ export class CommonService extends AppComponentBase implements OnInit {
 
         const lookupKey = rawValue.toLowerCase().replace(/[\s-]+/g, '_');
         return this.legacyViewNameMap[lookupKey] ?? rawValue;
+    }
+
+    private replaceLegacyTimelineLayoutView(layoutItem: any): void {
+        if (!layoutItem || typeof layoutItem !== 'object') {
+            return;
+        }
+
+        const replaceViewValue = (key: string): void => {
+            if (this.normalizeViewName(layoutItem[key]) === '2D Network') {
+                layoutItem[key] = 'Transmission Chain View';
+            }
+        };
+
+        replaceViewValue('componentType');
+        replaceViewValue('componentName');
+        replaceViewValue('title');
+
+        const itemType = String(layoutItem.type ?? '').toLowerCase();
+        if (!['row', 'column', 'stack', 'component'].includes(itemType)) {
+            replaceViewValue('type');
+        }
+
+        if (layoutItem.root) {
+            this.replaceLegacyTimelineLayoutView(layoutItem.root);
+        }
+
+        if (Array.isArray(layoutItem.content)) {
+            layoutItem.content.forEach(child => this.replaceLegacyTimelineLayoutView(child));
+        }
+
+        if (Array.isArray(layoutItem.openPopouts)) {
+            layoutItem.openPopouts.forEach(child => this.replaceLegacyTimelineLayoutView(child));
+        }
+    }
+
+    private migrateLegacyTimelineLayoutSession(oldSession: any): void {
+        const widgets = oldSession?.style?.widgets;
+        if (!widgets || widgets['network-layout-mode'] !== 'Timeline') {
+            return;
+        }
+
+        widgets['transmission-chain-date-field'] =
+            widgets['transmission-chain-date-field'] && widgets['transmission-chain-date-field'] !== 'None'
+                ? widgets['transmission-chain-date-field']
+                : widgets['network-timeline-date-field'] || 'None';
+
+        if (!widgets['transmission-chain-y-axis-field']) {
+            widgets['transmission-chain-y-axis-field'] = 'None';
+        }
+
+        const legacySpacing = Number(widgets['network-timeline-vertical-spacing']);
+        widgets['transmission-chain-vertical-spacing'] = Number.isFinite(legacySpacing)
+            ? legacySpacing
+            : 100;
+
+        if (widgets['transmission-chain-link-origins'] === undefined) {
+            widgets['transmission-chain-link-origins'] = null;
+        }
+
+        widgets['network-layout-mode'] = 'Force Directed';
+
+        if (this.normalizeViewName(widgets['default-view']) === '2D Network') {
+            widgets['default-view'] = 'Transmission Chain View';
+        }
+
+        this.replaceLegacyTimelineLayoutView(oldSession.layout);
+        this.replaceLegacyTimelineLayoutView(oldSession.dashboardLayout);
+        this.replaceLegacyTimelineLayoutView(oldSession?.dashboardState?.layout);
     }
 
     private normalizeRestorableDashboardViewName(value: any): string | null {
@@ -2587,8 +2688,10 @@ export class CommonService extends AppComponentBase implements OnInit {
         const nodes = microbeData.nodes.map((node) => ({
           ...node, // Spread existing properties
           id: node._id, // Ensure the id property is set correctly
-          group: node.cluster,
-          color: this.getColorByIndex(node.index), // Add or override the color property
+          group: node.isCollapsedAggregate ? node.group : node.cluster,
+          color: node.color ?? (Number.isInteger(node.index) && node.index >= 0
+            ? this.getColorByIndex(node.index)
+            : this.session.style.widgets['node-color']), // Add or override the color property
           label: (this.session.style.widgets['node-label-variable'] === 'None') ? '' : node.label, // Ensure label is defined
             nodeSize: node.nodeSize ?? 20, // Default node size
             borderWidth: node.borderWidth ?? this.session.style.widgets['node-border-width'] ?? 1 // Default border width
@@ -2785,6 +2888,9 @@ export class CommonService extends AppComponentBase implements OnInit {
 
         const oldSession = stashObject.session;
         const savedTabs = Array.isArray(stashObject.tabs) ? stashObject.tabs : [];
+
+        this.migrateLegacyTimelineLayoutSession(oldSession);
+        this.replaceLegacyTimelineLayoutView(stashObject.dashboardLayout);
 
         const normalizedDefaultView = this.normalizeViewName(oldSession?.style?.widgets?.['default-view']);
         if (normalizedDefaultView && oldSession?.style?.widgets) {
@@ -3555,6 +3661,8 @@ align(params): Promise<any> {
     } else {
       this.session.warnings.push(warning);
     }
+
+    this.store.triggerWarningsChanged();
   }
 
   // Compute links using a fresh links worker
@@ -4278,6 +4386,49 @@ align(params): Promise<any> {
         return out;
     };
 
+    private getTopologyItemId(item: any): string {
+        if (item && typeof item === 'object') {
+            return String(item._id ?? item.id ?? '');
+        }
+
+        return String(item ?? '');
+    }
+
+    getVisibleTopologySummary(filterLinksByVisibleNodes: boolean = this.session.style.widgets["timeline-date-field"] !== 'None') {
+        const nodes = this.getVisibleNodes();
+        let links = this.getVisibleLinks();
+
+        if (filterLinksByVisibleNodes) {
+            const visibleNodeIds = new Set(nodes.map(node => this.getTopologyItemId(node)));
+            links = links.filter(link =>
+                visibleNodeIds.has(this.getTopologyItemId(link.source)) &&
+                visibleNodeIds.has(this.getTopologyItemId(link.target))
+            );
+        }
+
+        const metric = this.session.style.widgets["link-sort-variable"];
+        const summary = buildVisibleClusterSummary(
+            nodes,
+            links.map(link => ({
+                ...link,
+                source: this.getTopologyItemId(link.source),
+                target: this.getTopologyItemId(link.target),
+                visible: true,
+            })),
+            metric
+        );
+
+        return {
+            nodes,
+            links,
+            nodeCount: nodes.length,
+            selectedNodeCount: nodes.filter(node => node.selected).length,
+            linkCount: links.length,
+            clusterCount: summary.clusterCount,
+            singletonCount: summary.singletonCount,
+        };
+    }
+
     /**
      * updates the network statistics table with number of visible nodes, visible links, clusters, and selected links
      * @returns undefined
@@ -4319,7 +4470,7 @@ align(params): Promise<any> {
             clusterCount = timelineSummary.clusterCount;
             singletons = timelineSummary.singletonCount;
         }
-        $("#numberOfSelectedNodes").text(vnodes.filter(d => d.selected).length.toLocaleString());
+        $("#numberOfSelectedNodes").text(vnodes.filter(node => node.selected).length.toLocaleString());
         $("#numberOfNodes").text(vnodes.length.toLocaleString());
         $("#numberOfVisibleLinks").text(linkCount.toLocaleString());
         $("#numberOfSingletonNodes").text(singletons.toLocaleString());

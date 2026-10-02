@@ -79,7 +79,7 @@ export interface StyleKeyTableShapePanelRequest {
     changeDetection: ChangeDetectionStrategy.OnPush,
     standalone: false,
     template: `
-        <table [id]="tableId" style="width:100%;height:100%;">
+        <table [id]="tableId" class="style-key-table">
             <tr>
                 <th class="p-1 table-header-row">
                     <div class="header-content sortable">
@@ -275,6 +275,30 @@ export interface StyleKeyTableShapePanelRequest {
         :host {
             display: block;
             width: 100%;
+        }
+
+        .style-key-table {
+            height: 100%;
+            min-width: 100%;
+            width: max-content;
+        }
+
+        .style-key-table th {
+            white-space: nowrap;
+        }
+
+        .style-key-table .header-content {
+            display: inline-flex;
+            flex-wrap: nowrap;
+            min-width: 100%;
+            white-space: nowrap;
+            width: max-content;
+        }
+
+        .style-key-table .header-content > span,
+        .style-key-table .sort-button {
+            flex: 0 0 auto;
+            white-space: nowrap;
         }
 
         .style-key-table__duo-swatch {

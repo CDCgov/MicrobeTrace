@@ -5548,7 +5548,7 @@ ${warnings.join('\n')}`,
             const instance = this._goldenLayoutHostComponent.getComponentRef(container).instance as any;
             console.log('--- viewClick exisitng view - load settings');
 
-            if (viewName === '2D Network' && !instance.cy) {
+            if ((viewName === '2D Network' || viewName === 'Transmission Chain View') && !instance.cy) {
                 if (instance.onLoadNewData) {
                     instance.onLoadNewData();
                 }
@@ -5887,7 +5887,8 @@ ${warnings.join('\n')}`,
 
                 break;
             }
-            case "2D Network": {
+            case "2D Network":
+            case "Transmission Chain View": {
 
                 this.showSettings = true;
                 this.showExport = true;

@@ -684,9 +684,38 @@ export function goTo2DNetworkView(): void {
   assertTwoDNetworkReady();
 }
 
+export function goToTransmissionChainView(): void {
+  const ensureTabExists = (attemptsRemaining: number): void => {
+    cy.get('body', { timeout: 15000 }).then(($body) => {
+      const existingTab = $body.find('.lm_tab[title="Transmission Chain View"]');
+      if (existingTab.length) return;
+
+      expect(attemptsRemaining, 'attempts remaining to open Transmission Chain View').to.be.greaterThan(0);
+      cy.get(byTestId(testIds.appViewMenuButton)).click({ force: true });
+      cy.get(byTestId(testIds.appViewMenuTransmissionChain)).click({ force: true });
+      cy.wait(250, { log: false });
+      ensureTabExists(attemptsRemaining - 1);
+    });
+  };
+
+  ensureTabExists(3);
+
+  cy.get('.lm_tab[title="Transmission Chain View"]', { timeout: 15000 })
+    .trigger('click', { button: 0 });
+
+  assertTransmissionChainReady();
+}
+
 export function assertTwoDNetworkReady(timeout = 30000): void {
   cy.get('#cy', { timeout }).should('be.visible');
   cy.window({ timeout }).should('have.property', 'cytoscapeInstance');
+}
+
+export function assertTransmissionChainReady(timeout = 30000): void {
+  cy.get('#transmission-chain-cy', { timeout }).should('be.visible');
+  cy.window({ timeout })
+    .its('commonService.visuals.transmissionChain.cy')
+    .should('exist');
 }
 
 export function assertPhyloTreeReady(timeout = 30000): void {

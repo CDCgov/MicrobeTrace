@@ -1,34 +1,42 @@
 
 
-<span id="tooltip" style="background-color: white;"></span>
+<span #tooltipElement [id]="isTransmissionChainView ? 'transmission-chain-tooltip' : 'tooltip'" style="background-color: white;"></span>
 
-<div id="tool-btn-container" class="m-portlet">
+<div #toolBtnContainer id="tool-btn-container" class="m-portlet">
   <span style="overflow: visible; position: relative; width: 110px;">
-    <a title="Settings" data-testid="twod-settings-button" class="btn btn-sm btn-clean btn-icon btn-icon-md" style="float:left" (click)="openSettings()"><i class="flaticon-settings primary"></i></a>
+    <a title="Settings" [attr.data-testid]="isTransmissionChainView ? 'transmission-chain-settings-button' : 'twod-settings-button'" class="btn btn-sm btn-clean btn-icon btn-icon-md" style="float:left" (click)="openSettings()"><i class="flaticon-settings primary"></i></a>
   </span>
   <span style="overflow: visible; position: relative; width: 110px;">
     <a title="Export Screen" class="btn btn-sm btn-clean btn-icon btn-icon-md" style="float:left" (click)="openExport()"><i class="flaticon-download primary"></i></a>
   </span>
   <span style="overflow: visible; position: relative; width: 110px;">
-    <a title="Center Screen" class="btn btn-sm btn-clean btn-icon btn-icon-md" style="float:left" (click)="openCenter()"><i class="flaticon-eye primary"></i></a>
+    <a title="Center Screen" [attr.data-testid]="isTransmissionChainView ? 'transmission-chain-center-button' : 'twod-center-button'" class="btn btn-sm btn-clean btn-icon btn-icon-md" style="float:left" (click)="openCenter()"><i class="flaticon-eye primary"></i></a>
   </span>
   <span style="overflow: visible; position: relative; width: 110px;">
     <a title="Pin All Nodes" data-testid="twod-pin-all-button" class="btn btn-sm btn-clean btn-icon btn-icon-md" style="float:left" (click)="pinNodes()"
       [style.background]="commonService.session.network.allPinned ? 'lightblue': null"
       ><i class="flaticon-pin primary"></i></a>
     </span>
-    <span style="overflow: visible; position: relative; width: 110px;">
-      <a  title="Recalculate Layout. Disabled when nodes are pinned." data-testid="twod-recalculate-layout-button" class="btn btn-sm btn-clean btn-icon btn-icon-md" style="float:left" (click)="updateLayout()"
-        [ngClass]="commonService.session.network.allPinned ? 'disabled' : ''">
-        <i class="flaticon-refresh primary"></i></a>
+    @if (!isTransmissionChainView) {
+      <span style="overflow: visible; position: relative; width: 110px;">
+        <a title="Recalculate Layout. Disabled when nodes are pinned." data-testid="twod-recalculate-layout-button" class="btn btn-sm btn-clean btn-icon btn-icon-md" style="float:left" (click)="updateLayout()"
+          [ngClass]="commonService.session.network.allPinned ? 'disabled' : ''">
+          <i class="flaticon-refresh primary"></i></a>
       </span>
+    }
+      @if (isTransmissionChainView) {
+        <span style="overflow: visible; position: relative; width: 110px;">
+          <a data-testid="transmission-chain-excluded-nodes-button" title="Nodes without Timeline Date Data" aria-label="Nodes excluded from Transmission Chain View because they lack timeline date data" class="btn btn-sm btn-clean btn-icon btn-icon-md" style="float:left" [ngStyle]="{ color: nodesWithoutTimelineDate.length === 0 ? '#005DAA' : 'red' }" (click)="showExcludedTimelineNodes()">{{ nodesWithoutTimelineDate.length }}</a>
+        </span>
+      }
     </div>
 
     <!-- <div #cy id="cy" style="width: 100%; height: 100%;"></div> -->
 
     <div #exportContainer class="cytoscape-container" style="position: relative;">
-      <div #cy id="cy" style="width: 100%; height: 100%; position: relative;"></div>
+      <div #cy [id]="cyElementId" class="cytoscape-viewport" style="width: 100%; height: 100%; position: relative;"></div>
       <div class="grid-overlay" [class.hidden]="!widgets['network-gridlines-show']"></div>
+      <svg #timelineAxisOverlay class="timeline-axis-overlay hidden" aria-hidden="true"></svg>
 
       <!-- Static Watermark (Optional) -->
       <div id="watermark" class="watermark"></div>
@@ -77,12 +85,12 @@
 
       <div class="view-controls">
         @if (viewActive) {
-          <p-dialog id="network-settings-pane" data-testid="twod-settings-dialog"
+          <p-dialog [id]="isTransmissionChainView ? 'transmission-chain-settings-pane' : 'network-settings-pane'" [attr.data-testid]="isTransmissionChainView ? 'transmission-chain-settings-dialog' : 'twod-settings-dialog'"
             [(visible)]="Node2DNetworkExportDialogSettings.isVisible"
-            header="2D Network Settings" appendTo="body"
+            [header]="settingsDialogHeader" [style]="settingsDialogStyle" [contentStyle]="settingsDialogContentStyle" appendTo="body"
             >
             <tabset class="tab-container tabbable-line">
-              <tab heading="{{'Nodes' | localize}}" [active]="true" customClass="m-tabs__item">
+              <tab heading="{{'Nodes' | localize}}" [active]="!isTransmissionChainView" customClass="m-tabs__item">
                 <p-accordion [value]="null" [multiple]="true">
                   <p-accordion-panel value="node-labels" style="color:#495057">
                     <p-accordion-header>Labels and Tooltips</p-accordion-header>
@@ -167,23 +175,25 @@
                   </div>
                 </p-accordion-content>
               </p-accordion-panel>
-              <p-accordion-panel value="node-collapse" style="color:#495057">
-                <p-accordion-header>Collapse Related Nodes</p-accordion-header>
-                <p-accordion-content>
-                  <div class="form-group row" title="Collapse visible nodes connected by distance links at or below the selected distance.">
-                    <div class="col-4"><label for="network-node-collapse-enabled">Collapse</label></div>
-                    <div class="col-8">
-                      <p-select-button id="network-node-collapse-enabled" [options]="hideShowOptions" [allowEmpty]="false" fluid [ngModel]="SelectedNodeCollapseTypeVariable" (onChange)="onNodeCollapseEnabledChange($event.value, true)"></p-select-button>
+              @if (!isTransmissionChainView) {
+                <p-accordion-panel value="node-collapse" style="color:#495057">
+                  <p-accordion-header>Collapse Related Nodes</p-accordion-header>
+                  <p-accordion-content>
+                    <div class="form-group row" title="Collapse visible nodes connected by distance links at or below the selected distance.">
+                      <div class="col-4"><label for="network-node-collapse-enabled">Collapse</label></div>
+                      <div class="col-8">
+                        <p-select-button id="network-node-collapse-enabled" [options]="hideShowOptions" [allowEmpty]="false" fluid [ngModel]="SelectedNodeCollapseTypeVariable" (onChange)="onNodeCollapseEnabledChange($event.value, true)"></p-select-button>
+                      </div>
                     </div>
-                  </div>
-                  <div class="form-group row" title="Maximum genetic distance for nodes to collapse into aggregate pie nodes, limited by the current Filtering Threshold. When grouping is shown, nodes only collapse with other nodes in the same group.">
-                    <div class="col-4"><label for="network-node-collapse-threshold-input">Distance ({{ SelectedNodeCollapseMetricLabel }})</label></div>
-                    <div class="col-8">
-                      <input type="number" class="form-control form-control-sm" id="network-node-collapse-threshold-input" [min]="NodeCollapseThresholdMinDisplayed" [max]="NodeCollapseThresholdMaxDisplayed" [step]="NodeCollapseThresholdStepDisplayed" [disabled]="commonService.session.style.widgets['network-node-collapse-enabled'] !== true" [(ngModel)]="SelectedNodeCollapseThresholdDisplayedVariable" (ngModelChange)="onNodeCollapseThresholdDisplayedChange($event, false)" (keydown.arrowup)="onNodeCollapseThresholdKeydown($event, 1)" (keydown.arrowdown)="onNodeCollapseThresholdKeydown($event, -1)" (blur)="onNodeCollapseThresholdInputBlur()">
+                    <div class="form-group row" title="Maximum genetic distance for nodes to collapse into aggregate pie nodes, limited by the current Filtering Threshold. When grouping is shown, nodes only collapse with other nodes in the same group.">
+                      <div class="col-4"><label for="network-node-collapse-threshold-input">Distance ({{ SelectedNodeCollapseMetricLabel }})</label></div>
+                      <div class="col-8">
+                        <input type="number" class="form-control form-control-sm" id="network-node-collapse-threshold-input" [min]="NodeCollapseThresholdMinDisplayed" [max]="NodeCollapseThresholdMaxDisplayed" [step]="NodeCollapseThresholdStepDisplayed" [disabled]="commonService.session.style.widgets['network-node-collapse-enabled'] !== true" [(ngModel)]="SelectedNodeCollapseThresholdDisplayedVariable" (ngModelChange)="onNodeCollapseThresholdDisplayedChange($event, false)" (keydown.arrowup)="onNodeCollapseThresholdKeydown($event, 1)" (keydown.arrowdown)="onNodeCollapseThresholdKeydown($event, -1)" (blur)="onNodeCollapseThresholdInputBlur()">
+                      </div>
                     </div>
-                  </div>
-                </p-accordion-content>
-              </p-accordion-panel>
+                  </p-accordion-content>
+                </p-accordion-panel>
+              }
               <p-accordion-panel value="node-colors" style="color:#495057">
                 <p-accordion-header>Colors</p-accordion-header>
                 <p-accordion-content><button pButton type="button" class="ui-button-raised" (click)="showGlobalSettings($event)" [style]="{'background-color': '#2196f3', 'border': '1px solid #2196f3'}"><span class="p-button-label">Show Colors</span></button>
@@ -268,7 +278,7 @@
                   <p-select-button id="link-directed-undirected" [options]="ArrowTypes" [allowEmpty]="false" fluid [(ngModel)]="SelectedLinkArrowTypeVariable" (ngModelChange)="onLinkDirectedUndirectedChange($event)"></p-select-button>
                 </div>
               </div>
-              <div id="link-bidirectional-row" class="form-group row display-none" title="Should links be bidirectional?">
+              <div id="link-bidirectional-row" class="form-group row" [class.display-none]="SelectedLinkArrowTypeVariable !== 'Show'" title="Should links be bidirectional?">
                 <div class="col-4">Bidirectional</div>
                 <div class="col-8">
                   <p-select-button id="link-bidirectional" [options]="hideShowOptionsString" [allowEmpty]="false" fluid [(ngModel)]="SelectedLinkBidirectionalTypeVariable" (ngModelChange)="onLinkBidirectionalChange($event)"></p-select-button>
@@ -285,7 +295,7 @@
     </p-accordion>
   </tab>
   <tab heading="{{'Network' | localize}}" customClass="m-tabs__item">
-    <p-accordion [value]="null" [multiple]="true">
+    <p-accordion [value]="isTransmissionChainView ? ['network-display'] : null" [multiple]="true">
       <p-accordion-panel value="network-display" style="color:#495057">
         <p-accordion-header>Display</p-accordion-header>
         <p-accordion-content><div #networkcontrolslabels>
@@ -301,11 +311,66 @@
               <p-select-button id="network-gridlines-show-hide" [options]="hideShowOptionsString" [allowEmpty]="false" fluid [(ngModel)]="SelectedNetworkGridLineTypeVariable" (ngModelChange)="onNetworkGridlinesShowHideChange($event)"></p-select-button>
             </div>
           </div>
+          @if (isTransmissionChainView) {
+            <div class="form-group row" title="Choose how transmission chain links are routed.">
+              <div class="col-3"><label for="transmission-chain-line-style">Line Style</label></div>
+              <div class="col-9">
+                <p-select id="transmission-chain-line-style" [options]="TransmissionChainLineStyleOptions" appendTo="body" class="width-percent-100" [(ngModel)]="SelectedTransmissionChainLineStyleVariable" (ngModelChange)="onTransmissionChainLineStyleChange($event)"></p-select>
+              </div>
+            </div>
+          }
         </div>
       </p-accordion-content>
     </p-accordion-panel>
   </p-accordion>
 </tab>
+@if (isTransmissionChainView) {
+  <tab heading="{{'Layout' | localize}}" [active]="isTransmissionChainView" customClass="m-tabs__item">
+    <div class="form-group row" title="Choose the node date field used to place nodes along the timeline layout.">
+      <div class="col-3"><label for="transmission-chain-date-field">Date Field</label></div>
+      <div class="col-9">
+        <p-select id="transmission-chain-date-field" [options]="FieldList" appendTo="body" class="width-percent-100" [(ngModel)]="SelectedNetworkTimelineDateFieldVariable" (ngModelChange)="onNetworkTimelineDateFieldChange($event)"></p-select>
+      </div>
+    </div>
+    <div class="form-group row" title="Choose a node field, such as Facility, to create labeled vertical bands. Select None to retain automatic cluster and connected-component grouping.">
+      <div class="col-3"><label for="transmission-chain-y-axis-field">Y-Axis Field</label></div>
+      <div class="col-9">
+        <p-select id="transmission-chain-y-axis-field" [options]="FieldList" appendTo="body" class="width-percent-100" [(ngModel)]="SelectedTransmissionChainYAxisFieldVariable" (ngModelChange)="onTransmissionChainYAxisFieldChange($event)"></p-select>
+      </div>
+    </div>
+    <div class="form-group row" title="Choose which link lists are used to render and arrange the transmission chain.">
+      <div class="col-3"><label for="transmission-chain-link-origins">Link Lists</label></div>
+      <div class="col-9" id="transmission-chain-link-origins">
+        <div class="transmission-chain-link-origin-actions">
+          <button type="button" class="btn btn-sm btn-outline-primary" (click)="selectAllTransmissionChainLinkOrigins()">Select All</button>
+          <button type="button" class="btn btn-sm btn-outline-secondary" (click)="clearTransmissionChainLinkOrigins()">Clear</button>
+          <span class="transmission-chain-link-origin-summary">{{ getTransmissionChainLinkOriginSelectionSummary() }}</span>
+        </div>
+        <div class="transmission-chain-link-origin-list" role="group" aria-label="Link Lists">
+          @for (option of TransmissionChainLinkOriginOptions; track option.value) {
+            <label class="transmission-chain-link-origin-option" [title]="option.label">
+              <input
+                type="checkbox"
+                [checked]="isTransmissionChainLinkOriginSelected(option.value)"
+                (change)="onTransmissionChainLinkOriginCheckboxChange(option.value, $event)">
+              <span>{{ option.label }}</span>
+            </label>
+          } @empty {
+            <div class="transmission-chain-link-origin-empty">No link lists available</div>
+          }
+        </div>
+      </div>
+    </div>
+    <div class="form-group row" title="Increase or decrease vertical spacing between nodes in the timeline layout.">
+      <div class="col-3"><label for="transmission-chain-vertical-spacing">Y Spacing</label></div>
+      <div class="col-7">
+        <input type="range" class="custom-range" id="transmission-chain-vertical-spacing" min="5" max="180" step="5" [(ngModel)]="SelectedNetworkTimelineVerticalSpacingVariable" (ngModelChange)="onNetworkTimelineVerticalSpacingChange($event)">
+      </div>
+      <div class="col-2">{{ SelectedNetworkTimelineVerticalSpacingVariable }}%</div>
+    </div>
+  </tab>
+}
+@if (!isTransmissionChainView) {
 <tab heading="{{'Grouping' | localize}}" customClass="m-tabs__item">
   <p-accordion [value]="null" [multiple]="true">
     <p-accordion-panel value="grouping-controls" style="color:#495057">
@@ -385,7 +450,7 @@
             <div class="col-5">Group Color Table</div>
             <div class="col-7">
               <p-select-button id="polygon-color-table-toggle" [options]="polygonColorTableOptions" [allowEmpty]="false" fluid
-                [(ngModel)]="commonService.session.style.widgets['polygon-color-table-visible']"
+                [ngModel]="getPolygonColorTableDisplayMode()"
                 (ngModelChange)="polygonColorsTableToggle($event)">
               </p-select-button>                                </div>
             </div>
@@ -405,8 +470,34 @@
 }
 </p-accordion>
 </tab>
+}
 </tabset>
 </p-dialog>
+}
+
+@if (isTransmissionChainView && viewActive) {
+  <p-dialog
+    data-testid="transmission-chain-excluded-nodes-dialog"
+    header="Excluded Nodes"
+    styleClass="transmission-chain-excluded-nodes-dialog"
+    appendTo="body"
+    [baseZIndex]="2000"
+    [(visible)]="showExcludedTimelineNodesDialog"
+    [style]="{ 'width': '35rem', 'max-height': '40rem' }">
+    @if (SelectedNetworkTimelineDateFieldVariable === 'None') {
+      <span class="text-surface-500 dark:text-surface-400 block mb-8">Select a Date Field to identify nodes that cannot be placed on the timeline.</span>
+    } @else if (nodesWithoutTimelineDate.length === 0) {
+      <span class="text-surface-500 dark:text-surface-400 block mb-8">All visible nodes contain valid {{ SelectedNetworkTimelineDateFieldVariable }} data.</span>
+    } @else {
+      <span class="text-surface-500 dark:text-surface-400 block mb-8">The following nodes don't contain valid {{ SelectedNetworkTimelineDateFieldVariable }} data and were omitted from Transmission Chain View:
+        <ol>
+          @for (node of nodesWithoutTimelineDate; track node.ID) {
+            <li><span>Index: {{ node.index }}, ID: {{ node.ID }}</span></li>
+          }
+        </ol>
+      </span>
+    }
+  </p-dialog>
 }
 
 

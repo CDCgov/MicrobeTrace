@@ -51,6 +51,9 @@ export class CommonStoreService {
   private _clusterUpdate$ = new Subject<void>();
   clusterUpdate$ = this._clusterUpdate$.asObservable();
 
+  private _warningsChanged$ = new Subject<void>();
+  warningsChanged$ = this._warningsChanged$.asObservable();
+
   constructor() {}
 
   /**
@@ -65,6 +68,10 @@ export class CommonStoreService {
 
   triggerClusterUpdate() {
     this._clusterUpdate$.next();
+  }
+
+  triggerWarningsChanged() {
+    this._warningsChanged$.next();
   }
 
   // ----------------------------
