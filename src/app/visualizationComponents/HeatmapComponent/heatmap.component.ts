@@ -1,6 +1,9 @@
-import { Injector, Component, Output, EventEmitter, 
+import {
+  Injector, Component, Output, EventEmitter,
   ElementRef, Renderer2, ChangeDetectorRef, Inject, OnInit, OnDestroy, ViewContainerRef,
-  ViewChild} from '@angular/core';
+  ViewChild,
+  ChangeDetectionStrategy
+} from '@angular/core';
 import { EventManager } from '@angular/platform-browser';
 import { CommonService } from '@app/contactTraceCommonServices/common.service';
 import * as _ from 'lodash';
@@ -25,6 +28,7 @@ import * as d3 from 'd3';
     selector: 'HeatmapComponent',
     templateUrl: './heatmap.component.html',
     styleUrls: ['./heatmap.component.scss'],
+    changeDetection: ChangeDetectionStrategy.Eager,
     standalone: false
 })
 export class HeatmapComponent extends BaseComponentDirective implements OnInit, OnDestroy {

@@ -28,6 +28,7 @@ type ExportedBubblePieTag = {
 
 type ExportedBubblePieGroup = ExportedBubblePieTag & {
   slices: ExportedBubblePieTag[];
+  separators: ExportedBubblePieTag[];
   outline?: ExportedBubblePieTag;
 };
 
@@ -83,6 +84,8 @@ const findExportedBubblePieGroup = (
     const content = match[2];
     const sliceTags = content.match(/<path\b[^>]*data-mt-export="bubble-pie-slice"[^>]*>/g) || [];
     const slices = sliceTags.map((tag) => ({ attributes: getSvgTagAttributes(tag) }));
+    const separatorTags = content.match(/<path\b[^>]*data-mt-export="bubble-pie-slice-separator"[^>]*>/g) || [];
+    const separators = separatorTags.map((tag) => ({ attributes: getSvgTagAttributes(tag) }));
 
     if (
       attributes['data-mt-total-count'] === String(expected.totalCount)
@@ -100,6 +103,7 @@ const findExportedBubblePieGroup = (
       return {
         attributes,
         slices,
+        separators,
         outline: outlineTag ? { attributes: getSvgTagAttributes(outlineTag) } : undefined,
       };
     }
@@ -269,6 +273,13 @@ describe('Journey Flow - Bubble export on uploaded data', () => {
       expect(outline, 'exported Bubble pie black outline').to.exist;
       expect(outline?.attributes.stroke, 'exported Bubble pie outline color').to.equal('#000000');
       expect(Number(outline?.attributes['stroke-width']), 'exported Bubble pie outline width').to.be.greaterThan(0);
+
+      const expectedSeparatorCount = expected.slices.length > 1 ? expected.slices.length : 0;
+      expect(pieGroup?.separators.length, 'exported Bubble pie separator count').to.equal(expectedSeparatorCount);
+      pieGroup?.separators.forEach((separator) => {
+        expect(separator.attributes.stroke, 'exported Bubble pie separator color').to.equal('#000000');
+        expect(Number(separator.attributes['stroke-width']), 'exported Bubble pie separator width').to.be.greaterThan(0);
+      });
     });
   });
 

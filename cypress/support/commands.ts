@@ -167,18 +167,18 @@ Cypress.Commands.add('loadFiles', (opts: FileLoadOptions[]) => {
 });
 
 Cypress.Commands.add('closeSettingsPane', (dialogTitle: string) => {
-  cy.contains('.p-dialog-title', dialogTitle)
+  cy.contains('.p-dialog-title:visible', dialogTitle)
     .parents('.p-dialog')
     .find('button.p-dialog-close-button')
     .click({ force: true });
 
-  cy.contains('.p-dialog-title', dialogTitle).should('not.exist');
+  cy.contains('.p-dialog-title:visible', dialogTitle).should('not.exist');
 });
 
 Cypress.Commands.add('openGlobalSettings', () => {
   cy.get('body').then(($body) => {
     const isOpen = $body
-      .find('.p-dialog:visible .p-dialog-title')
+      .find('.p-dialog-title:visible')
       .filter((_, element) => String(element.textContent || '').includes('Global Settings'))
       .length > 0;
 
@@ -188,7 +188,7 @@ Cypress.Commands.add('openGlobalSettings', () => {
   cy.wait(250);
   cy.get('body').then(($body) => {
     const isOpen = $body
-      .find('.p-dialog:visible .p-dialog-title')
+      .find('.p-dialog-title:visible')
       .filter((_, element) => String(element.textContent || '').includes('Global Settings'))
       .length > 0;
 
@@ -197,8 +197,12 @@ Cypress.Commands.add('openGlobalSettings', () => {
       (win as any).commonService?.visuals?.microbeTrace?.DisplayGlobalSettingsDialog?.();
     });
   });
-  cy.contains('.p-dialog:visible .p-dialog-title', 'Global Settings', { timeout: 15000 }).should('be.visible');
-  cy.contains('.p-dialog:visible .nav-link', 'Timeline', { timeout: 15000 }).should('be.visible');
+  cy.contains('.p-dialog-title:visible', 'Global Settings', { timeout: 15000 })
+    .should('be.visible')
+    .closest('.p-dialog')
+    .within(() => {
+      cy.contains('.nav-link', 'Timeline', { timeout: 15000 }).should('be.visible');
+    });
   expandVisibleGlobalStylingAccordions();
 });
 
@@ -219,9 +223,10 @@ Cypress.Commands.add('enableTimelineMode', (variableLabel = 'Date of symptom ons
   closeVisibleSelectOverlays();
   cy.openGlobalSettings();
 
-  cy.contains('.p-dialog:visible .nav-link', 'Timeline').click({ force: true });
-  cy.get('.p-dialog:visible #timeline-config').should('exist').and('be.visible');
+  cy.contains('.nav-link:visible', 'Timeline').click({ force: true });
+  cy.get('#timeline-config').should('exist');
 
+  closeVisibleSelectOverlays();
   cy.get('.p-dialog:visible #node-timeline-variable').click({ force: true });
   cy.get(visibleSelectOverlay, { timeout: 15000 })
     .last()
@@ -240,13 +245,20 @@ Cypress.Commands.add('enableTimelineMode', (variableLabel = 'Date of symptom ons
     });
   cy.get(visibleSelectOverlay, { timeout: 15000 })
     .last()
-    .within(() => {
-      cy.contains(
-        'li[role="option"]',
-        new RegExp(`^\\s*${Cypress._.escapeRegExp(variableLabel)}\\s*$`),
-        { timeout: 15000 },
-      ).click({ force: true });
+    .find('.p-select-option')
+    .then(($options) => {
+      const exactMatch = $options
+        .filter((_, option) => String(option.textContent || '').trim() === variableLabel)
+        .first();
+      const partialMatch = $options
+        .filter((_, option) => String(option.textContent || '').includes(variableLabel))
+        .first();
+      const match = exactMatch.length ? exactMatch : partialMatch;
+
+      expect(match.length, `timeline option matching "${variableLabel}"`).to.be.greaterThan(0);
+      cy.wrap(match).click({ force: true });
     });
+  closeVisibleSelectOverlays();
   cy.get('.p-dialog:visible #node-timeline-variable .p-select-label').should('contain', variableLabel);
 });
 

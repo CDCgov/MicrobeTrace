@@ -114,8 +114,9 @@
           (rowNameChange)="onNodeColorRowNameChange($event)"
           (sortChange)="onStyleKeyTableSort('node-color', $event)"
           (colorChange)="onNodeColorTableColorChange($event)"
-          (alphaRequest)="onNodeColorAlphaRequested($event)">
-          </style-key-table>
+          (alphaRequest)="onNodeColorAlphaRequested($event)"
+          (segmentAlphaChange)="onNodeColorSegmentAlphaChange($event)">
+        </style-key-table>
         }
       </div>
     </section>
@@ -284,34 +285,33 @@
       </div>
       <div class="key-table-card__fallback" [hidden]="nodeShapeTableCollapsed || hasNodeShapeTable">
         <label class="key-table-card__fallback-label">Default Shape</label>
-        <p-treeSelect
+        <p-tree-select
           [options]="symbolMappingTree"
           [panelStyle]="{ width: '23rem' }"
           panelStyleClass="shapeTreeSelectPanel"
+          [pt]="shapeTreeSelectPassThrough"
           selectionMode="single"
           appendTo="body"
-          class="width-percent-100"
+          class="width-percent-100 shapeDropdown"
           [ngModel]="getSelectedNodeShapeTreeSelection()"
           (ngModelChange)="onNodeShapeTreeChange($event)"
-          styleClass="shapeDropdown"
           (onShow)="onShapeTreeShow(getSelectedNodeShapeValue())">
-          <ng-template pTemplate="value" let-node let-placeholder="placeholder">
+          <ng-template #value let-node let-placeholder="placeholder">
             @if (node?.data) {
               <div class="shape-tree-value">
-                <a [ngClass]="{'rhombus': node.data.key === 'rhomboid', 'tag': node.data.key === 'tag', 'barrel': node.data.key === 'barrel'}" [ngStyle]="{'font-weight': node.data.key === 'vee' ? 'bold' : 'normal'}" style="color: black;">{{ node.data.value }}</a>
-                {{ node.data.name }}
+                <img
+                  class="shape-tree-preview"
+                  [attr.data-shape-key]="node.data.key"
+                  [src]="node.data.previewSrc"
+                  alt=""
+                  aria-hidden="true">
+                <span>{{ node.data.name }}</span>
               </div>
             } @else {
               <span>{{ placeholder }}</span>
             }
           </ng-template>
-          <ng-template pTemplate="shape" let-node>
-            <div class="shape-tree-node">
-              <a [ngClass]="{'rhombus': node.data.key === 'rhomboid', 'tag': node.data.key === 'tag', 'barrel': node.data.key === 'barrel'}" [ngStyle]="{'font-weight': node.data.key === 'vee' ? 'bold' : 'normal'}" style="color: black;">{{ node.data.value }}</a>
-              {{ node.data.name }}
-            </div>
-          </ng-template>
-        </p-treeSelect>
+        </p-tree-select>
         <p class="key-table-card__empty">
           Choose a value for Shape By to populate this table with per-group overrides.
         </p>

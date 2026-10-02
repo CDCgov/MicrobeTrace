@@ -108,9 +108,26 @@ const assertSelectedNodeShapePreview = (value: string, shapeKey: string): void =
 const openNodeShapeTableDropdown = (value: string): void => {
   getNodeShapeTableRow(value)
     .scrollIntoView()
-    .find('p-treeselect, .shapeDropdown, .p-treeselect')
+    .find('p-tree-select, .shapeDropdown, .p-treeselect')
     .first()
     .click({ force: true });
+};
+
+const assertOpenNodeShapeDropdownPreview = (label: string, shapeKey: string): void => {
+  const expectedPreview = getNodeShapePreviewDataUri(shapeKey);
+
+  cy.contains('.shapeTreeSelectPanel:visible [role="treeitem"]', label, { timeout: 15000 })
+    .should('be.visible')
+    .find(`.shape-tree-preview[data-shape-key="${shapeKey}"]`)
+    .should('be.visible')
+    .should(($preview) => {
+      const element = $preview.get(0) as HTMLElement;
+      const computed = element.ownerDocument.defaultView!.getComputedStyle(element);
+
+      expect(computed.backgroundImage, `${label} preview image`).to.contain(expectedPreview);
+      expect(element.getBoundingClientRect().width, `${label} preview width`).to.be.greaterThan(0);
+      expect(element.getBoundingClientRect().height, `${label} preview height`).to.be.greaterThan(0);
+    });
 };
 
 const getVisibleLeafNodeWidths = (): Cypress.Chainable<number[]> => {
@@ -195,10 +212,8 @@ describe('Journey Flow - Uploaded node shapes and sizes without style', () => {
     assertSelectedNodeShapePreview('Facility', facilityShapeKey);
 
     openNodeShapeTableDropdown('Person');
-    cy.get('.shapeTreeSelectPanel:visible', { timeout: 15000 })
-      .find(`img.style-key-table__shape-preview[data-shape-key="${personShapeKey}"]`)
-      .should('be.visible')
-      .and('have.attr', 'src', getNodeShapePreviewDataUri(personShapeKey));
+    cy.contains('.shapeTreeSelectPanel:visible [role="treeitem"]', 'Virus', { timeout: 15000 })
+      .should('be.visible');
     cy.get('body').type('{esc}');
 
     cy.window().then((win: any) => {
@@ -240,6 +255,42 @@ describe('Journey Flow - Uploaded node shapes and sizes without style', () => {
     cy.closeGlobalSettings();
   });
 
+  it('shows custom shape previews inside the open node shape dropdown', () => {
+    launchProfileToTwoD(profile);
+    assertAfterLaunchCounts(profile);
+
+    openNodeShapesPanel();
+    openGlobalShapeSettingsFromTwoD();
+
+    cy.get('@globalSettings').find('#node-symbol-variable').click({ force: true });
+    cy.contains('li[role="option"]', 'Node type').click({ force: true });
+    cy.get('body').type('{esc}');
+
+    cy.window().then((win: any) => {
+      const app = win.commonService.visuals.microbeTrace;
+      const virusShape = app.getNodeShapeTreeSelection('virus');
+
+      expect(virusShape, 'virus shape selection').to.exist;
+      app.onNodeShapeTableTreeChange(virusShape, 'Person');
+    });
+
+    openNodeShapeTableDropdown('Person');
+    assertOpenNodeShapeDropdownPreview('Virus', 'virus');
+
+    cy.contains(
+      '.shapeTreeSelectPanel:visible [role="treeitem"]',
+      /^\s*People\s*$/,
+      { timeout: 15000 }
+    )
+      .find('button')
+      .first()
+      .click({ force: true });
+
+    assertOpenNodeShapeDropdownPreview('Man', 'man');
+    cy.get('body').type('{esc}');
+    cy.closeGlobalSettings();
+  });
+
   it('applies node sizing by variable and respects min and max size controls on uploaded data', () => {
     const updatedMinSize = 25;
     const updatedMaxSize = 90;
@@ -256,6 +307,10 @@ describe('Journey Flow - Uploaded node shapes and sizes without style', () => {
     cy.get('body').type('{esc}');
 
     cy.window().its('commonService.session.style.widgets.node-radius-variable').should('equal', 'degree');
+    cy.get('@twoDSettings')
+      .find('.tab-pane:visible', { timeout: 15000 })
+      .should('exist')
+      .as('nodesTab');
     cy.get('@nodesTab').find('#node-radius-row').should('not.be.visible');
     cy.get('@nodesTab').find('#node-max-radius-row').should('be.visible');
     cy.get('@nodesTab').find('#node-min-radius-row').should('be.visible');
@@ -282,6 +337,11 @@ describe('Journey Flow - Uploaded node shapes and sizes without style', () => {
 
     cy.window().its('commonService.session.style.widgets.node-radius-variable').should('equal', 'Zip_code');
     expectNumericFieldRendersScaledNodeWidths('Zip_code');
+
+    cy.get('@twoDSettings')
+      .find('.tab-pane:visible', { timeout: 15000 })
+      .should('exist')
+      .as('nodesTab');
 
     cy.get('@nodesTab')
       .find('#node-radius-min')

@@ -1,0 +1,12 @@
+ID,Genotype,Group,lat,long,seq,Expected
+weighted-counts,A:3/B:1,Equivalent 75-25,33.7490,-84.3880,AAAAAAAAAAAAAAAAAAAA,A/B (75%/25%)
+weighted-decimals,A:0.75/B:0.25,Equivalent 75-25,33.7590,-84.3780,AAAAAAAAAAAAAAAAAAAT,A/B (75%/25%)
+weighted-percent,A:75%/B:25%,Equivalent 75-25,33.7390,-84.3980,AAAAAAAAAAAAAAAAAATT,A/B (75%/25%)
+weighted-reversed,B:25/A:75,Equivalent 75-25,33.7690,-84.3680,AAAAAAAAAAAAAAAAATTT,A/B (75%/25%)
+weighted-duplicates,A:2/A:1/B:1,Equivalent 75-25,33.7290,-84.4080,AAAAAAAAAAAAAAAATTTT,A/B (75%/25%)
+weighted-comma,"A:3,B:1",Equivalent 75-25,33.7790,-84.3580,AAAAAAAAAAAAAAATTTTT,A/B (75%/25%)
+weighted-three-way,A:50/B:30/C:20,Three-way,33.7190,-84.4180,AAAAAAAAAAAAAATTTTTT,A/B/C (50%/30%/20%)
+unweighted-control,A/B,Equal fallback,33.7890,-84.3480,AAAAAAAAAAAAATTTTTTT,A/B
+invalid-partial,A:3/B,Equal fallback,33.7090,-84.4280,AAAAAAAAAAAATTTTTTTT,A/B (50%/50%) plus warning
+invalid-zero,A:0/B:1,Equal fallback,33.7990,-84.3380,AAAAAAAAAAATTTTTTTTT,A/B (50%/50%) plus warning
+solid-control,C,Solid,33.6990,-84.4380,AAAAAAAAAATTTTTTTTTT,Solid C

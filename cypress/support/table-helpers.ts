@@ -54,7 +54,7 @@ export function openTableExportDialog(): void {
 }
 
 export function openTableColumnPicker(): void {
-  cy.get(`${TABLE_ROOT} p-multiselect`, { timeout: 15000 })
+  cy.get(`${TABLE_ROOT} p-multi-select`, { timeout: 15000 })
     .should('exist')
     .click({ force: true });
 

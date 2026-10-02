@@ -54,7 +54,7 @@ const closeAggregateSettingsIfOpen = (): void => {
 
 describe('Aggregate View', () => {
   beforeEach(() => {
-    visitAppAndAcceptEula({ skipDemoSession: false });
+    visitAppAndAcceptEula({ skipDemoSession: false, dismissWelcomeOverlay: true });
     goToAggregateView();
     assertAggregateReady();
   });

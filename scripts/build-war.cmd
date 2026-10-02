@@ -20,6 +20,8 @@ SET "WAR_TMP_PATH=dist\MicrobeTrace_%APP_VERSION%.tmp.war"
 @REM NPM must be installed and added to PATH.
 @REM node --max-old-space-size=4096 ..\node_modules\@angular\cli\bin\ng build --configuration production --base-href=./ && ^
 IF EXIST "%WAR_TMP_PATH%" DEL /F /Q "%WAR_TMP_PATH%"
+node scripts\generate-primeui-license.js --required
+IF ERRORLEVEL 1 exit /b %ERRORLEVEL%
 call npm run build -- --configuration production --base-href=./
 IF ERRORLEVEL 1 exit /b %ERRORLEVEL%
 

@@ -796,7 +796,46 @@ export function goToPhyloTreeView(timeout = 30000): void {
   assertPhyloTreeReady(timeout);
 }
 
-export function goToMapView(): void {
+type MapViewNavigationOptions = {
+  preserveOnlineLayers?: boolean;
+};
+
+type OfflineMapLayerOptions = {
+  surviveLaunchReset?: boolean;
+};
+
+/**
+ * Prevent routine Map tests from contacting external basemap providers.
+ * Call this before the Map component is created so MapLibre/Leaflet cannot
+ * begin loading a style or tiles from a previously enabled online layer.
+ */
+export function useOfflineMapLayers(options: OfflineMapLayerOptions = {}): void {
+  cy.window().then((win: unknown) => {
+    const commonService = (win as WinWithMT).commonService;
+    const disableOnlineLayers = (widgets: Record<string, any>) => {
+      widgets['map-basemap-show'] = false;
+      widgets['map-satellite-show'] = false;
+    };
+
+    disableOnlineLayers(commonService.session.style.widgets);
+
+    if (options.surviveLaunchReset) {
+      const originalSessionSkeleton = commonService.sessionSkeleton;
+      commonService.sessionSkeleton = () => {
+        const session = originalSessionSkeleton();
+        disableOnlineLayers(session.style.widgets);
+        commonService.sessionSkeleton = originalSessionSkeleton;
+        return session;
+      };
+    }
+  });
+}
+
+export function goToMapView(options: MapViewNavigationOptions = {}): void {
+  if (!options.preserveOnlineLayers) {
+    useOfflineMapLayers();
+  }
+
   cy.get(byTestId(testIds.appViewMenuButton), { timeout: 15000 }).click({ force: true });
   cy.contains('button[mat-menu-item]', 'Map', { timeout: 15000 }).click({ force: true });
 
@@ -1096,14 +1135,22 @@ export function waitForProcessingDialogToClear(timeout = 30000): void {
 
 export function openGlobalFilteringTab(): void {
   cy.openGlobalSettings();
-  cy.contains('.p-dialog:visible .nav-link', 'Filtering').click({ force: true });
-  cy.get('.p-dialog:visible #filtering-config', { timeout: 15000 }).should('exist');
+  cy.contains('.p-dialog-title:visible', 'Global Settings')
+    .closest('.p-dialog')
+    .within(() => {
+      cy.contains('.nav-link', 'Filtering').click({ force: true });
+      cy.get('#filtering-config', { timeout: 15000 }).should('exist');
+    });
 }
 
 export function openGlobalStylingTab(): void {
   cy.openGlobalSettings();
-  cy.contains('.p-dialog:visible .nav-link', 'Styling').click({ force: true });
-  cy.get('.p-dialog:visible #style-config', { timeout: 15000 }).should('exist');
+  cy.contains('.p-dialog-title:visible', 'Global Settings')
+    .closest('.p-dialog')
+    .within(() => {
+      cy.contains('.nav-link', 'Styling').click({ force: true });
+      cy.get('#style-config', { timeout: 15000 }).should('exist');
+    });
 }
 
 export function setFilteringPruneWith(value: PruneWith): void {
@@ -1256,8 +1303,8 @@ export function setTimelineRange(start: string | Date, end: string | Date): void
   const endDate = parsedEnd.toDate();
 
   cy.openGlobalSettings();
-  cy.contains('.p-dialog:visible .nav-link', 'Timeline').click({ force: true });
-  cy.get('.p-dialog:visible #timeline-config').should('exist').and('be.visible');
+  cy.contains('.nav-link:visible', 'Timeline').click({ force: true });
+  cy.get('#timeline-config').should('exist');
   setTimelineRangeInput('#timeline-range-start', startInput);
   setTimelineRangeInput('#timeline-range-end', endInput);
   cy.closeGlobalSettings();
@@ -1544,8 +1591,8 @@ export function applyStyleFromProfile(profile: DatasetProfile): void {
   if (!style) return;
 
   cy.openGlobalSettings();
-  cy.contains('.p-dialog:visible .nav-link', 'Styling').click({ force: true });
-  cy.get('.p-dialog:visible #apply-style').should('exist');
+  cy.contains('.nav-link:visible', 'Styling').click({ force: true });
+  cy.get('#apply-style').should('exist');
   cy.attach_files('#apply-style', [style.styleFile], ['application/json']);
 
   assertStyleWidgetsFromProfile(profile);

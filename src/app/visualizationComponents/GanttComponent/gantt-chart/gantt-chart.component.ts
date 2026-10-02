@@ -1,4 +1,4 @@
-import { Component, OnInit, OnChanges, Input, ElementRef, ChangeDetectorRef } from '@angular/core';
+import { Component, OnInit, OnChanges, Input, ElementRef, ChangeDetectorRef, ChangeDetectionStrategy } from '@angular/core';
 //import { colorSchemes } from '../constants/color-schemes';
 import { GanttChartService } from './gantt-chart.service';
 
@@ -6,6 +6,7 @@ import { GanttChartService } from './gantt-chart.service';
   selector: 'ngx-gantt-chart',
   templateUrl: './gantt-chart.component.html',
   styleUrls: ['./gantt-chart.component.scss'],
+  changeDetection: ChangeDetectionStrategy.Eager,
   standalone: false
 })
 export class GanttChartComponent implements OnInit, OnChanges {

@@ -16,7 +16,12 @@ import { GraphData } from '@app/visualizationComponents/TwoDComponent/data';
 import { CommonStoreService } from './common-store.services';
 import { LayoutConfig } from 'golden-layout';
 import { REFERENCE, HBX2, WATERMARK } from '@app/constants/longStrings.constants';
-import { ColorMappingService } from './color-mapping.service';
+import {
+    ColorMappingService,
+    getMixedNodeColorSegments,
+    NodeFillStyle,
+    normalizeNodeStyleCategoryValue
+} from './color-mapping.service';
 import {
     buildContinuousGradientCss,
     ColorScaleMode,
@@ -37,7 +42,7 @@ import {
     buildStoredDistanceEdgeCache,
     buildThresholdSweepSummary,
     buildVisibleClusterSummary,
-    type ThresholdAnalysisBaseEdge,
+    isThresholdControlledGeneticLink,
     type ThresholdAnalysisPairEdge,
     type StoredDistanceEdgeCache,
     type ThresholdSweepSummary
@@ -101,6 +106,24 @@ interface ResolvedNetworkSubsetFilter {
     visibleLinkKeys: Set<string>;
 }
 
+const NETWORK_SUBSET_DERIVED_NODE_FIELDS = new Set([
+    'selected',
+    'cluster',
+    'visible',
+    'degree',
+    'hasdistance',
+    'x',
+    'y',
+    'vx',
+    'vy',
+    'foci'
+]);
+
+const NETWORK_SUBSET_DERIVED_LINK_FIELDS = new Set([
+    'visible',
+    'cluster',
+    'nn'
+]);
 @Directive()
 @Injectable({
     providedIn: 'root',
@@ -220,9 +243,11 @@ export class CommonService extends AppComponentBase implements OnInit {
 
     GlobalSettingsModel: any = {
         SelectedColorNodesByVariable: 'None',
+        SelectedNodeMixedColorsEnabledVariable: false,
         SelectedColorLinksByVariable: 'origin',
         SelectedNodeSymbolVariable: 'None',
         SelectedNodeColorVariable: 'None',
+        SelectedNodeMixedColorsEnabled: false,
         SelectedLinkColorVariable: '#a6cee3',
         SelectedPruneWithTypesVariable: 'None',
         SelectedStatisticsTypesVariable: 'Hide',
@@ -310,12 +335,15 @@ export class CommonService extends AppComponentBase implements OnInit {
         const displayedValue = this.toDisplayedDistanceValue(numericValue, linkField);
         const usePercentageDisplay = this.tn93PercentageDisplayEnabled(linkField);
         const includeSuffix = options.includeSuffix !== false;
+        const smallValueDecimals = displayedValue !== 0 && Math.abs(displayedValue) < 0.01
+            ? Math.min(12, Math.max(3, 2 - Math.floor(Math.log10(Math.abs(displayedValue)))))
+            : 3;
         const decimals = options.decimals !== undefined && Number.isFinite(Number(options.decimals))
             ? Math.max(0, Math.floor(Number(options.decimals)))
             : normalizedField === 'distance'
-                ? (String(this.session?.style?.widgets?.['default-distance-metric'] || '').toLowerCase() === 'snps' ? 0 : 3)
+                ? (String(this.session?.style?.widgets?.['default-distance-metric'] || '').toLowerCase() === 'snps' ? 0 : smallValueDecimals)
                 : this.isTN93DisplayField(linkField)
-                    ? 3
+                    ? smallValueDecimals
                     : (Math.abs(displayedValue - Math.round(displayedValue)) < 1e-9 ? 0 : 3);
 
         if (decimals === 0) {
@@ -555,6 +583,7 @@ export class CommonService extends AppComponentBase implements OnInit {
             'node-charge': 200,
             'node-border-width' : 2.0,
             'node-color': '#1f77b4',
+            'node-mixed-colors-enabled': false,
             'node-color-table-counts': true,
             'node-color-table-frequencies': false,
             'node-color-variable': 'None',
@@ -666,6 +695,12 @@ export class CommonService extends AppComponentBase implements OnInit {
                 readyTime: Date.now(),
                 startTime: 0,
                 anySequences: false,
+                smartLaunchRecommendation: null as {
+                    generation: number;
+                    metric: string;
+                    threshold: number;
+                    hardLimit: number;
+                } | null,
                 performance: {}
             },
             network: {
@@ -752,6 +787,7 @@ export class CommonService extends AppComponentBase implements OnInit {
             style: {
                 linkAlphaMap: () => 1 - this.session.style.widgets['link-opacity'],
                 linkColorMap: () => this.session.style.widgets['link-color'],
+                nodeMixedColorInvalidWeightCount: 0,
                 nodeAlphaMap: () => 1,
                 nodeColorMap: () => this.session.style.widgets['node-color'],
                 nodeColorScale: null as ResolvedVariableColorScale | null,
@@ -875,6 +911,10 @@ export class CommonService extends AppComponentBase implements OnInit {
 
     public buildVariableColorGradient(target: VariableColorTarget, field: string): string {
         return buildContinuousGradientCss(this.resolveVariableColorScale(target, field));
+    }
+
+    public normalizeNodeStyleCategoryValue(value: any): string {
+        return normalizeNodeStyleCategoryValue(value);
     }
 
     private ensureVariableColorAssignmentState(
@@ -1009,7 +1049,7 @@ export class CommonService extends AppComponentBase implements OnInit {
         return this.applyVariableColorAssignments('link', field, assignments, mode).assignments;
     }
 
-    public getNodeFillStyle(node: any): { color: string; alpha: number } {
+    public getNodeFillStyle(node: any): NodeFillStyle {
         const widgets = this.session.style.widgets;
         const variable = widgets['node-color-variable'];
         const fallbackColor = widgets['node-color'] || '#1f77b4';
@@ -1022,8 +1062,39 @@ export class CommonService extends AppComponentBase implements OnInit {
         }
 
         const value = node[variable];
-        const historicalColor = this.session.style.nodeColorsTableHistory?.[variable]?.[String(value)];
+        const normalizedValue = this.normalizeNodeStyleCategoryValue(value);
+        const colorHistory = this.session.style.nodeColorsTableHistory?.[variable];
+        const historicalColor = colorHistory?.[normalizedValue];
         const useContinuousScale = this.temp.style.nodeColorScale?.mode === 'continuous';
+        const mixedColorsEnabled = widgets['node-mixed-colors-enabled'] === true;
+        if (!useContinuousScale && mixedColorsEnabled) {
+            const segments = getMixedNodeColorSegments(
+                value,
+                category => colorHistory?.[String(category)] || this.temp.style.nodeColorMap?.(category),
+                this.temp.style.nodeAlphaMap,
+                fallbackColor,
+                1,
+                this.session.style.nodeColorsTableKeys?.[variable] || []
+            ).map(segment => ({
+                ...segment,
+                alpha: this.clampStyleAlpha(segment.alpha, 1)
+            }));
+
+            if (segments.length > 1) {
+                return {
+                    color: segments[0].color,
+                    alpha: segments[0].alpha,
+                    segments
+                };
+            }
+
+            if (segments.length === 1) {
+                return {
+                    color: segments[0].color,
+                    alpha: segments[0].alpha
+                };
+            }
+        }
         let color = fallbackColor;
         let alpha = 1;
 
@@ -1034,14 +1105,14 @@ export class CommonService extends AppComponentBase implements OnInit {
             color = historicalColor;
         } else {
             try {
-                color = this.temp.style.nodeColorMap?.(value) || fallbackColor;
+                color = this.temp.style.nodeColorMap?.(normalizedValue) || fallbackColor;
             } catch {
                 color = fallbackColor;
             }
         }
 
         try {
-            alpha = this.temp.style.nodeAlphaMap?.(value) ?? 1;
+            alpha = this.temp.style.nodeAlphaMap?.(normalizedValue) ?? 1;
         } catch {
             alpha = 1;
         }
@@ -1228,7 +1299,8 @@ export class CommonService extends AppComponentBase implements OnInit {
             this.session.data.nodes,
             this.session.data.links,
             metric,
-            analysis.version
+            analysis.version,
+            (link) => this.isThresholdAnalysisGeneticLink(link, metric)
         );
 
         analysis.storedDistanceCache[metric] = rebuilt;
@@ -1326,7 +1398,7 @@ export class CommonService extends AppComponentBase implements OnInit {
     public getThresholdSweepSummary(metric = this.session.style.widgets["link-sort-variable"]): ThresholdSweepSummary {
         const analysis = this.getAnalysisCache();
         const showNN = Boolean(this.session.style.widgets["link-show-nn"]);
-        const cacheKey = `${metric}|nn:${showNN ? 1 : 0}`;
+        const cacheKey = `${metric}|policy:genetic|nn:${showNN ? 1 : 0}`;
         const cached = analysis.thresholdSweepCache[cacheKey] as ThresholdSweepSummary | undefined;
 
         if (cached && cached.version === analysis.version) {
@@ -1336,58 +1408,15 @@ export class CommonService extends AppComponentBase implements OnInit {
         const distanceCache = this.getStoredDistanceEdgeCache(metric);
         const summary = buildThresholdSweepSummary(
             distanceCache,
-            this.getThresholdAnalysisBaseEdges(metric, distanceCache),
+            [],
             this.getThresholdAnalysisExcludedLinkIndexes(metric)
         );
         analysis.thresholdSweepCache[cacheKey] = summary;
         return summary;
     }
 
-    private getThresholdAnalysisBaseEdges(metric: string, cache: StoredDistanceEdgeCache): ThresholdAnalysisBaseEdge[] {
-        const edgesByKey = new Map<string, ThresholdAnalysisBaseEdge>();
-
-        this.session.data.links.forEach((link) => {
-            const sourceIndex = cache.nodeIndexById[link.source];
-            const targetIndex = cache.nodeIndexById[link.target];
-
-            if (
-                sourceIndex === undefined ||
-                targetIndex === undefined ||
-                sourceIndex === targetIndex
-            ) {
-                return;
-            }
-
-            const rawMetricValue = link?.[metric];
-            const metricValue = typeof rawMetricValue === 'number'
-                ? rawMetricValue
-                : (typeof rawMetricValue === 'string' && rawMetricValue.trim().length > 0
-                    ? Number(rawMetricValue)
-                    : NaN);
-            const hasNumericMetric = Number.isFinite(metricValue);
-            const distanceOrigins = this.getLinkDistanceOrigins(link);
-            const origins = Array.isArray(link?.origin) ? link.origin : [];
-            const hasNonDistanceOrigin = origins.some((originName: string) => {
-                const hasAuspice = /[Aa]uspice/.test(originName);
-                return Boolean(originName) && !hasAuspice && !this.isDistanceBackedOrigin(originName, distanceOrigins);
-            });
-            const isThresholdControlled = hasNumericMetric && link.hasDistance;
-            const isAlwaysVisible = hasNonDistanceOrigin || !isThresholdControlled;
-
-            if (!isAlwaysVisible) {
-                return;
-            }
-
-            const edgeKey = sourceIndex < targetIndex
-                ? `${sourceIndex}:${targetIndex}`
-                : `${targetIndex}:${sourceIndex}`;
-
-            if (!edgesByKey.has(edgeKey)) {
-                edgesByKey.set(edgeKey, { sourceIndex, targetIndex });
-            }
-        });
-
-        return Array.from(edgesByKey.values());
+    private isThresholdAnalysisGeneticLink(link: any, metric: string): boolean {
+        return isThresholdControlledGeneticLink(link, metric);
     }
 
     private getThresholdAnalysisExcludedLinkIndexes(metric: string): Set<number> {
@@ -1398,22 +1427,7 @@ export class CommonService extends AppComponentBase implements OnInit {
         const excludedIndexes = new Set<number>();
 
         this.session.data.links.forEach((link, linkIndex) => {
-            const rawMetricValue = link?.[metric];
-            const metricValue = typeof rawMetricValue === 'number'
-                ? rawMetricValue
-                : (typeof rawMetricValue === 'string' && rawMetricValue.trim().length > 0
-                    ? Number(rawMetricValue)
-                    : NaN);
-            const hasNumericMetric = Number.isFinite(metricValue);
-            const isThresholdControlled = hasNumericMetric && link.hasDistance;
-            const distanceOrigins = this.getLinkDistanceOrigins(link);
-            const origins = Array.isArray(link?.origin) ? link.origin : [];
-            const hasNonDistanceOrigin = origins.some((originName: string) => {
-                const hasAuspice = /[Aa]uspice/.test(originName);
-                return Boolean(originName) && !hasAuspice && !this.isDistanceBackedOrigin(originName, distanceOrigins);
-            });
-
-            if (isThresholdControlled && !link.nn && !hasNonDistanceOrigin) {
+            if (this.isThresholdAnalysisGeneticLink(link, metric) && !link.nn) {
                 excludedIndexes.add(linkIndex);
             }
         });
@@ -2391,11 +2405,27 @@ export class CommonService extends AppComponentBase implements OnInit {
         };
     }
 
-    private normalizeNetworkSubsetFilterRule(rule?: NetworkSubsetFilterRule): NetworkSubsetFilterRule {
-        return {
+    private normalizeNetworkSubsetFilterRule(
+        rule?: NetworkSubsetFilterRule,
+        target: 'node' | 'link' = 'node'
+    ): NetworkSubsetFilterRule {
+        const normalized = {
             ...this.createDefaultNetworkSubsetFilterRule(),
             ...(rule || {})
         };
+
+        return this.isNetworkSubsetFilterFieldAllowed(target, normalized.field)
+            ? normalized
+            : this.createDefaultNetworkSubsetFilterRule();
+    }
+
+    isNetworkSubsetFilterFieldAllowed(target: 'node' | 'link', field: any): boolean {
+        const normalizedField = String(field ?? '').trim().toLowerCase();
+        const derivedFields = target === 'node'
+            ? NETWORK_SUBSET_DERIVED_NODE_FIELDS
+            : NETWORK_SUBSET_DERIVED_LINK_FIELDS;
+
+        return !derivedFields.has(normalizedField);
     }
 
     ensureNetworkSubsetFilterState(): NetworkSubsetFilterState {
@@ -2410,8 +2440,8 @@ export class CommonService extends AppComponentBase implements OnInit {
         const state = this.session.state as any;
         const existing = state.networkSubsetFilter || {};
         const normalized = {
-            node: this.normalizeNetworkSubsetFilterRule(existing.node),
-            link: this.normalizeNetworkSubsetFilterRule(existing.link)
+            node: this.normalizeNetworkSubsetFilterRule(existing.node, 'node'),
+            link: this.normalizeNetworkSubsetFilterRule(existing.link, 'link')
         };
 
         state.networkSubsetFilter = normalized;
@@ -2428,8 +2458,8 @@ export class CommonService extends AppComponentBase implements OnInit {
         }
 
         (this.session.state as any).networkSubsetFilter = {
-            node: this.normalizeNetworkSubsetFilterRule(filter?.node),
-            link: this.normalizeNetworkSubsetFilterRule(filter?.link)
+            node: this.normalizeNetworkSubsetFilterRule(filter?.node, 'node'),
+            link: this.normalizeNetworkSubsetFilterRule(filter?.link, 'link')
         };
 
         if (updateNetwork) {
@@ -2492,7 +2522,6 @@ export class CommonService extends AppComponentBase implements OnInit {
             return;
         }
 
-        this.setLinkVisibility(true, false);
         this.updateNetworkVisuals(false, true);
     }
 
@@ -2508,6 +2537,15 @@ export class CommonService extends AppComponentBase implements OnInit {
         return String(node?._id ?? node?.id ?? '');
     }
 
+    private getNetworkSubsetEndpointId(endpoint: any): string {
+        if (endpoint && typeof endpoint === 'object') {
+            return this.getNetworkSubsetEndpointId(
+                endpoint._id ?? endpoint.id ?? endpoint.data?.id
+            );
+        }
+
+        return endpoint === undefined || endpoint === null ? '' : String(endpoint);
+    }
     private getNetworkSubsetLinkKey(link: any, index: number): string {
         return String(link?.id ?? link?.index ?? index);
     }
@@ -2560,6 +2598,9 @@ export class CommonService extends AppComponentBase implements OnInit {
                 }
 
                 return rawValues.some(value => {
+                    if (value.trim().length === 0) {
+                        return false;
+                    }
                     const rawNumber = Number(value);
                     if (!Number.isFinite(rawNumber)) {
                         return false;
@@ -2577,12 +2618,28 @@ export class CommonService extends AppComponentBase implements OnInit {
         }
     }
 
-    private objectMatchesNetworkSubsetRule(record: any, rule?: NetworkSubsetFilterRule): boolean {
+    getNetworkSubsetFieldValue(record: any, target: 'node' | 'link', field: string): any {
+        if (target === 'link' && field === 'origin') {
+            return this.getLinkAllOrigins(record);
+        }
+
+        return record?.[field];
+    }
+
+    private objectMatchesNetworkSubsetRule(
+        record: any,
+        rule?: NetworkSubsetFilterRule,
+        target: 'node' | 'link' = 'node'
+    ): boolean {
         if (!this.isNetworkSubsetRuleActive(rule)) {
             return true;
         }
 
-        return this.networkSubsetValueMatches(record?.[rule.field], rule.operator, rule.value);
+        return this.networkSubsetValueMatches(
+            this.getNetworkSubsetFieldValue(record, target, rule.field),
+            rule.operator,
+            rule.value
+        );
     }
 
     private resolveNetworkSubsetFilter(): ResolvedNetworkSubsetFilter {
@@ -2594,6 +2651,7 @@ export class CommonService extends AppComponentBase implements OnInit {
         const links = this.session.data.links || [];
         const visibleNodeIds = new Set<string>();
         const visibleLinkKeys = new Set<string>();
+        const candidateNodeIds = new Set<string>();
 
         if (!active) {
             return {
@@ -2605,43 +2663,34 @@ export class CommonService extends AppComponentBase implements OnInit {
             };
         }
 
-        if (nodeRuleActive) {
-            nodes.forEach(node => {
-                if (this.objectMatchesNetworkSubsetRule(node, filter.node)) {
-                    visibleNodeIds.add(this.getNetworkSubsetNodeId(node));
-                }
-            });
-        }
+        nodes.forEach(node => {
+            if (!nodeRuleActive || this.objectMatchesNetworkSubsetRule(node, filter.node, 'node')) {
+                candidateNodeIds.add(this.getNetworkSubsetNodeId(node));
+            }
+        });
 
-        if (linkRuleActive && !nodeRuleActive) {
-            links.forEach((link, index) => {
-                if (!this.objectMatchesNetworkSubsetRule(link, filter.link)) {
-                    return;
-                }
+        links.forEach((link, index) => {
+            const sourceId = this.getNetworkSubsetEndpointId(link.source);
+            const targetId = this.getNetworkSubsetEndpointId(link.target);
 
-                visibleLinkKeys.add(this.getNetworkSubsetLinkKey(link, index));
-                visibleNodeIds.add(String(link.source ?? ''));
-                visibleNodeIds.add(String(link.target ?? ''));
-            });
-        } else {
-            const eligibleNodeIds = nodeRuleActive
-                ? visibleNodeIds
-                : new Set(nodes.map(node => this.getNetworkSubsetNodeId(node)));
+            if (!candidateNodeIds.has(sourceId) || !candidateNodeIds.has(targetId)) {
+                return;
+            }
 
-            links.forEach((link, index) => {
-                const sourceId = String(link.source ?? '');
-                const targetId = String(link.target ?? '');
+            if (linkRuleActive && !this.objectMatchesNetworkSubsetRule(link, filter.link, 'link')) {
+                return;
+            }
 
-                if (!eligibleNodeIds.has(sourceId) || !eligibleNodeIds.has(targetId)) {
-                    return;
-                }
+            visibleLinkKeys.add(this.getNetworkSubsetLinkKey(link, index));
 
-                if (linkRuleActive && !this.objectMatchesNetworkSubsetRule(link, filter.link)) {
-                    return;
-                }
+            if (linkRuleActive) {
+                visibleNodeIds.add(sourceId);
+                visibleNodeIds.add(targetId);
+            }
+        });
 
-                visibleLinkKeys.add(this.getNetworkSubsetLinkKey(link, index));
-            });
+        if (!linkRuleActive) {
+            candidateNodeIds.forEach(nodeId => visibleNodeIds.add(nodeId));
         }
 
         return {
@@ -4235,6 +4284,10 @@ align(params): Promise<any> {
             .map(link => getVisibleLinkKey(link))
         );
 
+        // Cluster membership must always be derived from the current threshold,
+        // nearest-neighbor, and subset rules rather than stale link.visible values.
+        this.setLinkVisibility(true, false);
+
         this.tagClusters().then(() => {
           this.setClusterVisibility(true);
           this.setNodeVisibility(true);
@@ -4569,6 +4622,7 @@ align(params): Promise<any> {
         const nodeColorsTableHistory = this.session.style.nodeColorsTableHistory;
         const nodeColorAssignments = this.ensureVariableColorAssignmentState('node')[nodeColorVariable] || {};
         const variableColorScaleConfig = this.getVariableColorScaleConfig('node', nodeColorVariable);
+        const mixedColorsEnabled = !!this.session.style.widgets['node-mixed-colors-enabled'];
     
         // 2) Call your new colorMappingService
         const result = this.colorMappingService.createNodeColorMap(
@@ -4581,13 +4635,15 @@ align(params): Promise<any> {
         nodeColorsTableHistory,
         nodeColorAssignments,
         this.debugMode,
-        variableColorScaleConfig
+        variableColorScaleConfig,
+        mixedColorsEnabled
         );
     
         // 3) Store the results back into session & temp
         this.temp.style.nodeColorMap = result.colorMap;
         this.temp.style.nodeAlphaMap = result.alphaMap;
         this.temp.style.nodeColorScale = result.resolvedScale;
+        this.temp.style.nodeMixedColorInvalidWeightCount = result.invalidMixedWeightCount;
         
         // And also store the updated arrays/tables
         this.session.style.nodeColors          = result.updatedNodeColors;

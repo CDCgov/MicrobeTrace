@@ -1,4 +1,4 @@
-import { ChangeDetectorRef, Component, ElementRef, EventEmitter, HostListener, Inject, OnDestroy, OnInit, Output } from '@angular/core';
+import { ChangeDetectorRef, Component, ElementRef, EventEmitter, HostListener, Inject, OnDestroy, OnInit, Output, ChangeDetectionStrategy } from '@angular/core';
 import { ComponentContainer } from 'golden-layout';
 import { BaseComponentDirective } from '@app/base-component.directive';
 import { MicobeTraceNextPluginEvents } from '@app/helperClasses/interfaces';
@@ -7,6 +7,7 @@ import {
     createGlobalSettingsDialogRequest,
     GlobalSettingsDialogRequest
 } from '@app/helperClasses/globalSettingsDialogRequest';
+import { NODE_SHAPE_TREE_SELECT_PASS_THROUGH } from '@app/contactTraceCommonServices/node-shape-picker';
 import { DOCKED_KEY_TABLES_VIEW_NAME, KeyTableName } from './key-tables.controller';
 import {
     StyleKeyTableAlphaRequest,
@@ -14,6 +15,7 @@ import {
     StyleKeyTableColumnNameChange,
     StyleKeyTableRow,
     StyleKeyTableRowNameChange,
+    StyleKeyTableSegmentAlphaChange,
     StyleKeyTableShapeChange,
     StyleKeyTableShapePanelRequest,
     StyleKeyTableSortColumn
@@ -23,10 +25,12 @@ import {
     selector: 'keyTablesComponent',
     templateUrl: './key-tables.component.html',
     styleUrls: ['./key-tables.component.less'],
+    changeDetection: ChangeDetectionStrategy.Eager,
     standalone: false
 })
 export class KeyTablesComponent extends BaseComponentDirective implements OnInit, OnDestroy, MicobeTraceNextPluginEvents {
     static readonly componentTypeName = DOCKED_KEY_TABLES_VIEW_NAME;
+    readonly shapeTreeSelectPassThrough = NODE_SHAPE_TREE_SELECT_PASS_THROUGH;
 
     @Output() DisplayGlobalSettingsDialogEvent = new EventEmitter<GlobalSettingsDialogRequest>();
 
@@ -528,6 +532,11 @@ export class KeyTablesComponent extends BaseComponentDirective implements OnInit
 
     onNodeColorAlphaRequested(request: StyleKeyTableAlphaRequest): void {
         this.visuals.microbeTrace?.onNodeColorAlphaRequested(request);
+        this.cdref.markForCheck();
+    }
+
+    onNodeColorSegmentAlphaChange(change: StyleKeyTableSegmentAlphaChange): void {
+        this.visuals.microbeTrace?.onNodeColorSegmentAlphaChange(change);
         this.cdref.markForCheck();
     }
 

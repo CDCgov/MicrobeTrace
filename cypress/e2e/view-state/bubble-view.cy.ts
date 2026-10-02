@@ -8,6 +8,13 @@ const selectCategoricalColorScale = (target: 'node' | 'link'): void => {
   cy.contains('li[role="option"]', 'Categorical', { timeout: 10000 }).click();
 };
 
+const showFloatingNodeColorTable = (): void => {
+  cy.get('#node-color-table-row')
+    .contains('.p-togglebutton-label', 'Show')
+    .click({ force: true });
+  cy.window().its('commonService.visuals.microbeTrace.SelectedNodeColorTableTypesVariable').should('equal', 'Show');
+};
+
 describe('Bubble View', () => {
   const selectors = {
     container: '#cyBubble',
@@ -194,7 +201,7 @@ describe('Bubble View', () => {
 
       cy.get('#key-tables-node-table td input').first().invoke('val', '#777777').trigger('input').trigger('change');
       getCy().then(cytoscapeInstance => {
-        const testNode = cytoscapeInstance.nodes('[id = "MZ375596"]')
+        const testNode = cytoscapeInstance.nodes('[id = "MZ797519"]')
         const color = testNode.style('background-color');
         expect(color).to.match(/rgb\(119,\s*119,\s*119\)/);
       })
@@ -209,6 +216,7 @@ describe('Bubble View', () => {
       cy.openGlobalSettings();
       cy.get('#node-color-variable').click()
       cy.get('li[role="option"]').contains('Lineage').click()
+      showFloatingNodeColorTable();
       cy.get('#node-color-table td input', { timeout: 10000 }).should('exist');
       cy.get('#node-color-table tr').eq(1).find('.transparency-symbol').click({ force: true });
       cy.get('#color-transparency').invoke('val', alpha).trigger('change');
@@ -216,7 +224,7 @@ describe('Bubble View', () => {
       cy.closeGlobalSettings();
 
       getCy().then(cytoscapeInstance => {
-        const testNode = cytoscapeInstance.nodes('[id = "MZ375596"]')
+        const testNode = cytoscapeInstance.nodes('[id = "MZ797519"]')
         expect(parseFloat(testNode.style('background-opacity'))).to.be.closeTo(alpha, 0.01);
       })
     })
@@ -230,6 +238,7 @@ describe('Bubble View', () => {
       cy.openGlobalSettings();
       cy.get('#node-color-variable').click()
       cy.get('li[role="option"]').contains('Lineage').click()
+      showFloatingNodeColorTable();
       cy.get('#node-color-table td input', { timeout: 10000 }).should('exist');
       cy.get('#node-color-table tr').eq(1).find('.transparency-symbol').click({ force: true });
       cy.get('#color-transparency').invoke('val', alpha).trigger('change');
@@ -573,7 +582,7 @@ describe('Bubble View', () => {
         const bubbleNodes = bubble.cy.nodes().filter(n => !n.hasClass('X_axis') && !n.hasClass('Y_axis'))
         bubbleNodes.forEach(node => {
           bubbleNodeCount += node.data('totalCount')
-          let expectedSize = bubble.nodeSize * Math.sqrt(node.data('totalCount'))
+          const expectedSize = bubble.getCollapsedBubbleRenderedSize(node.data('totalCount'))
           expect(node.data('nodeSize')).to.eq(expectedSize)
         });
         expect(visNodeCount).to.eq(bubbleNodeCount)
@@ -581,6 +590,13 @@ describe('Bubble View', () => {
     })
     
     it('changes color of node and link during timeline and then ensures color is kept after timeline ends', () => {
+      cy.openGlobalSettings();
+      cy.contains('#global-settings-modal .nav-link', 'Styling').click({ force: true });
+      cy.get('#node-color-variable').click();
+      cy.get('li[role="option"]').contains('State').click();
+      showFloatingNodeColorTable();
+      cy.closeGlobalSettings();
+
       cy.get('#timeline-play-button').should('contain', 'Play').click();
       cy.wait(7500)
       cy.get('#timeline-play-button').should('contain', 'Pause').click();
@@ -702,7 +718,7 @@ describe('Bubble View', () => {
     cy.contains('div.p-dialog', 'Bubble Settings').within(() => {
       cy.get('p-select').eq(axisPosition).click();
     });
-    cy.get('p-selectitem').contains('li', value).click();
+    cy.contains('.p-select-option', value).click();
     if (date && axis == 'X') {
       cy.get('#xVarDate').click()
     } else if (date && axis == 'Y') {

@@ -28,13 +28,17 @@ const hexToRgbString = (hex: string): string => {
   return `rgb(${red}, ${green}, ${blue})`;
 };
 
+const normalizeCssColor = (value: unknown): string => {
+  const normalized = String(value ?? '').trim().toLowerCase();
+  return normalizeColor(normalized.startsWith('#') ? hexToRgbString(normalized) : normalized);
+};
+
 const escapeRegExp = (value: string): string => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 const clickVisiblePrimeOption = (label: string): void => {
-  cy.get('.p-select-overlay', { timeout: 15000 })
+  cy.get('.p-select-overlay:visible', { timeout: 15000 })
     .last()
-    .find('p-selectitem')
-    .contains('li', new RegExp(`^${escapeRegExp(label)}$`))
+    .contains('.p-select-option', new RegExp(`^${escapeRegExp(label)}$`))
     .click({ force: true });
 };
 
@@ -49,9 +53,18 @@ const setBubbleAxis = (
   expectedWidget: 'bubble-x' | 'bubble-y',
   expectedValue: string,
 ): void => {
-  cy.get('@bubbleSettings').find(selector).find('.p-select-dropdown').click({ force: true });
+  cy.contains('.p-dialog:visible .p-dialog-title', 'Bubble Settings')
+    .parents('.p-dialog')
+    .find(selector)
+    .find('.p-select-dropdown')
+    .click({ force: true });
   clickVisiblePrimeOption(label);
-  cy.get('@bubbleSettings').find(selector).find('.p-select-label').should('contain', label);
+  cy.get('.p-select-overlay:visible').should('not.exist');
+  cy.contains('.p-dialog:visible .p-dialog-title', 'Bubble Settings')
+    .parents('.p-dialog')
+    .find(selector)
+    .find('.p-select-label')
+    .should('contain', label);
   cy.window().its(`commonService.session.style.widgets.${expectedWidget}`).should('equal', expectedValue);
 };
 
@@ -133,7 +146,6 @@ describe('Journey Flow - Bubble uploaded styling', () => {
     cy.get('@bubbleSettings').find('#bubble-node-collapsing').contains('On').click({ force: true });
     cy.window().its('commonService.visuals.bubble.SelectedNodeCollapsingTypeVariable').should('equal', true);
     cy.closeSettingsPane('Bubble Settings');
-
     cy.window().should((win: unknown) => {
       const typedWindow = win as WinWithBubble;
       const bubble = typedWindow.commonService.visuals.bubble;
@@ -147,8 +159,16 @@ describe('Journey Flow - Bubble uploaded styling', () => {
       ).to.equal(visibleNodeCount);
 
       dataNodes.forEach((node: any) => {
-        expect(normalizeColor(node.style('background-color')), `collapsed Bubble fixed color for ${node.id()}`)
+        const backgroundImage = String(node.style('background-image') || '');
+        const encodedSvg = backgroundImage.split('base64,')[1]?.replace(/["')].*$/, '');
+
+        expect(normalizeCssColor(node.data('nodeColor')), `collapsed Bubble source color for ${node.id()}`)
           .to.equal(expectedFixedNodeColor);
+        expect(backgroundImage, `collapsed Bubble rendered image for ${node.id()}`)
+          .to.contain('data:image/svg+xml;base64,');
+        expect(encodedSvg, `collapsed Bubble encoded SVG for ${node.id()}`).to.be.a('string').and.not.be.empty;
+        expect(atob(encodedSvg!).toLowerCase(), `collapsed Bubble visible fill for ${node.id()}`)
+          .to.contain(`fill='${fixedNodeColor}'`);
       });
     });
   });

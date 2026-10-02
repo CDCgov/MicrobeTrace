@@ -38,7 +38,7 @@ const ensureWindowContext = (win: WinWithMT): void => {
 
 describe('Crosstab View', () => {
   beforeEach(() => {
-    visitAppAndAcceptEula({ skipDemoSession: false });
+    visitAppAndAcceptEula({ skipDemoSession: false, dismissWelcomeOverlay: true });
     goToCrosstabView();
 
     cy.contains('.p-dialog-title', 'Crosstab Settings', { timeout: 10000 })

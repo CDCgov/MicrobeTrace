@@ -1,5 +1,6 @@
 ﻿import { ChangeDetectionStrategy, Component, OnInit, Injector, ViewChild, ViewChildren, AfterViewInit, ComponentRef, ViewContainerRef, QueryList, ElementRef, Output, EventEmitter, ChangeDetectorRef, OnDestroy, ViewEncapsulation, Renderer2 } from '@angular/core';
 import { CommonService } from './contactTraceCommonServices/common.service';
+import { HostListener } from '@angular/core';
 import * as d3 from 'd3';
 import { AppComponentBase } from '@shared/common/app-component-base';
 import { SelectItem, TreeNode, ConfirmationService } from 'primeng/api';
@@ -20,35 +21,50 @@ import { CommonStoreService } from './contactTraceCommonServices/common-store.se
 import { ExportService, ExportOptions } from './contactTraceCommonServices/export.service';
 import { GraphMLService } from './contactTraceCommonServices/graphml.service';
 import { sanitizeExportRows } from './contactTraceCommonServices/export-sanitization';
+import { formatMixedNodeColorDisplayName, getMixedNodeColorLegendEntries } from './contactTraceCommonServices/color-mapping.service';
 import * as XLSX from 'xlsx';
 import { buildDate, commitHash, version as appVersion } from "src/environments/version";
 import { EmbedHandoffService } from './embed/embed-handoff.service';
 import { KeyTablesComponent } from './visualizationComponents/KeyTablesComponent/key-tables.component';
 import { KEY_TABLE_NAMES, KeyTableName, KeyTablesController } from './visualizationComponents/KeyTablesComponent/key-tables.controller';
 import { NetworkStatisticsComponent } from './visualizationComponents/NetworkStatisticsComponent/network-statistics-plugin.component';
+import type { ThresholdSweepSummary } from './contactTraceCommonServices/threshold-analysis';
+import {
+    computeComponentStructureMetrics,
+    scoreComponentStructureMetrics,
+    type ComponentStructureMetrics,
+    type ComponentStructureScoreBreakdown
+} from './contactTraceCommonServices/component-metrics';
 import {
     StyleKeyTableAlphaRequest,
     StyleKeyTableColorChange,
     StyleKeyTableColumnNameChange,
     StyleKeyTableRow,
     StyleKeyTableRowNameChange,
+    StyleKeyTableSegmentAlphaChange,
     StyleKeyTableShapeChange,
     StyleKeyTableShapePanelRequest,
     StyleKeyTableSortColumn
 } from './visualizationComponents/KeyTablesComponent/style-key-table.component';
-import type { ThresholdSweepSummary } from './contactTraceCommonServices/threshold-analysis';
+import { hideColorTransparencyPicker, showColorTransparencyPicker } from './visualizationComponents/KeyTablesComponent/color-transparency-picker';
 import {
     ColorAssignmentService,
     NodeColorAssignmentParseError,
     ParsedNodeColorAssignments
 } from './contactTraceCommonServices/color-assignment.service';
 import {
+    aggregateNodeShapeCategories,
     NODE_SHAPE_GROUPS,
     NODE_SYMBOL_OPTIONS,
     NodeShapeGroupKey,
     NodeShapeOption,
     resolveNodeShapeKey
 } from '@app/contactTraceCommonServices/node-shapes';
+import {
+    buildNodeShapeTreeLeaf,
+    NODE_SHAPE_TREE_SELECT_PASS_THROUGH,
+    NodeShapeTreeOption
+} from '@app/contactTraceCommonServices/node-shape-picker';
 import {
     createGlobalSettingsDialogRequest,
     DialogRectSnapshot,
@@ -67,14 +83,16 @@ import {
 import { validateStyleFileSchema } from './contactTraceCommonServices/style-file.schema';
 import { AnalyticsService } from './contactTraceCommonServices/analytics.service';
 
-type ThresholdSweepSnapshot = {
+type ThresholdSweepSnapshot = ComponentStructureMetrics & {
     threshold: number;
-    componentCount: number;
-    clusterCount: number;
-    singletonCount: number;
-    largestClusterSize: number;
     sourceThreshold: number | null;
+    maximumClusterCount: number;
+    componentStructureScore: number;
+    componentStructureScoreBreakdown: ComponentStructureScoreBreakdown;
 };
+
+type ThresholdMetricKey = 'largestFraction' | 'clustered' | 'gini' | 'l2ToL1' | 'largestToMedian';
+type ThresholdScoreTermKey = 'fragmentation' | 'dominance' | 'balance' | 'participation' | 'equality';
 
 type ThresholdStabilityRegion = {
     startThreshold: number;
@@ -139,20 +157,13 @@ function groupNodeShapeOptions(options: NodeShapeOption[]): NodeShapeOptionGroup
         .filter(group => group.items.length > 0);
 }
 
-function buildNodeShapeTreeOptions(groups: NodeShapeOptionGroup[], defaultExpandedGroup: NodeShapeGroupKey): TreeNode<NodeShapeOption>[] {
+function buildNodeShapeTreeOptions(groups: NodeShapeOptionGroup[], defaultExpandedGroup: NodeShapeGroupKey): TreeNode<NodeShapeTreeOption>[] {
     return groups.map(group => ({
         key: group.key,
         label: group.label,
         selectable: false,
         expanded: group.key === defaultExpandedGroup,
-        children: group.items.map(option => ({
-            key: option.key,
-            label: option.name,
-            type: 'shape',
-            data: option,
-            leaf: true,
-            selectable: true
-        }))
+        children: group.items.map(buildNodeShapeTreeLeaf)
     }));
 }
 
@@ -168,6 +179,9 @@ function buildNodeShapeTreeOptions(groups: NodeShapeOptionGroup[], defaultExpand
 })
 
 export class MicrobeTraceNextHomeComponent extends AppComponentBase implements AfterViewInit, OnInit, OnDestroy {
+
+    colorTransparencyPercent = 100;
+    readonly shapeTreeSelectPassThrough = NODE_SHAPE_TREE_SELECT_PASS_THROUGH;
 
 
     // recommit original code
@@ -295,6 +309,8 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
 
     FieldList: SelectItem[] = [];
     ToolTipFieldList: SelectItem[] = [];
+    NetworkSubsetNodeFieldList: SelectItem[] = [];
+    NetworkSubsetLinkFieldList: SelectItem[] = [];
     NetworkSubsetOperatorTypes: SelectItem[] = [
         { label: 'Contains', value: 'contains' },
         { label: 'Equals', value: 'equals' },
@@ -339,8 +355,13 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
     ];
     thresholdSweepMetricLabel: string = '';
     thresholdSweepSampleCount: number = 0;
+    thresholdScoreRecommendationNote: string = '';
     thresholdStabilityExpanded: boolean = false;
+    thresholdScoreExplanationExpanded: boolean = false;
+    thresholdStableRangesExpanded: boolean = false;
+    activeThresholdMetricHelp: string | null = null;
     thresholdStabilityCurrent: ThresholdSweepSnapshot | null = null;
+    thresholdScoreRecommendation: ThresholdSweepSnapshot | null = null;
     thresholdStabilityRegions: ThresholdStabilityRegion[] = [];
     thresholdStabilityMessage: string = '';
 
@@ -357,6 +378,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
     SelectedStatisticsTypesVariable: string = 'Show';
 
     SelectedColorNodesByVariable: string = 'None';
+    SelectedNodeMixedColorsEnabledVariable: boolean = false;
     SelectedNodeSymbolVariable: string = 'None';
     SelectedNodeColorVariable: string = '#1f77b4';
     SelectedLinkColorVariable: string = '#1f77b4';
@@ -694,6 +716,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         this.SelectedStatisticsTypesVariable = this.commonService.GlobalSettingsModel.SelectedStatisticsTypesVariable;
 
         this.SelectedColorNodesByVariable = this.commonService.GlobalSettingsModel.SelectedColorNodesByVariable;
+        this.SelectedNodeMixedColorsEnabledVariable = this.commonService.session.style.widgets['node-mixed-colors-enabled'] === true;
         this.SelectedNodeSymbolVariable = this.commonService.GlobalSettingsModel.SelectedNodeSymbolVariable ?? this.commonService.session.style.widgets['node-symbol-variable'];
         this.SelectedNodeColorVariable = this.commonService.session.style.widgets['node-color'];
         this.SelectedColorLinksByVariable = this.commonService.GlobalSettingsModel.SelectedColorLinksByVariable;
@@ -1665,7 +1688,6 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         this.onSearch();
     }
 
-
     /**
      * Convert Files list to normal array list
      * @param files (Files List)
@@ -1852,12 +1874,23 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
     /**
      * Updates GlobalSetingModel variable and cluster-minimum-size widget. Removes and adds clusters when needed
      */
-    onMinimumClusterSizeChanged(silent: boolean = false) {
+    onMinimumClusterSizeChanged(valueOrSilent: number | string | boolean = false) {
 
+        const silent = typeof valueOrSilent === 'boolean' ? valueOrSilent : false;
         console.log('--- onMinimumClusterSizeChanged called: silent: ', silent);
-        this.commonService.GlobalSettingsModel.SelectedClusterMinimumSizeVariable = this.SelectedClusterMinimumSizeVariable;
 
-        let val = parseInt(this.SelectedClusterMinimumSizeVariable);
+        const rawValue = typeof valueOrSilent === 'boolean'
+            ? this.SelectedClusterMinimumSizeVariable
+            : valueOrSilent;
+
+        let val = parseInt(`${rawValue}`, 10);
+        if (!Number.isFinite(val)) {
+            return;
+        }
+
+        val = Math.max(1, val);
+        this.SelectedClusterMinimumSizeVariable = val;
+        this.commonService.GlobalSettingsModel.SelectedClusterMinimumSizeVariable = val;
         this.commonService.session.style.widgets["cluster-minimum-size"] = val;
 
         if(this.commonService.session.data.nodes.length === 0) {
@@ -2179,6 +2212,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
             this.getGlobalSettingsData();
             this.onColorNodesByChanged(true);
         }
+        this.SelectedNodeMixedColorsEnabledVariable = this.widgets['node-mixed-colors-enabled'] === true;
         
         if (this.SelectedColorLinksByVariable != this.widgets['link-color-variable']){
             this.SelectedColorLinksByVariable = this.widgets['link-color-variable'];
@@ -2407,6 +2441,7 @@ ${warnings.join('\n')}`,
         if(!silent) this.publishUpdateNodeColors();
         
     }
+
 
     /**
      * calls updateNodeColors() for each view
@@ -2749,32 +2784,34 @@ ${warnings.join('\n')}`,
         }
 
         const style = this.commonService.session.style;
-        const values = [...(style.nodeSymbolsTableKeys[variable] ?? [])];
-        const previousKeys = [...values];
-        const aggregateMap = new Map<any, number>();
-        let visibleNodeCount = 0;
+        const rawPreviousKeys = [...(style.nodeSymbolsTableKeys[variable] ?? [])];
+        const rawPreviousSymbols = this.normalizeNodeShapeState(variable);
+        const previousKeys: string[] = [];
+        const previousSymbols: string[] = [];
 
-        for (const node of this.commonService.session.data.nodes) {
-            if (!node || typeof node !== 'object' || !node.visible) {
-                continue;
+        rawPreviousKeys.forEach((key, index) => {
+            const normalizedKey = this.commonService.normalizeNodeStyleCategoryValue(key);
+            if (this.findNodeShapeValueIndex(previousKeys, normalizedKey) !== -1) {
+                return;
             }
 
-            visibleNodeCount++;
+            previousKeys.push(normalizedKey);
+            previousSymbols.push(rawPreviousSymbols[index] ?? this.getDefaultNodeShape());
+        });
 
-            const groupValue = node[variable];
-            if (groupValue === undefined) {
-                continue;
-            }
+        const values = [...previousKeys];
+        const { counts: aggregateMap, visibleNodeCount } = aggregateNodeShapeCategories(
+            this.commonService.session.data.nodes,
+            variable
+        );
 
+        aggregateMap.forEach((_count, groupValue) => {
             if (this.findNodeShapeValueIndex(values, groupValue) === -1) {
                 values.push(groupValue);
             }
-
-            aggregateMap.set(groupValue, (aggregateMap.get(groupValue) ?? 0) + 1);
-        }
+        });
 
         const baseNodeShapes = this.getBaseNodeShapes();
-        const previousSymbols = this.normalizeNodeShapeState(variable);
 
         values.sort((a, b) => (aggregateMap.get(b) ?? 0) - (aggregateMap.get(a) ?? 0));
 
@@ -3019,12 +3056,15 @@ ${warnings.join('\n')}`,
         this.SelectedColorNodesByVariable = 'None';
         this.SelectedColorLinksByVariable = 'origin';
         this.SelectedNodeSymbolVariable = 'None';
+        this.SelectedNodeMixedColorsEnabledVariable = false;
 
         this.commonService.GlobalSettingsModel.SelectedColorNodesByVariable = 'None';
         this.commonService.GlobalSettingsModel.SelectedColorLinksByVariable = 'origin';
         this.commonService.GlobalSettingsModel.SelectedNodeSymbolVariable = 'None';
+        this.commonService.GlobalSettingsModel.SelectedNodeMixedColorsEnabledVariable = false;
 
         widgets['node-color-variable'] = 'None';
+        widgets['node-mixed-colors-enabled'] = false;
         widgets['link-color-variable'] = 'origin';
         widgets['node-symbol-variable'] = 'None';
 
@@ -4016,6 +4056,25 @@ ${warnings.join('\n')}`,
         }
     }
 
+    private normalizeSelectValue(value: any, fallback: string = 'None'): string {
+        if (value && typeof value === 'object' && 'value' in value) {
+            return String(value.value ?? fallback);
+        }
+
+        if (value === undefined || value === null || value === '') {
+            return fallback;
+        }
+
+        return String(value);
+    }
+
+    public hasNodeColorVariableSelected(): boolean {
+        const selected = this.normalizeSelectValue(
+            this.SelectedColorNodesByVariable ?? this.commonService.session?.style?.widgets?.['node-color-variable']
+        );
+        return selected !== 'None';
+    }
+
     showLinkColorTable() {
         console.log('onLinkColorTableChanged - show');
         if (this.isKeyTableDocked('link-color')) {
@@ -4053,8 +4112,11 @@ ${warnings.join('\n')}`,
      * Called when SelectedColorNodesByVariable (keeps track of what variable to use to color nodes by) is changed.
      */
     onColorNodesByChanged(silent: boolean = false) {
+        this.SelectedColorNodesByVariable = this.normalizeSelectValue(this.SelectedColorNodesByVariable);
         this.nodeColorAssignmentStatus = null;
         this.commonService.GlobalSettingsModel.SelectedColorNodesByVariable = this.SelectedColorNodesByVariable;
+        this.commonService.GlobalSettingsModel.SelectedNodeMixedColorsEnabledVariable = this.SelectedNodeMixedColorsEnabledVariable;
+        this.commonService.session.style.widgets['node-mixed-colors-enabled'] = this.SelectedNodeMixedColorsEnabledVariable === true;
         if (this.SelectedColorNodesByVariable !== 'None' && this.getKeyTableDisplayMode('node-color') === 'Dock') {
             this.keyTablesController.setDocked('node-color', true);
             this.ensureKeyTablesViewOpen(false);
@@ -4120,6 +4182,24 @@ ${warnings.join('\n')}`,
         }
     }
 
+    onNodeMixedColorsEnabledChanged(silent: boolean = false) {
+        this.commonService.GlobalSettingsModel.SelectedNodeMixedColorsEnabledVariable = this.SelectedNodeMixedColorsEnabledVariable === true;
+        this.commonService.session.style.widgets['node-mixed-colors-enabled'] = this.SelectedNodeMixedColorsEnabledVariable === true;
+
+        if (this.SelectedColorNodesByVariable === 'None') {
+            return;
+        }
+
+        this.onColorNodesByChanged(silent);
+    }
+
+    get nodeMixedColorInvalidWeightCount(): number {
+        if (!this.SelectedNodeMixedColorsEnabledVariable || this.SelectedColorNodesByVariable === 'None') {
+            return 0;
+        }
+        return Number(this.commonService.temp.style.nodeMixedColorInvalidWeightCount || 0);
+    }
+
     generateNodeColorTable(tableId: string, isEditable: boolean = true) {
         this.nodeColorTableEditable = isEditable;
         this.nodeColorTableHeaders = {
@@ -4138,12 +4218,15 @@ ${warnings.join('\n')}`,
             return;
         }
         const vnodes = this.commonService.getVisibleNodes();
-        const aggregateValues = Object.keys(aggregates);
+        const aggregateValues = (
+            this.commonService.session.style.nodeColorsTableKeys?.[this.SelectedColorNodesByVariable]
+            || Object.keys(aggregates)
+        ).filter(value => Object.prototype.hasOwnProperty.call(aggregates, value));
         this.nodeColorDomain = aggregateValues;
 
-        this.nodeColorRows = aggregateValues
+        const componentRows: StyleKeyTableRow[] = aggregateValues
             .map((value, i) => ({ value, i }))
-            .filter(({ value }) => aggregates[value] >= 1)
+            .filter(({ value }) => Number(aggregates[value] ?? 0) > 0)
             .map(({ value, i }) => ({
                 rawValue: value,
                 trackKey: `node-color-${String(value)}`,
@@ -4155,6 +4238,51 @@ ${warnings.join('\n')}`,
                 index: i
             }));
 
+        const mixedRows: StyleKeyTableRow[] = this.SelectedNodeMixedColorsEnabledVariable
+            ? getMixedNodeColorLegendEntries(
+                vnodes,
+                this.SelectedColorNodesByVariable,
+                this.commonService.session.style.nodeColorsTableKeys?.[this.SelectedColorNodesByVariable] || []
+            )
+                .map(entry => {
+                    const fillStyle = this.commonService.getNodeFillStyle({
+                        [this.SelectedColorNodesByVariable]: entry.value
+                    });
+                    const componentDisplayNames = entry.components.map(component =>
+                        this.getNodeValueDisplayName(
+                            component,
+                            this.SelectedColorNodesByVariable
+                        )
+                    );
+                    const displayName = formatMixedNodeColorDisplayName(
+                        componentDisplayNames,
+                        entry.weights,
+                        entry.hasExplicitWeights
+                    );
+
+                    return {
+                        rawValue: entry.value,
+                        trackKey: `node-color-mixed-${entry.value}`,
+                        displayName,
+                        count: entry.count,
+                        frequency: vnodes.length === 0 ? '' : (entry.count / vnodes.length).toLocaleString(),
+                        colorSegments: fillStyle.segments?.map(segment => ({
+                            value: segment.value,
+                            displayName: this.getNodeValueDisplayName(
+                                segment.value,
+                                this.SelectedColorNodesByVariable
+                            ),
+                            color: segment.color,
+                            opacity: segment.alpha,
+                            weight: segment.weight,
+                            index: aggregateValues.findIndex(value => value === segment.value)
+                        }))
+                    };
+                })
+                .filter(row => (row.colorSegments?.length ?? 0) > 1)
+            : [];
+
+        this.nodeColorRows = [...componentRows, ...mixedRows];
         this.applyStyleKeyTableSort('node-color');
         $('#nodeColorTableSettings').on('mouseleave', () => $('#nodeColorTableSettings').delay(500).css('display', 'none'));
         this.cdref.markForCheck();
@@ -4242,21 +4370,43 @@ ${warnings.join('\n')}`,
     }
 
     onNodeColorAlphaRequested(request: StyleKeyTableAlphaRequest): void {
+        const index = this.resolveNodeColorAlphaIndex(request.value, request.row.index);
         this.showColorAlphaPicker(
             request,
-            this.commonService.session.style.nodeAlphas[request.row.index ?? 0],
-            alphaValue => {
-                const aggregateValues = this.nodeColorDomain.length ? this.nodeColorDomain : this.nodeColorRows.map(row => row.rawValue);
-                const index = request.row.index ?? 0;
-                const alpha = this.commonService.clampStyleAlpha(alphaValue);
-                this.commonService.session.style.nodeAlphas.splice(index, 1, alpha);
-                this.commonService.temp.style.nodeAlphaMap = d3
-                    .scaleOrdinal(this.commonService.session.style.nodeAlphas)
-                    .domain(aggregateValues);
-                this.generateNodeColorTable('', true);
-                this.publishUpdateNodeColors();
-            }
+            this.commonService.session.style.nodeAlphas[index] ?? 1,
+            alphaValue => this.updateNodeColorAlpha(request.value, index, alphaValue)
         );
+    }
+
+    onNodeColorSegmentAlphaChange(change: StyleKeyTableSegmentAlphaChange): void {
+        const index = this.resolveNodeColorAlphaIndex(change.value, change.segment.index);
+        this.updateNodeColorAlpha(change.value, index, change.alpha);
+    }
+
+    private resolveNodeColorAlphaIndex(value: any, fallbackIndex?: number): number {
+        const aggregateValues = this.nodeColorDomain.length
+            ? this.nodeColorDomain
+            : this.commonService.session.style.nodeColorsTableKeys?.[this.SelectedColorNodesByVariable] ?? [];
+        const valueIndex = aggregateValues.findIndex(domainValue => domainValue === value);
+        if (valueIndex >= 0) {
+            return valueIndex;
+        }
+
+        return Math.max(0, Number(fallbackIndex) || 0);
+    }
+
+    private updateNodeColorAlpha(value: any, fallbackIndex: number, alphaValue: number): void {
+        const aggregateValues = this.nodeColorDomain.length
+            ? this.nodeColorDomain
+            : this.commonService.session.style.nodeColorsTableKeys?.[this.SelectedColorNodesByVariable] ?? [];
+        const index = this.resolveNodeColorAlphaIndex(value, fallbackIndex);
+        const alpha = this.commonService.clampStyleAlpha(alphaValue);
+        this.commonService.session.style.nodeAlphas.splice(index, 1, alpha);
+        this.commonService.temp.style.nodeAlphaMap = d3
+            .scaleOrdinal(this.commonService.session.style.nodeAlphas)
+            .domain(aggregateValues);
+        this.generateNodeColorTable('', true);
+        this.publishUpdateNodeColors();
     }
 
     onLinkColorAlphaRequested(request: StyleKeyTableAlphaRequest): void {
@@ -4326,20 +4476,39 @@ ${warnings.join('\n')}`,
     }
 
     private showColorAlphaPicker(request: StyleKeyTableAlphaRequest, currentAlpha: number, onChange: (alphaValue: number) => void): void {
-        $("#color-transparency-wrapper").css({
-            top: request.event.clientY + 129,
-            left: request.event.clientX,
-            display: "block"
-        });
+        const input = showColorTransparencyPicker(request.event, currentAlpha);
+        if (!input) {
+            return;
+        }
 
-        $("#color-transparency")
+        $(input)
             .off("change")
-            .val(currentAlpha)
             .one("change", event => {
                 onChange(parseFloat((event.target['value'] as string)));
                 $("#color-transparency-wrapper").fadeOut();
                 this.cdref.markForCheck();
             });
+    }
+
+    onColorTransparencyInput(event: Event): void {
+        const value = Number((event.target as HTMLInputElement | null)?.value);
+        const opacity = Number.isFinite(value) ? Math.min(1, Math.max(0, value)) : 1;
+        this.colorTransparencyPercent = Math.round(opacity * 100);
+        this.cdref.markForCheck();
+    }
+
+    onColorTransparencyWrapperClick(event: MouseEvent): void {
+        event.stopPropagation();
+    }
+
+    @HostListener('document:click', ['$event'])
+    onColorTransparencyDocumentClick(event: MouseEvent): void {
+        const target = event.target instanceof Element ? event.target : null;
+        if (target?.closest('#color-transparency-wrapper') || target?.closest('.transparency-symbol')) {
+            return;
+        }
+
+        hideColorTransparencyPicker();
     }
 
     /**
@@ -4553,27 +4722,17 @@ ${warnings.join('\n')}`,
 
     revealClicked() : void {
 
-        $("#cluster-minimum-size").val(1);
+        this.SelectedClusterMinimumSizeVariable = 1;
+        this.commonService.GlobalSettingsModel.SelectedClusterMinimumSizeVariable = 1;
         this.commonService.session.style.widgets["cluster-minimum-size"] = 1;
+        this._lastClusterMinimum = 1;
         this.commonService.clearNetworkSubsetFilter(false);
         this.loadNetworkSubsetFilterSettings();
         $("#filtering-wrapper").slideDown();
-        this.commonService.setClusterVisibility(true);
-       
-        this.commonService.setNodeVisibility(true);
-         //To catch links that should be filtered out based on cluster size:
-         this.commonService.setLinkVisibility(true);
-        //Because the network isn't robust to the order in which these operations
-        //take place, we just do them all silently and then react as though we did
-        //them each after all of them are already done.
+        this.commonService.updateNetworkVisuals(false, true);
 
         this.GlobalSettingsLinkColorDialogSettings.isVisible = true;
         this.GlobalSettingsNodeColorDialogSettings.isVisible = true;
-
-        this.store.setNetworkUpdated(true);
-        // this.updatedVisualization();
-
-        this.commonService.updateStatistics();
         this.refreshThresholdStabilityPanel();
 
     };
@@ -4593,6 +4752,7 @@ ${warnings.join('\n')}`,
         this.commonService.session.style.widgets['link-color'] = this.SelectedLinkColorVariable;
 
         this.commonService.session.style.widgets['node-color-variable'] = this.SelectedColorNodesByVariable;
+        this.commonService.session.style.widgets['node-mixed-colors-enabled'] = this.SelectedNodeMixedColorsEnabledVariable === true;
         this.commonService.session.style.widgets['node-symbol-variable'] = this.SelectedNodeSymbolVariable;
         this.commonService.session.style.widgets['node-symbol-table-visible'] = this.SelectedNodeShapeTableTypesVariable;
         this.commonService.session.style.widgets['link-threshold-variable'] = this.SelectedDistanceMetricVariable;
@@ -4606,6 +4766,7 @@ ${warnings.join('\n')}`,
         this.commonService.GlobalSettingsModel.SelectedLinkThresholdVariable = this.SelectedLinkThresholdVariable;
         this.commonService.GlobalSettingsModel.SelectedDistanceMetricVariable = this.SelectedDistanceMetricVariable;
         this.commonService.GlobalSettingsModel.SelectedNodeSymbolVariable = this.SelectedNodeSymbolVariable;
+        this.commonService.GlobalSettingsModel.SelectedNodeMixedColorsEnabledVariable = this.SelectedNodeMixedColorsEnabledVariable === true;
         this.commonService.GlobalSettingsModel.SelectedNodeShapeTableTypesVariable = this.SelectedNodeShapeTableTypesVariable;
         this.commonService.session.style.widgets['selected-color'] = this.SelectedColorVariable;
         this.commonService.session.style.widgets['selected-node-stroke-color'] = this.SelectedColorVariable;
@@ -4668,6 +4829,12 @@ ${warnings.join('\n')}`,
 
         });
 
+        this.NetworkSubsetNodeFieldList = this.FieldList.filter(field =>
+            this.commonService.isNetworkSubsetFilterFieldAllowed('node', field.value)
+        );
+        this.NetworkSubsetLinkFieldList = this.ToolTipFieldList.filter(field =>
+            this.commonService.isNetworkSubsetFilterFieldAllowed('link', field.value)
+        );
 
         this.SelectedLinkSortVariable = this.commonService.GlobalSettingsModel.SelectedLinkSortVariable;
         this.loadNetworkSubsetFilterSettings();
@@ -4721,7 +4888,8 @@ ${warnings.join('\n')}`,
     private refreshNetworkSubsetNodeValueOptions(): void {
         this.NetworkSubsetNodeAllValueOptions = this.getNetworkSubsetValueOptions(
             this.commonService.session.data.nodes || [],
-            this.SelectedNetworkSubsetNodeField
+            this.SelectedNetworkSubsetNodeField,
+            'node'
         );
         this.filterNetworkSubsetNodeValueOptions();
     }
@@ -4729,7 +4897,8 @@ ${warnings.join('\n')}`,
     private refreshNetworkSubsetLinkValueOptions(): void {
         this.NetworkSubsetLinkAllValueOptions = this.getNetworkSubsetValueOptions(
             this.commonService.session.data.links || [],
-            this.SelectedNetworkSubsetLinkField
+            this.SelectedNetworkSubsetLinkField,
+            'link'
         );
         this.filterNetworkSubsetLinkValueOptions();
     }
@@ -4748,14 +4917,18 @@ ${warnings.join('\n')}`,
         );
     }
 
-    private getNetworkSubsetValueOptions(records: any[], field: string): string[] {
+    private getNetworkSubsetValueOptions(
+        records: any[],
+        field: string,
+        target: 'node' | 'link'
+    ): string[] {
         if (!field || field === 'None') {
             return [];
         }
 
         const options = new Set<string>();
         records.forEach(record => {
-            const rawValue = record?.[field];
+            const rawValue = this.commonService.getNetworkSubsetFieldValue(record, target, field);
             const values = Array.isArray(rawValue) ? rawValue : [rawValue];
 
             values.forEach(value => {
@@ -4817,7 +4990,6 @@ ${warnings.join('\n')}`,
     clearNetworkSubsetFilter(): void {
         this.commonService.clearNetworkSubsetFilter(false);
         this.loadNetworkSubsetFilterSettings();
-        this.commonService.setLinkVisibility(true, false);
         this.commonService.updateNetworkVisuals(false, true);
     }
 
@@ -5040,6 +5212,12 @@ ${warnings.join('\n')}`,
 
         if (this.commonService.pendingDashboardRestore?.dashboardLayout?.root) {
             setTimeout(() => this.schedulePendingDashboardRestore(), 0);
+        } else {
+            // UI settings can be applied before the launch view is opened. In that
+            // order, resetLayout removes the newly docked key-table panel while the
+            // controller still records its tables as docked. Reconcile the panel
+            // after the launch layout has finished opening.
+            setTimeout(() => this.ensureDockedKeyTablesViewOpenIfNeeded(), 0);
         }
         // }, 500);
         
@@ -5670,6 +5848,9 @@ ${warnings.join('\n')}`,
         this.syncThresholdDisplayFromStoredValue();
         setTimeout(() => this.syncThresholdDisplayFromStoredValue(), 0);
         this.thresholdStabilityExpanded = false;
+        this.thresholdScoreExplanationExpanded = false;
+        this.thresholdStableRangesExpanded = false;
+        this.activeThresholdMetricHelp = null;
 
         this.commonService.updateThresholdHistogram(this.linkThresholdSparkline.nativeElement);
         this.refreshThresholdStabilityPanel(false);
@@ -5870,6 +6051,20 @@ ${warnings.join('\n')}`,
 
     toggleThresholdStabilityPanel(): void {
         this.thresholdStabilityExpanded = !this.thresholdStabilityExpanded;
+    }
+
+    toggleThresholdScoreExplanation(): void {
+        this.thresholdScoreExplanationExpanded = !this.thresholdScoreExplanationExpanded;
+    }
+
+    toggleThresholdStableRanges(): void {
+        this.thresholdStableRangesExpanded = !this.thresholdStableRangesExpanded;
+    }
+
+    toggleThresholdMetricHelp(metricHelpId: string): void {
+        this.activeThresholdMetricHelp = this.activeThresholdMetricHelp === metricHelpId
+            ? null
+            : metricHelpId;
     }
 
 
@@ -6385,6 +6580,7 @@ ${warnings.join('\n')}`,
 
         //Styling|Color Nodes By
          this.SelectedColorNodesByVariable = this.commonService.session.style.widgets["node-color-variable"];
+         this.SelectedNodeMixedColorsEnabledVariable = this.commonService.session.style.widgets['node-mixed-colors-enabled'] === true;
          this.onColorNodesByChanged(false);
 
          //Styling|Nodes
@@ -6724,13 +6920,22 @@ ${warnings.join('\n')}`,
         const nodeCount = this.commonService.session.data.nodes.length;
 
         if (summary.thresholds.length === 0 || threshold < summary.thresholds[0]) {
+            const componentMetrics = computeComponentStructureMetrics(
+                Array.from({ length: nodeCount }, () => 1),
+                nodeCount
+            );
+            const scoreResult = scoreComponentStructureMetrics(
+                componentMetrics,
+                summary.maximumClusterCount,
+                summary.scoreWeights
+            );
             return {
+                ...componentMetrics,
                 threshold,
-                componentCount: nodeCount,
-                clusterCount: 0,
-                singletonCount: nodeCount,
-                largestClusterSize: nodeCount > 0 ? 1 : 0,
-                sourceThreshold: null
+                sourceThreshold: null,
+                maximumClusterCount: summary.maximumClusterCount,
+                componentStructureScore: scoreResult.score,
+                componentStructureScoreBreakdown: scoreResult.breakdown
             };
         }
 
@@ -6749,12 +6954,12 @@ ${warnings.join('\n')}`,
         }
 
         return {
+            ...summary.componentMetrics[matchIndex],
             threshold,
-            componentCount: summary.componentCounts[matchIndex],
-            clusterCount: summary.clusterCounts[matchIndex],
-            singletonCount: summary.singletonCounts[matchIndex],
-            largestClusterSize: summary.largestClusterSizes[matchIndex],
-            sourceThreshold: summary.thresholds[matchIndex]
+            sourceThreshold: summary.thresholds[matchIndex],
+            maximumClusterCount: summary.maximumClusterCount,
+            componentStructureScore: summary.componentStructureScores[matchIndex],
+            componentStructureScoreBreakdown: summary.componentStructureScoreBreakdowns[matchIndex]
         };
     }
 
@@ -6827,25 +7032,6 @@ ${warnings.join('\n')}`,
             .slice(0, 3);
     }
 
-    private getVisibleThresholdSnapshot(threshold: number): ThresholdSweepSnapshot {
-        const visibleNodes = this.commonService.getVisibleNodes();
-        const visibleClusters = this.commonService.getVisibleClusters();
-        const clusterCount = visibleClusters.filter(cluster => cluster.nodes > 1).length;
-        const singletonCount = visibleNodes.filter(node => Number(node.degree ?? 0) === 0).length;
-        const largestClusterSize = visibleClusters.reduce((largest, cluster) => {
-            return cluster.nodes > largest ? cluster.nodes : largest;
-        }, 0);
-
-        return {
-            threshold,
-            componentCount: visibleClusters.length,
-            clusterCount,
-            singletonCount,
-            largestClusterSize,
-            sourceThreshold: null
-        };
-    }
-
     refreshThresholdStabilityPanel(markForCheck = true): void {
         const nodes = this.commonService.session.data.nodes;
 
@@ -6853,6 +7039,8 @@ ${warnings.join('\n')}`,
             this.thresholdSweepMetricLabel = '';
             this.thresholdSweepSampleCount = 0;
             this.thresholdStabilityCurrent = null;
+            this.thresholdScoreRecommendation = null;
+            this.thresholdScoreRecommendationNote = '';
             this.thresholdStabilityRegions = [];
             this.thresholdStabilityMessage = '';
             if (markForCheck) {
@@ -6867,13 +7055,28 @@ ${warnings.join('\n')}`,
 
         this.thresholdSweepMetricLabel = metric;
         this.thresholdSweepSampleCount = summary.thresholds.length;
-        this.thresholdStabilityCurrent = this.getVisibleThresholdSnapshot(threshold);
+        this.thresholdStabilityCurrent = this.getThresholdSweepSnapshotAtThreshold(summary, threshold);
+        const smartLaunchRecommendation = this.commonService.session.meta?.smartLaunchRecommendation;
+        const constrainedIndex = smartLaunchRecommendation?.generation === this.commonService.getDataLoadGeneration()
+            && smartLaunchRecommendation?.metric === metric
+            ? summary.thresholds.indexOf(smartLaunchRecommendation.threshold)
+            : -1;
+        const recommendationIndex = constrainedIndex >= 0 ? constrainedIndex : summary.recommendedIndex;
+        this.thresholdScoreRecommendationNote = constrainedIndex >= 0
+            ? `Highest composite score within the ${Number(smartLaunchRecommendation.hardLimit).toLocaleString()}-link browser limit. The overall score leader exceeds that limit.`
+            : '';
+        this.thresholdScoreRecommendation = recommendationIndex >= 0
+            ? this.getThresholdSweepSnapshotAtThreshold(
+                summary,
+                summary.thresholds[recommendationIndex]
+            )
+            : null;
         this.thresholdStabilityRegions = this.buildThresholdStabilityRegions(summary, threshold);
 
         if (summary.thresholds.length === 0) {
             this.thresholdStabilityMessage = `No numeric ${this.commonService.titleize(metric)} values are available for this view.`;
         } else if (this.thresholdStabilityRegions.length === 0) {
-            this.thresholdStabilityMessage = 'No broad flat range was found for the current metric.';
+            this.thresholdStabilityMessage = 'No stable cluster-count range was found. The count changes at each neighboring threshold.';
         } else {
             this.thresholdStabilityMessage = '';
         }
@@ -6888,6 +7091,77 @@ ${warnings.join('\n')}`,
         this.SelectedLinkThresholdVariable = region.suggestedThreshold;
         this.commonService.GlobalSettingsModel.SelectedLinkThresholdVariable = this.SelectedLinkThresholdVariable;
         this.executeThresholdChange(region.suggestedThreshold);
+    }
+
+    applyThresholdScoreRecommendation(): void {
+        if (!this.thresholdScoreRecommendation) {
+            return;
+        }
+
+        const threshold = this.thresholdScoreRecommendation.threshold;
+        this.threshold = String(threshold);
+        this.SelectedLinkThresholdVariable = threshold;
+        this.commonService.GlobalSettingsModel.SelectedLinkThresholdVariable = threshold;
+        this.executeThresholdChange(threshold);
+    }
+
+    formatThresholdMetricPercent(value: number): string {
+        return `${(Math.max(0, Math.min(1, value)) * 100).toFixed(1)}%`;
+    }
+
+    formatThresholdMetricDecimal(value: number): string {
+        return Number.isFinite(value) ? value.toFixed(3) : 'N/A';
+    }
+
+    formatComponentStructureScore(value: number): string {
+        return Number.isFinite(value) ? value.toFixed(1) : 'N/A';
+    }
+
+    formatThresholdMetricEquation(metric: ThresholdMetricKey, snapshot: ThresholdSweepSnapshot): string {
+        const threshold = this.formatThresholdStabilityValue(snapshot.threshold);
+        const prefix = `At threshold ${threshold}:`;
+
+        switch (metric) {
+            case 'largestFraction':
+                return `${prefix} ${snapshot.largestClusterSize} ÷ ${snapshot.nodeCount} = ${this.formatThresholdMetricPercent(snapshot.largestClusterFraction)}`;
+            case 'clustered':
+                return `${prefix} ${snapshot.clusteredNodeCount} ÷ ${snapshot.nodeCount} = ${this.formatThresholdMetricPercent(snapshot.clusteredFraction)}`;
+            case 'gini': {
+                const denominator = snapshot.componentCount * snapshot.nodeCount;
+                const pairwiseDifferenceSum = Math.round(snapshot.giniCoefficient * denominator);
+                return `${prefix} Σ|size differences| = ${pairwiseDifferenceSum}; ${pairwiseDifferenceSum} ÷ (${snapshot.componentCount} × ${snapshot.nodeCount}) = ${this.formatThresholdMetricDecimal(snapshot.giniCoefficient)}`;
+            }
+            case 'l2ToL1':
+                return `${prefix} ${snapshot.secondLargestClusterSize} ÷ ${snapshot.largestClusterSize} = ${this.formatThresholdMetricDecimal(snapshot.l2ToL1Ratio)}`;
+            case 'largestToMedian':
+                return `${prefix} ${snapshot.largestClusterSize} ÷ ${snapshot.medianClusterSize.toLocaleString(undefined, { maximumFractionDigits: 1 })} = ${this.formatThresholdMetricDecimal(snapshot.largestToMedianClusterRatio)}`;
+        }
+    }
+
+    formatThresholdScoreEquation(snapshot: ThresholdSweepSnapshot): string {
+        const terms = snapshot.componentStructureScoreBreakdown;
+        return `At threshold ${this.formatThresholdStabilityValue(snapshot.threshold)}: 100 × (${this.formatThresholdMetricDecimal(terms.fragmentation)} + ${this.formatThresholdMetricDecimal(terms.dominance)} + ${this.formatThresholdMetricDecimal(terms.balance)} + ${this.formatThresholdMetricDecimal(terms.participation)} + ${this.formatThresholdMetricDecimal(terms.equality)}) ÷ 5 = ${this.formatComponentStructureScore(snapshot.componentStructureScore)}`;
+    }
+
+    formatThresholdScoreTermEquation(term: ThresholdScoreTermKey, snapshot: ThresholdSweepSnapshot): string {
+        const threshold = this.formatThresholdStabilityValue(snapshot.threshold);
+        const prefix = `At threshold ${threshold}:`;
+        const breakdown = snapshot.componentStructureScoreBreakdown;
+
+        switch (term) {
+            case 'fragmentation':
+                return `${prefix} ${snapshot.clusterCount} clusters ÷ ${snapshot.maximumClusterCount} maximum clusters in sweep = ${this.formatThresholdMetricDecimal(breakdown.fragmentation)}`;
+            case 'dominance':
+                return `${prefix} ${this.formatThresholdMetricDecimal(snapshot.clusteredFraction)} × (1 − ${this.formatThresholdMetricDecimal(snapshot.largestClusterFraction)}) = ${this.formatThresholdMetricDecimal(breakdown.dominance)}`;
+            case 'balance':
+                return snapshot.clusterCount >= 2
+                    ? `${prefix} median size ${snapshot.medianClusterSize.toLocaleString(undefined, { maximumFractionDigits: 1 })} ÷ largest size ${snapshot.largestClusterSize} = ${this.formatThresholdMetricDecimal(breakdown.balance)}`
+                    : `${prefix} fewer than 2 genetic clusters = ${this.formatThresholdMetricDecimal(breakdown.balance)}`;
+            case 'participation':
+                return `${prefix} ${snapshot.clusteredNodeCount} clustered nodes ÷ ${snapshot.nodeCount} total nodes = ${this.formatThresholdMetricDecimal(breakdown.participation)}`;
+            case 'equality':
+                return `${prefix} ${this.formatThresholdMetricDecimal(snapshot.clusteredFraction)} × (1 − ${this.formatThresholdMetricDecimal(snapshot.giniCoefficient)}) = ${this.formatThresholdMetricDecimal(breakdown.equality)}`;
+        }
     }
 
     formatThresholdStabilityClusterLabel(clusterCount: number): string {
