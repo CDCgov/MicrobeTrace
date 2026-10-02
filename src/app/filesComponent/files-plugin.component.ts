@@ -73,6 +73,7 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
   SelectedAmbiguityThresholdVariable: any = 0.015;
   SelectedDefaultDistanceThresholdVariable: any = 16;
   SelectedDefaultViewVariable: string = "2D Network";
+  readonly distanceControlsUnavailableMessage = 'Unavailable because the configured files have no molecular-distance data.';
   readonly DefaultViewOptions: string[] = [
     '2D Network',
     'Epi Curve',
@@ -3346,6 +3347,24 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
 
   isMLSTSelected(): boolean {
     return String(this.SelectedDefaultDistanceMetricVariable || '').toLowerCase() === 'mlst';
+  }
+
+  get hasConfiguredDistanceDataAvailable(): boolean {
+    return (this.commonService.session.files || []).some((file: any) => {
+      const format = String(file?.format || '').toLowerCase();
+      const field2 = String(file?.field2 || '').toLowerCase();
+      const field3 = String(file?.field3 || '').toLowerCase();
+
+      if (['fasta', 'newick', 'auspice', 'matrix', 'network'].includes(format)) {
+        return true;
+      }
+
+      if (format === 'node') {
+        return field2.length > 0 && field2 !== 'none';
+      }
+
+      return format === 'link' && field3.length > 0 && field3 !== 'none';
+    });
   }
 
   onAmbiguityStrategyChanged() {

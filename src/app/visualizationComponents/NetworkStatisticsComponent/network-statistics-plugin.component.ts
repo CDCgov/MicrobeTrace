@@ -289,7 +289,9 @@ export class NetworkStatisticsComponent
 
     const xlsx = await import('xlsx');
     const workbook = xlsx.utils.book_new();
-    buildNetworkStatisticsExportSections(this.networkStatisticsResult).forEach((section) => {
+    buildNetworkStatisticsExportSections(this.networkStatisticsResult, {
+      includeDistanceFields: this.commonService.hasDistanceDataAvailable(),
+    }).forEach((section) => {
       const worksheet = xlsx.utils.aoa_to_sheet(section.rows);
       xlsx.utils.book_append_sheet(workbook, worksheet, section.sheetName);
     });
@@ -316,7 +318,9 @@ export class NetworkStatisticsComponent
       return;
     }
 
-    const csv = serializeNetworkStatisticsCsv(this.networkStatisticsResult);
+    const csv = serializeNetworkStatisticsCsv(this.networkStatisticsResult, {
+      includeDistanceFields: this.commonService.hasDistanceDataAvailable(),
+    });
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
     const fileName = `${this.SelectedNetworkStatisticsExportFilenameVariable || 'network_statistics'}.csv`;
     const testSaveAs = (window as any).__mtTestSaveAs;
@@ -555,7 +559,7 @@ export class NetworkStatisticsComponent
 
   private buildSummaryRows(result: NetworkStatisticsResult): Array<{ metric: string; value: any }> {
     const summary = result.summary;
-    return [
+    const rows: Array<{ metric: string; value: any }> = [
       { metric: 'Nodes', value: summary.nodeCount },
       { metric: 'Links', value: summary.linkCount },
       { metric: 'Selected Nodes', value: summary.selectedNodeCount },
@@ -580,10 +584,17 @@ export class NetworkStatisticsComponent
       { metric: 'Transitivity', value: summary.transitivity },
       { metric: 'Average Reachable Path Length', value: summary.averagePathLength },
       { metric: 'Diameter', value: summary.diameter },
-      { metric: 'Distance Metric', value: summary.metricLabel || 'N/A' },
-      { metric: 'Threshold', value: summary.threshold ?? 'N/A' },
-      { metric: 'Generated At', value: result.generatedAtIso },
     ];
+
+    if (this.commonService.hasDistanceDataAvailable()) {
+      rows.push(
+        { metric: 'Distance Metric', value: summary.metricLabel || 'N/A' },
+        { metric: 'Threshold', value: summary.threshold ?? 'N/A' },
+      );
+    }
+
+    rows.push({ metric: 'Generated At', value: result.generatedAtIso });
+    return rows;
   }
 
   private resetTableFilters(): void {
