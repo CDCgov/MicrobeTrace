@@ -308,6 +308,10 @@ describe('Journey Flow - Network Statistics view', () => {
       .should('be.visible')
       .and('contain.text', 'Layer-specific statistics are authoritative')
       .and('contain.text', 'counts once in the combined graph');
+    cy.get('[data-testid="network-statistics-detail-layer"]')
+      .should('contain.text', 'Detailed table: Combined');
+    cy.get('[data-testid="network-statistics-table-shell"]')
+      .should('exist');
     cy.get('[data-testid="network-statistics-layer-row-genetic"]')
       .should('contain.text', 'Genetic')
       .and('contain.text', '17');
@@ -324,6 +328,17 @@ describe('Journey Flow - Network Statistics view', () => {
       .and('contain.text', 'Genetic + epidemiologic')
       .and('contain.text', '7')
       .and('contain.text', 'Total unique relationships')
+      .and('contain.text', '17');
+    cy.get('[data-testid="network-statistics-comparison-toggle"]')
+      .should('have.attr', 'aria-expanded', 'true')
+      .and('contain.text', 'Collapse')
+      .click({ force: true })
+      .should('have.attr', 'aria-expanded', 'false')
+      .and('contain.text', 'Expand');
+    cy.get('[data-testid="network-statistics-comparison-content"]').should('not.exist');
+    cy.get('[data-testid="network-statistics-table-shell"]')
+      .should('be.visible')
+      .and('contain.text', 'Links')
       .and('contain.text', '17');
 
     selectStatisticsLayer('Epidemiologic');

@@ -86,6 +86,7 @@ export class NetworkStatisticsComponent
   networkStatisticsLayerSelected: NetworkStatisticsLayerSelection = 'combined';
   networkStatisticsLayerOptions: SelectItem[] = [];
   networkStatisticsNarrativeExpanded = true;
+  networkStatisticsComparisonExpanded = true;
 
   ShowNetworkStatisticsSettingsPane = false;
   ShowNetworkStatisticsExportPane = false;
@@ -302,6 +303,12 @@ export class NetworkStatisticsComponent
 
   toggleNetworkStatisticsNarrative(): void {
     this.networkStatisticsNarrativeExpanded = !this.networkStatisticsNarrativeExpanded;
+    this.cdref.detectChanges();
+    setTimeout(() => this.goldenLayoutComponentResize());
+  }
+
+  toggleNetworkStatisticsComparison(): void {
+    this.networkStatisticsComparisonExpanded = !this.networkStatisticsComparisonExpanded;
     this.cdref.detectChanges();
     setTimeout(() => this.goldenLayoutComponentResize());
   }

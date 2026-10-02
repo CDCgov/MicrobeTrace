@@ -29,7 +29,12 @@
       </p-select>
     </span>
 
-    @if (networkStatisticsLayerSelected !== 'compare') {
+    @if (networkStatisticsLayerSelected === 'compare') {
+      <span class="network-statistics-calculation-mode" data-testid="network-statistics-detail-layer">
+        Detailed table: Combined
+      </span>
+    }
+    @if (networkStatisticsResult) {
       <span class="network-statistics-toolbar-label">Table:</span>
       <span class="network-statistics-section-select">
       <p-select
@@ -77,13 +82,24 @@
       <div class="network-statistics-narrative-heading">
         <h2 id="network-statistics-comparison-title">Network layer comparison</h2>
         <span class="network-statistics-calculation-mode">Current visible network</span>
+        <button
+          type="button"
+          class="btn btn-sm btn-outline-secondary"
+          data-testid="network-statistics-comparison-toggle"
+          [attr.aria-expanded]="networkStatisticsComparisonExpanded"
+          aria-controls="network-statistics-comparison-content"
+          (click)="toggleNetworkStatisticsComparison()">
+          {{ networkStatisticsComparisonExpanded ? 'Collapse' : 'Expand' }}
+        </button>
       </div>
-      <p class="network-statistics-narrative-headline">
-        Layer-specific statistics are authoritative. Combined statistics describe the union of genetic and epidemiologic relationships and are supplementary.
-      </p>
+      @if (networkStatisticsComparisonExpanded) {
+        <div id="network-statistics-comparison-content" data-testid="network-statistics-comparison-content">
+          <p class="network-statistics-narrative-headline">
+            Layer-specific statistics are authoritative. Combined statistics describe the union of genetic and epidemiologic relationships and are supplementary.
+          </p>
 
-      <div class="network-statistics-comparison-table-wrap">
-        <table class="network-statistics-comparison-table">
+          <div class="network-statistics-comparison-table-wrap">
+            <table class="network-statistics-comparison-table">
           <thead>
             <tr>
               <th scope="col">Layer</th>
@@ -112,22 +128,24 @@
               </tr>
             }
           </tbody>
-        </table>
-      </div>
-
-      <h3>Edge evidence composition</h3>
-      <div class="network-statistics-evidence-grid" data-testid="network-statistics-evidence-composition">
-        @for (row of combinedEvidenceComposition; track row.label) {
-          <div class="network-statistics-evidence-item">
-            <span>{{ row.label }}</span>
-            <strong>{{ row.count }} · {{ formatPercentage(row.percent) }}</strong>
+            </table>
           </div>
-        }
-      </div>
 
-      <p class="network-statistics-narrative-caveat">
-        <strong>Component definitions.</strong> Genetic components use genetic links only; epidemiologic components use epidemiologic links only; combined components use any visible link. A relationship supported by both evidence types participates in both source layers but counts once in the combined graph.
-      </p>
+          <h3>Edge evidence composition</h3>
+          <div class="network-statistics-evidence-grid" data-testid="network-statistics-evidence-composition">
+            @for (row of combinedEvidenceComposition; track row.label) {
+              <div class="network-statistics-evidence-item">
+                <span>{{ row.label }}</span>
+                <strong>{{ row.count }} · {{ formatPercentage(row.percent) }}</strong>
+              </div>
+            }
+          </div>
+
+          <p class="network-statistics-narrative-caveat">
+            <strong>Component definitions.</strong> Genetic components use genetic links only; epidemiologic components use epidemiologic links only; combined components use any visible link. A relationship supported by both evidence types participates in both source layers but counts once in the combined graph.
+          </p>
+        </div>
+      }
     </section>
   }
 
@@ -187,7 +205,7 @@
     }
   }
 
-  @if (IsDataAvailable == true && networkStatisticsLayerSelected !== 'compare' && SelectedTableData) {
+  @if (IsDataAvailable == true && SelectedTableData) {
     <div class="row align-items-center network-statistics-table-row">
       <div class="primeng-datatable-container" data-testid="network-statistics-table-shell">
         <p-table
