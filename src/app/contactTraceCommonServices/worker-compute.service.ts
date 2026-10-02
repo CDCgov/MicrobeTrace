@@ -91,6 +91,7 @@ interface PatristicDistanceAnalysisResult {
   edges: PatristicAnalysisEdge[];
   totalPairs: number;
   skipped: boolean;
+  method: 'all-pairs' | 'mst';
   skipReason?: string;
 }
 
@@ -1210,6 +1211,32 @@ export class WorkerComputeService {
     return subject.asObservable();
   }
 
+  private buildPatristicMstEdges(): Observable<PatristicEdgeBatchResponse> {
+    const subject = new Subject<PatristicEdgeBatchResponse>();
+    const worker = this.computer.getPatristicWorker();
+    const jobId = ++this.patristicJobId;
+
+    const handler = (event: MessageEvent<PatristicWorkerResponse>) => {
+      const msg = event.data;
+      if (msg.jobId !== jobId) return;
+
+      if (msg.type === 'EDGE_BATCH') {
+        subject.next(msg);
+        if (msg.done) {
+          worker.removeEventListener('message', handler);
+          subject.complete();
+        }
+      } else if (msg.type === 'ERROR') {
+        worker.removeEventListener('message', handler);
+        subject.error(new Error(msg.message));
+      }
+    };
+
+    worker.addEventListener('message', handler);
+    worker.postMessage({ type: 'BUILD_MST_EDGES', jobId } as PatristicWorkerRequest);
+    return subject.asObservable();
+  }
+
   public buildPatristicNearestNeighborEdges(
     epsilon: number,
     batchSize?: number
@@ -1597,15 +1624,25 @@ export class WorkerComputeService {
       : this.getPatristicThresholdAnalysisPairLimit(session);
 
     if (!leafCount || totalPairs <= 0) {
-      return Promise.resolve({ edges: [], totalPairs, skipped: false });
+      return Promise.resolve({ edges: [], totalPairs, skipped: false, method: 'all-pairs' });
     }
 
     if (totalPairs > maxPairs) {
-      return Promise.resolve({
-        edges: [],
-        totalPairs,
-        skipped: true,
-        skipReason: `Newick threshold analysis skipped ${this.formatCount(totalPairs)} pairwise distances above the ${this.formatCount(maxPairs)} analysis limit.`,
+      return new Promise((resolve, reject) => {
+        const edges: PatristicAnalysisEdge[] = [];
+        this.buildPatristicMstEdges().subscribe({
+          next: (batch) => {
+            for (let k = 0; k < batch.sources.length; k++) {
+              edges.push({
+                sourceIndex: batch.sources[k],
+                targetIndex: batch.targets[k],
+                value: batch.distances[k],
+              });
+            }
+          },
+          error: (err) => reject(err),
+          complete: () => resolve({ edges, totalPairs, skipped: false, method: 'mst' }),
+        });
       });
     }
 
@@ -1624,9 +1661,40 @@ export class WorkerComputeService {
           }
         },
         error: (err) => reject(err),
-        complete: () => resolve({ edges, totalPairs, skipped: false }),
+        complete: () => resolve({ edges, totalPairs, skipped: false, method: 'all-pairs' }),
       });
     });
+  }
+
+  public async findMaxRenderablePatristicThresholdIndex(
+    thresholds: number[],
+    session?: any,
+  ): Promise<{ index: number; hardLimit: number }> {
+    const hardLimit = this.getPatristicVisibleEdgeGuardrails(session).hardLimit;
+    let low = 0;
+    let high = thresholds.length - 1;
+    let index = -1;
+
+    while (low <= high) {
+      const middle = Math.floor((low + high) / 2);
+      const edgeCount = await new Promise<number>((resolve, reject) => {
+        let count = 0;
+        this.buildPatristicEdges(thresholds[middle], hardLimit + 1).subscribe({
+          next: (batch) => { count += batch.sources.length; },
+          error: reject,
+          complete: () => resolve(count),
+        });
+      });
+
+      if (edgeCount <= hardLimit) {
+        index = middle;
+        low = middle + 1;
+      } else {
+        high = middle - 1;
+      }
+    }
+
+    return { index, hardLimit };
   }
 
   /**
