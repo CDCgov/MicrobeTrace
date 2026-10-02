@@ -47,12 +47,15 @@ const normalizeLogicalLinkId = (value: string): string => String(value || '').re
 const clickVisiblePrimeOption = (label: string): void => {
   cy.get('.p-select-overlay:visible', { timeout: 15000 })
     .last()
+    .should('be.visible')
     .contains('.p-select-option', new RegExp(`^${escapeRegExp(label)}$`))
+    .scrollIntoView()
     .click({ force: true });
+  cy.get('.p-select-overlay:visible').should('not.exist');
 };
 
 const selectPrimeOption = (selector: string, label: string): void => {
-  cy.get(selector).click({ force: true });
+  cy.get(selector).should('be.visible').click({ force: true });
   clickVisiblePrimeOption(label);
 };
 
@@ -304,6 +307,7 @@ describe('Journey Flow - 2D uploaded timeline controls', () => {
     clickTimelineSliderAtDate(midCheckpoint.date);
     waitForTwoDRenderIdle();
     assertNoRuntimeErrorBanner();
+    assertProcessingModalClosed();
     assertTwoDTimelineNodeMembershipAligned();
     assertRenderedLogicalLinkCountMatchesMetric();
 

@@ -12,6 +12,26 @@ describe('Journey Flow - Apply Style in 2D Network', () => {
   const profile = getProfile('style-apply-cypress-test-style');
   const getRenderedShapeKey = (node: any): string => String(node.data('shapeKey') || node.style('shape') || '').trim();
 
+  const applyIssue1686Style = (): void => {
+    cy.openGlobalSettings();
+    cy.contains('.nav-link:visible', 'Styling').click({ force: true });
+    cy.fixture('Cypress_Test_Style.style', 'utf8').then((contents) => {
+      const style = JSON.parse(String(contents));
+      Object.assign(style.widgets, {
+        'polygons-show': true,
+        'polygons-foci': 'State',
+        'polygons-color-show': true,
+        'polygon-color-table-visible': 'Show',
+      });
+
+      cy.get('#apply-style').selectFile({
+        contents: Cypress.Buffer.from(JSON.stringify(style)),
+        fileName: 'issue-1686.style',
+        mimeType: 'application/json',
+      }, { force: true });
+    });
+  };
+
   it(profile.title, () => {
     launchProfileToTwoD(profile);
     assertAfterLaunchCounts(profile);
@@ -85,5 +105,48 @@ describe('Journey Flow - Apply Style in 2D Network', () => {
     });
 
     assertStyleTablesFromProfile(profile);
+  });
+
+  it('restores degree sizing, grouping, and the group color table together', () => {
+    launchProfileToTwoD(profile);
+    assertAfterLaunchCounts(profile);
+    applyIssue1686Style();
+    cy.closeGlobalSettings();
+
+    cy.window().then((win: any) => {
+      const widgets = win.commonService.session.style.widgets;
+      const cyInstance = win.cytoscapeInstance;
+      const visibleNodes = cyInstance.nodes().filter((node: any) => !node.hasClass('parent') && node.visible());
+      const rankedByDegree = visibleNodes
+        .map((node: any) => ({
+          degree: Number(node.data('degree') ?? 0),
+          width: parseFloat(String(node.style('width'))),
+        }))
+        .sort((a: any, b: any) => a.degree - b.degree);
+      const largest = rankedByDegree[rankedByDegree.length - 1];
+
+      expect(widgets['node-radius-variable']).to.equal('degree');
+      expect(widgets['polygons-show']).to.equal(true);
+      expect(widgets['polygons-foci']).to.equal('State');
+      expect(widgets['polygons-color-show']).to.equal(true);
+      expect(widgets['polygon-color-table-visible']).to.equal('Show');
+      expect(largest.degree).to.be.greaterThan(rankedByDegree[0].degree);
+      expect(largest.width).to.be.greaterThan(rankedByDegree[0].width);
+
+      const expectedGroups = Array.from(
+        new Set(
+          visibleNodes
+            .map((node: any) => String(node.data('State') ?? '').trim())
+            .filter((value: string) => value && value.toLowerCase() !== 'null'),
+        ),
+      ).sort();
+      const renderedGroups = Array.from(
+        new Set(cyInstance.nodes('.parent').map((node: any) => String(node.data('label')))),
+      ).sort();
+      expect(renderedGroups).to.deep.equal(expectedGroups);
+    });
+
+    cy.get('#polygon-color-table', { timeout: 15000 }).should('be.visible');
+    cy.get('#polygon-color-table td[data-value]').should('have.length.greaterThan', 0);
   });
 });
