@@ -738,6 +738,7 @@ describe('Transmission Chain View', () => {
     selectDateField();
 
     const syntheticOrigin = 'Synthetic Transmission Origin';
+    let originalOrigin = '';
     getTransmissionCy().then((cyInstance) => {
       const renderedLink = cyInstance.edges(':visible').first();
       const source = String(renderedLink.data('source'));
@@ -748,11 +749,14 @@ describe('Transmission Chain View', () => {
           String(candidate.source) === source && String(candidate.target) === target
         ));
         expect(link, 'rendered link for synthetic origin').to.exist;
-        const originalOrigin = String(
+        originalOrigin = String(
           (Array.isArray(link.origin) ? link.origin : [link.origin]).find(Boolean),
         );
         link.origin = [originalOrigin, syntheticOrigin];
-        win.commonService.visuals.transmissionChain.onTransmissionChainLinkOriginsChange([syntheticOrigin]);
+        win.commonService.visuals.transmissionChain.onTransmissionChainLinkOriginsChange([
+          originalOrigin,
+          syntheticOrigin,
+        ]);
       });
     });
 
@@ -772,6 +776,24 @@ describe('Transmission Chain View', () => {
         duoEdges.flatMap((edge) => edge.data('origin')).sort(),
         'both link origins retained',
       ).to.include(syntheticOrigin);
+    });
+
+    cy.window().then((win: any) => {
+      win.commonService.visuals.transmissionChain.onTransmissionChainLinkOriginsChange([syntheticOrigin]);
+    });
+
+    getTransmissionCy().should((cyInstance) => {
+      const remainingEdges = cyInstance.edges(':visible').toArray();
+
+      expect(remainingEdges.length, 'single rendered edge after deselecting one origin').to.equal(1);
+      expect(
+        remainingEdges.filter((edge) => Boolean(edge.data('secondLink'))).length,
+        'no dashed overlay edge',
+      ).to.equal(0);
+      expect(remainingEdges[0].data('origin'), 'only the selected origin remains')
+        .to.deep.equal([syntheticOrigin]);
+      expect(remainingEdges[0].data('origin'), 'deselected origin is removed')
+        .not.to.include(originalOrigin);
     });
   });
 });

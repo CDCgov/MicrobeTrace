@@ -1086,14 +1086,28 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             return [];
         }
 
-        return links.filter(link => {
+        return links.flatMap(link => {
             const linkOrigins = Array.isArray(link?.origin)
                 ? link.origin
                 : link?.origin
                     ? [link.origin]
                     : [];
+            const selectedLinkOrigins = linkOrigins.filter(origin =>
+                selectedOrigins.has(String(origin || '').trim())
+            );
 
-            return linkOrigins.some(origin => selectedOrigins.has(String(origin || '').trim()));
+            if (selectedLinkOrigins.length === 0) {
+                return [];
+            }
+
+            if (selectedLinkOrigins.length === linkOrigins.length) {
+                return [link];
+            }
+
+            return [{
+                ...link,
+                origin: selectedLinkOrigins
+            }];
         });
     }
 
