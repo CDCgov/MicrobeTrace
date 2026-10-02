@@ -450,7 +450,7 @@ function generateThresholdedEdges(
   flushBatch(jobId, batchSources, batchTargets, batchDistances, batchPos, totalEmitted, true, timings);
 }
 
-function buildPatristicMst(tree: FlatTree, lca: LcaIndex, jobId: number): { parent: Int32Array; edgeWeight: Float64Array } {
+function buildPatristicMst(tree: FlatTree, lca: LcaIndex, jobId: number): { parent: Int32Array; edgeWeight: Float64Array; cancelled: boolean } {
   const n = tree.leafCount;
   const parent = new Int32Array(n).fill(-1);
   const edgeWeight = new Float64Array(n);
@@ -464,7 +464,7 @@ function buildPatristicMst(tree: FlatTree, lca: LcaIndex, jobId: number): { pare
   for (let count = 0; count < n; count++) {
     if (count % 100 === 0 && cancelledJobs.has(jobId)) {
       cancelledJobs.delete(jobId);
-      break;
+      return { parent, edgeWeight, cancelled: true };
     }
 
     let minValue = Number.POSITIVE_INFINITY;
@@ -492,7 +492,32 @@ function buildPatristicMst(tree: FlatTree, lca: LcaIndex, jobId: number): { pare
     }
   }
 
-  return { parent, edgeWeight };
+  return { parent, edgeWeight, cancelled: false };
+}
+
+/** An MST has the same threshold-connected components as all leaf pairs. */
+function generateMstAnalysisEdges(tree: FlatTree, lca: LcaIndex, jobId: number): void {
+  const { parent, edgeWeight, cancelled } = buildPatristicMst(tree, lca, jobId);
+  if (cancelled) {
+    respond({ type: 'ERROR', jobId, message: 'Patristic MST analysis cancelled.' });
+    return;
+  }
+
+  const capacity = Math.max(0, tree.leafCount - 1);
+  const sources = new Uint32Array(capacity);
+  const targets = new Uint32Array(capacity);
+  const distances = new Float32Array(capacity);
+  let count = 0;
+
+  for (let leafIndex = 1; leafIndex < tree.leafCount; leafIndex++) {
+    if (parent[leafIndex] < 0) continue;
+    sources[count] = leafIndex;
+    targets[count] = parent[leafIndex];
+    distances[count] = edgeWeight[leafIndex];
+    count++;
+  }
+
+  flushBatch(jobId, sources, targets, distances, count, count, true);
 }
 
 function buildMstAdjacency(parent: Int32Array, edgeWeight: Float64Array): Array<Array<[number, number]>> {
@@ -524,7 +549,8 @@ function generateNearestNeighborEdges(
   const n = tree.leafCount;
   const totalPairs = (n * (n - 1)) / 2;
   const mstStart = performance.now();
-  const { parent, edgeWeight } = buildPatristicMst(tree, lca, jobId);
+  const { parent, edgeWeight, cancelled } = buildPatristicMst(tree, lca, jobId);
+  if (cancelled) return;
   const mstMs = performance.now() - mstStart;
   const adjacency = buildMstAdjacency(parent, edgeWeight);
   const pairStart = performance.now();
@@ -843,6 +869,17 @@ addEventListener('message', ({ data }: { data: PatristicWorkerRequest }) => {
           batchSize ?? 10000,
           maxEdges ?? Infinity
         );
+        break;
+      }
+
+      case 'BUILD_MST_EDGES': {
+        const { jobId } = data;
+        if (!currentTree || !currentLca) {
+          respond({ type: 'ERROR', jobId, message: 'No tree initialized. Call INIT_TREE first.' });
+          return;
+        }
+
+        generateMstAnalysisEdges(currentTree, currentLca, jobId);
         break;
       }
 
