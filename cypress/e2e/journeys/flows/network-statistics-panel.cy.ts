@@ -44,6 +44,7 @@ const expectTrimmedCellText = (index: number, text: string): void => {
 
 describe('Journey Flow - Network Statistics view', () => {
   const profile = getProfile('network-statistics-panel');
+  const mixedLinkProfile = getProfile('filtering-mixed-origin-nearest-neighbor');
 
   it('recalculates filter-aware statistics and exports each section to its own workbook sheet', () => {
     const exportPath = 'cypress/downloads/network_statistics_view.xlsx';
@@ -62,6 +63,22 @@ describe('Journey Flow - Network Statistics view', () => {
 
     openNetworkStatisticsView();
     waitForStatistics(6);
+
+    cy.get('[data-testid="network-statistics-narrative"]')
+      .should('be.visible')
+      .and('contain.text', 'Genetic network interpretation')
+      .and('contain.text', 'All 6 nodes in the visible genetic network are connected in one component')
+      .and('contain.text', '6 molecular-only (100%)')
+      .and('contain.text', '0 epidemiologic-only (0%)')
+      .and('contain.text', '0 duo-links (0%)')
+      .and('contain.text', 'Each visible node pair counts as one link')
+      .and('contain.text', 'do not establish transmission direction or causality');
+    cy.get('[data-testid="network-statistics-narrative-method"]')
+      .should('contain.text', 'How this was calculated')
+      .and('not.contain.text', 'artificial intelligence');
+    cy.get('[data-testid="network-statistics-calculation-mode"]')
+      .invoke('text')
+      .then((text) => expect(text.trim()).to.equal('Exact calculation'));
 
     cy.window().then((win: any) => {
       const metrics = win.commonService.visuals.networkStatistics.networkStatisticsResult.summary.componentMetrics;
@@ -89,13 +106,12 @@ describe('Journey Flow - Network Statistics view', () => {
     cy.get('[data-testid="network-statistics-table-shell"]')
       .should('contain.text', 'Nodes')
       .and('contain.text', '6')
-      .and('contain.text', 'Clusters')
-      .and('contain.text', 'Largest Cluster Fraction (L1)')
-      .and('contain.text', 'Clustered Fraction')
+      .and('contain.text', 'Non-singleton Components')
+      .and('contain.text', 'Largest Component Fraction (L1)')
+      .and('contain.text', 'Connected-node Fraction')
       .and('contain.text', 'Component-size Gini')
-      .and('contain.text', 'Largest / Median Cluster Size')
+      .and('contain.text', 'Largest / Median Component Size')
       .and('contain.text', 'L2 / L1')
-      .and('not.contain.text', 'Non-singleton Clusters')
       .and('not.contain.text', 'Approximate Betweenness')
       .and('not.contain.text', 'Approximate Path Metrics')
       .and('not.contain.text', 'Sampled Sources')
@@ -114,9 +130,9 @@ describe('Journey Flow - Network Statistics view', () => {
         });
     });
 
-    selectStatisticsSection('Clusters');
+    selectStatisticsSection('Components');
     cy.get('[data-testid="network-statistics-table-shell"]')
-      .should('contain.text', 'Cluster ID');
+      .should('contain.text', 'Component ID');
 
     selectStatisticsSection('Node Centrality');
 
@@ -139,35 +155,40 @@ describe('Journey Flow - Network Statistics view', () => {
         'Summary',
         'Degree Distribution',
         'Node Centrality',
-        'Clusters',
+        'Components',
+        'Interpretation',
       ]);
 
       const summaryRows = XLSX.utils.sheet_to_json<any[]>(workbook.Sheets.Summary, { header: 1 });
       const degreeRows = XLSX.utils.sheet_to_json<any[]>(workbook.Sheets['Degree Distribution'], { header: 1 });
       const centralityRows = XLSX.utils.sheet_to_json<any[]>(workbook.Sheets['Node Centrality'], { header: 1 });
-      const clusterRows = XLSX.utils.sheet_to_json<any[]>(workbook.Sheets.Clusters, { header: 1 });
+      const clusterRows = XLSX.utils.sheet_to_json<any[]>(workbook.Sheets.Components, { header: 1 });
+      const interpretationRows = XLSX.utils.sheet_to_json<any[]>(workbook.Sheets.Interpretation, { header: 1 });
 
       expect(summaryRows[0]).to.deep.equal(['Metric', 'Value']);
       expect(summaryRows).to.deep.include(['Nodes', 6]);
-      expect(summaryRows).to.deep.include(['Clusters', 1]);
-      expect(summaryRows).to.deep.include(['Largest Cluster Fraction (L1)', 1]);
-      expect(summaryRows).to.deep.include(['Second-largest Cluster Fraction (L2)', 0]);
-      expect(summaryRows).to.deep.include(['Clustered Fraction', 1]);
+      expect(summaryRows).to.deep.include(['Molecular-only Links', 6]);
+      expect(summaryRows).to.deep.include(['Epidemiologic-only Links', 0]);
+      expect(summaryRows).to.deep.include(['Duo-links', 0]);
+      expect(summaryRows).to.deep.include(['Non-singleton Components', 1]);
+      expect(summaryRows).to.deep.include(['Largest Component Fraction (L1)', 1]);
+      expect(summaryRows).to.deep.include(['Second-largest Component Fraction (L2)', 0]);
+      expect(summaryRows).to.deep.include(['Connected-node Fraction', 1]);
       expect(summaryRows).to.deep.include(['Singleton Fraction', 0]);
       expect(summaryRows).to.deep.include(['Component-size Gini', 0]);
-      expect(summaryRows).to.deep.include(['Largest / Median Cluster Size', 1]);
+      expect(summaryRows).to.deep.include(['Largest / Median Component Size', 1]);
       expect(summaryRows).to.deep.include(['L2 / L1', 0]);
       expect(degreeRows[0]).to.deep.equal(['Degree', 'Node Count', 'Fraction']);
       expect(centralityRows[0]).to.deep.equal([
         'Node ID',
-        'Cluster ID',
+        'Component ID',
         'Degree',
         'Normalized Degree',
         'Betweenness',
         'Normalized Betweenness',
       ]);
       expect(clusterRows[0]).to.deep.equal([
-        'Cluster ID',
+        'Component ID',
         'Node Count',
         'Link Count',
         'Density',
@@ -177,6 +198,16 @@ describe('Journey Flow - Network Statistics view', () => {
         'Diameter Approximate',
         'Member IDs',
       ]);
+      expect(interpretationRows[0]).to.deep.equal(['Section', 'Interpretation']);
+      expect(interpretationRows).to.deep.include([
+        'Calculation mode',
+        'Exact calculation',
+      ]);
+      expect(
+        interpretationRows.some((row) => row[0] === 'Interpretation limits'
+          && String(row[1]).includes('do not establish transmission direction or causality')),
+        'deterministic interpretation caveat',
+      ).to.equal(true);
 
       const workbookText = JSON.stringify(workbook.Sheets);
       expect(workbookText).not.to.include('record_type');
@@ -214,6 +245,10 @@ describe('Journey Flow - Network Statistics view', () => {
       });
     });
     selectStatisticsSection('Summary');
+    cy.get('[data-testid="network-statistics-narrative"]')
+      .should('be.visible')
+      .and('contain.text', '6 visible nodes have no visible links')
+      .and('contain.text', 'All visible nodes are singletons');
     cy.get('[data-testid="network-statistics-table-shell"]')
       .should('contain.text', 'Links')
       .and('contain.text', '0')
@@ -226,5 +261,47 @@ describe('Journey Flow - Network Statistics view', () => {
         expectTrimmedCellText(0, '0');
         expectTrimmedCellText(1, '6');
       });
+  });
+
+  it('counts a visible molecular and epidemiologic relationship as one duo-link', () => {
+    launchProfileToTwoD(mixedLinkProfile);
+    assertAfterLaunchCounts(mixedLinkProfile);
+    openNetworkStatisticsView();
+    waitForStatistics(17);
+
+    cy.window().then((win: any) => {
+      const summary = win.commonService.visuals.networkStatistics.networkStatisticsResult.summary;
+      expect(summary.linkCount, 'deduplicated visible endpoint pairs').to.equal(17);
+      expect(summary.linkEvidence, 'visible evidence categories').to.deep.equal({
+        molecularOnlyLinkCount: 10,
+        epidemiologicOnlyLinkCount: 0,
+        duoLinkCount: 7,
+        unclassifiedLinkCount: 0,
+      });
+    });
+
+    cy.get('[data-testid="network-statistics-layer-select"] .p-select-label')
+      .should('contain.text', 'Compare all');
+    cy.get('[data-testid="network-statistics-layer-comparison"]')
+      .should('be.visible')
+      .and('contain.text', 'Layer-specific statistics are authoritative')
+      .and('contain.text', 'counts once in the combined graph');
+    cy.get('[data-testid="network-statistics-layer-row-genetic"]')
+      .should('contain.text', 'Genetic')
+      .and('contain.text', '17');
+    cy.get('[data-testid="network-statistics-layer-row-epidemiologic"]')
+      .should('contain.text', 'Epidemiologic')
+      .and('contain.text', '7');
+    cy.get('[data-testid="network-statistics-layer-row-combined"]')
+      .should('contain.text', 'Combined')
+      .and('contain.text', '17');
+    cy.get('[data-testid="network-statistics-evidence-composition"]')
+      .should('contain.text', 'Genetic only')
+      .and('contain.text', '10')
+      .and('contain.text', 'Epidemiologic only')
+      .and('contain.text', 'Genetic + epidemiologic')
+      .and('contain.text', '7')
+      .and('contain.text', 'Total unique relationships')
+      .and('contain.text', '17');
   });
 });

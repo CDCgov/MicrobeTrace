@@ -14,7 +14,9 @@ import { BaseComponentDirective } from '@app/base-component.directive';
 import { CommonService } from '@app/contactTraceCommonServices/common.service';
 import { CommonStoreService } from '@app/contactTraceCommonServices/common-store.services';
 import {
+  buildNetworkStatisticsNarrative,
   buildNetworkStatisticsExportSections,
+  NetworkStatisticsNarrative,
   NetworkStatisticsResult,
   serializeNetworkStatisticsCsv,
 } from '@app/contactTraceCommonServices/network-statistics';
@@ -28,6 +30,20 @@ import { Subject, takeUntil } from 'rxjs';
 import { saveAs } from 'file-saver';
 
 type NetworkStatisticsSection = 'summary' | 'centrality' | 'components' | 'degree';
+type NetworkStatisticsLayer = 'genetic' | 'epidemiologic' | 'combined';
+type NetworkStatisticsLayerSelection = NetworkStatisticsLayer | 'compare';
+
+interface NetworkStatisticsLayerComparisonRow {
+  layer: string;
+  nodeCount: number;
+  linkCount: number;
+  density: number;
+  averageDegree: number;
+  medianDegree: number;
+  componentCount: number;
+  largestComponentSize: number;
+  singletonCount: number;
+}
 
 interface NetworkStatisticsColumn {
   field: string;
@@ -64,8 +80,11 @@ export class NetworkStatisticsComponent
   viewActive = true;
   IsDataAvailable = false;
   networkStatisticsResult: NetworkStatisticsResult | null = null;
+  networkStatisticsResults: Partial<Record<NetworkStatisticsLayer, NetworkStatisticsResult>> = {};
   networkStatisticsLoading = false;
   networkStatisticsError = '';
+  networkStatisticsLayerSelected: NetworkStatisticsLayerSelection = 'combined';
+  networkStatisticsLayerOptions: SelectItem[] = [];
 
   ShowNetworkStatisticsSettingsPane = false;
   ShowNetworkStatisticsExportPane = false;
@@ -74,7 +93,7 @@ export class NetworkStatisticsComponent
   dataSetView: SelectItem[] = [
     { label: 'Summary', value: 'summary' },
     { label: 'Node Centrality', value: 'centrality' },
-    { label: 'Clusters', value: 'components' },
+    { label: 'Components', value: 'components' },
     { label: 'Degree Distribution', value: 'degree' },
   ];
   dataSetViewSelected: NetworkStatisticsSection = 'summary';
@@ -110,6 +129,7 @@ export class NetworkStatisticsComponent
   private readonly visuals: MicrobeTraceNextVisuals;
   private networkStatisticsRequestId = 0;
   private isDestroyed = false;
+  private hasInitializedLayerSelection = false;
   private readonly sectionColumns: Record<NetworkStatisticsSection, NetworkStatisticsColumn[]> = {
     summary: [
       { field: 'metric', header: 'Metric' },
@@ -117,14 +137,14 @@ export class NetworkStatisticsComponent
     ],
     centrality: [
       { field: 'nodeId', header: 'Node ID' },
-      { field: 'componentId', header: 'Cluster ID' },
+      { field: 'componentId', header: 'Component ID' },
       { field: 'degree', header: 'Degree' },
       { field: 'normalizedDegree', header: 'Norm. Degree' },
       { field: 'betweenness', header: 'Betweenness' },
       { field: 'normalizedBetweenness', header: 'Norm. Betweenness' },
     ],
     components: [
-      { field: 'componentId', header: 'Cluster ID' },
+      { field: 'componentId', header: 'Component ID' },
       { field: 'nodeCount', header: 'Nodes' },
       { field: 'linkCount', header: 'Links' },
       { field: 'density', header: 'Density' },
@@ -209,6 +229,76 @@ export class NetworkStatisticsComponent
     return `Approx. sampled metrics from ${summary.sampledSourceCount.toLocaleString()} source nodes`;
   }
 
+  get networkStatisticsNarrative(): NetworkStatisticsNarrative | null {
+    return this.networkStatisticsResult && this.networkStatisticsLayerSelected !== 'compare'
+      ? buildNetworkStatisticsNarrative(this.networkStatisticsResult, {
+        layerLabel: this.networkStatisticsLayerLabel,
+      })
+      : null;
+  }
+
+  get networkStatisticsLayerLabel(): string {
+    switch (this.networkStatisticsLayerSelected) {
+      case 'genetic': return 'Genetic';
+      case 'epidemiologic': return 'Epidemiologic';
+      case 'combined': return 'Combined';
+      default: return 'Compare all';
+    }
+  }
+
+  get networkStatisticsComparisonRows(): NetworkStatisticsLayerComparisonRow[] {
+    const labels: Record<NetworkStatisticsLayer, string> = {
+      genetic: 'Genetic',
+      epidemiologic: 'Epidemiologic',
+      combined: 'Combined',
+    };
+    return (['genetic', 'epidemiologic', 'combined'] as NetworkStatisticsLayer[])
+      .map((layer) => {
+        const result = this.networkStatisticsResults[layer];
+        if (!result) {
+          return null;
+        }
+        return {
+          layer: labels[layer],
+          nodeCount: result.summary.nodeCount,
+          linkCount: result.summary.linkCount,
+          density: result.summary.density,
+          averageDegree: result.summary.averageDegree,
+          medianDegree: result.summary.medianDegree,
+          componentCount: result.summary.componentCount,
+          largestComponentSize: result.summary.componentMetrics.largestClusterSize,
+          singletonCount: result.summary.singletonCount,
+        };
+      })
+      .filter((row): row is NetworkStatisticsLayerComparisonRow => row !== null);
+  }
+
+  get combinedEvidenceComposition(): Array<{ label: string; count: number; percent: number }> {
+    const summary = this.networkStatisticsResults.combined?.summary;
+    if (!summary) {
+      return [];
+    }
+    const evidence = summary.linkEvidence;
+    return [
+      { label: 'Genetic only', count: evidence.molecularOnlyLinkCount, percent: this.ratio(evidence.molecularOnlyLinkCount, summary.linkCount) },
+      { label: 'Epidemiologic only', count: evidence.epidemiologicOnlyLinkCount, percent: this.ratio(evidence.epidemiologicOnlyLinkCount, summary.linkCount) },
+      { label: 'Genetic + epidemiologic', count: evidence.duoLinkCount, percent: this.ratio(evidence.duoLinkCount, summary.linkCount) },
+      ...(evidence.unclassifiedLinkCount > 0
+        ? [{ label: 'Unclassified', count: evidence.unclassifiedLinkCount, percent: this.ratio(evidence.unclassifiedLinkCount, summary.linkCount) }]
+        : []),
+      { label: 'Total unique relationships', count: summary.linkCount, percent: summary.linkCount > 0 ? 1 : 0 },
+    ];
+  }
+
+  onNetworkStatisticsLayerChange(event: any): void {
+    this.networkStatisticsLayerSelected = event?.value ?? this.networkStatisticsLayerSelected;
+    this.applySelectedLayerResult();
+    this.syncSelectedTableData();
+    this.resetTableFilters();
+    this.cdref.detectChanges();
+    setTimeout(() => this.goldenLayoutComponentResize());
+  }
+
   openSettings(): void {
     this.ShowNetworkStatisticsSettingsPane = !this.ShowNetworkStatisticsSettingsPane;
   }
@@ -225,8 +315,11 @@ export class NetworkStatisticsComponent
 
   onLoadNewData(): void {
     this.IsDataAvailable = this.commonService.session.data.nodes.length > 0;
+    this.hasInitializedLayerSelection = false;
     if (!this.IsDataAvailable) {
       this.networkStatisticsResult = null;
+      this.networkStatisticsResults = {};
+      this.networkStatisticsLayerOptions = [];
       this.syncSelectedTableData();
       this.cdref.detectChanges();
       return;
@@ -255,6 +348,7 @@ export class NetworkStatisticsComponent
     this.resetTableFilters();
     this.updateTableDimensions();
     this.cdref.detectChanges();
+    setTimeout(() => this.goldenLayoutComponentResize());
   }
 
   onColumnsChange(): void {
@@ -289,9 +383,15 @@ export class NetworkStatisticsComponent
 
     const xlsx = await import('xlsx');
     const workbook = xlsx.utils.book_new();
-    buildNetworkStatisticsExportSections(this.networkStatisticsResult).forEach((section) => {
-      const worksheet = xlsx.utils.aoa_to_sheet(section.rows);
-      xlsx.utils.book_append_sheet(workbook, worksheet, section.sheetName);
+    const exportLayers = this.getExportLayerEntries();
+    exportLayers.forEach((entry) => {
+      buildNetworkStatisticsExportSections(entry.result).forEach((section) => {
+        const worksheet = xlsx.utils.aoa_to_sheet(section.rows);
+        const sheetName = exportLayers.length > 1
+          ? `${entry.label} ${section.sheetName}`.slice(0, 31)
+          : section.sheetName;
+        xlsx.utils.book_append_sheet(workbook, worksheet, sheetName);
+      });
     });
 
     const excelBuffer = xlsx.write(workbook, {
@@ -316,7 +416,10 @@ export class NetworkStatisticsComponent
       return;
     }
 
-    const csv = serializeNetworkStatisticsCsv(this.networkStatisticsResult);
+    const exportLayers = this.getExportLayerEntries();
+    const csv = exportLayers.length > 1
+      ? exportLayers.map((entry) => `${entry.label.toUpperCase()} LAYER\r\n${serializeNetworkStatisticsCsv(entry.result)}`).join('\r\n\r\n')
+      : serializeNetworkStatisticsCsv(this.networkStatisticsResult);
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
     const fileName = `${this.SelectedNetworkStatisticsExportFilenameVariable || 'network_statistics'}.csv`;
     const testSaveAs = (window as any).__mtTestSaveAs;
@@ -352,6 +455,7 @@ export class NetworkStatisticsComponent
     const fractionLikeFields = new Set([
       'density',
       'averageDegree',
+      'medianDegree',
       'averageLocalClusteringCoefficient',
       'transitivity',
       'averagePathLength',
@@ -380,7 +484,13 @@ export class NetworkStatisticsComponent
     const paneWidth = Math.max(hostWidth - 23, 300);
     const selectedColumnCount = Math.max(this.SelectedTableData?.tableColumns?.length || 1, 1);
     const minimumColumnWidth = selectedColumnCount * this.columnMinWidth;
-    this.scrollHeight = Math.max(hostHeight - 70 - 60 - 10, 180) + 'px';
+    const toolbarElement = this.rootHtmlElement.querySelector('#network-statistics-tool-btn-container') as HTMLElement | null;
+    const toolbarHeight = toolbarElement ? toolbarElement.offsetHeight + 5 : 55;
+    const narrativeElement = this.dataSetViewSelected === 'summary'
+      ? this.rootHtmlElement.querySelector('.network-statistics-narrative, .network-statistics-comparison') as HTMLElement | null
+      : null;
+    const narrativeHeight = narrativeElement ? narrativeElement.offsetHeight + 14 : 0;
+    this.scrollHeight = Math.max(hostHeight - toolbarHeight - 85 - narrativeHeight, 180) + 'px';
     this.tableStyle = {
       width: paneWidth + 'px',
       'min-width': Math.max(paneWidth, minimumColumnWidth) + 'px',
@@ -391,6 +501,8 @@ export class NetworkStatisticsComponent
     this.IsDataAvailable = this.commonService.session.data.nodes.length > 0;
     if (!this.IsDataAvailable) {
       this.networkStatisticsResult = null;
+      this.networkStatisticsResults = {};
+      this.networkStatisticsLayerOptions = [];
       this.syncSelectedTableData();
       this.cdref.detectChanges();
       return;
@@ -402,16 +514,40 @@ export class NetworkStatisticsComponent
     this.cdref.detectChanges();
 
     try {
-      const result = await this.workerComputeService.computeNetworkStatistics(this.buildNetworkStatisticsRequest());
+      const request = this.buildNetworkStatisticsRequest();
+      const hasGeneticLinks = request.links.some((link) => link.hasMolecularEvidence);
+      const hasEpidemiologicLinks = request.links.some((link) => link.hasEpidemiologicEvidence);
+      const layersToCalculate: NetworkStatisticsLayer[] = [
+        ...(hasGeneticLinks ? ['genetic' as const] : []),
+        ...(hasEpidemiologicLinks ? ['epidemiologic' as const] : []),
+        'combined',
+      ];
+      const calculatedResults = await Promise.all(layersToCalculate.map(async (layer) => ({
+        layer,
+        result: await this.workerComputeService.computeNetworkStatistics({
+          ...request,
+          links: request.links.filter((link) => (
+            layer === 'combined'
+            || (layer === 'genetic' && link.hasMolecularEvidence)
+            || (layer === 'epidemiologic' && link.hasEpidemiologicEvidence)
+          )),
+        }),
+      })));
       if (this.isDestroyed || requestId !== this.networkStatisticsRequestId) {
         return;
       }
 
-      this.networkStatisticsResult = result;
+      this.networkStatisticsResults = calculatedResults.reduce<Partial<Record<NetworkStatisticsLayer, NetworkStatisticsResult>>>(
+        (results, entry) => ({ ...results, [entry.layer]: entry.result }),
+        {},
+      );
+      this.configureLayerOptions(hasGeneticLinks, hasEpidemiologicLinks);
+      this.applySelectedLayerResult();
       this.networkStatisticsLoading = false;
       this.networkStatisticsError = '';
       this.syncSelectedTableData();
       this.markNetworkStatisticsRendered();
+      setTimeout(() => this.goldenLayoutComponentResize());
     } catch {
       if (this.isDestroyed || requestId !== this.networkStatisticsRequestId) {
         return;
@@ -461,6 +597,7 @@ export class NetworkStatisticsComponent
         source: link.source,
         target: link.target,
         visible: true,
+        ...this.getVisibleLinkEvidence(link),
       })),
       selectedNodeIds: visibleNodes
         .filter((node) => node.selected)
@@ -482,6 +619,93 @@ export class NetworkStatisticsComponent
     }
 
     return endpoint === undefined || endpoint === null ? '' : String(endpoint);
+  }
+
+  formatPercentage(value: number): string {
+    const percentage = Number.isFinite(value) ? value * 100 : 0;
+    return `${Number(percentage.toFixed(1))}%`;
+  }
+
+  private configureLayerOptions(hasGeneticLinks: boolean, hasEpidemiologicLinks: boolean): void {
+    const options: SelectItem[] = [];
+    if (hasGeneticLinks && hasEpidemiologicLinks) {
+      options.push({ label: 'Compare all', value: 'compare' });
+    }
+    if (hasGeneticLinks) {
+      options.push({ label: 'Genetic', value: 'genetic' });
+    }
+    if (hasEpidemiologicLinks) {
+      options.push({ label: 'Epidemiologic', value: 'epidemiologic' });
+    }
+    options.push({ label: 'Combined', value: 'combined' });
+    this.networkStatisticsLayerOptions = options;
+
+    const availableValues = new Set(options.map((option) => option.value as NetworkStatisticsLayerSelection));
+    if (!this.hasInitializedLayerSelection || !availableValues.has(this.networkStatisticsLayerSelected)) {
+      this.networkStatisticsLayerSelected = hasGeneticLinks && hasEpidemiologicLinks
+        ? 'compare'
+        : (hasGeneticLinks ? 'genetic' : (hasEpidemiologicLinks ? 'epidemiologic' : 'combined'));
+      this.hasInitializedLayerSelection = true;
+    }
+  }
+
+  private applySelectedLayerResult(): void {
+    const selectedLayer = this.networkStatisticsLayerSelected === 'compare'
+      ? 'combined'
+      : this.networkStatisticsLayerSelected;
+    this.networkStatisticsResult = this.networkStatisticsResults[selectedLayer] || null;
+  }
+
+  private ratio(numerator: number, denominator: number): number {
+    return denominator > 0 ? numerator / denominator : 0;
+  }
+
+  private getExportLayerEntries(): Array<{ label: string; result: NetworkStatisticsResult }> {
+    if (this.networkStatisticsLayerSelected !== 'compare') {
+      return this.networkStatisticsResult
+        ? [{ label: this.networkStatisticsLayerLabel, result: this.networkStatisticsResult }]
+        : [];
+    }
+
+    const labels: Record<NetworkStatisticsLayer, string> = {
+      genetic: 'Genetic',
+      epidemiologic: 'Epidemiologic',
+      combined: 'Combined',
+    };
+    return (['genetic', 'epidemiologic', 'combined'] as NetworkStatisticsLayer[])
+      .filter((layer) => Boolean(this.networkStatisticsResults[layer]))
+      .map((layer) => ({
+        label: labels[layer],
+        result: this.networkStatisticsResults[layer] as NetworkStatisticsResult,
+      }));
+  }
+
+  private getVisibleLinkEvidence(link: any): {
+    hasMolecularEvidence: boolean;
+    hasEpidemiologicEvidence: boolean;
+  } {
+    const visibleOrigins = this.normalizeOrigins(link?.origin);
+    const distanceOrigins = this.commonService.getLinkDistanceOrigins(link);
+    const originIsDistanceBacked = (origin: string): boolean => distanceOrigins.some((distanceOrigin) => (
+      Boolean(origin) && Boolean(distanceOrigin) && origin.includes(distanceOrigin)
+    ));
+    const matchedVisibleDistanceOrigin = visibleOrigins.some(originIsDistanceBacked);
+
+    return {
+      hasMolecularEvidence: distanceOrigins.length > 0
+        ? matchedVisibleDistanceOrigin
+        : link?.hasDistance === true,
+      hasEpidemiologicEvidence: visibleOrigins.some((origin) => !originIsDistanceBacked(origin)),
+    };
+  }
+
+  private normalizeOrigins(origins: any): string[] {
+    const values = Array.isArray(origins)
+      ? origins
+      : (origins === undefined || origins === null ? [] : [origins]);
+    return Array.from(new Set(values
+      .map((origin) => typeof origin === 'string' ? origin : String(origin))
+      .filter(Boolean)));
   }
 
   private formatThreshold(value: any, metricLabel: string): string {
@@ -558,23 +782,28 @@ export class NetworkStatisticsComponent
     return [
       { metric: 'Nodes', value: summary.nodeCount },
       { metric: 'Links', value: summary.linkCount },
+      { metric: 'Molecular-only Links', value: summary.linkEvidence.molecularOnlyLinkCount },
+      { metric: 'Epidemiologic-only Links', value: summary.linkEvidence.epidemiologicOnlyLinkCount },
+      { metric: 'Duo-links', value: summary.linkEvidence.duoLinkCount },
+      { metric: 'Unclassified Links', value: summary.linkEvidence.unclassifiedLinkCount },
       { metric: 'Selected Nodes', value: summary.selectedNodeCount },
-      { metric: 'Clusters', value: summary.clusterCount },
+      { metric: 'Non-singleton Components', value: summary.clusterCount },
       { metric: 'Singletons', value: summary.singletonCount },
-      { metric: 'Largest Cluster', value: this.getLargestClusterSize(result) },
-      { metric: 'Largest Cluster Fraction (L1)', value: summary.componentMetrics.largestClusterFraction },
-      { metric: 'Second-largest Cluster', value: summary.componentMetrics.secondLargestClusterSize },
-      { metric: 'Second-largest Cluster Fraction (L2)', value: summary.componentMetrics.secondLargestClusterFraction },
-      { metric: 'Clustered Fraction', value: summary.componentMetrics.clusteredFraction },
+      { metric: 'Largest Component', value: this.getLargestClusterSize(result) },
+      { metric: 'Largest Component Fraction (L1)', value: summary.componentMetrics.largestClusterFraction },
+      { metric: 'Second-largest Component', value: summary.componentMetrics.secondLargestClusterSize },
+      { metric: 'Second-largest Component Fraction (L2)', value: summary.componentMetrics.secondLargestClusterFraction },
+      { metric: 'Connected-node Fraction', value: summary.componentMetrics.clusteredFraction },
       { metric: 'Singleton Fraction', value: summary.componentMetrics.singletonFraction },
       { metric: 'Component-size Gini', value: summary.componentMetrics.giniCoefficient },
-      { metric: 'Mean Cluster Size', value: summary.componentMetrics.meanClusterSize },
-      { metric: 'Median Cluster Size', value: summary.componentMetrics.medianClusterSize },
-      { metric: 'Largest / Mean Cluster Size', value: summary.componentMetrics.largestToMeanClusterRatio },
-      { metric: 'Largest / Median Cluster Size', value: summary.componentMetrics.largestToMedianClusterRatio },
+      { metric: 'Mean Non-singleton Component Size', value: summary.componentMetrics.meanClusterSize },
+      { metric: 'Median Non-singleton Component Size', value: summary.componentMetrics.medianClusterSize },
+      { metric: 'Largest / Mean Component Size', value: summary.componentMetrics.largestToMeanClusterRatio },
+      { metric: 'Largest / Median Component Size', value: summary.componentMetrics.largestToMedianClusterRatio },
       { metric: 'L2 / L1', value: summary.componentMetrics.l2ToL1Ratio },
       { metric: 'Density', value: summary.density },
       { metric: 'Average Degree', value: summary.averageDegree },
+      { metric: 'Median Degree', value: summary.medianDegree },
       { metric: 'Max Degree', value: summary.maxDegree },
       { metric: 'Average Local Clustering', value: summary.averageLocalClusteringCoefficient },
       { metric: 'Transitivity', value: summary.transitivity },

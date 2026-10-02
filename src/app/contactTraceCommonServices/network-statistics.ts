@@ -13,6 +13,8 @@ export interface NetworkStatisticsLinkLike {
   source: any;
   target: any;
   visible?: boolean;
+  hasMolecularEvidence?: boolean;
+  hasEpidemiologicEvidence?: boolean;
 }
 
 export interface NetworkStatisticsApproximationOptions {
@@ -42,6 +44,7 @@ export interface NetworkStatisticsSummary {
   componentMetrics: ComponentStructureMetrics;
   density: number;
   averageDegree: number;
+  medianDegree: number;
   maxDegree: number;
   averageLocalClusteringCoefficient: number;
   transitivity: number;
@@ -52,6 +55,31 @@ export interface NetworkStatisticsSummary {
   sampledSourceCount: number;
   metricLabel: string;
   threshold: number | string | null;
+  linkEvidence: NetworkStatisticsLinkEvidenceSummary;
+}
+
+export interface NetworkStatisticsLinkEvidenceSummary {
+  molecularOnlyLinkCount: number;
+  epidemiologicOnlyLinkCount: number;
+  duoLinkCount: number;
+  unclassifiedLinkCount: number;
+}
+
+export interface NetworkStatisticsNarrativeSection {
+  heading: string;
+  text: string;
+}
+
+export interface NetworkStatisticsNarrative {
+  headline: string;
+  calculationMode: string;
+  sections: NetworkStatisticsNarrativeSection[];
+  caveat: string;
+  methodology: string[];
+}
+
+export interface NetworkStatisticsNarrativeOptions {
+  layerLabel?: string;
 }
 
 export interface NetworkStatisticsDegreeBucketRow {
@@ -101,7 +129,14 @@ interface GraphBuildResult {
   nodeIds: string[];
   selectedNodeIds: Set<string>;
   adjacency: Array<Set<number>>;
-  edges: Array<{ sourceIndex: number; targetIndex: number }>;
+  edges: NetworkStatisticsGraphEdge[];
+}
+
+interface NetworkStatisticsGraphEdge {
+  sourceIndex: number;
+  targetIndex: number;
+  hasMolecularEvidence: boolean;
+  hasEpidemiologicEvidence: boolean;
 }
 
 interface ComponentBuildResult {
@@ -138,6 +173,37 @@ function safeRatio(numerator: number, denominator: number): number {
   return denominator > 0 ? numerator / denominator : 0;
 }
 
+function median(values: number[]): number {
+  if (values.length === 0) {
+    return 0;
+  }
+  const sorted = [...values].sort((a, b) => a - b);
+  const middle = Math.floor(sorted.length / 2);
+  return sorted.length % 2 === 0
+    ? (sorted[middle - 1] + sorted[middle]) / 2
+    : sorted[middle];
+}
+
+function summarizeLinkEvidence(edges: NetworkStatisticsGraphEdge[]): NetworkStatisticsLinkEvidenceSummary {
+  return edges.reduce<NetworkStatisticsLinkEvidenceSummary>((summary, edge) => {
+    if (edge.hasMolecularEvidence && edge.hasEpidemiologicEvidence) {
+      summary.duoLinkCount++;
+    } else if (edge.hasMolecularEvidence) {
+      summary.molecularOnlyLinkCount++;
+    } else if (edge.hasEpidemiologicEvidence) {
+      summary.epidemiologicOnlyLinkCount++;
+    } else {
+      summary.unclassifiedLinkCount++;
+    }
+    return summary;
+  }, {
+    molecularOnlyLinkCount: 0,
+    epidemiologicOnlyLinkCount: 0,
+    duoLinkCount: 0,
+    unclassifiedLinkCount: 0,
+  });
+}
+
 function buildGraph(request: NetworkStatisticsRequest): GraphBuildResult {
   const nodeIds: string[] = [];
   const nodeIndexById = new Map<string, number>();
@@ -157,8 +223,8 @@ function buildGraph(request: NetworkStatisticsRequest): GraphBuildResult {
   });
 
   const adjacency = Array.from({ length: nodeIds.length }, () => new Set<number>());
-  const edgeKeys = new Set<string>();
-  const edges: Array<{ sourceIndex: number; targetIndex: number }> = [];
+  const edgeIndexByKey = new Map<string, number>();
+  const edges: NetworkStatisticsGraphEdge[] = [];
 
   (request.links || []).forEach((link) => {
     if (!link || link.visible === false) {
@@ -179,14 +245,23 @@ function buildGraph(request: NetworkStatisticsRequest): GraphBuildResult {
     const a = Math.min(sourceIndex, targetIndex);
     const b = Math.max(sourceIndex, targetIndex);
     const key = `${a}|${b}`;
-    if (edgeKeys.has(key)) {
+    const existingEdgeIndex = edgeIndexByKey.get(key);
+    if (existingEdgeIndex !== undefined) {
+      const existingEdge = edges[existingEdgeIndex];
+      existingEdge.hasMolecularEvidence ||= link.hasMolecularEvidence === true;
+      existingEdge.hasEpidemiologicEvidence ||= link.hasEpidemiologicEvidence === true;
       return;
     }
 
-    edgeKeys.add(key);
+    edgeIndexByKey.set(key, edges.length);
     adjacency[a].add(b);
     adjacency[b].add(a);
-    edges.push({ sourceIndex: a, targetIndex: b });
+    edges.push({
+      sourceIndex: a,
+      targetIndex: b,
+      hasMolecularEvidence: link.hasMolecularEvidence === true,
+      hasEpidemiologicEvidence: link.hasEpidemiologicEvidence === true,
+    });
   });
 
   return {
@@ -200,7 +275,7 @@ function buildGraph(request: NetworkStatisticsRequest): GraphBuildResult {
 function buildComponents(
   nodeIds: string[],
   adjacency: Array<Set<number>>,
-  edges: Array<{ sourceIndex: number; targetIndex: number }>
+  edges: NetworkStatisticsGraphEdge[]
 ): ComponentBuildResult {
   const componentByNode = Array.from({ length: nodeIds.length }, () => -1);
   const components: NetworkStatisticsComponentRow[] = [];
@@ -474,6 +549,7 @@ export function computeNetworkStatistics(request: NetworkStatisticsRequest): Net
   const graph = buildGraph(request);
   const nodeCount = graph.nodeIds.length;
   const linkCount = graph.edges.length;
+  const linkEvidence = summarizeLinkEvidence(graph.edges);
   const degrees = graph.adjacency.map((neighbors) => neighbors.size);
   const degreeSum = degrees.reduce((sum, degree) => sum + degree, 0);
   const maxDegree = degrees.reduce((max, degree) => Math.max(max, degree), 0);
@@ -540,6 +616,7 @@ export function computeNetworkStatistics(request: NetworkStatisticsRequest): Net
       componentMetrics,
       density: safeRatio(linkCount, nodeCount * (nodeCount - 1) / 2),
       averageDegree: safeRatio(degreeSum, nodeCount),
+      medianDegree: median(degrees),
       maxDegree,
       averageLocalClusteringCoefficient: clustering.averageLocalClusteringCoefficient,
       transitivity: clustering.transitivity,
@@ -549,7 +626,8 @@ export function computeNetworkStatistics(request: NetworkStatisticsRequest): Net
       approximatePathMetrics: approximate,
       sampledSourceCount: pathAndBetweenness.sampledSourceCount,
       metricLabel: request.metricLabel || '',
-      threshold: request.threshold ?? null
+      threshold: request.threshold ?? null,
+      linkEvidence,
     },
     degreeDistribution: Array.from(degreeBuckets.entries())
       .map(([degree, count]) => ({
@@ -568,6 +646,189 @@ export function computeNetworkStatistics(request: NetworkStatisticsRequest): Net
     generatedAtIso: new Date().toISOString(),
     exactNodeLimit,
     exactLinkLimit
+  };
+}
+
+function narrativePlural(count: number, singular: string, plural = `${singular}s`): string {
+  return count === 1 ? singular : plural;
+}
+
+function formatNarrativeNumber(value: number): string {
+  if (!Number.isFinite(value)) {
+    return '0';
+  }
+  if (Number.isInteger(value)) {
+    return String(value);
+  }
+  return String(Number(value.toFixed(3)));
+}
+
+function formatNarrativePercent(value: number): string {
+  const percentage = Number.isFinite(value) ? value * 100 : 0;
+  return `${Number(percentage.toFixed(1))}%`;
+}
+
+function formatNarrativeNodeIds(nodeIds: string[]): string {
+  if (nodeIds.length === 1) {
+    return `Node ${nodeIds[0]}`;
+  }
+  if (nodeIds.length === 2) {
+    return `Nodes ${nodeIds[0]} and ${nodeIds[1]}`;
+  }
+  if (nodeIds.length === 3) {
+    return `Nodes ${nodeIds[0]}, ${nodeIds[1]}, and ${nodeIds[2]}`;
+  }
+  return `${nodeIds.length} nodes`;
+}
+
+function describeCentralityLeaders(
+  rows: NetworkStatisticsCentralityRow[],
+  field: 'degree' | 'betweenness',
+  label: string,
+): string {
+  const maximum = rows.reduce((value, row) => Math.max(value, row[field]), 0);
+  if (maximum <= 0) {
+    return '';
+  }
+
+  const leaderIds = rows
+    .filter((row) => row[field] === maximum)
+    .map((row) => row.nodeId)
+    .sort((a, b) => a.localeCompare(b));
+  const subject = formatNarrativeNodeIds(leaderIds);
+  const value = formatNarrativeNumber(maximum);
+
+  return leaderIds.length === 1
+    ? `${subject} has the highest ${label} (${value}).`
+    : `${subject} tie for the highest ${label} (${value}).`;
+}
+
+function buildNetworkHeadline(summary: NetworkStatisticsSummary, layerLabel: string): string {
+  const networkLabel = layerLabel ? `visible ${layerLabel.toLowerCase()} network` : 'visible network';
+  if (summary.nodeCount === 0) {
+    return `No ${networkLabel} is available to interpret.`;
+  }
+  if (summary.linkCount === 0) {
+    return summary.nodeCount === 1
+      ? `The ${networkLabel} contains one isolated node.`
+      : `The ${networkLabel} contains ${summary.nodeCount} isolated nodes and no links.`;
+  }
+  if (summary.componentCount === 1) {
+    return `All ${summary.nodeCount} nodes in the ${networkLabel} are connected in one component.`;
+  }
+
+  const largestClusterFraction = summary.componentMetrics.largestClusterFraction;
+  const largestClusterPercent = formatNarrativePercent(largestClusterFraction);
+  if (largestClusterFraction >= 0.75) {
+    return `Most nodes in the ${networkLabel} are concentrated in one component (${largestClusterPercent}), with the remainder split across ${summary.componentCount - 1} other ${narrativePlural(summary.componentCount - 1, 'component')}.`;
+  }
+  if (largestClusterFraction >= 0.5) {
+    return `The ${networkLabel} is split across ${summary.componentCount} components; the largest component contains ${largestClusterPercent} of visible nodes.`;
+  }
+  return `The ${networkLabel} is highly fragmented across ${summary.componentCount} components; the largest component contains ${largestClusterPercent} of visible nodes.`;
+}
+
+function describeEvidenceComposition(summary: NetworkStatisticsSummary): string {
+  const evidence = summary.linkEvidence;
+  const evidenceParts = [
+    `${evidence.molecularOnlyLinkCount} molecular-only (${formatNarrativePercent(safeRatio(evidence.molecularOnlyLinkCount, summary.linkCount))})`,
+    `${evidence.epidemiologicOnlyLinkCount} epidemiologic-only (${formatNarrativePercent(safeRatio(evidence.epidemiologicOnlyLinkCount, summary.linkCount))})`,
+    `${evidence.duoLinkCount} ${narrativePlural(evidence.duoLinkCount, 'duo-link')} (${formatNarrativePercent(safeRatio(evidence.duoLinkCount, summary.linkCount))})`,
+  ];
+  if (evidence.unclassifiedLinkCount > 0) {
+    evidenceParts.push(`${evidence.unclassifiedLinkCount} unclassified (${formatNarrativePercent(safeRatio(evidence.unclassifiedLinkCount, summary.linkCount))})`);
+  }
+
+  const classifiedCategories = [
+    { label: 'Molecular-only links', count: evidence.molecularOnlyLinkCount },
+    { label: 'Epidemiologic-only links', count: evidence.epidemiologicOnlyLinkCount },
+    { label: 'Duo-links', count: evidence.duoLinkCount },
+  ];
+  const largestCount = classifiedCategories.reduce((maximum, category) => Math.max(maximum, category.count), 0);
+  const leaders = classifiedCategories.filter((category) => category.count === largestCount && category.count > 0);
+  const compositionText = leaders.length === 1
+    ? `${leaders[0].label} are the largest evidence category.`
+    : 'No single classified evidence category is largest.';
+  const overlapText = evidence.duoLinkCount > 0
+    ? `Molecular and epidemiologic evidence overlap on ${evidence.duoLinkCount} visible ${narrativePlural(evidence.duoLinkCount, 'pair')}.`
+    : 'No visible node pair is supported by both molecular and epidemiologic evidence.';
+
+  return `The visible links include ${evidenceParts.join(', ')}. ${compositionText} ${overlapText} Each visible node pair counts as one link, including a duo-link.`;
+}
+
+export function buildNetworkStatisticsNarrative(
+  result: NetworkStatisticsResult,
+  options: NetworkStatisticsNarrativeOptions = {},
+): NetworkStatisticsNarrative {
+  const summary = result.summary;
+  const layerLabel = options.layerLabel || '';
+  const sections: NetworkStatisticsNarrativeSection[] = [];
+  const nodeLabel = narrativePlural(summary.nodeCount, 'node');
+  const linkLabel = narrativePlural(summary.linkCount, 'link');
+
+  let connectivityText: string;
+  if (summary.nodeCount === 0) {
+    connectivityText = 'There are no visible nodes to summarize.';
+  } else if (summary.linkCount === 0) {
+    const verb = summary.nodeCount === 1 ? 'has' : 'have';
+    connectivityText = `${summary.nodeCount} visible ${nodeLabel} ${verb} no visible links. All visible nodes are singletons.`;
+  } else {
+    const componentLabel = narrativePlural(summary.componentCount, 'connected component');
+    const singletonText = summary.singletonCount === 0
+      ? 'No visible nodes are singletons.'
+      : `${summary.singletonCount} visible ${narrativePlural(summary.singletonCount, 'node')} (${formatNarrativePercent(summary.componentMetrics.singletonFraction)}) ${summary.singletonCount === 1 ? 'is' : 'are'} ${narrativePlural(summary.singletonCount, 'a singleton', 'singletons')}.`;
+    const largestClusterText = summary.componentMetrics.largestClusterSize > 0
+      ? `The largest non-singleton component contains ${summary.componentMetrics.largestClusterSize} ${narrativePlural(summary.componentMetrics.largestClusterSize, 'node')} (${formatNarrativePercent(summary.componentMetrics.largestClusterFraction)} of visible nodes).`
+      : 'There are no non-singleton components.';
+    connectivityText = `${summary.nodeCount} visible ${nodeLabel} and ${summary.linkCount} visible ${linkLabel} form ${summary.componentCount} ${componentLabel}. ${singletonText} ${largestClusterText}`;
+  }
+  sections.push({ heading: 'Connectivity', text: connectivityText });
+
+  if (summary.linkCount > 0) {
+    const pathPrefix = summary.approximatePathMetrics ? 'Sampled calculations estimate' : 'The network has';
+    const dyadCount = result.components.filter((component) => component.nodeCount === 2).length;
+    const tightlyConnectedComponentCount = result.components.filter((component) => (
+      component.nodeCount >= 3 && component.density >= 0.75
+    )).length;
+    const shapeParts = [
+      dyadCount > 0
+        ? `${dyadCount} ${narrativePlural(dyadCount, 'component is a two-node dyad', 'components are two-node dyads')}.`
+        : '',
+      tightlyConnectedComponentCount > 0
+        ? `${tightlyConnectedComponentCount} ${narrativePlural(tightlyConnectedComponentCount, 'component has', 'components have')} density of at least 75%.`
+        : '',
+    ].filter(Boolean).join(' ');
+    const degreeLeaderText = describeCentralityLeaders(result.centrality, 'degree', 'degree');
+    const betweennessLeaderText = describeCentralityLeaders(result.centrality, 'betweenness', 'betweenness');
+    sections.push({
+      heading: 'Network structure',
+      text: `Visible links connect ${formatNarrativePercent(summary.density)} of all possible node pairs, with a mean degree of ${formatNarrativeNumber(summary.averageDegree)}, median degree of ${formatNarrativeNumber(summary.medianDegree)}, and transitivity of ${formatNarrativeNumber(summary.transitivity)}. ${pathPrefix} an average reachable path length of ${formatNarrativeNumber(summary.averagePathLength)} links and a diameter of ${formatNarrativeNumber(summary.diameter)} links. ${shapeParts} ${degreeLeaderText} ${betweennessLeaderText}`.replace(/\s+/g, ' ').trim(),
+    });
+
+    sections.push({
+      heading: 'Link evidence',
+      text: describeEvidenceComposition(summary),
+    });
+  }
+
+  const calculationMode = summary.approximateBetweenness || summary.approximatePathMetrics
+    ? `Sampled path and betweenness metrics from ${summary.sampledSourceCount} source ${narrativePlural(summary.sampledSourceCount, 'node')}`
+    : 'Exact calculation';
+
+  return {
+    headline: buildNetworkHeadline(summary, layerLabel),
+    calculationMode,
+    sections,
+    caveat: `Only currently visible nodes and links${layerLabel ? ` in the ${layerLabel.toLowerCase()} layer` : ''} are included, so filters, thresholds, hidden link layers, and incomplete data can change the result. Relationships are analyzed as an unweighted, undirected network. Structural prominence and evidence overlap identify patterns for review; they do not establish transmission direction or causality.`,
+    methodology: [
+      `Scope: ${summary.nodeCount} visible ${nodeLabel} and ${summary.linkCount} unique, unordered node ${narrativePlural(summary.linkCount, 'pair')} are included. Parallel records for the same pair are combined, and a pair with both evidence types counts once as a duo-link.`,
+      'Headline: one component is described as connected. Otherwise, the network is described as concentrated when at least 75% of visible nodes are in the largest component, split when 50% to less than 75% are in it, and highly fragmented when less than 50% are in it.',
+      'Structure: density is the fraction of all possible node pairs with a visible link. A dyad is a two-node component. A tightly connected component has at least three nodes and density of 75% or more.',
+      'Prominence: degree counts a node\'s visible neighbors. Betweenness measures how often a node lies on shortest paths between other visible nodes. These are structural measures, not measures of transmission risk.',
+      summary.approximatePathMetrics || summary.approximateBetweenness
+        ? `Sampling: path length, diameter, and betweenness are estimated from ${summary.sampledSourceCount} source ${narrativePlural(summary.sampledSourceCount, 'node')}; all other displayed metrics are exact for the visible network.`
+        : 'Calculation mode: all displayed metrics are calculated exactly for the visible network.',
+    ],
   };
 }
 
@@ -590,6 +851,7 @@ function yesNo(value: boolean): string {
 
 export function buildNetworkStatisticsExportSections(result: NetworkStatisticsResult): NetworkStatisticsExportSection[] {
   const summary = result.summary;
+  const narrative = buildNetworkStatisticsNarrative(result);
   const clusterRows = result.components.filter((component) => component.nodeCount > 1);
   const largestClusterSize = result.components
     .filter((component) => component.nodeCount > 1)
@@ -606,23 +868,28 @@ export function buildNetworkStatisticsExportSections(result: NetworkStatisticsRe
         ['Metric', 'Value'],
         ['Nodes', summary.nodeCount],
         ['Links', summary.linkCount],
+        ['Molecular-only Links', summary.linkEvidence.molecularOnlyLinkCount],
+        ['Epidemiologic-only Links', summary.linkEvidence.epidemiologicOnlyLinkCount],
+        ['Duo-links', summary.linkEvidence.duoLinkCount],
+        ['Unclassified Links', summary.linkEvidence.unclassifiedLinkCount],
         ['Selected Nodes', summary.selectedNodeCount],
-        ['Clusters', summary.clusterCount],
+        ['Non-singleton Components', summary.clusterCount],
         ['Singletons', summary.singletonCount],
-        ['Largest Cluster', largestClusterSize],
-        ['Largest Cluster Fraction (L1)', summary.componentMetrics.largestClusterFraction],
-        ['Second-largest Cluster', summary.componentMetrics.secondLargestClusterSize],
-        ['Second-largest Cluster Fraction (L2)', summary.componentMetrics.secondLargestClusterFraction],
-        ['Clustered Fraction', summary.componentMetrics.clusteredFraction],
+        ['Largest Component', largestClusterSize],
+        ['Largest Component Fraction (L1)', summary.componentMetrics.largestClusterFraction],
+        ['Second-largest Component', summary.componentMetrics.secondLargestClusterSize],
+        ['Second-largest Component Fraction (L2)', summary.componentMetrics.secondLargestClusterFraction],
+        ['Connected-node Fraction', summary.componentMetrics.clusteredFraction],
         ['Singleton Fraction', summary.componentMetrics.singletonFraction],
         ['Component-size Gini', summary.componentMetrics.giniCoefficient],
-        ['Mean Cluster Size', summary.componentMetrics.meanClusterSize],
-        ['Median Cluster Size', summary.componentMetrics.medianClusterSize],
-        ['Largest / Mean Cluster Size', summary.componentMetrics.largestToMeanClusterRatio],
-        ['Largest / Median Cluster Size', summary.componentMetrics.largestToMedianClusterRatio],
+        ['Mean Non-singleton Component Size', summary.componentMetrics.meanClusterSize],
+        ['Median Non-singleton Component Size', summary.componentMetrics.medianClusterSize],
+        ['Largest / Mean Component Size', summary.componentMetrics.largestToMeanClusterRatio],
+        ['Largest / Median Component Size', summary.componentMetrics.largestToMedianClusterRatio],
         ['L2 / L1', summary.componentMetrics.l2ToL1Ratio],
         ['Density', summary.density],
         ['Average Degree', summary.averageDegree],
+        ['Median Degree', summary.medianDegree],
         ['Max Degree', summary.maxDegree],
         ['Average Local Clustering', summary.averageLocalClusteringCoefficient],
         ['Transitivity', summary.transitivity],
@@ -652,7 +919,7 @@ export function buildNetworkStatisticsExportSections(result: NetworkStatisticsRe
       rows: [
         [
           'Node ID',
-          'Cluster ID',
+          'Component ID',
           'Degree',
           'Normalized Degree',
           'Betweenness',
@@ -669,11 +936,11 @@ export function buildNetworkStatisticsExportSections(result: NetworkStatisticsRe
       ],
     },
     {
-      sheetName: 'Clusters',
-      csvTitle: 'Clusters',
+      sheetName: 'Components',
+      csvTitle: 'Components',
       rows: [
         [
-          'Cluster ID',
+          'Component ID',
           'Node Count',
           'Link Count',
           'Density',
@@ -694,6 +961,18 @@ export function buildNetworkStatisticsExportSections(result: NetworkStatisticsRe
           yesNo(row.diameterApproximate),
           row.memberIds.join('|'),
         ]),
+      ],
+    },
+    {
+      sheetName: 'Interpretation',
+      csvTitle: 'Network Interpretation',
+      rows: [
+        ['Section', 'Interpretation'],
+        ['Headline', narrative.headline],
+        ['Calculation mode', narrative.calculationMode],
+        ...narrative.sections.map((section) => [section.heading, section.text]),
+        ['Interpretation limits', narrative.caveat],
+        ...narrative.methodology.map((method, index) => [`Calculation detail ${index + 1}`, method]),
       ],
     },
   ];

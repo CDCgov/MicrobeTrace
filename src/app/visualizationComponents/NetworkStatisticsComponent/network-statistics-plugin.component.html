@@ -18,8 +18,20 @@
       </span>
     </span>
 
-    <span class="network-statistics-toolbar-label">Table:</span>
-    <span class="network-statistics-section-select">
+    <span class="network-statistics-toolbar-label network-statistics-layer-label">Calculate statistics for:</span>
+    <span class="network-statistics-layer-select">
+      <p-select
+        data-testid="network-statistics-layer-select"
+        [options]="networkStatisticsLayerOptions"
+        [(ngModel)]="networkStatisticsLayerSelected"
+        (onChange)="onNetworkStatisticsLayerChange($event)"
+        [style]="{'width': '175px'}">
+      </p-select>
+    </span>
+
+    @if (networkStatisticsLayerSelected !== 'compare') {
+      <span class="network-statistics-toolbar-label">Table:</span>
+      <span class="network-statistics-section-select">
       <p-select
         #dataSet
         data-testid="network-statistics-section-select"
@@ -28,10 +40,10 @@
         (onChange)="openSelectDataSetScreen($event)"
         [style]="{'width': '130px'}">
       </p-select>
-    </span>
+      </span>
 
-    <span class="network-statistics-column-picker">
-      @if (SelectedTableData) {
+      <span class="network-statistics-column-picker">
+        @if (SelectedTableData) {
         <p-multi-select
           data-testid="network-statistics-column-picker"
           [options]="SelectedTableData.availableColumns"
@@ -40,8 +52,9 @@
           (onChange)="onColumnsChange()"
           [style]="{'max-width': '100%'}">
         </p-multi-select>
-      }
-    </span>
+        }
+      </span>
+    }
 
     @if (networkStatisticsApproximationLabel) {
       <span class="network-statistics-approximation" data-testid="network-statistics-approximation">
@@ -59,7 +72,109 @@
     </div>
   }
 
-  @if (IsDataAvailable == true && SelectedTableData) {
+  @if (IsDataAvailable == true && networkStatisticsLayerSelected === 'compare' && networkStatisticsComparisonRows.length > 0) {
+    <section class="network-statistics-comparison" data-testid="network-statistics-layer-comparison" aria-labelledby="network-statistics-comparison-title">
+      <div class="network-statistics-narrative-heading">
+        <h2 id="network-statistics-comparison-title">Network layer comparison</h2>
+        <span class="network-statistics-calculation-mode">Current visible network</span>
+      </div>
+      <p class="network-statistics-narrative-headline">
+        Layer-specific statistics are authoritative. Combined statistics describe the union of genetic and epidemiologic relationships and are supplementary.
+      </p>
+
+      <div class="network-statistics-comparison-table-wrap">
+        <table class="network-statistics-comparison-table">
+          <thead>
+            <tr>
+              <th scope="col">Layer</th>
+              <th scope="col">Nodes</th>
+              <th scope="col">Links</th>
+              <th scope="col">Density</th>
+              <th scope="col">Mean degree</th>
+              <th scope="col">Median degree</th>
+              <th scope="col">Components</th>
+              <th scope="col">Largest component</th>
+              <th scope="col">Isolates</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (row of networkStatisticsComparisonRows; track row.layer) {
+              <tr [attr.data-testid]="'network-statistics-layer-row-' + row.layer.toLowerCase()">
+                <th scope="row">{{ row.layer }}</th>
+                <td>{{ row.nodeCount }}</td>
+                <td>{{ row.linkCount }}</td>
+                <td>{{ formatPercentage(row.density) }}</td>
+                <td>{{ formatCellValue('averageDegree', row.averageDegree) }}</td>
+                <td>{{ formatCellValue('medianDegree', row.medianDegree) }}</td>
+                <td>{{ row.componentCount }}</td>
+                <td>{{ row.largestComponentSize }}</td>
+                <td>{{ row.singletonCount }}</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+
+      <h3>Edge evidence composition</h3>
+      <div class="network-statistics-evidence-grid" data-testid="network-statistics-evidence-composition">
+        @for (row of combinedEvidenceComposition; track row.label) {
+          <div class="network-statistics-evidence-item">
+            <span>{{ row.label }}</span>
+            <strong>{{ row.count }} · {{ formatPercentage(row.percent) }}</strong>
+          </div>
+        }
+      </div>
+
+      <p class="network-statistics-narrative-caveat">
+        <strong>Component definitions.</strong> Genetic components use genetic links only; epidemiologic components use epidemiologic links only; combined components use any visible link. A relationship supported by both evidence types participates in both source layers but counts once in the combined graph.
+      </p>
+    </section>
+  }
+
+  @if (IsDataAvailable == true && networkStatisticsLayerSelected !== 'compare' && dataSetViewSelected === 'summary') {
+    @if (networkStatisticsNarrative; as narrative) {
+      <section
+        class="network-statistics-narrative"
+        data-testid="network-statistics-narrative"
+        aria-labelledby="network-statistics-narrative-title"
+        aria-live="polite"
+        aria-atomic="true">
+        <div class="network-statistics-narrative-heading">
+          <h2 id="network-statistics-narrative-title">{{ networkStatisticsLayerLabel }} network interpretation</h2>
+          <span class="network-statistics-calculation-mode" data-testid="network-statistics-calculation-mode">
+            {{ narrative.calculationMode }}
+          </span>
+        </div>
+
+        <p class="network-statistics-narrative-headline" data-testid="network-statistics-narrative-headline">
+          {{ narrative.headline }}
+        </p>
+
+        <div class="network-statistics-narrative-sections">
+          @for (section of narrative.sections; track section.heading) {
+            <p data-testid="network-statistics-narrative-section">
+              <strong>{{ section.heading }}.</strong> {{ section.text }}
+            </p>
+          }
+        </div>
+
+        <p class="network-statistics-narrative-caveat" data-testid="network-statistics-narrative-caveat">
+          <strong>Interpretation limits.</strong> {{ narrative.caveat }}
+        </p>
+
+        <details class="network-statistics-narrative-method" data-testid="network-statistics-narrative-method">
+          <summary>How this was calculated</summary>
+          <ul>
+            @for (method of narrative.methodology; track $index) {
+              <li>{{ method }}</li>
+            }
+          </ul>
+        </details>
+      </section>
+    }
+  }
+
+  @if (IsDataAvailable == true && networkStatisticsLayerSelected !== 'compare' && SelectedTableData) {
     <div class="row align-items-center network-statistics-table-row">
       <div class="primeng-datatable-container" data-testid="network-statistics-table-shell">
         <p-table
