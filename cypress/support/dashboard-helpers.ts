@@ -9,6 +9,7 @@ import {
   openMapSettingsDialog,
   selectMapField,
   setMapNodeCollapsing,
+  useOfflineMapLayers,
 } from './journey-helpers';
 import { byTestId, testIds } from './selectors';
 
@@ -554,6 +555,10 @@ export function loadDashboardSessionFixture(fixtureName: string): void {
 
 export function openDashboardViews(viewNames: string[]): void {
   const normalizedNames = viewNames.map((viewName) => normalizeViewName(viewName));
+
+  if (normalizedNames.includes('Map')) {
+    useOfflineMapLayers();
+  }
 
   cy.window().then((win: unknown) => {
     const app = getDashboardApp(win as DashboardWindow);
