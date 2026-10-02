@@ -33,6 +33,15 @@ const selectStatisticsSection = (label: string): void => {
     .click({ force: true });
 };
 
+const selectStatisticsLayer = (label: string): void => {
+  cy.get('[data-testid="network-statistics-layer-select"]')
+    .find('.p-select-dropdown')
+    .click({ force: true });
+  cy.get('.p-select-overlay:visible li[role="option"]', { timeout: 15000 })
+    .contains(label)
+    .click({ force: true });
+};
+
 const expectTrimmedCellText = (index: number, text: string): void => {
   cy.get('td')
     .eq(index)
@@ -79,6 +88,19 @@ describe('Journey Flow - Network Statistics view', () => {
     cy.get('[data-testid="network-statistics-calculation-mode"]')
       .invoke('text')
       .then((text) => expect(text.trim()).to.equal('Exact calculation'));
+    cy.get('[data-testid="network-statistics-narrative-toggle"]')
+      .should('have.attr', 'aria-expanded', 'true')
+      .and('contain.text', 'Collapse')
+      .click({ force: true })
+      .should('have.attr', 'aria-expanded', 'false')
+      .and('contain.text', 'Expand');
+    cy.get('[data-testid="network-statistics-narrative-content"]').should('not.exist');
+    cy.get('[data-testid="network-statistics-table-shell"]').should('be.visible');
+    cy.get('[data-testid="network-statistics-narrative-toggle"]')
+      .click({ force: true })
+      .should('have.attr', 'aria-expanded', 'true')
+      .and('contain.text', 'Collapse');
+    cy.get('[data-testid="network-statistics-narrative-content"]').should('be.visible');
 
     cy.window().then((win: any) => {
       const metrics = win.commonService.visuals.networkStatistics.networkStatisticsResult.summary.componentMetrics;
@@ -303,5 +325,14 @@ describe('Journey Flow - Network Statistics view', () => {
       .and('contain.text', '7')
       .and('contain.text', 'Total unique relationships')
       .and('contain.text', '17');
+
+    selectStatisticsLayer('Epidemiologic');
+    waitForStatistics(7);
+    cy.get('[data-testid="network-statistics-narrative"]')
+      .should('contain.text', 'Epidemiologic network interpretation')
+      .and('contain.text', '7 visible links');
+    cy.get('[data-testid="network-statistics-table-shell"]')
+      .should('contain.text', 'Links')
+      .and('contain.text', '7');
   });
 });

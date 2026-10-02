@@ -85,6 +85,7 @@ export class NetworkStatisticsComponent
   networkStatisticsError = '';
   networkStatisticsLayerSelected: NetworkStatisticsLayerSelection = 'combined';
   networkStatisticsLayerOptions: SelectItem[] = [];
+  networkStatisticsNarrativeExpanded = true;
 
   ShowNetworkStatisticsSettingsPane = false;
   ShowNetworkStatisticsExportPane = false;
@@ -295,6 +296,12 @@ export class NetworkStatisticsComponent
     this.applySelectedLayerResult();
     this.syncSelectedTableData();
     this.resetTableFilters();
+    this.cdref.detectChanges();
+    setTimeout(() => this.goldenLayoutComponentResize());
+  }
+
+  toggleNetworkStatisticsNarrative(): void {
+    this.networkStatisticsNarrativeExpanded = !this.networkStatisticsNarrativeExpanded;
     this.cdref.detectChanges();
     setTimeout(() => this.goldenLayoutComponentResize());
   }

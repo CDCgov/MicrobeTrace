@@ -144,32 +144,45 @@
           <span class="network-statistics-calculation-mode" data-testid="network-statistics-calculation-mode">
             {{ narrative.calculationMode }}
           </span>
+          <button
+            type="button"
+            class="btn btn-sm btn-outline-secondary"
+            data-testid="network-statistics-narrative-toggle"
+            [attr.aria-expanded]="networkStatisticsNarrativeExpanded"
+            aria-controls="network-statistics-narrative-content"
+            (click)="toggleNetworkStatisticsNarrative()">
+            {{ networkStatisticsNarrativeExpanded ? 'Collapse' : 'Expand' }}
+          </button>
         </div>
 
-        <p class="network-statistics-narrative-headline" data-testid="network-statistics-narrative-headline">
-          {{ narrative.headline }}
-        </p>
-
-        <div class="network-statistics-narrative-sections">
-          @for (section of narrative.sections; track section.heading) {
-            <p data-testid="network-statistics-narrative-section">
-              <strong>{{ section.heading }}.</strong> {{ section.text }}
+        @if (networkStatisticsNarrativeExpanded) {
+          <div id="network-statistics-narrative-content" data-testid="network-statistics-narrative-content">
+            <p class="network-statistics-narrative-headline" data-testid="network-statistics-narrative-headline">
+              {{ narrative.headline }}
             </p>
-          }
-        </div>
 
-        <p class="network-statistics-narrative-caveat" data-testid="network-statistics-narrative-caveat">
-          <strong>Interpretation limits.</strong> {{ narrative.caveat }}
-        </p>
+            <div class="network-statistics-narrative-sections">
+              @for (section of narrative.sections; track section.heading) {
+                <p data-testid="network-statistics-narrative-section">
+                  <strong>{{ section.heading }}.</strong> {{ section.text }}
+                </p>
+              }
+            </div>
 
-        <details class="network-statistics-narrative-method" data-testid="network-statistics-narrative-method">
-          <summary>How this was calculated</summary>
-          <ul>
-            @for (method of narrative.methodology; track $index) {
-              <li>{{ method }}</li>
-            }
-          </ul>
-        </details>
+            <p class="network-statistics-narrative-caveat" data-testid="network-statistics-narrative-caveat">
+              <strong>Interpretation limits.</strong> {{ narrative.caveat }}
+            </p>
+
+            <details class="network-statistics-narrative-method" data-testid="network-statistics-narrative-method">
+              <summary>How this was calculated</summary>
+              <ul>
+                @for (method of narrative.methodology; track $index) {
+                  <li>{{ method }}</li>
+                }
+              </ul>
+            </details>
+          </div>
+        }
       </section>
     }
   }
