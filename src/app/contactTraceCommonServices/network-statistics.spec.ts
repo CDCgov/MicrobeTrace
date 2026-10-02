@@ -125,6 +125,8 @@ describe('computeNetworkStatistics', () => {
     expect(csv).toContain('Singletons,1');
     expect(csv).toContain('Largest Cluster Fraction (L1)');
     expect(csv).toContain('Component-size Gini');
+    expect(csv).toContain('Distance Metric');
+    expect(csv).toContain('Threshold');
     expect(csv).toContain('Degree Distribution\r\nDegree,Node Count,Fraction');
     expect(csv).toContain('Node Centrality\r\nNode ID,Cluster ID,Degree,Normalized Degree,Betweenness,Normalized Betweenness');
     expect(csv).toContain('Clusters\r\nCluster ID,Node Count,Link Count,Density,Average Degree,Max Degree,Diameter,Diameter Approximate,Member IDs');
@@ -150,6 +152,8 @@ describe('computeNetworkStatistics', () => {
     ]);
     expect(sections[0].rows[0]).toEqual(['Metric', 'Value']);
     expect(sections[0].rows).toContain(['Nodes', 3]);
+    expect(sections[0].rows).toContain(['Distance Metric', '']);
+    expect(sections[0].rows).toContain(['Threshold', null]);
     expect(sections[1].rows[0]).toEqual(['Degree', 'Node Count', 'Fraction']);
     expect(sections[2].rows[0]).toEqual([
       'Node ID',
@@ -170,5 +174,27 @@ describe('computeNetworkStatistics', () => {
       'Diameter Approximate',
       'Member IDs',
     ]);
+  });
+
+  it('omits distance-only summary rows from workbook and CSV exports when distance data is unavailable', () => {
+    const result = computeNetworkStatistics({
+      nodes: [{ _id: 'A' }, { _id: 'B' }],
+      links: [
+        { source: 'A', target: 'B', visible: true },
+      ],
+      metricLabel: 'distance',
+      threshold: 0.015,
+    });
+
+    const options = { includeDistanceFields: false };
+    const summaryRows = buildNetworkStatisticsExportSections(result, options)[0].rows;
+    const csv = serializeNetworkStatisticsCsv(result, options);
+
+    expect(summaryRows.some(([metric]) => metric === 'Distance Metric')).toBeFalse();
+    expect(summaryRows.some(([metric]) => metric === 'Threshold')).toBeFalse();
+    expect(summaryRows).toContain(['Calculation Mode', 'Exact']);
+    expect(csv).not.toContain('Distance Metric');
+    expect(csv).not.toContain('Threshold,');
+    expect(csv).toContain('Calculation Mode,Exact');
   });
 });

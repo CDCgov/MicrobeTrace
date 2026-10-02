@@ -346,6 +346,8 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
     thresholdScoreRecommendation: ThresholdSweepSnapshot | null = null;
     thresholdStabilityRegions: ThresholdStabilityRegion[] = [];
     thresholdStabilityMessage: string = '';
+    hasDistanceDataAvailable: boolean = false;
+    readonly distanceControlsUnavailableMessage = 'Unavailable because this network has no molecular-distance data.';
 
     RevealTypes: any = [
         { label: 'Everything', value: 'Everything' }
@@ -6739,14 +6741,18 @@ ${warnings.join('\n')}`,
 
     refreshThresholdStabilityPanel(markForCheck = true): void {
         const nodes = this.commonService.session.data.nodes;
+        this.hasDistanceDataAvailable = this.commonService.hasDistanceDataAvailable();
 
-        if (!nodes || nodes.length === 0) {
+        if (!nodes || nodes.length === 0 || !this.hasDistanceDataAvailable) {
             this.thresholdSweepMetricLabel = '';
             this.thresholdSweepSampleCount = 0;
             this.thresholdStabilityCurrent = null;
             this.thresholdScoreRecommendation = null;
             this.thresholdStabilityRegions = [];
-            this.thresholdStabilityMessage = '';
+            this.thresholdStabilityExpanded = false;
+            this.thresholdStabilityMessage = nodes?.length
+                ? this.distanceControlsUnavailableMessage
+                : '';
             if (markForCheck) {
                 this.cdref.markForCheck();
             }

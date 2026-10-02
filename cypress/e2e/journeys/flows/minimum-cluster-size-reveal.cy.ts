@@ -40,6 +40,16 @@ describe('Journey Flow - Minimum Cluster Size and Reveal Everything', () => {
     });
 
     openGlobalFilteringTab();
+    cy.get('[data-testid="distance-controls-unavailable"]')
+      .should('be.visible')
+      .and('contain.text', 'no molecular-distance data');
+    cy.get('#default-distance-metric').should('be.disabled');
+    cy.get('#prune-select [role="button"]')
+      .should('have.length', 2)
+      .and('have.attr', 'data-p-disabled', 'true');
+    cy.get('#link-threshold').should('be.disabled');
+    cy.get('[data-testid="threshold-stability-toggle"]').should('be.disabled');
+    cy.get(byTestId(testIds.filterMinimumClusterSize)).should('be.enabled');
     cy.get(byTestId(testIds.filterMinimumClusterSize))
       .clear()
       .wait(200)
@@ -88,7 +98,7 @@ describe('Journey Flow - Minimum Cluster Size and Reveal Everything', () => {
     }
   });
 
-  it('keeps Minimum Cluster Size active when threshold is changed', () => {
+  it('keeps Minimum Cluster Size active while distance controls are unavailable', () => {
     const minimumClusterSize = profile.expectations.filtering?.minimumClusterSize;
 
     expect(minimumClusterSize, 'minimum cluster size expectation').to.exist;
@@ -107,6 +117,8 @@ describe('Journey Flow - Minimum Cluster Size and Reveal Everything', () => {
     });
 
     openGlobalFilteringTab();
+    cy.get('#link-threshold').should('be.disabled');
+    cy.get('[data-testid="threshold-stability-toggle"]').should('be.disabled');
     cy.get(byTestId(testIds.filterMinimumClusterSize))
       .clear()
       .type(String(minimumClusterSize!.to))
@@ -128,19 +140,9 @@ describe('Journey Flow - Minimum Cluster Size and Reveal Everything', () => {
       assertVisibleNodeIds(expectedVisibleNodeIds);
     });
 
-    openGlobalFilteringTab();
-    cy.get('#link-threshold').clear().wait(200).type('0.01').blur();
-    cy.window().its('commonService.session.style.widgets.link-threshold').should('equal', 0.01);
-    waitForProcessingDialogToClear();
-    cy.closeGlobalSettings();
-
     cy.window()
       .its('commonService.session.style.widgets.cluster-minimum-size')
       .should('equal', minimumClusterSize!.to);
-
-    cy.window()
-      .its('commonService.session.style.widgets.link-threshold')
-      .should('equal', 0.01);
 
     cy.get('@clusterFilteredNodeIds').then((clusterFilteredNodeIds) => {
       assertVisibleNodeIds(clusterFilteredNodeIds as string[]);

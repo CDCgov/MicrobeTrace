@@ -157,6 +157,8 @@ describe('Journey Flow - Network Statistics view', () => {
       expect(summaryRows).to.deep.include(['Component-size Gini', 0]);
       expect(summaryRows).to.deep.include(['Largest / Median Cluster Size', 1]);
       expect(summaryRows).to.deep.include(['L2 / L1', 0]);
+      expect(summaryRows.some(([metric]) => metric === 'Distance Metric')).to.equal(true);
+      expect(summaryRows.some(([metric]) => metric === 'Threshold')).to.equal(true);
       expect(degreeRows[0]).to.deep.equal(['Degree', 'Node Count', 'Fraction']);
       expect(centralityRows[0]).to.deep.equal([
         'Node ID',

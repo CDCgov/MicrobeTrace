@@ -79,20 +79,27 @@
 
   <div class="view-controls">
     <p-dialog id="file-settings-pane" data-testid="files-settings-dialog" [(visible)]="displayFileSettings" header="File Settings">
-      <div class="form-group row">
+      <div class="form-group row" [class.distance-control-disabled]="!hasConfiguredDistanceDataAvailable">
         <div class="col-6">
           <label style="padding-left: 10px;" for="default-distance-metric" class="mr-2" title="Which Genetic Distance Metric should Microbe use to first construct the network?">
             {{"Distance Metric" | localize}}
           </label>
         </div>
         <div class="col-6">
-          <select id="default-distance-metric" class="form-control form-control-sm mr-5" [(ngModel)]="SelectedDefaultDistanceMetricVariable" (ngModelChange)="onDistanceMetricChange($event)">
+          <select id="default-distance-metric" class="form-control form-control-sm mr-5" [disabled]="!hasConfiguredDistanceDataAvailable" [(ngModel)]="SelectedDefaultDistanceMetricVariable" (ngModelChange)="onDistanceMetricChange($event)">
             <option value="tn93" selected>TN93</option>
             <option value="snps">SNPs</option>
             <option value="mlst">MLST</option>
           </select>
         </div>
       </div>
+      @if (!hasConfiguredDistanceDataAvailable) {
+        <div class="form-group row mt-n2 distance-controls-unavailable" data-testid="file-distance-controls-unavailable" role="note">
+          <div class="offset-6 col-6">
+            <small><i class="pi pi-info-circle" aria-hidden="true"></i> {{ distanceControlsUnavailableMessage }}</small>
+          </div>
+        </div>
+      }
       @if (isMLSTSelected()) {
         <div class="form-group row mt-n2" data-testid="files-mlst-equivalence-note" role="note">
           <div class="offset-6 col-6">
@@ -101,14 +108,14 @@
         </div>
       }
       @if (SelectedDefaultDistanceMetricVariable=='tn93') {
-        <div id="ambiguities-row" class="form-group row">
+        <div id="ambiguities-row" class="form-group row" [class.distance-control-disabled]="!hasConfiguredDistanceDataAvailable">
           <div class="col-6">
             <label style="padding-left: 10px;" for="ambiguity-resolution-strategy" class="mr-2" title="What Strategy should MicrobeTrace use to handle ambiguities?">
               {{"Ambiguities" | localize}}
             </label>
           </div>
           <div class="col-6">
-            <select id="ambiguity-resolution-strategy" class="form-control form-control-sm mr-5" [(ngModel)]="SelectedAmbiguityResolutionStrategyVariable" (ngModelChange)="onAmbiguityStrategyChanged()">
+            <select id="ambiguity-resolution-strategy" class="form-control form-control-sm mr-5" [disabled]="!hasConfiguredDistanceDataAvailable" [(ngModel)]="SelectedAmbiguityResolutionStrategyVariable" (ngModelChange)="onAmbiguityStrategyChanged()">
               <option value="AVERAGE">Average</option>
               <option value="RESOLVE">Resolve</option>
               <option value="SKIP">Skip</option>
@@ -119,25 +126,25 @@
         </div>
       }
       @if ((SelectedAmbiguityResolutionStrategyVariable=='HIVTRACE-G' || SelectedAmbiguityResolutionStrategyVariable=='RESOLVE') && SelectedDefaultDistanceMetricVariable=='tn93') {
-        <div id="ambiguity-threshold-row" class="form-group row">
+        <div id="ambiguity-threshold-row" class="form-group row" [class.distance-control-disabled]="!hasConfiguredDistanceDataAvailable">
           <div class="col-6">
             <label style="padding-left: 10px;" for="ambiguity-threshold" class="mr-2" title="What's the maximum proportion of ambiguities that should be resolved? (Ambiguities will be averaged rather than resolved in sequences with > this threshold.) Please note that this can be changed later.">
               {{"Ambiguity Threshold" | localize}}
             </label>
           </div>
           <div class="col-6">
-            <input type="number" id="ambiguity-threshold" class="form-control form-control-sm" min="0" value="0.015" step="0.001" [(ngModel)]="SelectedAmbiguityThresholdVariable" (ngModelChange)="onAmbiguityThresholdChanged()">
+            <input type="number" id="ambiguity-threshold" class="form-control form-control-sm" min="0" value="0.015" step="0.001" [disabled]="!hasConfiguredDistanceDataAvailable" [(ngModel)]="SelectedAmbiguityThresholdVariable" (ngModelChange)="onAmbiguityThresholdChanged()">
           </div>
         </div>
       }
-      <div class="form-group row">
+      <div class="form-group row" [class.distance-control-disabled]="!hasConfiguredDistanceDataAvailable">
         <div class="col-6">
           <label style="padding-left: 10px;" for="default-distance-threshold" class="mr-2" title="What's the maximum genetic distance you wish to consider linked? Please note that this can be changed later.">
             {{"Link Threshold" | localize}}
           </label>
         </div>
         <div class="col-6">
-          <input type="number" id="default-distance-threshold" class="form-control form-control-sm" min="0" value="0.015" step="0.001" [(ngModel)]="SelectedDefaultDistanceThresholdVariable" (ngModelChange)="onLinkThresholdChange($event)">
+          <input type="number" id="default-distance-threshold" class="form-control form-control-sm" min="0" value="0.015" step="0.001" [disabled]="!hasConfiguredDistanceDataAvailable" [(ngModel)]="SelectedDefaultDistanceThresholdVariable" (ngModelChange)="onLinkThresholdChange($event)">
         </div>
       </div>
       <div class="form-group row">

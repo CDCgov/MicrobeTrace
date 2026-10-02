@@ -334,16 +334,23 @@
             <tab heading="{{'Filtering' | localize}}" customClass="m-tabs__item" style='width: 100%; height: 100%;'>
 
               <div id="filtering-config" role="tabpanel" aria-labelledby="filtering-tab">
-                <div class="form-group row" title="By what metric would you like to measure distance?">
+                <div class="form-group row" [class.distance-control-disabled]="!hasDistanceDataAvailable" title="By what metric would you like to measure distance?">
                   <div class="col-4">Distance Metric</div>
                   <div class="col-8">
-                    <select id="default-distance-metric" class="form-control form-control-sm mr-5" [(ngModel)]="SelectedDistanceMetricVariable" (ngModelChange)="onDistanceMetricChanged()">
+                    <select id="default-distance-metric" class="form-control form-control-sm mr-5" [disabled]="!hasDistanceDataAvailable" [(ngModel)]="SelectedDistanceMetricVariable" (ngModelChange)="onDistanceMetricChanged()">
                       <option value="tn93">TN93</option>
                       <option value="snps">SNPs</option>
                       <option value="mlst">MLST</option>
                     </select>
                   </div>
                 </div>
+                @if (!hasDistanceDataAvailable) {
+                  <div class="form-group row mt-n2 distance-controls-unavailable" data-testid="distance-controls-unavailable" role="note">
+                    <div class="offset-4 col-8">
+                      <small><i class="pi pi-info-circle" aria-hidden="true"></i> {{ distanceControlsUnavailableMessage }}</small>
+                    </div>
+                  </div>
+                }
                 @if (isMLSTSelected()) {
                   <div class="form-group row mt-n2" data-testid="settings-mlst-equivalence-note" role="note">
                     <div class="offset-4 col-8">
@@ -352,7 +359,7 @@
                   </div>
                 }
                 @if (isTN93Selected()) {
-                  <div class="form-group row" title="Choose how TN93 distance values are shown throughout the app. Decimal uses raw values like 0.015. Percentage uses values like 1.5%.">
+                  <div class="form-group row" [class.distance-control-disabled]="!hasDistanceDataAvailable" title="Choose how TN93 distance values are shown throughout the app. Decimal uses raw values like 0.015. Percentage uses values like 1.5%.">
                     <div class="col-4">
                       <label for="tn93-distance-display-format">Distance Format</label>
                     </div>
@@ -360,6 +367,8 @@
                       <p-select-button
                         [options]="TN93DistanceDisplayFormatOptions"
                         [allowEmpty]="false"
+                        [disabled]="!hasDistanceDataAvailable"
+                        [attr.aria-disabled]="!hasDistanceDataAvailable"
                         fluid
                         id="tn93-distance-display-format"
                         [(ngModel)]="SelectedTN93DistanceDisplayFormatVariable"
@@ -368,12 +377,12 @@
                     </div>
                   </div>
                 }
-                <div class="form-group row" title="By what algorithm would you like to prune links from the network?">
+                <div class="form-group row" [class.distance-control-disabled]="!hasDistanceDataAvailable" title="By what algorithm would you like to prune links from the network?">
                   <div class="col-4">Prune With
                     <a title="Click for more information" class="btn btn-sm" style="float:right; padding-left: 0px;" href="https://github.com/CDCgov/MicrobeTrace/wiki/Pruning-links-using-nearest-neighbor-algorithm" target="_blank"><i class="pi pi-info-circle"></i></a>
                   </div>
                   <div class="col-8">
-                    <p-select-button [options]="PruneWityTypes" [allowEmpty]="false" fluid id="prune-select" [(ngModel)]="SelectedPruneWithTypesVariable" (ngModelChange)="onPruneWithTypesChanged(SelectedPruneWithTypesVariable)"></p-select-button>
+                    <p-select-button [options]="PruneWityTypes" [allowEmpty]="false" [disabled]="!hasDistanceDataAvailable" [attr.aria-disabled]="!hasDistanceDataAvailable" fluid id="prune-select" [(ngModel)]="SelectedPruneWithTypesVariable" (ngModelChange)="onPruneWithTypesChanged(SelectedPruneWithTypesVariable)"></p-select-button>
                   </div>
                 </div>
                 <div id="filtering-epsilon-row" class="form-group row" style="display: none;" title="Select a value for epislon to add links back to minimum spanning network. See 'A Novel Network Representation of SARS-CoV-2 Sequencing Data' for algorithm details.">
@@ -381,7 +390,7 @@
                     <label for="filtering-epsilon">Epsilon: {{ SelectedEpsilonValue }}</label>
                   </div>
                   <div class="col-8">
-                    <input type="range" id="filtering-epsilon" data-testid="filter-epsilon" class="form-control form-control-sm" min="-8" max="2" step=".01" [(ngModel)]="widgets['filtering-epsilon']" (ngModelChange)="onEpsilonValueChange()">
+                    <input type="range" id="filtering-epsilon" data-testid="filter-epsilon" class="form-control form-control-sm" min="-8" max="2" step=".01" [disabled]="!hasDistanceDataAvailable" [(ngModel)]="widgets['filtering-epsilon']" (ngModelChange)="onEpsilonValueChange()">
                   </div>
                 </div>
                 <div class="form-group row" title="What's the minimum number of nodes a cluster must have in order to be visible?">
@@ -459,13 +468,13 @@
                   </div>
                 </div>
                 <div id="filtering-wrapper">
-                  <div class="form-group row" title="By what variable would you like to prune links from the network?">
+                  <div class="form-group row" [class.distance-control-disabled]="!hasDistanceDataAvailable" title="By what variable would you like to prune links from the network?">
                     <div class="col-4"><label for="link-sort-variable">Filter Links on</label></div>
                     <div class="col-8">
-                      <p-select id="link-sort-variable" class="width-percent-100" [options]="ToolTipFieldList" appendTo="body" [(ngModel)]="SelectedLinkSortVariable" (onChange)="onLinkSortChanged()"></p-select>
+                      <p-select id="link-sort-variable" class="width-percent-100" [options]="ToolTipFieldList" [disabled]="!hasDistanceDataAvailable" appendTo="body" [(ngModel)]="SelectedLinkSortVariable" (onChange)="onLinkSortChanged()"></p-select>
                     </div>
                   </div>
-                  <div class="form-group row" id="filtering-threshold" title="Set the maximum genetic distance allowed for threshold-controlled links. Black bars show the distance distribution. The orange line shows how the cluster count changes as the threshold increases.">
+                  <div class="form-group row" id="filtering-threshold" [class.distance-control-disabled]="!hasDistanceDataAvailable" title="Set the maximum genetic distance allowed for threshold-controlled links. Black bars show the distance distribution. The orange line shows how the cluster count changes as the threshold increases.">
                     <div class="col-4">
                       <label for="link-threshold">
                         Filtering Threshold
@@ -479,17 +488,19 @@
                     </div>
                     <div class="col-8 threshold-filter-controls">
                       <svg id="link-threshold-sparkline" #linkThresholdSparkline class="threshold-sparkline"></svg>
-                      <input type="number" class="form-control form-control-sm" id="link-threshold" min="-1" value="1" [step]="getDisplayedThresholdStepSize()" [(ngModel)]="SelectedLinkThresholdDisplayVariable" (ngModelChange)="updateThreshold($event)">
+                      <input type="number" class="form-control form-control-sm" id="link-threshold" min="-1" value="1" [step]="getDisplayedThresholdStepSize()" [disabled]="!hasDistanceDataAvailable" [(ngModel)]="SelectedLinkThresholdDisplayVariable" (ngModelChange)="updateThreshold($event)">
                       <div class="threshold-sparkline-readout" id="threshold-sparkline-readout">
-                        Hover over the chart to inspect cluster counts
+                        {{ hasDistanceDataAvailable ? 'Hover over the chart to inspect cluster counts' : 'No distance data available' }}
                       </div>
                     </div>
                   </div>
-                  <div class="threshold-stability-shell">
+                  <div class="threshold-stability-shell" [class.distance-control-disabled]="!hasDistanceDataAvailable">
                     <button
                       type="button"
                       class="threshold-stability-toggle"
                       data-testid="threshold-stability-toggle"
+                      [disabled]="!hasDistanceDataAvailable"
+                      [attr.title]="!hasDistanceDataAvailable ? distanceControlsUnavailableMessage : null"
                       [attr.aria-expanded]="thresholdStabilityExpanded"
                       (click)="toggleThresholdStabilityPanel()">
                       <span class="threshold-stability-toggle__text">
@@ -497,7 +508,9 @@
                         <span class="threshold-stability-toggle__subtitle">Compare genetic component structure across thresholds.</span>
                       </span>
                       <span class="threshold-stability-toggle__meta" title="Distinct threshold values drawn from the current distance data.">
-                        @if (thresholdSweepSampleCount > 0) {
+                        @if (!hasDistanceDataAvailable) {
+                          No distance data available
+                        } @else if (thresholdSweepSampleCount > 0) {
                           {{ thresholdSweepSampleCount.toLocaleString() }} thresholds analyzed
                         }
                       </span>
@@ -700,7 +713,12 @@
                                     <i class="pi pi-info-circle" aria-hidden="true"></i>
                                   </button>
                                   <span id="current-score-tooltip" class="threshold-metric-help__tooltip" [class.threshold-metric-help__tooltip--visible]="activeThresholdMetricHelp === 'currentScore'" role="tooltip">
-                                    This is the Component Structure Score at the current threshold {{ formatThresholdStabilityValue(thresholdStabilityCurrent.threshold) }}. The recommendation above shows the score at threshold {{ formatThresholdStabilityValue(thresholdScoreRecommendation.threshold) }}, so the values can differ.
+                                    This is the Component Structure Score at the current threshold {{ formatThresholdStabilityValue(thresholdStabilityCurrent.threshold) }}.
+                                    @if (thresholdScoreRecommendation) {
+                                      The recommendation above shows the score at threshold {{ formatThresholdStabilityValue(thresholdScoreRecommendation.threshold) }}, so the values can differ.
+                                    } @else {
+                                      No genetic threshold recommendation is available for the selected metric.
+                                    }
                                     <strong>{{ formatThresholdScoreEquation(thresholdStabilityCurrent) }}</strong>
                                   </span>
                                 </span>
