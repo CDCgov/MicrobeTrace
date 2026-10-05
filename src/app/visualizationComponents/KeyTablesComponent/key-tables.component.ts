@@ -3,6 +3,10 @@ import { ComponentContainer } from 'golden-layout';
 import { BaseComponentDirective } from '@app/base-component.directive';
 import { MicobeTraceNextPluginEvents } from '@app/helperClasses/interfaces';
 import { MicrobeTraceNextVisuals } from '@app/microbe-trace-next-plugin-visuals';
+import {
+    createGlobalSettingsDialogRequest,
+    GlobalSettingsDialogRequest
+} from '@app/helperClasses/globalSettingsDialogRequest';
 import { NODE_SHAPE_TREE_SELECT_PASS_THROUGH } from '@app/contactTraceCommonServices/node-shape-picker';
 import { DOCKED_KEY_TABLES_VIEW_NAME, KeyTableName } from './key-tables.controller';
 import {
@@ -28,7 +32,7 @@ export class KeyTablesComponent extends BaseComponentDirective implements OnInit
     static readonly componentTypeName = DOCKED_KEY_TABLES_VIEW_NAME;
     readonly shapeTreeSelectPassThrough = NODE_SHAPE_TREE_SELECT_PASS_THROUGH;
 
-    @Output() DisplayGlobalSettingsDialogEvent = new EventEmitter<string>();
+    @Output() DisplayGlobalSettingsDialogEvent = new EventEmitter<GlobalSettingsDialogRequest>();
 
     viewActive = true;
     hasNodeColorTable = false;
@@ -80,6 +84,15 @@ export class KeyTablesComponent extends BaseComponentDirective implements OnInit
         this.DisplayGlobalSettingsDialogEvent.emit('Styling');
     }
 
+    openContinuousColorEditor(target: 'node' | 'link', event?: MouseEvent): void {
+        event?.stopPropagation();
+        this.DisplayGlobalSettingsDialogEvent.emit(createGlobalSettingsDialogRequest(
+            'Styling',
+            event,
+            target === 'node' ? 'node-color-ramp' : 'link-color-ramp'
+        ));
+    }
+
     get widgets() {
         return this.visuals.microbeTrace?.widgets ?? {};
     }
@@ -102,6 +115,14 @@ export class KeyTablesComponent extends BaseComponentDirective implements OnInit
 
     get selectedLinkColorBy(): string {
         return this.visuals.microbeTrace?.SelectedColorLinksByVariable ?? 'None';
+    }
+
+    get nodeColorLegendLabel(): string {
+        return this.visuals.microbeTrace?.getColorLegendLabel('node') ?? 'Node Color Legend';
+    }
+
+    get linkColorLegendLabel(): string {
+        return this.visuals.microbeTrace?.getColorLegendLabel('link') ?? 'Link Color Legend';
     }
 
     get selectedNodeShapeBy(): string {
@@ -162,6 +183,30 @@ export class KeyTablesComponent extends BaseComponentDirective implements OnInit
 
     get linkColorTableEditable(): boolean {
         return this.visuals.microbeTrace?.linkColorTableEditable ?? true;
+    }
+
+    get nodeColorContinuous(): boolean {
+        return !!this.visuals.microbeTrace?.isContinuousColorScale('node');
+    }
+
+    get linkColorContinuous(): boolean {
+        return !!this.visuals.microbeTrace?.isContinuousColorScale('link');
+    }
+
+    get nodeColorScale() {
+        return this.visuals.microbeTrace?.getResolvedVariableColorScale('node') ?? null;
+    }
+
+    get linkColorScale() {
+        return this.visuals.microbeTrace?.getResolvedVariableColorScale('link') ?? null;
+    }
+
+    get nodeColorScaleConfig() {
+        return this.visuals.microbeTrace?.getVariableColorConfig('node');
+    }
+
+    get linkColorScaleConfig() {
+        return this.visuals.microbeTrace?.getVariableColorConfig('link');
     }
 
     private get dockController() {

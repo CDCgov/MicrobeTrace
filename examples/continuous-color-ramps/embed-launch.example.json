@@ -1,0 +1,61 @@
+{
+  "datasetName": "Riverbend Regional Respiratory Outbreak",
+  "defaultView": "2D Network",
+  "linkThreshold": 12,
+  "globalSettings": {
+    "nodeColorBy": "RiskScore",
+    "nodeColorScale": {
+      "mode": "continuous",
+      "domain": {
+        "min": 10,
+        "max": 90
+      },
+      "stops": [
+        {
+          "value": 10,
+          "color": "#440154"
+        },
+        {
+          "value": 35,
+          "color": "#31688e"
+        },
+        {
+          "value": 60,
+          "color": "#35b779"
+        },
+        {
+          "value": 90,
+          "color": "#fde725"
+        }
+      ],
+      "missingColor": "#eae553"
+    },
+    "linkColorBy": "ContactMinutes",
+    "linkColorScale": {
+      "mode": "continuous",
+      "domain": {
+        "min": 15,
+        "max": 180
+      },
+      "stops": [
+        {
+          "value": 15,
+          "color": "#0d0887"
+        },
+        {
+          "value": 60,
+          "color": "#9c179e"
+        },
+        {
+          "value": 120,
+          "color": "#ed7953"
+        },
+        {
+          "value": 180,
+          "color": "#f0f921"
+        }
+      ],
+      "missingColor": "#bdbdbd"
+    }
+  }
+}

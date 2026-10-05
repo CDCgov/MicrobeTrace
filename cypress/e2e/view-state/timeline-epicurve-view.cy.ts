@@ -194,7 +194,9 @@ describe('Epi Curve / Timeline View', () => {
         cy.openGlobalSettings();
         cy.get('#node-color-variable').click()
         cy.get('li[role="option"]').contains('Cluster').click()
-        cy.get('#node-color-table-row', { timeout: 10000 }).should('be.visible');
+        cy.get('#node-color-scale-mode').click()
+        cy.get('li[role="option"]').contains('Categorical').click()
+        cy.get('#node-color-table-row', { timeout: 10000 }).scrollIntoView().should('be.visible');
         cy.get('#node-color-table-row').contains('.p-selectbutton .p-togglebutton-label', 'Show').click({ force: true });
 
         cy.window()

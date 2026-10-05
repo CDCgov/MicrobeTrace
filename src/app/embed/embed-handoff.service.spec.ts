@@ -241,6 +241,140 @@ describe('EmbedHandoffService', () => {
         expect(result.message).toContain('missing_node_field');
     });
 
+    it('accepts continuous node and link color scales without changing embed v1', async () => {
+        seedValidHandoff({
+            launch: {
+                globalSettings: {
+                    nodeColorBy: 'score',
+                    linkColorBy: 'distance',
+                    nodeColorScale: {
+                        mode: 'continuous',
+                        domain: { min: 0, max: 10 },
+                        stops: [
+                            { value: 0, color: '#440154' },
+                            { value: 4, color: '#21918c' },
+                            { value: 10, color: '#fde725' },
+                        ],
+                        missingColor: '#eae553',
+                    },
+                    linkColorScale: {
+                        mode: 'auto',
+                        missingColor: '#abcdef',
+                    },
+                },
+            },
+            files: [
+                {
+                    name: 'nodes.csv',
+                    kind: 'node',
+                    mimeType: 'text/csv',
+                    contents: 'id,score\nA,1\nB,9\n',
+                },
+                {
+                    name: 'links.csv',
+                    kind: 'link',
+                    mimeType: 'text/csv',
+                    contents: 'source,target,distance\nA,B,1\n',
+                },
+            ],
+        });
+
+        const result = await service.consumePendingHandoffFromUrl();
+
+        expect(result.status).toBe('success');
+        if (result.status !== 'success') {
+            fail('Expected a successful handoff result.');
+            return;
+        }
+        expect(result.handoff.version).toBe(EMBED_HANDOFF_VERSION);
+        expect(result.handoff.launch?.globalSettings?.nodeColorScale).toEqual({
+            mode: 'continuous',
+            domain: { min: 0, max: 10 },
+            stops: [
+                { value: 0, color: '#440154' },
+                { value: 4, color: '#21918c' },
+                { value: 10, color: '#fde725' },
+            ],
+            missingColor: '#eae553',
+        });
+        expect(result.handoff.launch?.globalSettings?.linkColorScale).toEqual({
+            mode: 'auto',
+            missingColor: '#abcdef',
+        });
+    });
+
+    [
+        {
+            label: 'a scale without its field',
+            globalSettings: { nodeColorScale: { mode: 'continuous' } },
+            message: 'requires "nodeColorBy"',
+        },
+        {
+            label: 'an unsupported mode',
+            globalSettings: { nodeColorBy: 'score', nodeColorScale: { mode: 'quantile' } },
+            message: 'unsupported value',
+        },
+        {
+            label: 'a malformed domain',
+            globalSettings: { nodeColorBy: 'score', nodeColorScale: { mode: 'continuous', domain: { min: 5, max: 5 } } },
+            message: 'min less than max',
+        },
+        {
+            label: 'stops without a custom domain',
+            globalSettings: {
+                nodeColorBy: 'score',
+                nodeColorScale: {
+                    mode: 'continuous',
+                    stops: [{ value: 0, color: '#000000' }, { value: 1, color: '#ffffff' }],
+                },
+            },
+            message: 'requires a custom domain',
+        },
+        {
+            label: 'unordered stops',
+            globalSettings: {
+                nodeColorBy: 'score',
+                nodeColorScale: {
+                    mode: 'continuous',
+                    domain: { min: 0, max: 10 },
+                    stops: [{ value: 0, color: '#000000' }, { value: 8, color: '#ffffff' }, { value: 7, color: '#123456' }],
+                },
+            },
+            message: 'increase strictly',
+        },
+        {
+            label: 'invalid stop colors',
+            globalSettings: {
+                nodeColorBy: 'score',
+                nodeColorScale: {
+                    mode: 'continuous',
+                    domain: { min: 0, max: 10 },
+                    stops: [{ value: 0, color: '#000000' }, { value: 10, color: 'white' }],
+                },
+            },
+            message: '6-digit hex color',
+        },
+    ].forEach(({ label, globalSettings, message }) => {
+        it(`rejects ${label}`, async () => {
+            seedValidHandoff({
+                launch: { globalSettings },
+                files: [{
+                    name: 'nodes.csv',
+                    kind: 'node',
+                    mimeType: 'text/csv',
+                    contents: 'id,score\nA,1\n',
+                }],
+            });
+
+            const result = await service.consumePendingHandoffFromUrl();
+
+            expect(result.status).toBe('error');
+            if (result.status === 'error') {
+                expect(result.message).toContain(message);
+            }
+        });
+    });
+
     it('rejects forbidden keys in handoff launch options', async () => {
         const createdAt = Date.now();
         seedRawHandoff(`{

@@ -79,6 +79,16 @@ Wire it up:
       globalSettings: {
         nodeColorBy: 'group',
         linkColorBy: 'distance',
+        linkColorScale: {
+          mode: 'continuous',
+          domain: { min: 0, max: 0.05 },
+          stops: [
+            { value: 0, color: '#440154' },
+            { value: 0.025, color: '#21918c' },
+            { value: 0.05, color: '#fde725' }
+          ],
+          missingColor: '#eae553'
+        },
         nodeColor: '#1f77b4',
         linkColor: '#a6cee3',
         nodeShape: 'ellipse',
@@ -158,6 +168,7 @@ Optional fields:
   globalSettings: {
     nodeColorBy: 'cluster',
     linkColorBy: 'distance',
+    linkColorScale: { mode: 'auto' },
     nodeShapeBy: 'None',
     nodeColor: '#1f77b4',
     linkColor: '#a6cee3',
@@ -182,6 +193,8 @@ Supported launch settings:
 | `launch.ambiguityThreshold` | non-negative number | Sets the ambiguity threshold used by applicable TN93 ambiguity strategies. |
 | `launch.globalSettings.nodeColorBy` | `None`, generated node field such as `cluster`, or imported node field | Colors nodes by a field. |
 | `launch.globalSettings.linkColorBy` | `None`, generated link field such as `origin` or `distance`, or imported link field | Colors links by a field. |
+| `launch.globalSettings.nodeColorScale` | `{ mode, domain?, stops?, missingColor? }` | Configures `nodeColorBy` as `auto`, `categorical`, or `continuous`. Requires `nodeColorBy`. |
+| `launch.globalSettings.linkColorScale` | `{ mode, domain?, stops?, missingColor? }` | Configures `linkColorBy` as `auto`, `categorical`, or `continuous`. Requires `linkColorBy`. |
 | `launch.globalSettings.nodeShapeBy` | `None`, generated node field such as `cluster`, or imported node field | Assigns node shapes by a field. |
 | `launch.globalSettings.nodeColor` | 6-digit hex color, for example `#1f77b4` | Sets the fallback node color when `nodeColorBy` is `None`. |
 | `launch.globalSettings.linkColor` | 6-digit hex color, for example `#a6cee3` | Sets the fallback link color when `linkColorBy` is `None`. |
@@ -191,7 +204,9 @@ Supported launch settings:
 | `launch.globalSettings.backgroundColor` | 6-digit hex color, for example `#ffffff` | Sets the initial visualization background. |
 | `launch.globalSettings.tn93DistanceDisplayFormat` | `decimal` or `percentage` | Controls TN93 distance display formatting. |
 
-If `distanceMetric` is supplied without `linkThreshold`, MicrobeTrace applies the metric's normal default threshold (`snps`: `16`, `tn93`: `0.015`). Field-based settings are validated after MicrobeTrace normalizes the imported files. If a requested node or link field is missing, the handoff fails instead of silently launching with a different setting. These launch defaults affect only this handoff. They are not persisted as the user's future MicrobeTrace defaults.
+If `distanceMetric` is supplied without `linkThreshold`, MicrobeTrace applies the metric's normal default threshold (`snps`: `16`, `tn93`: `0.015`). Field-based settings are validated after MicrobeTrace normalizes the imported files. If a requested node or link field is missing, the handoff fails instead of silently launching with a different setting.
+
+Color scale domains require finite `min < max` values. Custom stops require a custom domain, at least two strictly increasing finite values that begin and end at the domain bounds, and six-digit hex colors. `missingColor` also uses six-digit hex notation. These launch defaults affect only this handoff. They are not persisted as the user's future MicrobeTrace defaults.
 - `onSuccess(result)`
 - `onError(error)`
 

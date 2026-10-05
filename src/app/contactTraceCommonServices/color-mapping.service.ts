@@ -1,5 +1,12 @@
 import { Injectable } from '@angular/core';
 import * as d3 from 'd3';
+import {
+  buildContinuousGradientCss,
+  createDefaultVariableColorScaleConfig,
+  ResolvedVariableColorScale,
+  resolveVariableColorScale,
+  VariableColorScaleConfig
+} from './variable-color-scale';
 
 export interface NodeColorSegment {
   value: string;
@@ -470,6 +477,18 @@ export class ColorMappingService {
 
   constructor() {}
 
+  public resolveVariableColorScale(
+    items: any[],
+    field: string,
+    config?: VariableColorScaleConfig
+  ): ResolvedVariableColorScale {
+    return resolveVariableColorScale(items, field, config);
+  }
+
+  public buildContinuousGradientCss(resolved: ResolvedVariableColorScale): string {
+    return buildContinuousGradientCss(resolved);
+  }
+
   public normalizeStyleCategoryValue(value: any): string {
     return normalizeNodeStyleCategoryValue(value);
   }
@@ -535,18 +554,32 @@ export class ColorMappingService {
     nodeColorsTableHistory: any,
     nodeColorAssignments: Record<string, string>,
     debugMode: boolean,
+    variableColorScaleConfigOrSplitMixedValues?: VariableColorScaleConfig | boolean,
     splitMixedValues: boolean = false
   ): {
     aggregates: Record<string, number>;
-    colorMap: d3.ScaleOrdinal<string, string>;
-    alphaMap: d3.ScaleOrdinal<string, number>;
+    colorMap: (value: unknown) => string;
+    alphaMap: (value: unknown) => number;
     updatedNodeColors: string[];
     updatedNodeAlphas: number[];
     updatedColorsTable: any;
     updatedColorsTableKeys: any;
     updatedColorsTableHistory: any;
+    resolvedScale: ResolvedVariableColorScale;
     invalidMixedWeightCount: number;
   } {
+
+    const variableColorScaleConfig = typeof variableColorScaleConfigOrSplitMixedValues === 'boolean'
+      ? undefined
+      : variableColorScaleConfigOrSplitMixedValues;
+    const shouldSplitMixedValues = typeof variableColorScaleConfigOrSplitMixedValues === 'boolean'
+      ? variableColorScaleConfigOrSplitMixedValues
+      : splitMixedValues;
+    const resolvedScale = resolveVariableColorScale(
+      nodes,
+      nodeColorVariable,
+      variableColorScaleConfig ?? createDefaultVariableColorScaleConfig('categorical')
+    );
 
     // If user hasn't chosen a variable, just return a single uniform color mapping
     if (nodeColorVariable === 'None') {
@@ -560,6 +593,22 @@ export class ColorMappingService {
         updatedColorsTable: nodeColorsTable,
         updatedColorsTableKeys: nodeColorsTableKeys,
         updatedColorsTableHistory: nodeColorsTableHistory,
+        resolvedScale,
+        invalidMixedWeightCount: 0
+      };
+    }
+
+    if (resolvedScale.mode === 'continuous') {
+      return {
+        aggregates: {},
+        colorMap: resolvedScale.colorMap,
+        alphaMap: () => 1,
+        updatedNodeColors: nodeColors,
+        updatedNodeAlphas: nodeAlphas,
+        updatedColorsTable: nodeColorsTable || {},
+        updatedColorsTableKeys: nodeColorsTableKeys || {},
+        updatedColorsTableHistory: nodeColorsTableHistory || {},
+        resolvedScale,
         invalidMixedWeightCount: 0
       };
     }
@@ -631,13 +680,13 @@ export class ColorMappingService {
         return;
       }
 
-      const parsedMixedValue = splitMixedValues
+      const parsedMixedValue = shouldSplitMixedValues
         ? canonicalizeWeightedMixedNodeColorComponents(d[nodeColorVariable], storedKeysForVariable)
         : null;
       const categories = parsedMixedValue?.components.length
         ? parsedMixedValue.components.map(component => component.value)
         : [this.normalizeStyleCategoryValue(d[nodeColorVariable])];
-      const isMixedValue = splitMixedValues && categories.length > 1;
+      const isMixedValue = shouldSplitMixedValues && categories.length > 1;
       if (parsedMixedValue?.invalidWeights) {
         invalidMixedWeightCount += 1;
       }
@@ -656,7 +705,7 @@ export class ColorMappingService {
       });
     });
 
-    const distinctValues = splitMixedValues
+    const distinctValues = shouldSplitMixedValues
       ? sortNodeColorCategoryValues(Object.keys(aggregates), storedKeysForVariable)
       : sortAtomicNodeColorCategoryValues(Object.keys(aggregates), storedKeysForVariable);
 
@@ -752,6 +801,7 @@ export class ColorMappingService {
       updatedColorsTable,
       updatedColorsTableKeys,
       updatedColorsTableHistory,
+      resolvedScale,
       invalidMixedWeightCount
     };
   }
@@ -767,17 +817,27 @@ export class ColorMappingService {
     linkColorsTable: any,
     linkColorsTableKeys: any,
     linkColorsTableHistory: any,
-    debugMode: boolean
+    debugMode: boolean,
+    variableColorScaleConfig?: VariableColorScaleConfig,
+    domainLinks: any[] = links,
+    linkColorAssignments: Record<string, string> = {}
   ): {
     aggregates: Record<string, number>;
-    colorMap: d3.ScaleOrdinal<string, string>;
-    alphaMap: d3.ScaleOrdinal<string, number>;
+    colorMap: (value: unknown) => string;
+    alphaMap: (value: unknown) => number;
     updatedLinkColors: string[];
     updatedLinkAlphas: number[];
     updatedLinkColorsTable: any;
     updatedLinkColorsTableKeys: any;
     updatedLinkColorsTableHistory: any;
+    resolvedScale: ResolvedVariableColorScale;
   } {
+
+    const resolvedScale = resolveVariableColorScale(
+      domainLinks,
+      linkColorVariable,
+      variableColorScaleConfig ?? createDefaultVariableColorScaleConfig('categorical')
+    );
     
 
     // If user hasn't chosen a variable
@@ -791,7 +851,22 @@ export class ColorMappingService {
         updatedLinkAlphas: linkAlphas,
         updatedLinkColorsTable: linkColorsTable,
         updatedLinkColorsTableKeys: linkColorsTableKeys,
-        updatedLinkColorsTableHistory: linkColorsTableHistory
+        updatedLinkColorsTableHistory: linkColorsTableHistory,
+        resolvedScale
+      };
+    }
+
+    if (resolvedScale.mode === 'continuous') {
+      return {
+        aggregates: {},
+        colorMap: resolvedScale.colorMap,
+        alphaMap: () => 1,
+        updatedLinkColors: linkColors,
+        updatedLinkAlphas: linkAlphas,
+        updatedLinkColorsTable: linkColorsTable || {},
+        updatedLinkColorsTableKeys: linkColorsTableKeys || {},
+        updatedLinkColorsTableHistory: linkColorsTableHistory || {},
+        resolvedScale
       };
     }
     
@@ -805,6 +880,7 @@ export class ColorMappingService {
     let updatedLinkColorsTableHistory = linkColorsTableHistory || {};
     let updatedLinkColors = [...linkColors];
     let updatedLinkAlphas = [...linkAlphas];
+    const explicitAssignments = linkColorAssignments || {};
 
     const hasLinkColorsTableForVariable = Array.isArray(updatedLinkColorsTable[linkColorVariable]);
 
@@ -944,14 +1020,17 @@ export class ColorMappingService {
     const repairDuplicateColors = isOriginColorVariable || uniqueCandidatePalette.length < distinctValues.length;
 
     distinctValues.forEach((val) => {
-      const existingColor = colorsByKey.get(val);
+      const explicitColor = explicitAssignments[val];
+      const hasExplicitColor = Object.prototype.hasOwnProperty.call(explicitAssignments, val)
+        && typeof explicitColor === 'string';
+      const existingColor = hasExplicitColor ? explicitColor : colorsByKey.get(val);
       if (existingColor) {
-        if (resetExpandedOriginColors) {
+        if (!hasExplicitColor && resetExpandedOriginColors) {
           delete updatedLinkColorsTableHistory[val];
           return;
         }
 
-        if (repairDuplicateColors && usedColors.has(existingColor)) {
+        if (!hasExplicitColor && repairDuplicateColors && usedColors.has(existingColor)) {
           delete updatedLinkColorsTableHistory[val];
           return;
         }
@@ -1016,7 +1095,8 @@ export class ColorMappingService {
       updatedLinkAlphas,
       updatedLinkColorsTable,
       updatedLinkColorsTableKeys,
-      updatedLinkColorsTableHistory
+      updatedLinkColorsTableHistory,
+      resolvedScale
     };
   }
 

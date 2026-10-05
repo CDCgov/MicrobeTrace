@@ -5042,7 +5042,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         let finalColor;
         let alphaValue;
         const linkColorValue = (() => {
-            const value = link[variable];
+            const value = this.commonService.getLinkColorValue(link, variable);
             if (String(variable).toLowerCase() === 'origin' && Array.isArray(value)) {
                 return value.length > 1 ? 'Duo-Link' : this.commonService.normalizeStyleCategoryValue(value[0]);
             }

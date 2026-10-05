@@ -20,6 +20,27 @@ function closeVisibleSelectOverlays(): void {
   });
 }
 
+function expandVisibleGlobalStylingAccordions(): void {
+  cy.get('body').then(($body) => {
+    const collapsedHeaders = $body.find(
+      '.p-dialog:visible #style-config p-accordion-header[aria-expanded="false"]'
+    );
+
+    if (!collapsedHeaders.length) return;
+    cy.wrap(collapsedHeaders).each(($header) => {
+      const contentId = $header.attr('aria-controls');
+      cy.wrap($header)
+        .click({ force: true })
+        .should('have.attr', 'aria-expanded', 'true');
+      if (contentId) {
+        cy.get(`#${contentId} p-motion`)
+          .should('not.have.class', 'p-collapsible-enter-active')
+          .and('not.have.class', 'p-collapsible-enter-to');
+      }
+    });
+  });
+}
+
 declare global {
   namespace Cypress {
     interface Chainable {
@@ -190,6 +211,7 @@ Cypress.Commands.add('openGlobalSettings', () => {
     .within(() => {
       cy.contains('.nav-link', 'Timeline', { timeout: 15000 }).should('be.visible');
     });
+  expandVisibleGlobalStylingAccordions();
 });
 
 Cypress.Commands.add('closeGlobalSettings', () => {
@@ -205,14 +227,15 @@ Cypress.Commands.add('closeGlobalSettings', () => {
   });
 });
 
-Cypress.Commands.add('enableTimelineMode', (variableLabel = 'Date of symptom onset') => {
+Cypress.Commands.add('enableTimelineMode', (variableLabel = 'Date of symptom onset Date') => {
+  closeVisibleSelectOverlays();
   cy.openGlobalSettings();
 
   cy.contains('.nav-link:visible', 'Timeline').click({ force: true });
   cy.get('#timeline-config').should('exist');
 
   closeVisibleSelectOverlays();
-  cy.get('#node-timeline-variable').click({ force: true });
+  cy.get('.p-dialog:visible #node-timeline-variable').click({ force: true });
   cy.get(visibleSelectOverlay, { timeout: 15000 })
     .last()
     .then(($overlay) => {
