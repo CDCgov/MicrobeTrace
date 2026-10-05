@@ -1,3 +1,5 @@
+import { visitAppAndAcceptEula } from '../../support/journey-helpers';
+
 describe('Epi Curve / Timeline View', () => {
     const selectors = {
       container: '#epiCurve',
@@ -6,11 +8,7 @@ describe('Epi Curve / Timeline View', () => {
     };
   
     beforeEach(() => {
-      cy.visit('/');
-      cy.wait(6000);
-  
-      cy.contains('button', 'Continue with Sample Dataset', { timeout: 10000 }).click({ force: true });
-      cy.get('#overlay').should('not.be.visible', { timeout: 10000 });
+      visitAppAndAcceptEula({ skipDemoSession: false, dismissWelcomeOverlay: true });
   
       cy.contains('button', 'View').click();
       cy.contains('button[mat-menu-item]', 'Epi Curve').click();
@@ -202,17 +200,24 @@ describe('Epi Curve / Timeline View', () => {
         cy.window()
           .its('commonService.GlobalSettingsModel.SelectedNodeColorTableTypesVariable')
           .should('equal', 'Show');
-        cy.get('#key-tables-node-table').should('be.visible');
+        cy.get('#global-settings-node-color-table').should('be.visible');
 
         cy.contains('#global-settings-modal .nav-link', 'Filtering').click();
-        let expectedClusterCount = 4
-        for (let i = 0; i < 2; i++) {
-          cy.get('#link-threshold').type('{downarrow}');
-        }
-
-        cy.wait(2000);
+        const expectedClusterCount = 4;
+        let initialThreshold = 0;
         cy.window().then((win: any) => {
-          expect(win.commonService.session.style.widgets['link-threshold']).to.eq(14);
+          initialThreshold = Number(win.commonService.session.style.widgets['link-threshold']);
+          expect(initialThreshold).to.be.greaterThan(2);
+        });
+        cy.get('#link-threshold').then(($input) => {
+          cy.wrap($input)
+            .invoke('val', String(initialThreshold - 2))
+            .trigger('input')
+            .trigger('change');
+        });
+
+        cy.window().should((win: any) => {
+          expect(win.commonService.session.style.widgets['link-threshold']).to.eq(initialThreshold - 2);
           expect(win.commonService.session.data.clusters.length).to.eq(expectedClusterCount)
         });
 
@@ -233,7 +238,11 @@ describe('Epi Curve / Timeline View', () => {
             expect(rectFills.some((fill) => fill === '#b732cc' || fill === 'rgb(183,50,204)' || fill === 'rgb(183, 50, 204)')).to.equal(true);
           });
 
-        cy.get('#key-tables-node-table td input').first().invoke('val', '#777777').trigger('input').trigger('change');
+        cy.get('#global-settings-node-color-table td input')
+          .first()
+          .invoke('val', '#777777')
+          .trigger('input')
+          .trigger('change');
         cy.get('#epiCurveSVG .epiCurve-epi-curve rect')
           .then(($rects) => {
             const rectFills = [...$rects]
@@ -391,7 +400,7 @@ describe('Epi Curve / Timeline View', () => {
         .contains(value)
         .click();
 
-      const normalize = (s: string) => s.replace(/_/g, '').toLowerCase();
+      const normalize = (s: string) => s.replace(/[\s_]+/g, '').toLowerCase();
       let widgetLocation: string;
       if (field == 'Graph Type') {
         widgetLocation = 'commonService.session.style.widgets.epiCurve-graphType'

@@ -109,14 +109,20 @@ export function parseContinuousNumber(value: unknown): { kind: 'number'; value: 
 }
 
 export function inspectContinuousValues(items: any[], field: string): ContinuousNumericSummary {
-  const numericValues: number[] = [];
+  const uniqueNumericValues = new Set<number>();
+  let numericCount = 0;
   let missingCount = 0;
   let invalidCount = 0;
+  let min: number | null = null;
+  let max: number | null = null;
 
   (items || []).forEach(item => {
     const parsed = parseContinuousNumber(item?.[field]);
     if (parsed.kind === 'number') {
-      numericValues.push(parsed.value);
+      numericCount += 1;
+      uniqueNumericValues.add(parsed.value);
+      min = min === null ? parsed.value : Math.min(min, parsed.value);
+      max = max === null ? parsed.value : Math.max(max, parsed.value);
     } else if (parsed.kind === 'missing') {
       missingCount += 1;
     } else {
@@ -124,16 +130,11 @@ export function inspectContinuousValues(items: any[], field: string): Continuous
     }
   });
 
-  const numericCount = numericValues.length;
-  const uniqueCount = new Set(numericValues).size;
-  const min = numericCount ? Math.min(...numericValues) : null;
-  const max = numericCount ? Math.max(...numericValues) : null;
-
   return {
     numericCount,
     missingCount,
     invalidCount,
-    uniqueCount,
+    uniqueCount: uniqueNumericValues.size,
     min,
     max,
     canUseContinuous: numericCount > 0,

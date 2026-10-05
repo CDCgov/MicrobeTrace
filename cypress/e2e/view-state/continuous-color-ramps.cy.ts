@@ -48,20 +48,24 @@ const closeSettingsPaneIfVisible = (title: string): void => {
 
 const centerGlobalSettingsControl = (
   selector: string
-): Cypress.Chainable<JQuery<HTMLElement>> => cy.get(selector, { timeout: 15000 }).then(($control) => {
-  const control = $control.get(0);
-  const scrollContainer = control.closest('.p-dialog-content') as HTMLElement | null;
+): Cypress.Chainable<JQuery<HTMLElement>> => {
+  cy.get(selector, { timeout: 15000 }).then(($control) => {
+    const control = $control.get(0);
+    const scrollContainer = control.closest('.p-dialog-content') as HTMLElement | null;
 
-  if (scrollContainer) {
-    const controlRect = control.getBoundingClientRect();
-    const containerRect = scrollContainer.getBoundingClientRect();
-    scrollContainer.scrollTop += controlRect.top
-      - containerRect.top
-      - ((scrollContainer.clientHeight - controlRect.height) / 2);
-  }
+    expect(scrollContainer, `scroll container for ${selector}`).to.exist;
+    if (scrollContainer) {
+      const controlRect = control.getBoundingClientRect();
+      const containerRect = scrollContainer.getBoundingClientRect();
+      scrollContainer.scrollTop += controlRect.top
+        - containerRect.top
+        - ((scrollContainer.clientHeight - controlRect.height) / 2);
+      scrollContainer.dispatchEvent(new Event('scroll'));
+    }
+  });
 
-  return $control;
-});
+  return cy.get(selector, { timeout: 15000 });
+};
 
 describe('Continuous numeric color ramps', () => {
   beforeEach(() => {
@@ -165,17 +169,27 @@ describe('Continuous numeric color ramps', () => {
       .and('contain', '4 #ff0000')
       .and('contain', '20 #ffffff');
 
-    cy.openGlobalSettings();
-    centerGlobalSettingsControl('#link-color-table-row')
+    cy.get('[data-testid="key-tables-link-color-ramp-edit"]')
       .should('be.visible')
+      .click();
+    cy.contains('.p-dialog:visible .p-dialog-title', 'Global Settings').should('be.visible');
+    cy.contains('#global-settings-modal .p-accordionheader', 'Link Color')
+      .should('have.attr', 'aria-expanded', 'true');
+    cy.get('#link-color-table-row')
+      .should('exist')
       .contains('.p-togglebutton-label', 'Show')
       .click({ force: true });
     cy.closeGlobalSettings();
+    cy.wait(300);
 
     cy.get('#global-settings-link-color-table', { timeout: 15000 }).should('be.visible');
     cy.get('[data-testid="floating-link-color-ramp-edit"]')
       .should('have.attr', 'aria-label', 'Edit link color ramp')
-      .click();
+      .and('be.visible')
+      .click({ force: true });
+    cy.window()
+      .its('commonService.visuals.microbeTrace.GlobalSettingsDialogSettings.isVisible')
+      .should('equal', true);
     cy.contains('.p-dialog:visible .p-dialog-title', 'Global Settings').should('be.visible');
     centerGlobalSettingsControl('#link-continuous-color-editor').should('be.visible');
     cy.focused().should('have.id', 'link-continuous-color-editor-domain-kind');
@@ -202,10 +216,12 @@ describe('Continuous numeric color ramps', () => {
       .trigger('change');
     cy.get('@exportDialog').find('#network-export-filetype').click({ force: true });
     cy.contains('li[role="option"]', 'svg').click({ force: true });
+    cy.get('body').type('{esc}', { force: true });
+    cy.get('.p-select-overlay:visible').should('not.exist');
     cy.window()
       .its('commonService.visuals.twoD.SelectedNetworkExportFileTypeListVariable')
       .should('equal', 'svg');
-    cy.get('@exportDialog').find('#network-export').should('be.visible').click();
+    cy.get('@exportDialog').find('#network-export').should('be.visible').click({ force: true });
     cy.contains('.p-dialog-title', 'Export Network Image', { timeout: 15000 }).should('not.exist');
 
     cy.readFile(exportPath, 'utf8', { timeout: 30000 }).then((svgText: string) => {

@@ -39,6 +39,25 @@ describe('variable color scales', () => {
     }));
   });
 
+  it('inspects large numeric fields without spreading the values as function arguments', () => {
+    const itemCount = 150_000;
+    const summary = inspectContinuousValues(
+      Array.from({ length: itemCount }, (_, value) => ({ value })),
+      'value',
+    );
+
+    expect(summary).toEqual(jasmine.objectContaining({
+      numericCount: itemCount,
+      missingCount: 0,
+      invalidCount: 0,
+      uniqueCount: itemCount,
+      min: 0,
+      max: itemCount - 1,
+      canUseContinuous: true,
+      autoUsesContinuous: true,
+    }));
+  });
+
   it('uses continuous Auto mode for numeric-or-missing fields', () => {
     const resolved = resolveVariableColorScale([
       { value: '-2' },

@@ -1297,7 +1297,7 @@ private getNodeStackValue(node, colorVariable) {
     return '__mt_continuous_missing';
   }
   const numericBins = this.continuousColorBins.filter(bin => !bin.missing);
-  if (numericBins.length <= 1 || this.continuousNodeScale.domain[0] === this.continuousNodeScale.domain[1]) {
+  if (numericBins.length <= 1 || this.continuousNodeScale.domain.min === this.continuousNodeScale.domain.max) {
     return numericBins[0]?.key;
   }
   const { min, max } = this.continuousNodeScale.domain;
