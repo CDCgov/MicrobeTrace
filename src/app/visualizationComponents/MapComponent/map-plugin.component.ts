@@ -10,6 +10,7 @@ import * as L from 'leaflet';
 //import moment from 'moment';
 import 'leaflet.markercluster';
 import { maplibreGL } from '@maplibre/maplibre-gl-leaflet';
+import { setWorkerUrl } from 'maplibre-gl';
 
 import * as MarkerCluster from 'leaflet.markercluster';
 import { SelectItem } from 'primeng/api';
@@ -529,6 +530,7 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
     }
 
     initializeLeafletMap(latitude: number, longitude: number) {
+        setWorkerUrl(new URL('assets/maplibre/maplibre-gl-worker.mjs', document.baseURI).href);
         this.layers.basemap = maplibreGL({
             style: OPENFREEMAP_STYLE_URL,
             preserveDrawingBuffer: true,

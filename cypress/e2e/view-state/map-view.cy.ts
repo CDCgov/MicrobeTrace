@@ -448,9 +448,11 @@ describe('Map View', () => {
       cy.wait(10);
       if (takeScreenshots) cy.screenshot('map/no-links', { overwrite: true});
 
-      cy.window().its('commonService.visuals.gisMap.lmap._layers').should(layers => {
-        expect(Object.values(layers).length).to.equal(249);
-      })
+      cy.window().should((win: any) => {
+        const mapView = win.commonService.visuals.gisMap;
+        expect(win.commonService.session.style.widgets['map-link-show']).to.equal(false);
+        expect(mapView.lmap.hasLayer(mapView.layers.links)).to.equal(false);
+      });
     })
 
     // jitter and re-jitter
@@ -506,8 +508,9 @@ describe('Map View', () => {
       cy.window().its('commonService.session.style.widgets.map-counties-show').should('equal', false);
 
       cy.contains('.p-dialog-title', 'Geospatial Settings').parents('.p-dialog').contains('.p-accordionheader', 'Offline').click();
-      cy.get('#map-counties-show-hide').contains('Show').click();
+      cy.get('#map-counties-show-hide').contains('Borders Only').click();
       cy.window().its('commonService.session.style.widgets.map-counties-show').should('equal', true);
+      cy.window().its('commonService.session.style.widgets.map-counties-labels-show').should('equal', false);
       cy.closeSettingsPane('Geospatial Settings');
       cy.wait(1000)
       if (takeScreenshots) cy.screenshot('map/map-counties', { overwrite: true});
@@ -531,7 +534,7 @@ describe('Map View', () => {
 
       cy.get(selectors.settingsBtn).click();
       cy.contains('.p-dialog-title', 'Geospatial Settings').should('be.visible');
-      cy.get('#map-states-show-hide').contains('Show').click();
+      cy.get('#map-states-show-hide').contains('Labels + Borders').click();
       cy.window().its('commonService.session.style.widgets.map-states-show').should('equal', true);
       cy.closeSettingsPane('Geospatial Settings');
       cy.wait(200)
@@ -636,54 +639,36 @@ describe('Map View', () => {
     });
 
     it('tests zoom changes from zoom in, zoom out, and center map buttons', () => {
+      let centeredZoom = 0;
       cy.closeSettingsPane('Geospatial Settings');
       cy.get('#centerMapButton').click({ force: true });
-      cy.wait(1000)
       cy.window().then((win: any) => {
-        const lmap = win.commonService.visuals.gisMap.lmap;
-        let zoomLevel = lmap.getZoom();
-        expect(zoomLevel).to.equal(5);
-      })
+        centeredZoom = win.commonService.visuals.gisMap.lmap.getZoom();
+      });
 
-      let zoomInButton = cy.get('.leaflet-control-zoom-in span');
-      zoomInButton.click()
-      cy.wait(250)
-      zoomInButton.click()
-      cy.wait(250);
-      zoomInButton.click()
-      cy.wait(500)
+      for (let offset = 1; offset <= 3; offset++) {
+        cy.get('.leaflet-control-zoom-in span').click();
+        cy.window().should((win: any) => {
+          const lmap = win.commonService.visuals.gisMap.lmap;
+          expect(lmap.getZoom()).to.equal(centeredZoom + offset);
+          expect(lmap._animatingZoom).to.not.equal(true);
+        });
+      }
 
-      cy.window().then((win: any) => {
-        const lmap = win.commonService.visuals.gisMap.lmap;
-        let zoomLevel = lmap.getZoom();
-        expect(zoomLevel).to.equal(8);
-      })
-
-      let zoomOutButton = cy.get('.leaflet-control-zoom-out span');
-      zoomOutButton.click()
-      cy.wait(250)
-      zoomOutButton.click()
-      cy.wait(250);
-      zoomOutButton.click()
-      cy.wait(250);
-      zoomOutButton.click()
-      cy.wait(250);
-      zoomOutButton.click()
-      cy.wait(500)
-
-      cy.window().then((win: any) => {
-        const lmap = win.commonService.visuals.gisMap.lmap;
-        let zoomLevel = lmap.getZoom();
-        expect(zoomLevel).to.equal(3);
-      })
+      for (let offset = 2; offset >= -2; offset--) {
+        cy.get('.leaflet-control-zoom-out span').click();
+        cy.window().should((win: any) => {
+          const lmap = win.commonService.visuals.gisMap.lmap;
+          expect(lmap.getZoom()).to.equal(centeredZoom + offset);
+          expect(lmap._animatingZoom).to.not.equal(true);
+        });
+      }
 
       cy.get('#centerMapButton').click({ force: true });
-      cy.wait(1000)
-      cy.window().then((win: any) => {
+      cy.window().should((win: any) => {
         const lmap = win.commonService.visuals.gisMap.lmap;
-        let zoomLevel = lmap.getZoom();
-        expect(zoomLevel).to.equal(5);
-      })
+        expect(lmap.getZoom()).to.equal(centeredZoom);
+      });
     });
 
     it('test node tooltip', ()=> {
@@ -860,16 +845,9 @@ describe('Map View', () => {
       cy.window().should((win: any) => {
         const mapView = win.commonService.visuals.gisMap;
         const selectedNode = win.commonService.session.data.nodes.find((node: any) => node._id === targetNodeId);
-        const spiderfiedCluster = mapView.layers.markerClusterGroup._spiderfied;
-
         expect(selectedNode?.selected, `${targetNodeId} remains selected after enabling auto-expand`).to.equal(true);
         expect(mapView.SelectedManualPositionNodeId, 'manual position target follows search').to.equal(targetNodeId);
-        expect(spiderfiedCluster, 'spiderfied metanode').to.exist;
-
-        const spiderfiedNodeIds = spiderfiedCluster
-          .getAllChildMarkers()
-          .map((marker: any) => marker.data?._id);
-        expect(spiderfiedNodeIds, 'spiderfied metanode node ids').to.include(targetNodeId);
+        expectMapNodeExpanded(mapView, targetNodeId);
       });
 
       cy.closeSettingsPane('Geospatial Settings');
@@ -1057,6 +1035,7 @@ describe('Map View', () => {
     it('should update link colors variable to Cluster and then change one of the colors', () => {
       cy.get('#link-tooltip-variable').click()
       cy.get('li[role="option"]').contains('Cluster').click()
+      cy.window().its('commonService.session.style.widgets.link-color-variable').should('equal', 'cluster');
 
       cy.wait(250);
       cy.get('#key-tables-link-table td input').first().invoke('val', '#777777').trigger('input').trigger('change');
@@ -1107,18 +1086,24 @@ describe('Map View', () => {
       cy.get('#map-node-collapsing').contains('Off').click()
       cy.closeSettingsPane('Geospatial Settings')
 
-      cy.get('#node-color-variable').click()
-      cy.get('li[role="option"]').contains('Cluster').click()
+      cy.get('#node-color-variable').click();
+      cy.contains('[role="listbox"]:visible [role="option"]', /^Cluster$/).click();
+      cy.window().its('commonService.session.style.widgets.node-color-variable').should('equal', 'cluster');
+      cy.get('#node-color-variable .p-select-label').should('contain', 'Cluster');
+      cy.get('#key-tables-node-table').should('contain', 'Node cluster');
 
-      cy.get('#link-tooltip-variable').click()
-      cy.get('li[role="option"]').contains('Cluster').click()
+      cy.get('#link-tooltip-variable .p-select-label').click();
+      cy.get('[role="listbox"]:visible').should('be.visible');
+      cy.wait(300);
+      cy.contains('[role="listbox"]:visible [role="option"]', /^Cluster$/).click();
+      cy.window().its('commonService.session.style.widgets.link-color-variable').should('equal', 'cluster');
+      cy.get('#link-tooltip-variable .p-select-label').should('contain', 'Cluster');
 
       cy.contains('#global-settings-modal .nav-link', 'Filtering').click();
       for (let i = 0; i < 6; i++) {
         cy.get('#link-threshold').type('{uparrow}');
       }
-      cy.wait(2000);
-      cy.window().then((win: any) => {
+      cy.window().should((win: any) => {
         expect(win.commonService.session.style.widgets["link-threshold"]).to.eq(22)
         
         let links = win.commonService.visuals.gisMap.layers.links._layers;
@@ -1135,8 +1120,7 @@ describe('Map View', () => {
       for (let i = 0; i < 8; i++) {
         cy.get('#link-threshold').type('{downarrow}');
       }
-      cy.wait(2000);
-      cy.window().then((win: any) => {
+      cy.window().should((win: any) => {
         expect(win.commonService.session.style.widgets["link-threshold"]).to.eq(14)
 
         let links = win.commonService.visuals.gisMap.layers.links._layers;
@@ -1165,6 +1149,7 @@ describe('Map View', () => {
           expect(widgets['map-countries-show']).to.equal(false);
           expect(widgets['map-basemap-show']).to.equal(true);
           expect(widgets['map-collapsing-on']).to.equal(false);
+          expect(widgets['map-field-zipcode']).to.equal('None');
           expect(widgets['map-node-tooltip-variable']).to.equal('Lineage')
         });
 
@@ -1173,7 +1158,16 @@ describe('Map View', () => {
 
       cy.closeGlobalSettings();
 
-      cy.window().its('commonService.visuals.gisMap').then(mapView => {
+      cy.window().its('commonService.visuals.gisMap.layers.featureGroup').should(group => {
+        expect(group.getLayers()).to.have.length(0);
+      });
+      cy.get(selectors.settingsBtn).click();
+      cy.contains('.p-dialog-title', 'Geospatial Settings').should('be.visible');
+      cy.get('#map-field-zipcode').click();
+      cy.contains('li[role="option"]', 'Zipcode').click();
+      cy.closeSettingsPane('Geospatial Settings');
+
+      cy.window().its('commonService.visuals.gisMap').should(mapView => {
         let nodeLayers = mapView.layers.featureGroup._layers;
         expect(Object.keys(nodeLayers)).to.have.length(30);
         Object.values(nodeLayers).forEach((node: any) => {
