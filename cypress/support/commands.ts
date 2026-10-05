@@ -23,12 +23,20 @@ function closeVisibleSelectOverlays(): void {
 function expandVisibleGlobalStylingAccordions(): void {
   cy.get('body').then(($body) => {
     const collapsedHeaders = $body.find(
-      '.p-dialog:visible #style-config:visible p-accordion-header button[aria-expanded="false"]'
+      '.p-dialog:visible #style-config p-accordion-header[aria-expanded="false"]'
     );
 
     if (!collapsedHeaders.length) return;
     cy.wrap(collapsedHeaders).each(($header) => {
-      cy.wrap($header).click({ force: true });
+      const contentId = $header.attr('aria-controls');
+      cy.wrap($header)
+        .click({ force: true })
+        .should('have.attr', 'aria-expanded', 'true');
+      if (contentId) {
+        cy.get(`#${contentId} p-motion`)
+          .should('not.have.class', 'p-collapsible-enter-active')
+          .and('not.have.class', 'p-collapsible-enter-to');
+      }
     });
   });
 }

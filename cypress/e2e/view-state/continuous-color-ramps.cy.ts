@@ -46,6 +46,23 @@ const closeSettingsPaneIfVisible = (title: string): void => {
   });
 };
 
+const centerGlobalSettingsControl = (
+  selector: string
+): Cypress.Chainable<JQuery<HTMLElement>> => cy.get(selector, { timeout: 15000 }).then(($control) => {
+  const control = $control.get(0);
+  const scrollContainer = control.closest('.p-dialog-content') as HTMLElement | null;
+
+  if (scrollContainer) {
+    const controlRect = control.getBoundingClientRect();
+    const containerRect = scrollContainer.getBoundingClientRect();
+    scrollContainer.scrollTop += controlRect.top
+      - containerRect.top
+      - ((scrollContainer.clientHeight - controlRect.height) / 2);
+  }
+
+  return $control;
+});
+
 describe('Continuous numeric color ramps', () => {
   beforeEach(() => {
     launchSample();
@@ -149,8 +166,7 @@ describe('Continuous numeric color ramps', () => {
       .and('contain', '20 #ffffff');
 
     cy.openGlobalSettings();
-    cy.get('#link-color-table-row', { timeout: 15000 })
-      .scrollIntoView()
+    centerGlobalSettingsControl('#link-color-table-row')
       .should('be.visible')
       .contains('.p-togglebutton-label', 'Show')
       .click({ force: true });
@@ -161,7 +177,7 @@ describe('Continuous numeric color ramps', () => {
       .should('have.attr', 'aria-label', 'Edit link color ramp')
       .click();
     cy.contains('.p-dialog:visible .p-dialog-title', 'Global Settings').should('be.visible');
-    cy.get('#link-continuous-color-editor').scrollIntoView().should('be.visible');
+    centerGlobalSettingsControl('#link-continuous-color-editor').should('be.visible');
     cy.focused().should('have.id', 'link-continuous-color-editor-domain-kind');
     cy.get('#global-settings-link-color-table').should('be.visible');
   });
@@ -427,7 +443,10 @@ describe('Continuous numeric color ramps', () => {
       const renderedLink = twoD.cy.edges().filter((edge: any) => Number.isFinite(Number(edge.data('distance')))).first();
       expect(renderedLink.empty(), '2D link exists').to.equal(false);
       expect(canonicalColor(win, renderedLink.style('line-color')), '2D link color')
-        .to.equal(canonicalColor(win, common.temp.style.linkColorMap(renderedLink.data('distance'))));
+        .to.equal(canonicalColor(
+          win,
+          common.temp.style.linkColorMap(common.getLinkColorValue(renderedLink.data(), 'distance'))
+        ));
     });
 
     cy.contains('button', 'View').click();
@@ -454,7 +473,10 @@ describe('Continuous numeric color ramps', () => {
       expect(canonicalColor(win, nodeLayer.options.fillColor), 'Map node color')
         .to.equal(canonicalColor(win, common.getNodeFillStyle(nodeLayer.data).color));
       expect(canonicalColor(win, linkLayer.options.color), 'Map link color')
-        .to.equal(canonicalColor(win, common.temp.style.linkColorMap(linkLayer.data.distance)));
+        .to.equal(canonicalColor(
+          win,
+          common.temp.style.linkColorMap(common.getLinkColorValue(linkLayer.data, 'distance'))
+        ));
     });
 
     cy.contains('button', 'View').click();
