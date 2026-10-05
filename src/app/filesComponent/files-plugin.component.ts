@@ -988,9 +988,10 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
     }
 
     const skipDemoSession = new URL(window.location.href).searchParams.get('skipDemoSession') === '1';
+    const hasLocalSessionLink = new URL(window.location.href).searchParams.has('localSession');
     const hasPendingHandoff = this.embedHandoffService.hasPendingHandoffInUrl();
 
-    if (skipDemoSession || hasPendingHandoff) {
+    if (skipDemoSession || hasPendingHandoff || hasLocalSessionLink) {
       this.commonService.session.network.initialLoad = true;
     }
 
