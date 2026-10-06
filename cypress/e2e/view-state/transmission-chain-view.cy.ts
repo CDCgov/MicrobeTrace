@@ -97,7 +97,13 @@ const openSettings = (): void => {
 const selectDateField = (): void => {
   cy.get('@dialogContainer').contains('.nav-link', 'Layout').click({ force: true });
   cy.get('@dialogContainer').find('#transmission-chain-date-field', { timeout: 10000 }).click({ force: true });
-  cy.contains('li[role="option"]', dateField, { timeout: 10000 }).click({ force: true });
+  cy.get('.p-select-overlay:visible', { timeout: 10000 })
+    .last()
+    .find('.p-select-option')
+    .filter((_index, option) => String(option.textContent || '').trim() === dateField)
+    .should('have.length', 1)
+    .click({ force: true });
+  cy.get('.p-select-overlay:visible').should('not.exist');
   cy.window().its('commonService.session.style.widgets.transmission-chain-date-field').should('equal', dateField);
   cy.get('.timeline-axis-overlay:not(.hidden)', { timeout: 20000 }).should('exist');
 };
@@ -156,9 +162,15 @@ const openNodeSizePanel = (): void => {
   cy.get('@dialogContainer').find('.tab-pane.active #node-radius').then(($input) => {
     if ($input.css('visibility') === 'hidden' || !$input.is(':visible')) {
       cy.get('@dialogContainer').find('.tab-pane.active #node-radius-variable').click({ force: true });
-      cy.contains('li[role="option"]', 'None', { timeout: 10000 }).click({ force: true });
+      cy.get('.p-select-overlay:visible', { timeout: 10000 })
+        .last()
+        .find('.p-select-option')
+        .filter((_index, option) => String(option.textContent || '').trim() === 'None')
+        .should('have.length', 1)
+        .click({ force: true });
     }
   });
+  cy.get('.p-select-overlay:visible').should('not.exist');
   cy.get('@dialogContainer').find('.tab-pane.active #node-radius', { timeout: 10000 }).should('be.visible');
 };
 
@@ -170,9 +182,15 @@ const openLinkSizePanel = (): void => {
   cy.get('@dialogContainer').find('.tab-pane.active #link-width').then(($input) => {
     if ($input.css('visibility') === 'hidden' || !$input.is(':visible')) {
       cy.get('@dialogContainer').find('.tab-pane.active #link-width-variable').click({ force: true });
-      cy.contains('li[role="option"]', 'None', { timeout: 10000 }).click({ force: true });
+      cy.get('.p-select-overlay:visible', { timeout: 10000 })
+        .last()
+        .find('.p-select-option')
+        .filter((_index, option) => String(option.textContent || '').trim() === 'None')
+        .should('have.length', 1)
+        .click({ force: true });
     }
   });
+  cy.get('.p-select-overlay:visible').should('not.exist');
   cy.get('@dialogContainer').find('.tab-pane.active #link-width', { timeout: 10000 }).should('be.visible');
 };
 
@@ -210,6 +228,36 @@ const expectVisibleNodesWithinTimelineAxes = (cyInstance: Core): void => {
     expect(bounds.y1, `${node.id()} top edge`).to.be.at.least(0);
     expect(bounds.y2, `${node.id()} bottom edge`).to.be.at.most(plotBottom);
   });
+};
+
+const expectVisiblePlotWithinTimelineAxes = (cyInstance: Core): void => {
+  const timelineOverlay = cyInstance.container()?.parentElement
+    ?.querySelector('.timeline-axis-overlay:not(.hidden)');
+  const baseline = timelineOverlay?.querySelector('.timeline-axis-baseline');
+  const axisY = Number(baseline?.getAttribute('y1'));
+  const plotBottom = axisY - 8;
+  const plotElements = cyInstance.elements(':visible').filter((element) => !element.hasClass('hidden'));
+  const bounds = plotElements.renderedBoundingBox({ includeLabels: true, includeOverlays: false });
+
+  expect(baseline, 'timeline axis baseline').to.exist;
+  expect(Number.isFinite(axisY), 'timeline axis y coordinate').to.equal(true);
+  expect(bounds.x1, 'plot left edge').to.be.at.least(0);
+  expect(bounds.x2, 'plot right edge').to.be.at.most(cyInstance.width());
+  expect(bounds.y1, 'plot top edge').to.be.at.least(0);
+  expect(bounds.y2, 'plot bottom edge').to.be.at.most(plotBottom);
+};
+
+const expectVisiblePlotFillsTimelineAxes = (cyInstance: Core): void => {
+  const timelineOverlay = cyInstance.container()?.parentElement
+    ?.querySelector('.timeline-axis-overlay:not(.hidden)');
+  const baseline = timelineOverlay?.querySelector('.timeline-axis-baseline');
+  const axisY = Number(baseline?.getAttribute('y1'));
+  const plotBottom = axisY - 8;
+  const plotElements = cyInstance.elements(':visible').filter((element) => !element.hasClass('hidden'));
+  const bounds = plotElements.renderedBoundingBox({ includeLabels: true, includeOverlays: false });
+
+  expect(bounds.w / cyInstance.width(), 'horizontal plot occupancy').to.be.at.least(0.75);
+  expect(bounds.h / plotBottom, 'vertical plot occupancy').to.be.at.least(0.75);
 };
 
 const getFirstVisibleOrigin = (): Cypress.Chainable<string> =>
@@ -284,21 +332,110 @@ describe('Transmission Chain View', () => {
     });
   });
 
-  it('keeps every node within the timeline axes after resizing and changing node size', () => {
+  it('uses larger view-specific defaults for nodes and links', () => {
+    selectDateField();
+
+    cy.window().then((win: any) => {
+      const widgets = win.commonService.session.style.widgets;
+
+      expect(widgets['transmission-chain-node-radius'], 'transmission chain node size').to.equal(50);
+      expect(widgets['transmission-chain-link-width'], 'transmission chain link width').to.equal(12);
+      expect(widgets['node-radius'], '2D Network node size').to.equal(20);
+      expect(widgets['link-width'], '2D Network link width').to.equal(3);
+    });
+
+    getTransmissionCy().then((cyInstance) => {
+      expect(cyInstance.edges(':visible').length, 'visible chain links').to.be.greaterThan(0);
+      expectTransmissionChainSizing(cyInstance, 50, 12);
+    });
+  });
+
+  it('starts at a readable Auto zoom while Center Screen compacts and fits the complete plot', () => {
     cy.viewport(1000, 500);
     selectDateField();
 
-    getTransmissionCy().should((cyInstance) => {
-      expectVisibleNodesWithinTimelineAxes(cyInstance);
+    getTransmissionCy().then((cyInstance) => {
+      const node = leafNodes(cyInstance).first();
+      const renderedNodeWidth = parseFloat(node.style('width')) * cyInstance.zoom();
+
+      expect(renderedNodeWidth, 'initial rendered node width').to.be.at.least(13.9);
+      const positions = leafNodes(cyInstance).map((currentNode) => ({
+        id: currentNode.id(),
+        x: currentNode.position('x'),
+        y: currentNode.position('y'),
+      }));
+      const yValues = positions.map((position) => position.y);
+      cy.wrap(positions, { log: false }).as('initialAutoPositions');
+      cy.wrap(Math.max(...yValues) - Math.min(...yValues), { log: false }).as('initialAutoYSpan');
     });
+
+    cy.window().then((win: any) => {
+      win.commonService.visuals.transmissionChain.cy.viewport({
+        zoom: 1.5,
+        pan: { x: 0, y: 0 },
+      });
+    });
+
+    cy.get(byTestId(testIds.transmissionChainCenterButton)).click({ force: true });
+
+    cy.get<Array<{ id: string; x: number; y: number }>>('@initialAutoPositions').then((initialPositions) => {
+      cy.get<number>('@initialAutoYSpan').then((initialYSpan) => {
+        getTransmissionCy().then((cyInstance) => {
+          const initialXById = new Map(initialPositions.map((position) => [position.id, position.x]));
+          const centeredPositions = leafNodes(cyInstance).map((node) => ({
+            id: node.id(),
+            x: node.position('x'),
+            y: node.position('y'),
+          }));
+          const centeredYValues = centeredPositions.map((position) => position.y);
+          const centeredYSpan = Math.max(...centeredYValues) - Math.min(...centeredYValues);
+
+          centeredPositions.forEach((position) => {
+            expect(position.x, `${position.id} timeline x`).to.be.closeTo(initialXById.get(position.id)!, 0.01);
+          });
+          expect(centeredYSpan, 'compacted vertical layout span').to.be.lessThan(initialYSpan);
+          expectVisiblePlotWithinTimelineAxes(cyInstance);
+          expectVisiblePlotFillsTimelineAxes(cyInstance);
+
+          cy.wrap(centeredPositions, { log: false }).as('centeredPositions');
+          cy.wrap(cyInstance.zoom(), { log: false }).as('centeredZoom');
+        });
+      });
+    });
+
+    cy.get(byTestId(testIds.transmissionChainCenterButton)).click({ force: true });
+    cy.get<Array<{ id: string; x: number; y: number }>>('@centeredPositions').then((centeredPositions) => {
+      cy.get<number>('@centeredZoom').then((centeredZoom) => {
+        getTransmissionCy().should((cyInstance) => {
+          const repeatedPositions = new Map(
+            leafNodes(cyInstance).map((node) => [node.id(), node.position()]),
+          );
+
+          centeredPositions.forEach((position) => {
+            const repeatedPosition = repeatedPositions.get(position.id)!;
+            expect(repeatedPosition.x, `${position.id} repeated x`).to.be.closeTo(position.x, 0.01);
+            expect(repeatedPosition.y, `${position.id} repeated y`).to.be.closeTo(position.y, 0.01);
+          });
+          expect(cyInstance.zoom(), 'repeated Center Screen zoom').to.be.closeTo(centeredZoom, 0.0001);
+          expectVisiblePlotWithinTimelineAxes(cyInstance);
+          expectVisiblePlotFillsTimelineAxes(cyInstance);
+        });
+      });
+    });
+  });
+
+  it('keeps every node within the timeline axes after changing node size', () => {
+    cy.viewport(1000, 500);
+    selectDateField();
 
     openNodeSizePanel();
     cy.get('@dialogContainer').find('.tab-pane.active #node-radius')
       .invoke('val', 100)
       .trigger('change', { force: true });
+    cy.get(byTestId(testIds.transmissionChainCenterButton)).click({ force: true });
 
     getTransmissionCy().should((cyInstance) => {
-      expectVisibleNodesWithinTimelineAxes(cyInstance);
+      expectVisiblePlotWithinTimelineAxes(cyInstance);
     });
   });
 
@@ -571,7 +708,7 @@ describe('Transmission Chain View', () => {
       ).to.equal(null);
     });
     getTransmissionCy().should((cyInstance) => {
-      expectVisibleNodesWithinTimelineAxes(cyInstance);
+      expectVisiblePlotWithinTimelineAxes(cyInstance);
     });
   });
 
@@ -614,13 +751,13 @@ describe('Transmission Chain View', () => {
     cy.get('@dialogContainer').find('.tab-pane.active #node-radius')
       .invoke('val', nodeSize)
       .trigger('change', { force: true });
-    cy.window().its('commonService.session.style.widgets.node-radius').should('equal', nodeSize);
+    cy.window().its('commonService.session.style.widgets.transmission-chain-node-radius').should('equal', nodeSize);
 
     openLinkSizePanel();
     cy.get('@dialogContainer').find('.tab-pane.active #link-width')
       .invoke('val', linkWidth)
       .trigger('change', { force: true });
-    cy.window().its('commonService.session.style.widgets.link-width').should('equal', linkWidth);
+    cy.window().its('commonService.session.style.widgets.transmission-chain-link-width').should('equal', linkWidth);
 
     getTransmissionCy().should((cyInstance) => {
       expect(cyInstance.edges(':visible').length, 'visible chain links').to.be.greaterThan(0);
@@ -705,10 +842,7 @@ describe('Transmission Chain View', () => {
               && (Array.isArray(link.origin) ? link.origin : [link.origin])
                 .some((linkOrigin: any) => String(linkOrigin || '').trim() === origin)
             ))
-            .reduce((count: number, link: any) => {
-              const origins = Array.isArray(link.origin) ? link.origin : [link.origin];
-              return count + Math.max(1, origins.filter(Boolean).length);
-            }, 0);
+            .length;
 
           win.commonService.visuals.transmissionChain.onTransmissionChainLinkOriginsChange([origin]);
         });
@@ -739,10 +873,14 @@ describe('Transmission Chain View', () => {
 
     const syntheticOrigin = 'Synthetic Transmission Origin';
     let originalOrigin = '';
+    let selectedSource = '';
+    let selectedTarget = '';
     getTransmissionCy().then((cyInstance) => {
       const renderedLink = cyInstance.edges(':visible').first();
       const source = String(renderedLink.data('source'));
       const target = String(renderedLink.data('target'));
+      selectedSource = source;
+      selectedTarget = target;
 
       cy.window().then((win: any) => {
         const link = win.commonService.session.data.links.find((candidate: any) => (
@@ -761,7 +899,12 @@ describe('Transmission Chain View', () => {
     });
 
     getTransmissionCy().should((cyInstance) => {
-      const duoEdges = cyInstance.edges(':visible').toArray();
+      const duoEdges = cyInstance.edges(':visible')
+        .filter((edge) => (
+          edge.source().id() === selectedSource
+          && edge.target().id() === selectedTarget
+        ))
+        .toArray();
 
       expect(duoEdges.length, 'rendered halves of the selected duo-link').to.equal(2);
       expect(

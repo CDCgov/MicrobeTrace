@@ -40,6 +40,9 @@ import { createGlobalSettingsDialogRequest, GlobalSettingsDialogRequest } from '
 type NetworkLayoutMode = 'Force Directed' | 'Timeline';
 type TransmissionChainLineStyle = 'Stepped' | 'Straight' | 'Curved' | 'Fanout';
 
+const TRANSMISSION_CHAIN_DEFAULT_LINK_WIDTH = 12;
+const TRANSMISSION_CHAIN_DEFAULT_NODE_SIZE = 50;
+const TRANSMISSION_CHAIN_MIN_INITIAL_RENDERED_NODE_SIZE = 14;
 const TIMELINE_AXIS_BOTTOM_OFFSET = 48;
 const TIMELINE_AXIS_GRID_GAP = 8;
 const TIMELINE_NODE_AXIS_GAP = 8;
@@ -121,6 +124,13 @@ interface TwoDViewportBoundingBox {
     y2: number;
 }
 
+interface TimelineViewportArea {
+    left: number;
+    top: number;
+    width: number;
+    height: number;
+}
+
 @Component({
     selector: 'TwoDComponent',
     templateUrl: './twoD-plugin.component.html',
@@ -164,6 +174,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
     private timelineFinalCollapsedAggregatePositionAnchors: CollapsedAggregatePositionAnchor[] = [];
     private timelineFinalCollapsedLayoutReady = false;
     private timelineCompleteFitBoundingBox: TwoDViewportBoundingBox | null = null;
+    private transmissionChainInitialAutoFitPending = true;
     private nodeCollapseShapeWarningConfirmed = false;
     private nodeCollapseShapeWarningPending = false;
     private nodeCollapseRefreshPending = false;
@@ -192,12 +203,12 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
     }
 
     private getNodeLayoutSpacing(): number {
-        return Math.max(48, Number(this.widgets?.['node-radius'] || 20) * 3);
+        return Math.max(48, this.getConfiguredNodeSize() * 3);
     }
 
     private getNodeCollisionRadius(node: any): number {
         const aggregateRenderedSize = Number(node?.aggregateRenderedSize);
-        const configuredNodeSize = Number(node?.nodeSize ?? this.widgets?.['node-radius']);
+        const configuredNodeSize = Number(node?.nodeSize ?? this.getConfiguredNodeSize());
         const fallbackNodeSize = Number.isFinite(configuredNodeSize) && configuredNodeSize > 0
             ? configuredNodeSize
             : 20;
@@ -540,7 +551,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                 useNativeShapeClip: this.mixedColorImageShouldCoverShape(normalizedShapeKey),
                 customShapePadding: 0,
                 customShapeViewBoxPadding: 0,
-                renderedSize: renderedSize ?? this.mapNodeSize(Number(node?.nodeSize ?? this.widgets['node-radius']))
+                renderedSize: renderedSize ?? this.mapNodeSize(Number(node?.nodeSize ?? this.getConfiguredNodeSize()))
             }
         );
     }
@@ -974,9 +985,29 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         if (!this.isTransmissionChainLineStyle(this.widgets['transmission-chain-line-style'])) {
             this.widgets['transmission-chain-line-style'] = 'Stepped';
         }
+        if (!Number.isFinite(Number(this.widgets['transmission-chain-link-width']))) {
+            this.widgets['transmission-chain-link-width'] = TRANSMISSION_CHAIN_DEFAULT_LINK_WIDTH;
+        }
+        if (!Number.isFinite(Number(this.widgets['transmission-chain-node-radius']))) {
+            this.widgets['transmission-chain-node-radius'] = TRANSMISSION_CHAIN_DEFAULT_NODE_SIZE;
+        }
         if (!this.widgets['transmission-chain-vertical-spacing']) {
             this.widgets['transmission-chain-vertical-spacing'] = 100;
         }
+    }
+
+    private getConfiguredLinkWidth(): number {
+        const key = this.isTransmissionChainView ? 'transmission-chain-link-width' : 'link-width';
+        const value = Number(this.widgets?.[key]);
+        const fallback = this.isTransmissionChainView ? TRANSMISSION_CHAIN_DEFAULT_LINK_WIDTH : 3;
+        return Number.isFinite(value) ? value : fallback;
+    }
+
+    private getConfiguredNodeSize(): number {
+        const key = this.isTransmissionChainView ? 'transmission-chain-node-radius' : 'node-radius';
+        const value = Number(this.widgets?.[key]);
+        const fallback = this.isTransmissionChainView ? TRANSMISSION_CHAIN_DEFAULT_NODE_SIZE : 20;
+        return Number.isFinite(value) ? value : fallback;
     }
 
     private isTransmissionChainLineStyle(value: any): value is TransmissionChainLineStyle {
@@ -2351,8 +2382,8 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             return aggregateRenderedSize;
         }
 
-        const rawSize = Number(node?.nodeSize ?? this.widgets?.['node-radius']);
-        const size = Number.isFinite(rawSize) ? rawSize : Number(this.widgets?.['node-radius'] ?? 10);
+        const rawSize = Number(node?.nodeSize ?? this.getConfiguredNodeSize());
+        const size = Number.isFinite(rawSize) ? rawSize : this.getConfiguredNodeSize();
         return this.mapNodeSize(size);
     }
 
@@ -6562,7 +6593,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         let sizeVariable = this.widgets['node-radius-variable'];
 
         if (sizeVariable == 'None') {
-            return Number(this.widgets['node-radius']);
+            return this.getConfiguredNodeSize();
         } else {
 
             let v = Number(node[sizeVariable]);
@@ -6610,7 +6641,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
       }
 
     getLinkWidth(link: any) {
-        let scalar = this.widgets['link-width'];
+        let scalar = this.getConfiguredLinkWidth();
         let variable = this.widgets['link-width-variable'];
 
         // console.log('--- TwoD getLinkWidth link1: ', scalar, variable);
@@ -6960,7 +6991,8 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
      */
     public onNodeRadiusChange(e) {
 
-        this.widgets['node-radius'] = this.SelectedNodeRadiusSizeVariable;
+        const key = this.isTransmissionChainView ? 'transmission-chain-node-radius' : 'node-radius';
+        this.widgets[key] = this.SelectedNodeRadiusSizeVariable;
         if (this.isNodeCollapseEnabled() && this.cy) {
             this.refreshNodeCollapseRender();
             return;
@@ -7513,7 +7545,15 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
               this.setNetworkRendering(false);
               this.commonService.demoNetworkRendered = true;
               this.applyTimelineNodePositionConstraints();
-              this.scheduleTimelineAxisOverlayUpdate();
+              if (
+                this.isTransmissionChainView
+                && this.isTimelineLayoutActive()
+                && !this.pendingPartialUpdate
+              ) {
+                this.fit();
+              } else {
+                this.scheduleTimelineAxisOverlayUpdate();
+              }
 
               if (this.pendingPartialUpdate) {
                 void this._partialUpdate();
@@ -7856,7 +7896,8 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
      * Updates link-width widget and link width
      */
     onLinkWidthChange(e) {
-        this.widgets['link-width'] = e;
+        const key = this.isTransmissionChainView ? 'transmission-chain-link-width' : 'link-width';
+        this.widgets[key] = e;
         this.scaleLinkWidth();        
     }
 
@@ -8470,7 +8511,7 @@ scaleLinkWidth() {
     const variable = this.widgets['link-width-variable'];
     if (!this.cy) return;
     if (variable === 'None') {
-        const width = Number(this.widgets['link-width']);
+        const width = this.getConfiguredLinkWidth();
         this.cy.edges().forEach(edge => {
             edge.data('width', width);
         });
@@ -8484,7 +8525,7 @@ scaleLinkWidth() {
 
     const scaleValues = this.calculateLinkWidthScale();
     if (!scaleValues) {
-        const width = Number(this.widgets['link-width']);
+        const width = this.getConfiguredLinkWidth();
         this.cy.edges().forEach(edge => {
             edge.data('width', width);
         });
@@ -8528,94 +8569,333 @@ scaleLinkWidth() {
     /**
      * centers the view
      */
-    private fitTimelineNodesWithinAxes(): boolean {
-        if (!this.cy || !this.isTimelineLayoutActive() || !this.timelineLayoutMetadata.active) {
-            return false;
-        }
-
-        const { width, height, screenTop } = this.getTimelineAxisOverlayFrame();
-        if (!width || !height) {
-            return false;
-        }
-
-        const visibleLeafNodes = this.cy.nodes(':visible').filter(node => (
+    private getVisibleTimelineLeafNodes(): any {
+        return this.cy.nodes(':visible').filter(node => (
             !node.hasClass('hidden')
             && !node.hasClass('parent')
             && node.children().length === 0
         ));
-        if (visibleLeafNodes.empty()) {
-            return false;
+    }
+
+    private getTimelineViewportArea(): TimelineViewportArea | null {
+        const { width, height, screenTop } = this.getTimelineAxisOverlayFrame();
+        if (!width || !height) {
+            return null;
         }
 
-        const visibleNodeBounds = this.isTimelineFilteringActive() && this.timelineCompleteFitBoundingBox
-            ? this.timelineCompleteFitBoundingBox
-            : visibleLeafNodes.boundingBox({ includeLabels: false, includeOverlays: false });
         const hasCategoricalYAxis = this.isTransmissionChainView
             && this.timelineLayoutMetadata.yAxisField !== 'None'
             && this.timelineLayoutMetadata.yAxisGroups.length > 0;
-        const yAxisGroups = this.timelineLayoutMetadata.yAxisGroups;
-        const nodeBounds: TwoDViewportBoundingBox = {
-            x1: visibleNodeBounds.x1,
-            y1: hasCategoricalYAxis
-                ? Math.min(visibleNodeBounds.y1, yAxisGroups[0].boundaryMinY)
-                : visibleNodeBounds.y1,
-            x2: visibleNodeBounds.x2,
-            y2: hasCategoricalYAxis
-                ? Math.max(visibleNodeBounds.y2, yAxisGroups[yAxisGroups.length - 1].boundaryMaxY)
-                : visibleNodeBounds.y2
-        };
         const toolbarRect = hasCategoricalYAxis
             ? this.getRect(this.toolBtnContainer?.nativeElement)
             : null;
-        const topPadding = Math.max(
+        const top = Math.max(
             TIMELINE_VIEWPORT_PADDING.top,
             toolbarRect
                 ? Math.ceil(toolbarRect.bottom - screenTop + TIMELINE_TOOLBAR_GAP)
                 : 0
         );
+        const availableWidth = width - TIMELINE_VIEWPORT_PADDING.left - TIMELINE_VIEWPORT_PADDING.right;
+        const availableHeight = height - top - TIMELINE_VIEWPORT_PADDING.bottom;
+
+        if (availableWidth <= 0 || availableHeight <= 0) {
+            return null;
+        }
+
+        return {
+            left: TIMELINE_VIEWPORT_PADDING.left,
+            top,
+            width: availableWidth,
+            height: availableHeight
+        };
+    }
+
+    private getTimelineViewportTransform(
+        nodeBounds: TwoDViewportBoundingBox,
+        minimumZoom: number = this.cy.minZoom(),
+        maximumZoom: number = this.cy.maxZoom()
+    ): { zoom: number; pan: { x: number; y: number } } | null {
+        const viewportArea = this.getTimelineViewportArea();
+        if (!viewportArea) {
+            return null;
+        }
         const boundsWidth = nodeBounds.x2 - nodeBounds.x1;
         const boundsHeight = nodeBounds.y2 - nodeBounds.y1;
-        const availableWidth = width - TIMELINE_VIEWPORT_PADDING.left - TIMELINE_VIEWPORT_PADDING.right;
-        const availableHeight = height - topPadding - TIMELINE_VIEWPORT_PADDING.bottom;
 
         if (
             ![nodeBounds.x1, nodeBounds.y1, nodeBounds.x2, nodeBounds.y2, boundsWidth, boundsHeight]
                 .every(value => Number.isFinite(value))
             || boundsWidth <= 0
             || boundsHeight <= 0
-            || availableWidth <= 0
-            || availableHeight <= 0
         ) {
-            return false;
+            return null;
         }
 
         const zoom = Math.min(
-            this.cy.maxZoom(),
+            maximumZoom,
             Math.max(
-                this.cy.minZoom(),
-                Math.min(availableWidth / boundsWidth, availableHeight / boundsHeight)
+                minimumZoom,
+                Math.min(viewportArea.width / boundsWidth, viewportArea.height / boundsHeight)
             )
         );
         const renderedWidth = boundsWidth * zoom;
         const renderedHeight = boundsHeight * zoom;
-        const pan = {
-            x: TIMELINE_VIEWPORT_PADDING.left
-                + ((availableWidth - renderedWidth) / 2)
-                - (nodeBounds.x1 * zoom),
-            y: topPadding
-                + ((availableHeight - renderedHeight) / 2)
-                - (nodeBounds.y1 * zoom)
-        };
 
-        this.cy.viewport({ zoom, pan });
+        return {
+            zoom,
+            pan: {
+                x: viewportArea.left
+                    + ((viewportArea.width - renderedWidth) / 2)
+                    - (nodeBounds.x1 * zoom),
+                y: viewportArea.top
+                    + ((viewportArea.height - renderedHeight) / 2)
+                    - (nodeBounds.y1 * zoom)
+            }
+        };
+    }
+
+    private getTimelineNodeBounds(visibleLeafNodes: any): TwoDViewportBoundingBox {
+        const visibleNodeBounds = this.isTimelineFilteringActive() && this.timelineCompleteFitBoundingBox
+            ? this.timelineCompleteFitBoundingBox
+            : visibleLeafNodes.boundingBox({ includeLabels: false, includeOverlays: false });
+        return this.expandTimelineBoundsForCategoricalYAxis(visibleNodeBounds);
+    }
+
+    private expandTimelineBoundsForCategoricalYAxis(
+        bounds: TwoDViewportBoundingBox
+    ): TwoDViewportBoundingBox {
+        const hasCategoricalYAxis = this.isTransmissionChainView
+            && this.timelineLayoutMetadata.yAxisField !== 'None'
+            && this.timelineLayoutMetadata.yAxisGroups.length > 0;
+        const yAxisGroups = this.timelineLayoutMetadata.yAxisGroups;
+
+        return {
+            x1: bounds.x1,
+            y1: hasCategoricalYAxis
+                ? Math.min(bounds.y1, yAxisGroups[0].boundaryMinY)
+                : bounds.y1,
+            x2: bounds.x2,
+            y2: hasCategoricalYAxis
+                ? Math.max(bounds.y2, yAxisGroups[yAxisGroups.length - 1].boundaryMaxY)
+                : bounds.y2
+        };
+    }
+
+    private getVisibleTimelinePlotElements(): any {
+        return this.cy.elements(':visible').filter(element => !element.hasClass('hidden'));
+    }
+
+    private getCompleteTimelinePlotBounds(): TwoDViewportBoundingBox | null {
+        const visiblePlotElements = this.getVisibleTimelinePlotElements();
+        if (visiblePlotElements.empty()) {
+            return null;
+        }
+
+        return this.expandTimelineBoundsForCategoricalYAxis(
+            visiblePlotElements.boundingBox({ includeLabels: true, includeOverlays: false })
+        );
+    }
+
+    private scaleTimelineYAxisGroups(centerY: number, scale: number): void {
+        if (this.timelineLayoutMetadata.yAxisGroups.length === 0) {
+            return;
+        }
+
+        const scaleY = (value: number): number => centerY + ((value - centerY) * scale);
+        this.timelineLayoutMetadata = {
+            ...this.timelineLayoutMetadata,
+            yAxisGroups: this.timelineLayoutMetadata.yAxisGroups.map(group => ({
+                ...group,
+                minY: scaleY(group.minY),
+                maxY: scaleY(group.maxY),
+                centerY: scaleY(group.centerY),
+                boundaryMinY: scaleY(group.boundaryMinY),
+                boundaryMaxY: scaleY(group.boundaryMaxY)
+            }))
+        };
+    }
+
+    private compactTransmissionChainVerticallyToViewport(): boolean {
+        if (!this.cy || !this.isTransmissionChainView || !this.isTimelineLayoutActive()) {
+            return false;
+        }
+
+        const viewportArea = this.getTimelineViewportArea();
+        const visibleLeafNodes = this.getVisibleTimelineLeafNodes();
+        if (!viewportArea || visibleLeafNodes.empty()) {
+            return false;
+        }
+
+        let compacted = false;
+        for (let attempt = 0; attempt < 4; attempt++) {
+            const plotBounds = this.getCompleteTimelinePlotBounds();
+            if (!plotBounds) {
+                break;
+            }
+
+            const plotWidth = plotBounds.x2 - plotBounds.x1;
+            const plotHeight = plotBounds.y2 - plotBounds.y1;
+            const targetHeight = plotWidth * (viewportArea.height / viewportArea.width);
+            if (
+                ![plotWidth, plotHeight, targetHeight].every(value => Number.isFinite(value))
+                || plotWidth <= 0
+                || plotHeight <= 0
+                || targetHeight <= 0
+                || plotHeight <= targetHeight * 1.01
+            ) {
+                break;
+            }
+
+            const scale = Math.max(0.05, Math.min(1, targetHeight / plotHeight));
+            const centerY = (plotBounds.y1 + plotBounds.y2) / 2;
+            this.applyingTimelinePositionLock = true;
+            try {
+                this.cy.batch(() => {
+                    visibleLeafNodes.forEach(node => {
+                        const position = node.position();
+                        const compactedPosition = {
+                            x: position.x,
+                            y: centerY + ((position.y - centerY) * scale)
+                        };
+                        node.position(compactedPosition);
+                        this.nodePositions.set(node.id(), compactedPosition);
+                    });
+                });
+            } finally {
+                this.applyingTimelinePositionLock = false;
+            }
+
+            this.scaleTimelineYAxisGroups(centerY, scale);
+            compacted = true;
+        }
+
+        if (compacted) {
+            this.syncVisibleNodePositionsFromCy();
+            this.updateEdgeRoutingStyles();
+        }
+
+        return compacted;
+    }
+
+    private fitCompleteTimelinePlotWithinAxes(): boolean {
+        if (!this.cy || !this.isTimelineLayoutActive() || !this.timelineLayoutMetadata.active) {
+            return false;
+        }
+
+        const plotBounds = this.getCompleteTimelinePlotBounds();
+        if (!plotBounds) return false;
+        const transform = this.getTimelineViewportTransform(plotBounds);
+        if (!transform) {
+            return false;
+        }
+
+        this.cy.viewport(transform);
         return true;
     }
 
-    fit() {
+    private getLargestVisibleTransmissionChainComponent(visibleLeafNodes: any): any {
+        const nodeIds = new Set<string>(visibleLeafNodes.map(node => node.id()));
+        const visibleEdges = this.cy.edges(':visible').filter(edge => (
+            !edge.hasClass('hidden')
+            && nodeIds.has(edge.source().id())
+            && nodeIds.has(edge.target().id())
+        ));
+        const components = visibleLeafNodes
+            .union(visibleEdges)
+            .components()
+            .sort((componentA, componentB) => {
+                const sizeDifference = componentB.nodes().length - componentA.nodes().length;
+                if (sizeDifference !== 0) return sizeDifference;
+
+                const componentAKey = componentA.nodes().map(node => node.id()).sort().join('\u0000');
+                const componentBKey = componentB.nodes().map(node => node.id()).sort().join('\u0000');
+                return componentAKey.localeCompare(componentBKey);
+            });
+
+        return components[0]?.nodes() ?? this.cy.collection();
+    }
+
+    private fitTransmissionChainInitialAutoView(): boolean {
+        if (
+            !this.transmissionChainInitialAutoFitPending
+            || !this.isTransmissionChainView
+            || !this.isTimelineLayoutActive()
+            || !this.timelineLayoutMetadata.active
+        ) {
+            return false;
+        }
+
+        const visibleLeafNodes = this.getVisibleTimelineLeafNodes();
+        if (visibleLeafNodes.empty()) {
+            return false;
+        }
+
+        const fullTransform = this.getTimelineViewportTransform(this.getTimelineNodeBounds(visibleLeafNodes));
+        if (!fullTransform) {
+            return false;
+        }
+
+        const configuredNodeDiameter = this.mapNodeSize(this.getConfiguredNodeSize());
+        const minimumReadableZoom = Math.min(
+            this.cy.maxZoom(),
+            Math.max(
+                this.cy.minZoom(),
+                TRANSMISSION_CHAIN_MIN_INITIAL_RENDERED_NODE_SIZE / configuredNodeDiameter
+            )
+        );
+
+        if (fullTransform.zoom >= minimumReadableZoom) {
+            this.cy.viewport(fullTransform);
+            this.transmissionChainInitialAutoFitPending = false;
+            return true;
+        }
+
+        const largestComponent = this.getLargestVisibleTransmissionChainComponent(visibleLeafNodes);
+        if (largestComponent.empty()) {
+            return false;
+        }
+
+        const componentBounds = largestComponent.boundingBox({ includeLabels: false, includeOverlays: false });
+        const focusedTransform = this.getTimelineViewportTransform(
+            componentBounds,
+            minimumReadableZoom,
+            Math.max(minimumReadableZoom, Math.min(1, this.cy.maxZoom()))
+        );
+        if (!focusedTransform) {
+            return false;
+        }
+
+        this.cy.viewport(focusedTransform);
+        this.transmissionChainInitialAutoFitPending = false;
+        return true;
+    }
+
+    private fitTimelineNodesWithinAxes(): boolean {
+        if (!this.cy || !this.isTimelineLayoutActive() || !this.timelineLayoutMetadata.active) {
+            return false;
+        }
+
+        const visibleLeafNodes = this.getVisibleTimelineLeafNodes();
+        if (visibleLeafNodes.empty()) {
+            return false;
+        }
+
+        const transform = this.getTimelineViewportTransform(this.getTimelineNodeBounds(visibleLeafNodes));
+        if (!transform) {
+            return false;
+        }
+
+        this.cy.viewport(transform);
+        return true;
+    }
+
+    fit(allowTransmissionChainInitialAutoFit: boolean = true) {
         if (this.cy) {
             this.syncNetworkContainerBounds();
             this.cy.resize();
-            if (!this.fitTimelineNodesWithinAxes()) {
+            const usedInitialAutoFit = allowTransmissionChainInitialAutoFit
+                && this.fitTransmissionChainInitialAutoView();
+            if (!usedInitialAutoFit && !this.fitTimelineNodesWithinAxes()) {
                 if (this.isTimelineFilteringActive() && this.timelineCompleteFitBoundingBox) {
                     // Cytoscape accepts a bounding box at runtime, although its public
                     // TypeScript signature only advertises an element collection here.
@@ -8685,12 +8965,20 @@ scaleLinkWidth() {
      */
     openCenter() {
         if (this.isTimelineLayoutActive()) {
-            // Center Screen is an explicit request to fit the layout that is
-            // currently rendered. A cached pre-filter or pre-Y-axis bounding
-            // box can otherwise leave the current timeline outside the axes.
             this.timelineCompleteFitBoundingBox = null;
         }
-        this.fit();
+
+        if (this.isTransmissionChainView && this.cy) {
+            this.syncNetworkContainerBounds();
+            this.cy.resize();
+            this.compactTransmissionChainVerticallyToViewport();
+            if (this.fitCompleteTimelinePlotWithinAxes()) {
+                this.scheduleTimelineAxisOverlayUpdate();
+                return;
+            }
+        }
+
+        this.fit(false);
     }
 
     showExcludedTimelineNodes(): void {
@@ -9097,10 +9385,11 @@ scaleLinkWidth() {
         this.onNodeRadiusVariableChange(this.SelectedNodeRadiusVariable);
 
         //Nodes|Size
-        if (Number(this.widgets['node-radius']) > 100 || Number(this.widgets['node-radius']) < 0) {
-            this.widgets['node-radius'] = 20;
+        const nodeSizeKey = this.isTransmissionChainView ? 'transmission-chain-node-radius' : 'node-radius';
+        if (Number(this.widgets[nodeSizeKey]) > 100 || Number(this.widgets[nodeSizeKey]) < 0) {
+            this.widgets[nodeSizeKey] = this.isTransmissionChainView ? TRANSMISSION_CHAIN_DEFAULT_NODE_SIZE : 20;
         }
-        this.SelectedNodeRadiusSizeVariable = Number(this.widgets['node-radius']);
+        this.SelectedNodeRadiusSizeVariable = this.getConfiguredNodeSize();
         this.onNodeRadiusChange(this.SelectedNodeRadiusSizeVariable);
 
         this.nodeBorderWidth = this.widgets['node-border-width']
@@ -9131,7 +9420,7 @@ scaleLinkWidth() {
         this.onLinkWidthReciprocalNonReciprocalChange(this.SelectedLinkReciprocalTypeVariable);
 
         //Links|Width
-        this.SelectedLinkWidthVariable = this.widgets['link-width'];
+        this.SelectedLinkWidthVariable = this.getConfiguredLinkWidth();
         this.onLinkWidthChange(this.SelectedLinkWidthVariable);
 
         //Links|Width Max

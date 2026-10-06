@@ -578,6 +578,8 @@ export class CommonService extends AppComponentBase implements OnInit {
             'transmission-chain-y-axis-field': 'None',
             'transmission-chain-link-origins': null,
             'transmission-chain-line-style': 'Stepped',
+            'transmission-chain-link-width': 12,
+            'transmission-chain-node-radius': 50,
             'transmission-chain-vertical-spacing': 100,
             'node-charge': 200,
             'node-border-width' : 2.0,
