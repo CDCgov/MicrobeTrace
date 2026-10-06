@@ -23,6 +23,14 @@ describe('Journey Flow - OpenFreeMap basemap', () => {
   const profile = getProfile('map-covid-zipcode-threshold');
 
   it('loads OpenFreeMap and uses English or Latin labels', () => {
+    cy.request({
+      url: '/assets/maplibre/maplibre-gl-csp-worker.js',
+      encoding: 'binary',
+    }).then((response) => {
+      expect(response.status, 'MapLibre worker response').to.equal(200);
+      expect(response.body.length, 'MapLibre worker bundle size').to.be.greaterThan(1000);
+    });
+
     launchProfileToTwoD(profile);
     goToMapView();
     openMapSettingsDialog();

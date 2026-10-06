@@ -530,7 +530,7 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
     }
 
     initializeLeafletMap(latitude: number, longitude: number) {
-        setWorkerUrl(new URL('assets/maplibre/maplibre-gl-worker.mjs', document.baseURI).href);
+        setWorkerUrl(new URL('assets/maplibre/maplibre-gl-csp-worker.js', document.baseURI).href);
         this.layers.basemap = maplibreGL({
             style: OPENFREEMAP_STYLE_URL,
             preserveDrawingBuffer: true,
