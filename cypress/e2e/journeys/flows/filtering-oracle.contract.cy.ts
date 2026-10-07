@@ -210,9 +210,14 @@ const manifestFromProfile = (profile: DatasetProfile, steps: OracleStep[]): Orac
       { id: 'timeline-max', kind: 'set-timeline-date', date: '8/21/2021' },
     ])).then((result) => {
       expect(result.snapshots['timeline-enabled'].visibleNodeIds)
-        .to.deep.equal(result.snapshots.initial.visibleNodeIds);
-      expect(result.snapshots['timeline-enabled'].visibleLinkIds)
-        .to.deep.equal(result.snapshots.initial.visibleLinkIds);
+        .to.deep.equal([
+          'MZ591568',
+          'MZ787305',
+          'P1',
+          'P2',
+          'P3',
+        ]);
+      expect(result.snapshots['timeline-enabled'].visibleLinkIds).to.deep.equal([]);
 
       expect(result.snapshots['timeline-start'].visibleNodeIds).to.deep.equal([
         'MZ591568',
@@ -281,9 +286,8 @@ const manifestFromProfile = (profile: DatasetProfile, steps: OracleStep[]): Orac
       { id: 'timeline-max', kind: 'set-timeline-date', date: '4/27/2015' },
     ])).then((result) => {
       expect(result.snapshots['timeline-enabled'].visibleNodeIds)
-        .to.deep.equal(result.snapshots.initial.visibleNodeIds);
-      expect(result.snapshots['timeline-enabled'].visibleLinkIds)
-        .to.deep.equal(result.snapshots.initial.visibleLinkIds);
+        .to.deep.equal(['KF773578']);
+      expect(result.snapshots['timeline-enabled'].visibleLinkIds).to.deep.equal([]);
 
       expect(result.snapshots['timeline-early'].visibleNodeIds).to.deep.equal([
         'KF773425',

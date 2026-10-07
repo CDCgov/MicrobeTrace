@@ -342,7 +342,15 @@ body .ui-tabview.ui-tabview-top .ui-tabview-nav li.ui-state-active, body .ui-tab
     -webkit-overflow-scrolling: touch;
     backdrop-filter: blur(8px);
     -webkit-backdrop-filter: blur(8px);
-    z-index: 11; /* Keep the welcome overlay above the URL warning banner on short screens. */
+    z-index: 1300; /* Keep the welcome overlay above docked key tables and the URL warning banner. */
+
+    &.overlay-hidden {
+        pointer-events: none;
+
+        .dnd-input {
+            pointer-events: none;
+        }
+    }
 
     .dnd-input {
         opacity: 0;
@@ -609,8 +617,18 @@ body .ui-tabview.ui-tabview-top .ui-tabview-nav li.ui-state-active, body .ui-tab
     cursor: pointer;
 }
 
-#global-settings-link-color-table {
-    z-index: 1 !important;
+#global-settings-link-color-table,
+#global-settings-node-color-table,
+#global-settings-node-shape-table,
+.table-z-index {
+    z-index: 1200 !important;
+}
+
+#global-settings-link-color-table .p-dialog,
+#global-settings-node-color-table .p-dialog,
+#global-settings-node-shape-table .p-dialog,
+.table-z-index .p-dialog {
+    z-index: 1200 !important;
 }
 
 .ui-dialog-draggable {

@@ -243,7 +243,7 @@ export function assertAggregateTableTitles(expectedTitles: string[]): void {
 
 export function assertAggregateSettingsFieldOrder(expectedShortLabels: string[]): void {
   cy.get('@aggregateSettings')
-    .find('p-orderlist p-select')
+    .find('p-order-list p-select')
     .should('have.length', expectedShortLabels.length)
     .then(($selects) => {
       const renderedLabels = Array.from($selects).map((select) =>
@@ -258,7 +258,7 @@ export function assertAggregateSettingsFieldOrder(expectedShortLabels: string[])
 
 export function selectAggregateSettingsTable(index: number): void {
   cy.get('@aggregateSettings')
-    .find('p-orderlist p-select')
+    .find('p-order-list p-select')
     .eq(index)
     .closest('[role="option"]')
     .click({ force: true });

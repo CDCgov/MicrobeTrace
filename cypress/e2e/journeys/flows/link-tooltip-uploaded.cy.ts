@@ -43,7 +43,7 @@ describe('Journey Flow - Uploaded link tooltip contents', () => {
 
     cy.window().its('commonService.session.style.widgets.link-tooltip-variable').should('be.empty');
 
-    cy.get('@linksTab').contains('.form-group', 'Tooltip').find('p-multiselect').click({ force: true });
+    cy.get('@linksTab').contains('.form-group', 'Tooltip').find('p-multi-select').click({ force: true });
     tooltipOptions.forEach((optionLabel) => {
       cy.contains('li[role="option"]', optionLabel).click({ force: true });
     });

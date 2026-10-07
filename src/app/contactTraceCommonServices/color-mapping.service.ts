@@ -1,6 +1,462 @@
 import { Injectable } from '@angular/core';
 import * as d3 from 'd3';
 
+export interface NodeColorSegment {
+  value: string;
+  color: string;
+  alpha: number;
+  weight: number;
+}
+
+export interface ParsedMixedNodeColorComponent {
+  value: string;
+  weight: number;
+}
+
+export interface ParsedMixedNodeColorValue {
+  components: ParsedMixedNodeColorComponent[];
+  hasExplicitWeights: boolean;
+  invalidWeights: boolean;
+}
+
+export interface NodeFillStyle {
+  color: string;
+  alpha: number;
+  segments?: NodeColorSegment[];
+}
+
+export interface MixedNodeColorLegendEntry {
+  value: string;
+  components: string[];
+  weights: number[];
+  count: number;
+  hasExplicitWeights: boolean;
+  invalidWeights: boolean;
+}
+
+export interface NodeColorCategoryCount {
+  label: string;
+  count: number;
+}
+
+const nodeColorCategoryCollator = new Intl.Collator('en', {
+  numeric: true,
+  sensitivity: 'base'
+});
+
+const mixedNodeWeightPattern = /^(.+?)\s*:\s*([+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?)\s*(%)?$/;
+
+export function isNullLikeNodeColorValue(value: any): boolean {
+  if (value === undefined || value === null) {
+    return true;
+  }
+
+  if (typeof value === 'number' && Number.isNaN(value)) {
+    return true;
+  }
+
+  const textValue = String(value).trim();
+  const normalizedValue = textValue.toLowerCase();
+  return !textValue
+    || normalizedValue === 'null'
+    || normalizedValue === 'undefined'
+    || normalizedValue === 'nan'
+    || normalizedValue === 'n/a'
+    || normalizedValue === '(empty)';
+}
+
+export function normalizeNodeStyleCategoryValue(value: any): string {
+  if (isNullLikeNodeColorValue(value)) {
+    return 'null';
+  }
+
+  return typeof value === 'string' ? value.trim() : String(value);
+}
+
+function splitMixedNodeColorText(value: string): string[] {
+  return value
+    .replace(/\bn\/a\b/ig, '')
+    .split(/\s+(?:and)\s+|[/,;+|]/i)
+    .map(token => token.trim())
+    .filter(token => !isNullLikeNodeColorValue(token));
+}
+
+function normalizeMixedNodeColorWeights(
+  components: Array<{ value: string; weight: number }>
+): ParsedMixedNodeColorComponent[] {
+  const mergedWeights = new Map<string, number>();
+  components.forEach(component => {
+    const label = component.value.trim();
+    if (!label || isNullLikeNodeColorValue(label)) {
+      return;
+    }
+    mergedWeights.set(label, (mergedWeights.get(label) || 0) + component.weight);
+  });
+
+  const totalWeight = Array.from(mergedWeights.values())
+    .reduce((total, weight) => total + weight, 0);
+  if (!Number.isFinite(totalWeight) || totalWeight <= 0) {
+    return [];
+  }
+
+  return Array.from(mergedWeights.entries()).map(([value, weight]) => ({
+    value,
+    weight: weight / totalWeight
+  }));
+}
+
+function buildEqualMixedNodeColorComponents(values: string[]): ParsedMixedNodeColorComponent[] {
+  const uniqueValues = Array.from(new Set(
+    values.map(value => value.trim()).filter(value => !isNullLikeNodeColorValue(value))
+  ));
+  const weight = uniqueValues.length > 0 ? 1 / uniqueValues.length : 0;
+  return uniqueValues.map(value => ({ value, weight }));
+}
+
+export function parseWeightedMixedNodeColorValue(value: any): ParsedMixedNodeColorValue {
+  const values = Array.isArray(value) ? value : [value];
+  const tokens: string[] = [];
+
+  values.forEach(item => {
+    if (!isNullLikeNodeColorValue(item)) {
+      tokens.push(...splitMixedNodeColorText(String(item)));
+    }
+  });
+
+  if (tokens.length < 2) {
+    return {
+      components: buildEqualMixedNodeColorComponents(tokens),
+      hasExplicitWeights: false,
+      invalidWeights: false
+    };
+  }
+
+  const hasWeightSyntax = tokens.some(token => token.includes(':'));
+  if (!hasWeightSyntax) {
+    return {
+      components: buildEqualMixedNodeColorComponents(tokens),
+      hasExplicitWeights: false,
+      invalidWeights: false
+    };
+  }
+
+  let invalidWeights = false;
+  const parsedComponents = tokens.map(token => {
+    const match = token.match(mixedNodeWeightPattern);
+    if (!match) {
+      invalidWeights = true;
+      const separatorIndex = token.lastIndexOf(':');
+      return {
+        value: separatorIndex > 0 ? token.slice(0, separatorIndex).trim() : token.trim(),
+        weight: 1
+      };
+    }
+
+    const weight = Number(match[2]) / (match[3] ? 100 : 1);
+    if (!Number.isFinite(weight) || weight <= 0) {
+      invalidWeights = true;
+    }
+    return {
+      value: match[1].trim(),
+      weight: Number.isFinite(weight) && weight > 0 ? weight : 1
+    };
+  });
+
+  if (invalidWeights) {
+    return {
+      components: buildEqualMixedNodeColorComponents(parsedComponents.map(component => component.value)),
+      hasExplicitWeights: true,
+      invalidWeights: true
+    };
+  }
+
+  return {
+    components: normalizeMixedNodeColorWeights(parsedComponents),
+    hasExplicitWeights: true,
+    invalidWeights: false
+  };
+}
+
+export function parseMixedNodeColorValue(value: any): string[] {
+  return parseWeightedMixedNodeColorValue(value).components.map(component => component.value);
+}
+
+function getPreferredNodeColorCategoryRanks(preferredOrder: any[] = []): Map<string, number> {
+  const ranks = new Map<string, number>();
+  preferredOrder.forEach((value, index) => {
+    const key = normalizeNodeStyleCategoryValue(value);
+    if (!ranks.has(key)) {
+      ranks.set(key, index);
+    }
+  });
+  return ranks;
+}
+
+function getPreferredNodeColorCategoryLabels(preferredOrder: any[] = []): Map<string, string> {
+  const labels = new Map<string, string>();
+  preferredOrder.forEach(value => {
+    const label = normalizeNodeStyleCategoryValue(value);
+    if (!labels.has(label)) {
+      labels.set(label, label);
+    }
+  });
+  return labels;
+}
+
+function compareAtomicNodeColorCategories(
+  left: string,
+  right: string,
+  preferredRanks: Map<string, number>
+): number {
+  const leftRank = preferredRanks.get(left);
+  const rightRank = preferredRanks.get(right);
+
+  if (leftRank !== undefined || rightRank !== undefined) {
+    if (leftRank === undefined) {
+      return 1;
+    }
+    if (rightRank === undefined) {
+      return -1;
+    }
+    if (leftRank !== rightRank) {
+      return leftRank - rightRank;
+    }
+  }
+
+  const naturalComparison = nodeColorCategoryCollator.compare(left, right);
+  return naturalComparison !== 0
+    ? naturalComparison
+    : left < right
+      ? -1
+      : left > right
+        ? 1
+        : 0;
+}
+
+export function canonicalizeMixedNodeColorComponents(
+  value: any,
+  preferredOrder: any[] = []
+): string[] {
+  return canonicalizeWeightedMixedNodeColorComponents(value, preferredOrder)
+    .components
+    .map(component => component.value);
+}
+
+export function canonicalizeWeightedMixedNodeColorComponents(
+  value: any,
+  preferredOrder: any[] = []
+): ParsedMixedNodeColorValue {
+  const preferredRanks = getPreferredNodeColorCategoryRanks(preferredOrder);
+  const preferredLabels = getPreferredNodeColorCategoryLabels(preferredOrder);
+  const parsed = parseWeightedMixedNodeColorValue(value);
+  const components = normalizeMixedNodeColorWeights(
+    parsed.components.map(component => ({
+      value: preferredLabels.get(component.value) || component.value,
+      weight: component.weight
+    }))
+  ).sort((left, right) =>
+    compareAtomicNodeColorCategories(left.value, right.value, preferredRanks)
+  );
+
+  return { ...parsed, components };
+}
+
+function formatCanonicalNodeColorWeight(weight: number): string {
+  return Number(Number(weight).toPrecision(12)).toString();
+}
+
+export function formatNodeColorWeightPercentage(weight: number): string {
+  const percentage = Number((Number(weight) * 100).toFixed(2));
+  return `${percentage}%`;
+}
+
+export function formatMixedNodeColorDisplayName(
+  displayNames: string[],
+  weights: number[],
+  hasExplicitWeights: boolean
+): string {
+  const values = displayNames.join('/');
+  return hasExplicitWeights
+    ? `${values} (${weights.map(formatNodeColorWeightPercentage).join('/')})`
+    : values;
+}
+
+export function serializeWeightedMixedNodeColorComponents(
+  components: ParsedMixedNodeColorComponent[]
+): string {
+  if (components.length === 1) {
+    return components[0].value;
+  }
+  return components
+    .map(component => `${component.value}:${formatCanonicalNodeColorWeight(component.weight)}`)
+    .join('/');
+}
+
+export function canonicalizeNodeColorCategoryValue(
+  value: any,
+  preferredOrder: any[] = []
+): string {
+  const components = canonicalizeWeightedMixedNodeColorComponents(value, preferredOrder).components;
+  return components.length > 0
+    ? serializeWeightedMixedNodeColorComponents(components)
+    : normalizeNodeStyleCategoryValue(value);
+}
+
+export function compareNodeColorCategoryValues(
+  left: any,
+  right: any,
+  preferredOrder: any[] = []
+): number {
+  const preferredRanks = getPreferredNodeColorCategoryRanks(preferredOrder);
+  const getComponents = (value: any): ParsedMixedNodeColorComponent[] => {
+    const components = canonicalizeWeightedMixedNodeColorComponents(value, preferredOrder).components;
+    return components.length > 0
+      ? components
+      : [{ value: normalizeNodeStyleCategoryValue(value), weight: 1 }];
+  };
+  const leftComponents = getComponents(left);
+  const rightComponents = getComponents(right);
+  const sharedLength = Math.min(leftComponents.length, rightComponents.length);
+
+  for (let index = 0; index < sharedLength; index++) {
+    const comparison = compareAtomicNodeColorCategories(
+      leftComponents[index].value,
+      rightComponents[index].value,
+      preferredRanks
+    );
+    if (comparison !== 0) {
+      return comparison;
+    }
+  }
+
+  if (leftComponents.length !== rightComponents.length) {
+    return leftComponents.length - rightComponents.length;
+  }
+
+  for (let index = 0; index < leftComponents.length; index++) {
+    const weightComparison = leftComponents[index].weight - rightComponents[index].weight;
+    if (Math.abs(weightComparison) > Number.EPSILON) {
+      return weightComparison;
+    }
+  }
+
+  return 0;
+}
+
+export function sortNodeColorCategoryValues(
+  values: any[],
+  preferredOrder: any[] = []
+): string[] {
+  return (values || [])
+    .map(value => canonicalizeNodeColorCategoryValue(value, preferredOrder))
+    .sort((left, right) => compareNodeColorCategoryValues(left, right, preferredOrder));
+}
+
+export function sortAtomicNodeColorCategoryValues(
+  values: any[],
+  preferredOrder: any[] = []
+): string[] {
+  const preferredRanks = getPreferredNodeColorCategoryRanks(preferredOrder);
+  return (values || [])
+    .map(value => normalizeNodeStyleCategoryValue(value))
+    .sort((left, right) => compareAtomicNodeColorCategories(left, right, preferredRanks));
+}
+
+export function buildCanonicalNodeColorCounts(
+  values: any[],
+  preferredOrder: any[] = [],
+  splitMixedValues: boolean = true
+): NodeColorCategoryCount[] {
+  const counts = new Map<string, number>();
+  (values || []).forEach(value => {
+    const label = splitMixedValues
+      ? canonicalizeNodeColorCategoryValue(value, preferredOrder)
+      : normalizeNodeStyleCategoryValue(value);
+    counts.set(label, (counts.get(label) || 0) + 1);
+  });
+
+  const orderedLabels = splitMixedValues
+    ? sortNodeColorCategoryValues(Array.from(counts.keys()), preferredOrder)
+    : sortAtomicNodeColorCategoryValues(Array.from(counts.keys()), preferredOrder);
+  return orderedLabels.map(label => ({ label, count: counts.get(label) || 0 }));
+}
+
+export function getMixedNodeColorLegendEntries(
+  nodes: any[],
+  variable: string,
+  preferredOrder: any[] = []
+): MixedNodeColorLegendEntry[] {
+  if (!variable || variable === 'None') {
+    return [];
+  }
+
+  const entries = new Map<string, MixedNodeColorLegendEntry>();
+
+  (nodes || []).forEach(node => {
+    const parsed = canonicalizeWeightedMixedNodeColorComponents(node?.[variable], preferredOrder);
+    if (parsed.components.length < 2) {
+      return;
+    }
+
+    const value = serializeWeightedMixedNodeColorComponents(parsed.components);
+    const key = parsed.components
+      .map(component => `${component.value}\u001e${formatCanonicalNodeColorWeight(component.weight)}`)
+      .join('\u001f');
+    const existingEntry = entries.get(key);
+    if (existingEntry) {
+      existingEntry.count += 1;
+      existingEntry.hasExplicitWeights ||= parsed.hasExplicitWeights;
+      existingEntry.invalidWeights ||= parsed.invalidWeights;
+      return;
+    }
+
+    entries.set(key, {
+      value,
+      components: parsed.components.map(component => component.value),
+      weights: parsed.components.map(component => component.weight),
+      count: 1,
+      hasExplicitWeights: parsed.hasExplicitWeights,
+      invalidWeights: parsed.invalidWeights
+    });
+  });
+
+  return Array.from(entries.values())
+    .sort((left, right) => compareNodeColorCategoryValues(left.value, right.value, preferredOrder));
+}
+
+export function getMixedNodeColorSegments(
+  value: any,
+  colorMap: ((value: any) => string) | null | undefined,
+  alphaMap: ((value: any) => number) | null | undefined,
+  fallbackColor: string,
+  fallbackAlpha: number = 1,
+  preferredOrder: any[] = []
+): NodeColorSegment[] {
+  return canonicalizeWeightedMixedNodeColorComponents(value, preferredOrder).components.map(component => {
+    let color = fallbackColor;
+    let alpha = fallbackAlpha;
+
+    try {
+      color = colorMap?.(component.value) || fallbackColor;
+    } catch {
+      color = fallbackColor;
+    }
+
+    try {
+      alpha = alphaMap?.(component.value) ?? fallbackAlpha;
+    } catch {
+      alpha = fallbackAlpha;
+    }
+
+    return {
+      value: component.value,
+      color,
+      alpha,
+      weight: component.weight
+    };
+  });
+}
+
 /**
  * A dedicated service for node, link, polygon color mapping.
  * It is "pure" in that it does NOT own or mutate your session object.
@@ -14,6 +470,36 @@ export class ColorMappingService {
 
   constructor() {}
 
+  public normalizeStyleCategoryValue(value: any): string {
+    return normalizeNodeStyleCategoryValue(value);
+  }
+
+  public parseMixedColorValue(value: any): string[] {
+    return parseMixedNodeColorValue(value);
+  }
+
+  public parseWeightedMixedColorValue(value: any): ParsedMixedNodeColorValue {
+    return parseWeightedMixedNodeColorValue(value);
+  }
+
+  public getNodeColorCategoriesForValue(
+    value: any,
+    mixedColorsEnabled: boolean,
+    preferredOrder: any[] = []
+  ): string[] {
+    if (mixedColorsEnabled) {
+      const mixedValues = sortNodeColorCategoryValues(
+        this.parseMixedColorValue(value),
+        preferredOrder
+      );
+      if (mixedValues.length > 0) {
+        return mixedValues;
+      }
+    }
+
+    return [this.normalizeStyleCategoryValue(value)];
+  }
+
   /**
    * Creates a node color-mapping scale based on a specified "nodeColorVariable"
    * and a set of node items. Rather than referencing session or temp directly,
@@ -25,7 +511,7 @@ export class ColorMappingService {
    * @param nodeAlphas The array of alpha (transparency) values
    * @param nodeColorsTable existing table of (variable -> list of assigned colors)
    * @param nodeColorsTableKeys existing table of (variable -> keys domain)
-   * @param nodeColorsTableHistory used to persist color assignments over time
+   * @param nodeColorsTableHistory used to persist color assignments by variable over time
    * @param debugMode to enable/disable console logging
    * @returns an object containing:
    *    {
@@ -47,7 +533,9 @@ export class ColorMappingService {
     nodeColorsTable: any,
     nodeColorsTableKeys: any,
     nodeColorsTableHistory: any,
-    debugMode: boolean
+    nodeColorAssignments: Record<string, string>,
+    debugMode: boolean,
+    splitMixedValues: boolean = false
   ): {
     aggregates: Record<string, number>;
     colorMap: d3.ScaleOrdinal<string, string>;
@@ -57,6 +545,7 @@ export class ColorMappingService {
     updatedColorsTable: any;
     updatedColorsTableKeys: any;
     updatedColorsTableHistory: any;
+    invalidMixedWeightCount: number;
   } {
 
     // If user hasn't chosen a variable, just return a single uniform color mapping
@@ -70,7 +559,8 @@ export class ColorMappingService {
         updatedNodeAlphas: nodeAlphas,
         updatedColorsTable: nodeColorsTable,
         updatedColorsTableKeys: nodeColorsTableKeys,
-        updatedColorsTableHistory: nodeColorsTableHistory
+        updatedColorsTableHistory: nodeColorsTableHistory,
+        invalidMixedWeightCount: 0
       };
     }
 
@@ -83,7 +573,8 @@ export class ColorMappingService {
     const updatedColorsTableKeys = nodeColorsTableKeys || {};
     let updatedNodeColors = [...nodeColors];  // we may expand this array
     let updatedNodeAlphas = [...nodeAlphas];  // same reason
-    let updatedColorsTableHistory = nodeColorsTableHistory || { 'null': '#EAE553' };
+    const updatedColorsTableHistory = nodeColorsTableHistory || {};
+    const explicitAssignments = nodeColorAssignments || {};
 
     // If we already have a stored array of colors for this particular variable
     // (like "nodeColorsTable[myVariable]"), let’s reuse them
@@ -96,13 +587,33 @@ export class ColorMappingService {
     const storedKeysForVariable = Array.isArray(updatedColorsTableKeys[nodeColorVariable])
       ? updatedColorsTableKeys[nodeColorVariable]
       : [];
+    const storedColorsByValue: Record<string, string> = {};
+
+    storedKeysForVariable.forEach((key, index) => {
+      const storedColor = updatedNodeColors[index];
+      if (typeof storedColor === 'string') {
+        storedColorsByValue[String(key)] = storedColor;
+      }
+    });
+
+    const storedVariableHistory = updatedColorsTableHistory[nodeColorVariable];
+    const variableHistory: Record<string, string> = storedVariableHistory
+      && typeof storedVariableHistory === 'object'
+      && !Array.isArray(storedVariableHistory)
+      ? storedVariableHistory
+      : {};
+
+    // Legacy sessions stored history as { value: color }. Start a scoped history
+    // from the per-variable color table instead of reusing those ambiguous keys.
+    updatedColorsTableHistory[nodeColorVariable] = variableHistory;
+
     updatedNodeColors = updatedNodeColors.map((candidateColor, index) => {
       if (typeof candidateColor === 'string') {
         return candidateColor;
       }
 
       const fallbackKey = String(storedKeysForVariable[index] ?? '');
-      const fallbackHistoryColor = updatedColorsTableHistory?.[fallbackKey];
+      const fallbackHistoryColor = variableHistory[fallbackKey];
       if (typeof fallbackHistoryColor === 'string') {
         return fallbackHistoryColor;
       }
@@ -113,26 +624,45 @@ export class ColorMappingService {
 
     // Compute aggregates by scanning all node values
     const aggregates: Record<string, number> = {};
+    let invalidMixedWeightCount = 0;
     nodes.forEach(d => {
-      const val = d[nodeColorVariable];
       if (!d.visible) {
         // If node is not visible, you can decide to skip or do aggregates[val] = 0;
         return;
       }
-      aggregates[val] = (aggregates[val] || 0) + 1;
+
+      const parsedMixedValue = splitMixedValues
+        ? canonicalizeWeightedMixedNodeColorComponents(d[nodeColorVariable], storedKeysForVariable)
+        : null;
+      const categories = parsedMixedValue?.components.length
+        ? parsedMixedValue.components.map(component => component.value)
+        : [this.normalizeStyleCategoryValue(d[nodeColorVariable])];
+      const isMixedValue = splitMixedValues && categories.length > 1;
+      if (parsedMixedValue?.invalidWeights) {
+        invalidMixedWeightCount += 1;
+      }
+
+      categories.forEach(category => {
+        // Mixed components must remain in the scale domain so each segment has
+        // a stable color, but the combined node is counted only by its mixed
+        // legend entry rather than fractionally against every component.
+        if (!Object.prototype.hasOwnProperty.call(aggregates, category)) {
+          aggregates[category] = 0;
+        }
+
+        if (!isMixedValue) {
+          aggregates[category] += 1;
+        }
+      });
     });
 
-    const distinctValues = Object.keys(aggregates);
+    const distinctValues = splitMixedValues
+      ? sortNodeColorCategoryValues(Object.keys(aggregates), storedKeysForVariable)
+      : sortAtomicNodeColorCategoryValues(Object.keys(aggregates), storedKeysForVariable);
 
-    // Expand color array if needed
-    if (distinctValues.length > updatedNodeColors.length) {
-      let expandedColors: string[] = [];
-      let neededTimes = Math.ceil(distinctValues.length / updatedNodeColors.length);
-      while (neededTimes-- > 0) {
-        expandedColors = expandedColors.concat(updatedNodeColors);
-      }
-      updatedNodeColors = expandedColors;
-    }
+    const fallbackPalette = updatedNodeColors.length > 0
+      ? [...updatedNodeColors]
+      : ['#1f77b4'];
 
     // Expand alpha array if needed
     if (distinctValues.length > updatedNodeAlphas.length) {
@@ -141,22 +671,59 @@ export class ColorMappingService {
       );
     }
 
-    // For each distinct value, see if we have a color in the “history”
-    distinctValues.forEach((val, i) => {
-      const historyColor = updatedColorsTableHistory[val];
-      
-      if (typeof historyColor === 'string') {
-        updatedNodeColors[i] = historyColor;
-        return;
+    // For each distinct value, prefer an explicit field assignment, then the
+    // stored table color and field-scoped history.
+    const reservedColors = new Set<string>();
+    distinctValues.forEach((value) => {
+      const explicitColor = explicitAssignments[value];
+      const existingColor = Object.prototype.hasOwnProperty.call(explicitAssignments, value)
+        && typeof explicitColor === 'string'
+        ? explicitColor
+        : storedColorsByValue[value] ?? variableHistory[value];
+      if (typeof existingColor === 'string') {
+        reservedColors.add(existingColor);
       }
-      if (val === 'null') {
-        updatedNodeColors[i] = '#EAE553';
-      }
-
-      updatedColorsTableHistory[val] = updatedNodeColors[i];
     });
 
-    // We store this updated array back into the “table”
+    const usedColors = new Set<string>();
+    const mappedColors = distinctValues.map((value, index) => {
+      const explicitColor = explicitAssignments[value];
+      const existingColor = Object.prototype.hasOwnProperty.call(explicitAssignments, value)
+        && typeof explicitColor === 'string'
+        ? explicitColor
+        : storedColorsByValue[value] ?? variableHistory[value];
+      if (typeof existingColor === 'string') {
+        variableHistory[value] = existingColor;
+        usedColors.add(existingColor);
+        return existingColor;
+      }
+
+      if (value === 'null') {
+        variableHistory[value] = '#EAE553';
+        usedColors.add(variableHistory[value]);
+        return variableHistory[value];
+      }
+
+      const preferredColor = fallbackPalette[index % fallbackPalette.length];
+      const availableColor = fallbackPalette.find((color) =>
+        !reservedColors.has(color) && !usedColors.has(color)
+      );
+      const nextColor = !reservedColors.has(preferredColor) && !usedColors.has(preferredColor)
+        ? preferredColor
+        : availableColor ?? preferredColor;
+
+      variableHistory[value] = nextColor;
+      usedColors.add(nextColor);
+      return nextColor;
+    });
+
+    const colorTableLength = Math.max(updatedNodeColors.length, mappedColors.length);
+    updatedNodeColors = Array.from({ length: colorTableLength }, (_, index) =>
+      mappedColors[index] ?? fallbackPalette[index % fallbackPalette.length]
+    );
+
+    // Keep the table domain limited to current values. Assignments for values
+    // absent from this dataset remain in session.style.nodeColorAssignments.
     updatedColorsTableKeys[nodeColorVariable] = distinctValues;
     updatedColorsTable[nodeColorVariable] = updatedNodeColors;
 
@@ -174,14 +741,18 @@ export class ColorMappingService {
     }
 
     return {
-      aggregates,
+      aggregates: distinctValues.reduce((orderedAggregates, value) => {
+        orderedAggregates[value] = aggregates[value];
+        return orderedAggregates;
+      }, {} as Record<string, number>),
       colorMap,
       alphaMap,
       updatedNodeColors,
       updatedNodeAlphas,
       updatedColorsTable,
       updatedColorsTableKeys,
-      updatedColorsTableHistory
+      updatedColorsTableHistory,
+      invalidMixedWeightCount
     };
   }
 

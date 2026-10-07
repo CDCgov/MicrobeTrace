@@ -1,11 +1,20 @@
+import {
+  type ComponentStructureMetrics,
+  type ComponentStructureScoreBreakdown,
+  type ComponentStructureScoreWeights,
+  DEFAULT_COMPONENT_STRUCTURE_SCORE_WEIGHTS,
+  IncrementalComponentMetrics,
+  scoreComponentStructureMetrics,
+} from './component-metrics';
+
 export interface ThresholdAnalysisNodeLike {
   _id?: string;
   id?: string;
 }
 
 export interface ThresholdAnalysisLinkLike {
-  source: string;
-  target: string;
+  source: any;
+  target: any;
   visible?: boolean;
   [key: string]: any;
 }
@@ -47,6 +56,12 @@ export interface ThresholdSweepSummary {
   clusterCounts: number[];
   singletonCounts: number[];
   largestClusterSizes: number[];
+  componentMetrics: ComponentStructureMetrics[];
+  componentStructureScores: number[];
+  componentStructureScoreBreakdowns: ComponentStructureScoreBreakdown[];
+  maximumClusterCount: number;
+  recommendedIndex: number;
+  scoreWeights: ComponentStructureScoreWeights;
 }
 
 export interface VisibleClusterSummary {
@@ -65,6 +80,16 @@ export interface VisibleClusterSummary {
   largestClusterSize: number;
   singletonCount: number;
   clusterCount: number;
+}
+
+export interface ThresholdConnectedComponent {
+  nodeIds: string[];
+  nodeIndexes: number[];
+}
+
+export interface ThresholdConnectedComponentSummary {
+  components: ThresholdConnectedComponent[];
+  nodeComponentById: Record<string, number>;
 }
 
 class UnionFind {
@@ -123,6 +148,14 @@ function getNodeId(node: ThresholdAnalysisNodeLike): string {
   return typeof id === 'string' ? id : String(id);
 }
 
+function getEndpointId(endpoint: any): string {
+  if (endpoint && typeof endpoint === 'object') {
+    return getEndpointId(endpoint._id ?? endpoint.id ?? endpoint.data?.id);
+  }
+
+  return endpoint === undefined || endpoint === null ? '' : String(endpoint);
+}
+
 function getNumericMetricValue(link: ThresholdAnalysisLinkLike, metric: string): number | null {
   const raw = link?.[metric];
   if (typeof raw === 'number') {
@@ -137,11 +170,86 @@ function getNumericMetricValue(link: ThresholdAnalysisLinkLike, metric: string):
   return null;
 }
 
+function getLinkEndpointId(endpoint: any): string {
+  if (endpoint && typeof endpoint === 'object') {
+    return String(endpoint._id ?? endpoint.id ?? '');
+  }
+
+  return String(endpoint ?? '');
+}
+
+export function buildThresholdConnectedComponents(
+  nodes: ThresholdAnalysisNodeLike[],
+  links: ThresholdAnalysisLinkLike[],
+  metric: string,
+  threshold: number
+): ThresholdConnectedComponentSummary {
+  const nodeIds = nodes.map((node) => getNodeId(node));
+  const nodeIndexById: Record<string, number> = Object.create(null);
+  const uf = new UnionFind(nodeIds.length);
+  const numericThreshold = Number(threshold);
+
+  nodeIds.forEach((nodeId, index) => {
+    nodeIndexById[nodeId] = index;
+  });
+
+  if (Number.isFinite(numericThreshold)) {
+    links.forEach((link) => {
+      const value = getNumericMetricValue(link, metric);
+
+      if (value === null || value > numericThreshold) {
+        return;
+      }
+
+      const sourceIndex = nodeIndexById[getLinkEndpointId(link.source)];
+      const targetIndex = nodeIndexById[getLinkEndpointId(link.target)];
+
+      if (
+        sourceIndex === undefined ||
+        targetIndex === undefined ||
+        sourceIndex === targetIndex
+      ) {
+        return;
+      }
+
+      uf.union(sourceIndex, targetIndex);
+    });
+  }
+
+  const rootToComponentId = new Map<number, number>();
+  const components: ThresholdConnectedComponent[] = [];
+  const nodeComponentById: Record<string, number> = Object.create(null);
+
+  nodeIds.forEach((nodeId, nodeIndex) => {
+    const root = uf.find(nodeIndex);
+    let componentId = rootToComponentId.get(root);
+
+    if (componentId === undefined) {
+      componentId = components.length;
+      rootToComponentId.set(root, componentId);
+      components.push({
+        nodeIds: [],
+        nodeIndexes: []
+      });
+    }
+
+    components[componentId].nodeIds.push(nodeId);
+    components[componentId].nodeIndexes.push(nodeIndex);
+    nodeComponentById[nodeId] = componentId;
+  });
+
+  return {
+    components,
+    nodeComponentById
+  };
+}
+
 export function buildStoredDistanceEdgeCache(
   nodes: ThresholdAnalysisNodeLike[],
   links: ThresholdAnalysisLinkLike[],
   metric: string,
-  version: number
+  version: number,
+  includeLink: (link: ThresholdAnalysisLinkLike, linkIndex: number) => boolean = () => true,
 ): StoredDistanceEdgeCache {
   const nodeIds = nodes.map((node) => getNodeId(node));
   const nodeIndexById: Record<string, number> = Object.create(null);
@@ -153,13 +261,19 @@ export function buildStoredDistanceEdgeCache(
   const sortedEdges: ThresholdAnalysisEdge[] = [];
 
   links.forEach((link, linkIndex) => {
+    if (!includeLink(link, linkIndex)) {
+      return;
+    }
+
     const value = getNumericMetricValue(link, metric);
     if (value === null) {
       return;
     }
 
-    const sourceIndex = nodeIndexById[link.source];
-    const targetIndex = nodeIndexById[link.target];
+    const sourceId = getEndpointId(link.source);
+    const targetId = getEndpointId(link.target);
+    const sourceIndex = nodeIndexById[sourceId];
+    const targetIndex = nodeIndexById[targetId];
 
     if (
       sourceIndex === undefined ||
@@ -171,8 +285,8 @@ export function buildStoredDistanceEdgeCache(
 
     sortedEdges.push({
       linkIndex,
-      sourceId: link.source,
-      targetId: link.target,
+      sourceId,
+      targetId,
       sourceIndex,
       targetIndex,
       value
@@ -204,18 +318,18 @@ export function buildStoredDistanceEdgeCache(
 export function buildThresholdSweepSummary(
   cache: StoredDistanceEdgeCache,
   baseEdges: ThresholdAnalysisBaseEdge[] = [],
-  excludedLinkIndexes: Set<number> = new Set()
+  excludedLinkIndexes: Set<number> = new Set(),
+  scoreWeights: ComponentStructureScoreWeights = DEFAULT_COMPONENT_STRUCTURE_SCORE_WEIGHTS,
 ): ThresholdSweepSummary {
   const thresholds: number[] = [];
   const componentCounts: number[] = [];
   const clusterCounts: number[] = [];
   const singletonCounts: number[] = [];
   const largestClusterSizes: number[] = [];
+  const componentMetrics: ComponentStructureMetrics[] = [];
 
   const uf = new UnionFind(cache.nodeIds.length);
-  let singletonCount = cache.nodeIds.length;
-  let clusterCount = 0;
-  let largestClusterSize = cache.nodeIds.length > 0 ? 1 : 0;
+  const metricTracker = new IncrementalComponentMetrics(cache.nodeIds.length);
 
   const mergeComponents = (sourceIndex: number, targetIndex: number) => {
     const rootA = uf.find(sourceIndex);
@@ -228,28 +342,8 @@ export function buildThresholdSweepSummary(
     const sizeA = uf.sizeOf(rootA);
     const sizeB = uf.sizeOf(rootB);
 
-    if (sizeA === 1) {
-      singletonCount--;
-    } else {
-      clusterCount--;
-    }
-
-    if (sizeB === 1) {
-      singletonCount--;
-    } else {
-      clusterCount--;
-    }
-
-    const mergedRoot = uf.union(rootA, rootB);
-    const mergedSize = uf.sizeOf(mergedRoot);
-
-    if (mergedSize > 1) {
-      clusterCount++;
-    }
-
-    if (mergedSize > largestClusterSize) {
-      largestClusterSize = mergedSize;
-    }
+    metricTracker.merge(sizeA, sizeB);
+    uf.union(rootA, rootB);
   };
 
   baseEdges.forEach((edge) => {
@@ -275,11 +369,54 @@ export function buildThresholdSweepSummary(
     }
 
     thresholds.push(threshold);
-    componentCounts.push(uf.components);
-    clusterCounts.push(clusterCount);
-    singletonCounts.push(singletonCount);
-    largestClusterSizes.push(largestClusterSize);
+    const metrics = metricTracker.snapshot();
+    componentMetrics.push(metrics);
+    componentCounts.push(metrics.componentCount);
+    clusterCounts.push(metrics.clusterCount);
+    singletonCounts.push(metrics.singletonCount);
+    largestClusterSizes.push(metrics.largestClusterSize);
   }
+
+  const maximumClusterCount = componentMetrics.reduce(
+    (maximum, metrics) => Math.max(maximum, metrics.clusterCount),
+    0,
+  );
+  const scoreResults = componentMetrics.map((metrics) => (
+    scoreComponentStructureMetrics(metrics, maximumClusterCount, scoreWeights)
+  ));
+  const componentStructureScores = scoreResults.map((result) => result.score);
+  const componentStructureScoreBreakdowns = scoreResults.map((result) => result.breakdown);
+  let recommendedIndex = -1;
+
+  componentMetrics.forEach((metrics, index) => {
+    if (metrics.clusterCount === 0) {
+      return;
+    }
+
+    if (recommendedIndex === -1) {
+      recommendedIndex = index;
+      return;
+    }
+
+    const scoreDifference = componentStructureScores[index] - componentStructureScores[recommendedIndex];
+    if (scoreDifference > 1e-9) {
+      recommendedIndex = index;
+      return;
+    }
+
+    if (Math.abs(scoreDifference) <= 1e-9) {
+      const recommendedMetrics = componentMetrics[recommendedIndex];
+      if (
+        metrics.clusteredFraction > recommendedMetrics.clusteredFraction
+        || (
+          metrics.clusteredFraction === recommendedMetrics.clusteredFraction
+          && metrics.largestClusterFraction < recommendedMetrics.largestClusterFraction
+        )
+      ) {
+        recommendedIndex = index;
+      }
+    }
+  });
 
   return {
     metric: cache.metric,
@@ -288,8 +425,21 @@ export function buildThresholdSweepSummary(
     componentCounts,
     clusterCounts,
     singletonCounts,
-    largestClusterSizes
+    largestClusterSizes,
+    componentMetrics,
+    componentStructureScores,
+    componentStructureScoreBreakdowns,
+    maximumClusterCount,
+    recommendedIndex,
+    scoreWeights: { ...scoreWeights },
   };
+}
+
+export function isThresholdControlledGeneticLink(
+  link: ThresholdAnalysisLinkLike,
+  metric: string,
+): boolean {
+  return link?.hasDistance === true && getNumericMetricValue(link, metric) !== null;
 }
 
 export function buildVisibleClusterSummary(
@@ -311,8 +461,8 @@ export function buildVisibleClusterSummary(
       return;
     }
 
-    const sourceIndex = nodeIndexById[link.source];
-    const targetIndex = nodeIndexById[link.target];
+    const sourceIndex = nodeIndexById[getEndpointId(link.source)];
+    const targetIndex = nodeIndexById[getEndpointId(link.target)];
 
     if (
       sourceIndex === undefined ||
@@ -356,8 +506,8 @@ export function buildVisibleClusterSummary(
   const linkClusterByIndex = Array.from({ length: links.length }, () => null as number | null);
 
   links.forEach((link, linkIndex) => {
-    const sourceIndex = nodeIndexById[link.source];
-    const targetIndex = nodeIndexById[link.target];
+    const sourceIndex = nodeIndexById[getEndpointId(link.source)];
+    const targetIndex = nodeIndexById[getEndpointId(link.target)];
 
     if (sourceIndex === undefined || targetIndex === undefined) {
       return;

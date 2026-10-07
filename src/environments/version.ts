@@ -1,4 +1,4 @@
 // src/environments/version.ts
-export const version = "0.0.0-development";
+export const version = "2.3.0";
 export const buildDate = new Date().toISOString();
 export const commitHash = "development";

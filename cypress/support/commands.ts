@@ -5,11 +5,20 @@ import { byTestId, testIds } from './selectors';
 
 type FileLoadOptions = {
   name: string;
-  datatype: 'link' | 'node' | 'matrix' | 'fasta' | 'newick' | 'MT/other';
+  datatype: 'link' | 'node' | 'matrix' | 'fasta' | 'newick' | 'network' | 'MT/other';
   field1?: string;
   field2?: string;
   field3?: string;
 };
+
+const visibleSelectOverlay = '.p-select-overlay:visible';
+
+function closeVisibleSelectOverlays(): void {
+  cy.get('body').then(($body) => {
+    if (!$body.find(visibleSelectOverlay).length) return;
+    cy.get('body').type('{esc}', { force: true });
+  });
+}
 
 declare global {
   namespace Cypress {
@@ -43,7 +52,14 @@ export const getMimeTypeFromFilename = (name: string): string => {
   const ext = (name.split('.').pop() || '').toLowerCase();
 
   if (ext === 'csv') return 'text/csv';
+  if (ext === 'geojson') return 'application/geo+json';
   if (ext === 'json' || ext === 'microbetrace' || ext === 'style') return 'application/json';
+  if (ext === 'graphml') return 'application/graphml+xml';
+  if (ext === 'gexf') return 'application/gexf+xml';
+  if (ext === 'xgmml') return 'application/xgmml+xml';
+  if (ext === 'cx' || ext === 'cx2') return 'application/json';
+  if (ext === 'dot' || ext === 'gv') return 'text/vnd.graphviz';
+  if (ext === 'gml') return 'text/plain';
   if (ext === 'fasta' || ext === 'fas' || ext === 'fa' || ext === 'nwk' || ext === 'newick') {
     return 'text/plain';
   }
@@ -138,18 +154,42 @@ Cypress.Commands.add('loadFiles', (opts: FileLoadOptions[]) => {
 });
 
 Cypress.Commands.add('closeSettingsPane', (dialogTitle: string) => {
-  cy.contains('.p-dialog-title', dialogTitle)
+  cy.contains('.p-dialog-title:visible', dialogTitle)
     .parents('.p-dialog')
     .find('button.p-dialog-close-button')
     .click({ force: true });
 
-  cy.contains('.p-dialog-title', dialogTitle).should('not.exist');
+  cy.contains('.p-dialog-title:visible', dialogTitle).should('not.exist');
 });
 
 Cypress.Commands.add('openGlobalSettings', () => {
-  cy.get(byTestId(testIds.appGlobalSettingsButton), { timeout: 15000 }).click({ force: true });
-  cy.get(byTestId(testIds.appGlobalSettingsDialog), { timeout: 15000 }).should('exist');
-  cy.contains('.p-dialog-title', 'Global Settings', { timeout: 15000 }).should('exist');
+  cy.get('body').then(($body) => {
+    const isOpen = $body
+      .find('.p-dialog-title:visible')
+      .filter((_, element) => String(element.textContent || '').includes('Global Settings'))
+      .length > 0;
+
+    if (isOpen) return;
+    cy.get(byTestId(testIds.appGlobalSettingsButton), { timeout: 15000 }).click({ force: true });
+  });
+  cy.wait(250);
+  cy.get('body').then(($body) => {
+    const isOpen = $body
+      .find('.p-dialog-title:visible')
+      .filter((_, element) => String(element.textContent || '').includes('Global Settings'))
+      .length > 0;
+
+    if (isOpen) return;
+    cy.window().then((win: unknown) => {
+      (win as any).commonService?.visuals?.microbeTrace?.DisplayGlobalSettingsDialog?.();
+    });
+  });
+  cy.contains('.p-dialog-title:visible', 'Global Settings', { timeout: 15000 })
+    .should('be.visible')
+    .closest('.p-dialog')
+    .within(() => {
+      cy.contains('.nav-link', 'Timeline', { timeout: 15000 }).should('be.visible');
+    });
 });
 
 Cypress.Commands.add('closeGlobalSettings', () => {
@@ -168,12 +208,43 @@ Cypress.Commands.add('closeGlobalSettings', () => {
 Cypress.Commands.add('enableTimelineMode', (variableLabel = 'Date of symptom onset') => {
   cy.openGlobalSettings();
 
-  cy.contains('#global-settings-modal .nav-link', 'Timeline').click({ force: true });
-  cy.get('#global-settings-modal #timeline-config').should('exist');
+  cy.contains('.nav-link:visible', 'Timeline').click({ force: true });
+  cy.get('#timeline-config').should('exist');
 
-  cy.get('#node-timeline-variable').click();
-  cy.get('p-selectitem').contains('li', variableLabel).click();
-  cy.get('#node-timeline-variable .p-select-label').should('contain', variableLabel);
+  closeVisibleSelectOverlays();
+  cy.get('#node-timeline-variable').click({ force: true });
+  cy.get(visibleSelectOverlay, { timeout: 15000 })
+    .last()
+    .then(($overlay) => {
+      if (variableLabel !== 'None') return;
+
+      const scrollable = $overlay
+        .find('.p-select-list-container, .p-virtualscroller, .p-select-items-wrapper')
+        .filter((_, element) => element.scrollHeight > element.clientHeight)
+        .first();
+
+      if (scrollable.length) {
+        scrollable.get(0).scrollTop = 0;
+        scrollable.get(0).dispatchEvent(new Event('scroll', { bubbles: true }));
+      }
+    });
+  cy.get(visibleSelectOverlay, { timeout: 15000 })
+    .last()
+    .find('.p-select-option')
+    .then(($options) => {
+      const exactMatch = $options
+        .filter((_, option) => String(option.textContent || '').trim() === variableLabel)
+        .first();
+      const partialMatch = $options
+        .filter((_, option) => String(option.textContent || '').includes(variableLabel))
+        .first();
+      const match = exactMatch.length ? exactMatch : partialMatch;
+
+      expect(match.length, `timeline option matching "${variableLabel}"`).to.be.greaterThan(0);
+      cy.wrap(match).click({ force: true });
+    });
+  closeVisibleSelectOverlays();
+  cy.get('.p-dialog:visible #node-timeline-variable .p-select-label').should('contain', variableLabel);
 });
 
 Cypress.Commands.add('waitForNetworkToRender', (timeout = 20000) => {

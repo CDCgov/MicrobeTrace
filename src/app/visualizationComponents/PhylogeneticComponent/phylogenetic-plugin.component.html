@@ -1,4 +1,4 @@
-﻿<div class="m-content">
+<div class="m-content">
   <div id="tool-btn-container-phylo" class="m-portlet tool-btn-container">
     <span style="overflow: visible; position: relative; width: 110px;">
       <a title="Settings" class="btn btn-sm btn-clean btn-icon btn-icon-md" style="float:left" (click)="openSettings()"><i class="flaticon-settings primary"></i></a>
@@ -95,7 +95,7 @@
         <div class="form-group row leaf-label-visibility-row" title="Show leaf labels?">
           <div class="col-5">Show Leaf Labels</div>
           <div class="col-7">
-            <p-selectButton id="leaf-label-visibility" [options]="hideShowOptions" [allowEmpty]="false" fluid [(ngModel)]="SelectedLeafLabelShowVariable" (ngModelChange)="onLeafLabelShowChange($event)"></p-selectButton>
+            <p-select-button id="leaf-label-visibility" [options]="hideShowOptions" [allowEmpty]="false" fluid [(ngModel)]="SelectedLeafLabelShowVariable" (ngModelChange)="onLeafLabelShowChange($event)"></p-select-button>
           </div>
         </div>
         @if (SelectedLeafLabelShowVariable) {
@@ -115,7 +115,7 @@
         <div class="form-group row leaf-tooltip-visibility-row" title="Show leaf tooltips?">
           <div class="col-5">Show Leaf Tooltips</div>
           <div class="col-7">
-            <p-selectButton id="leaf-tooltip-visibility" [options]="hideShowOptions" [allowEmpty]="false" fluid [(ngModel)]="SelectedLeafTooltipShowVariable" (ngModelChange)="onLeafLabelTooltipShowChange($event)"></p-selectButton>
+            <p-select-button id="leaf-tooltip-visibility" [options]="hideShowOptions" [allowEmpty]="false" fluid [(ngModel)]="SelectedLeafTooltipShowVariable" (ngModelChange)="onLeafLabelTooltipShowChange($event)"></p-select-button>
           </div>
         </div>
         @if (SelectedLeafTooltipShowVariable) {
@@ -135,14 +135,14 @@
       <div class="form-group row " title="Show leaf nodes?">
         <div class="col-5">Show Leaf Nodes</div>
         <div class="col-7">
-          <p-selectButton [options]="hideShowOptions" [allowEmpty]="false" fluid [(ngModel)]="SelectedLeafNodeShowVariable" (ngModelChange)="onLeafNodeShowChange($event)"></p-selectButton>
+          <p-select-button [options]="hideShowOptions" [allowEmpty]="false" fluid [(ngModel)]="SelectedLeafNodeShowVariable" (ngModelChange)="onLeafNodeShowChange($event)"></p-select-button>
         </div>
       </div>
       @if (SelectedLeafNodeShowVariable) {
         <div class="form-group row" title="Use the global node shape settings for tree leaf nodes?">
           <div class="col-5"><label>Use Global Shapes</label></div>
           <div class="col-7">
-            <p-selectButton [options]="enableDisableOptions" [allowEmpty]="false" fluid [(ngModel)]="SelectedLeafNodeUseGlobalShapesVariable" (ngModelChange)="onLeafNodeUseGlobalShapesChange($event)"></p-selectButton>
+            <p-select-button [options]="enableDisableOptions" [allowEmpty]="false" fluid [(ngModel)]="SelectedLeafNodeUseGlobalShapesVariable" (ngModelChange)="onLeafNodeUseGlobalShapesChange($event)"></p-select-button>
           </div>
         </div>
       }
@@ -181,7 +181,7 @@
 </p-accordion-panel>
 <p-accordion-panel value="tree-leafcolors" style="color:#495057">
   <p-accordion-header>Colors</p-accordion-header>
-  <p-accordion-content><button pButton type="button" label="Show Colors" class="ui-button-raised" (click)="showGlobalSettings()" [style]="{'background-color': '#2196f3', 'border': '1px solid #2196f3'}"></button>
+  <p-accordion-content><button pButton type="button" class="ui-button-raised" (click)="showGlobalSettings($event)" [style]="{'background-color': '#2196f3', 'border': '1px solid #2196f3'}"><span class="p-button-label">Show Colors</span></button>
 </p-accordion-content>
 </p-accordion-panel>
 </p-accordion>
@@ -194,7 +194,7 @@
         <div class="form-group row branch-distance-visibility-row" title="Show distance labels?">
           <div class="col-5"><label for="branch-distance-visibility">Distance Labels</label></div>
           <div class="col-7">
-            <p-selectButton id="branch-distance-visibility" [options]="hideShowOptions" [allowEmpty]="false" fluid [(ngModel)]="SelectedBranchDistanceShowVariable" (ngModelChange)="onBranchDistanceShowChange($event)"></p-selectButton>
+            <p-select-button id="branch-distance-visibility" [options]="hideShowOptions" [allowEmpty]="false" fluid [(ngModel)]="SelectedBranchDistanceShowVariable" (ngModelChange)="onBranchDistanceShowChange($event)"></p-select-button>
           </div>
         </div>
         @if (SelectedBranchDistanceShowVariable) {
@@ -216,7 +216,7 @@
       <div class="form-group row branch-node-visibility-row" title="Show branch Nodes?">
         <div class="col-5"><label for="branch-node-visibility">Branch Nodes</label></div>
         <div class="col-7">
-          <p-selectButton id="branch-node-visibility" [options]="hideShowOptions" [allowEmpty]="false" fluid [(ngModel)]="SelectedBranchNodeShowVariable" (ngModelChange)="onBranchNodeShowChange($event)"></p-selectButton>
+          <p-select-button id="branch-node-visibility" [options]="hideShowOptions" [allowEmpty]="false" fluid [(ngModel)]="SelectedBranchNodeShowVariable" (ngModelChange)="onBranchNodeShowChange($event)"></p-select-button>
         </div>
       </div>
       @if (SelectedBranchNodeShowVariable) {
@@ -225,15 +225,15 @@
           <div class="col-7"><input type="range" class="custom-range" id="branch-node-size" min="1" step="0.5" max="10" [(ngModel)]="SelectedBranchNodeSizeVariable" (ngModelChange)="onBranchNodeSizeChange($event)"></div>
         </div>
       }
-      @if (hasNewickFile) {
+      @if (hasNewickFile || hasBootstrapSupportMetadata()) {
       <div class="form-group row" title="Show branch Nodes labels?">
         <div class="col-5"><label for="branch-node-visibility2">Branch Nodes Labels</label></div>
         <div class="col-7">
-          <p-selectButton id="branch-node-visibility2" [options]="hideShowOptions" [allowEmpty]="false" fluid [(ngModel)]="SelectedBranchLabelShowVariable" (ngModelChange)="onBranchLabelShowChange($event)"></p-selectButton>
+          <p-select-button id="branch-node-visibility2" [options]="hideShowOptions" [allowEmpty]="false" fluid [(ngModel)]="SelectedBranchLabelShowVariable" (ngModelChange)="onBranchLabelShowChange($event)"></p-select-button>
         </div>
       </div>
       }
-      @if (SelectedBranchLabelShowVariable && hasNewickFile) {
+      @if (SelectedBranchLabelShowVariable && (hasNewickFile || hasBootstrapSupportMetadata())) {
         <div class="form-group row" title="How big should branch nodes labels be?">
           <div class="col-5"><label for="branch-node-size">Branch Node Label Size</label></div>
           <div class="col-7"><input type="range" class="custom-range" id="branch-node-size" min="1" step="0.5" max="16" [(ngModel)]="SelectedBranchLabelSizeVariable" (ngModelChange)="onBranchLabelSizeChange($event)"></div>
@@ -244,8 +244,84 @@
   </p-accordion-panel> 
 </p-accordion>
 </tab>
+<tab heading="{{'Bootstrap' | localize}}" customClass="m-tabs__item">
+  <p-accordion [value]="['tree-bootstrap']" [multiple]="true">
+    <p-accordion-panel value="tree-bootstrap" style="color:#495057">
+      <p-accordion-header>Bootstrap</p-accordion-header>
+      <p-accordion-content><div #bootstrapcontrols>
+        <div class="form-group row" title="Number of bootstrap replicates">
+          <div class="col-5"><label for="bootstrap-replicates">Replicates</label></div>
+          <div class="col-7">
+            <input type="number" id="bootstrap-replicates" class="form-control form-control-sm" min="1" max="1000" step="1" [(ngModel)]="SelectedBootstrapCustomReplicates" (change)="onBootstrapCustomReplicatesChange($event)" (blur)="onBootstrapCustomReplicatesChange($event)">
+          </div>
+        </div>
+        <div class="form-group row" title="Stop bootstrap calculation when support values stabilize">
+          <div class="col-5"><label for="bootstrap-stop-stable">Stop When Stable</label></div>
+          <div class="col-7">
+            <p-select-button id="bootstrap-stop-stable" [options]="enableDisableOptions" [allowEmpty]="false" fluid [(ngModel)]="SelectedBootstrapStopWhenStable" (ngModelChange)="onBootstrapStopWhenStableChange($event)"></p-select-button>
+          </div>
+        </div>
+        <div class="form-group row" title="Decimal places for bootstrap support labels">
+          <div class="col-5"><label for="bootstrap-decimal-length">Decimals</label></div>
+          <div class="col-7">
+            <p-select id="bootstrap-decimal-length" appendTo="body" [options]="BootstrapDecimalLengthOptions" class="width-percent-100" [(ngModel)]="SelectedBootstrapDecimalLength" (ngModelChange)="onBootstrapDecimalLengthChange($event)"> </p-select>
+          </div>
+        </div>
+        <div class="form-group row" title="Only show bootstrap support labels at or above this percentage">
+          <div class="col-5"><label for="bootstrap-support-threshold">Minimum Support</label></div>
+          <div class="col-7">
+            <input type="number" id="bootstrap-support-threshold" class="form-control form-control-sm" min="0" max="100" step="1" [(ngModel)]="SelectedBootstrapSupportThreshold" (change)="onBootstrapSupportThresholdChange($event)" (blur)="onBootstrapSupportThresholdChange($event)">
+          </div>
+        </div>
+        <div class="form-group row">
+          <div class="col-12">
+            <button pButton type="button" id="calculate-bootstrap" class="ui-button-raised" [disabled]="!isBootstrapCalculationAvailable() || BootstrapRunning" (click)="calculateBootstrapSupport()"><span class="p-button-label">Calculate Bootstrap</span></button>
+            @if (BootstrapRunning) {
+              <button pButton type="button" id="cancel-bootstrap" class="ui-button-secondary ml-2" (click)="cancelBootstrapSupport()"><span class="p-button-label">Cancel</span></button>
+            }
+          </div>
+        </div>
+        @if (BootstrapRunning) {
+          <div class="form-group row">
+            <div class="col-12 bootstrap-progress-wrapper">
+              <div
+                class="bootstrap-progress-track"
+                role="progressbar"
+                [attr.aria-valuenow]="BootstrapProgressValue"
+                aria-valuemin="0"
+                aria-valuemax="100"
+              >
+                <div class="bootstrap-progress-fill" [style.width.%]="BootstrapProgressValue"></div>
+              </div>
+              <div class="bootstrap-progress-label">{{ BootstrapProgressValue }}%</div>
+            </div>
+          </div>
+        }
+        @if (BootstrapStatusMessage || !isBootstrapCalculationAvailable()) {
+          <div class="form-group row">
+            <div class="col-12">
+              <small id="bootstrap-status" class="text-muted">
+                @if (BootstrapStatusMessage) {
+                  <span>{{ BootstrapStatusMessage }}</span>
+                }
+                @if (BootstrapStatusMessage && !isBootstrapCalculationAvailable()) {
+                  <br>
+                }
+                @if (!isBootstrapCalculationAvailable()) {
+                  <span>{{ getBootstrapUnavailableReason() }}</span>
+                }
+              </small>
+            </div>
+          </div>
+        }
+      </div>
+    </p-accordion-content>
+  </p-accordion-panel>
+  </p-accordion>
+</tab>
 </tabset>
 </p-dialog>
+<p-confirm-dialog></p-confirm-dialog>
 }
 </div>
 <div id="phylo-context-menu" class="dropdown-menu">

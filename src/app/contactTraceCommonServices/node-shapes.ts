@@ -1,3 +1,6 @@
+import { normalizeNodeStyleCategoryValue } from './color-mapping.service';
+import { buildNormalizedWeightedSegmentRanges } from './weighted-segments';
+
 export type NodeShapeGroupKey = 'basic' | 'places' | 'people' | 'vectors' | 'animals' | 'specimen' | 'other';
 
 export const DEFAULT_NODE_SHAPE_KEY = 'ellipse';
@@ -39,9 +42,29 @@ interface CustomNodeShapeDefinition extends NodeShapeOption {
 export interface CustomNodeShapeVectorData {
     width: number;
     height: number;
+    viewBox: string;
     path: string;
     fillPath: string;
 }
+
+export interface MixedNodeShapeSegment {
+    color: string;
+    alpha?: number;
+    weight?: number;
+}
+
+export interface MixedNodeShapeDataUriOptions {
+    basicShapeViewBoxPadding?: number;
+    customShapePadding?: number;
+    customShapeViewBoxPadding?: number;
+    fillCanvas?: boolean;
+    includeStroke?: boolean;
+    renderedSize?: number;
+    useNativeShapeClip?: boolean;
+}
+
+export const MIXED_NODE_RING_WIDTH_RADIUS_FRACTION = 0.5;
+export const MIXED_NODE_CENTER_COLOR = '#ffffff';
 
 export const BASIC_NODE_SYMBOL_OPTIONS: NodeShapeOption[] = [
     { key: 'ellipse', value: '\u2b24', name: ' (Circle) ', groupKey: 'basic' },
@@ -60,6 +83,7 @@ export const BASIC_NODE_SYMBOL_OPTIONS: NodeShapeOption[] = [
 ];
 
 const BASIC_NODE_SHAPE_KEYS = new Set(BASIC_NODE_SYMBOL_OPTIONS.map(({ key }) => key));
+const FULL_SILHOUETTE_MIXED_BASIC_SHAPE_KEYS = new Set(['star', 'vee']);
 
 const CUSTOM_NODE_SHAPE_DEFINITIONS: Record<string, CustomNodeShapeDefinition> = {
     unknown: {
@@ -659,12 +683,12 @@ export function resolveNodeShapeForNode(
         return defaultShape;
     }
 
-    const nodeValue = node[symbolVariable];
+    const nodeValue = normalizeNodeStyleCategoryValue(node[symbolVariable]);
     const tableKeys = style?.nodeSymbolsTableKeys?.[symbolVariable];
     const tableShapes = style?.nodeSymbolsTable?.[symbolVariable];
 
     if (Array.isArray(tableKeys) && Array.isArray(tableShapes)) {
-        const tableIndex = tableKeys.findIndex(value => value === nodeValue || `${value}` === `${nodeValue}`);
+        const tableIndex = tableKeys.findIndex(value => normalizeNodeStyleCategoryValue(value) === nodeValue);
         if (tableIndex >= 0 && tableIndex < tableShapes.length) {
             return resolveNodeShapeKey(tableShapes[tableIndex], defaultShape);
         }
@@ -675,6 +699,31 @@ export function resolveNodeShapeForNode(
     }
 
     return defaultShape;
+}
+
+export interface NodeShapeCategoryAggregation {
+    counts: Map<string, number>;
+    visibleNodeCount: number;
+}
+
+export function aggregateNodeShapeCategories(
+    nodes: any[],
+    variable: string
+): NodeShapeCategoryAggregation {
+    const counts = new Map<string, number>();
+    let visibleNodeCount = 0;
+
+    (nodes || []).forEach(node => {
+        if (!node || typeof node !== 'object' || !node.visible) {
+            return;
+        }
+
+        visibleNodeCount++;
+        const category = normalizeNodeStyleCategoryValue(node[variable]);
+        counts.set(category, (counts.get(category) ?? 0) + 1);
+    });
+
+    return { counts, visibleNodeCount };
 }
 
 export function isCustomNodeShape(shapeKey: string | null | undefined): boolean {
@@ -903,6 +952,345 @@ function buildBasicNodeShapeDataUri(
     return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`;
 }
 
+export interface EvenMixedNodeShapeSegment {
+    segment: MixedNodeShapeSegment;
+    startFraction: number;
+    endFraction: number;
+}
+
+function formatSvgFraction(value: number): string {
+    return Number(value.toFixed(6)).toString();
+}
+
+export function getEvenMixedNodeShapeSegments(segments: MixedNodeShapeSegment[]): EvenMixedNodeShapeSegment[] {
+    return buildNormalizedWeightedSegmentRanges(
+        segments,
+        segment => typeof segment?.color === 'string' && !!segment.color
+    ).map(({ segment, startFraction, endFraction }) => ({
+        segment,
+        startFraction,
+        endFraction
+    }));
+}
+
+export function getMixedNodeRingWidth(renderedSize: number): number {
+    const safeRenderedSize = Math.max(1, Number(renderedSize) || 24);
+    const radius = safeRenderedSize / 2;
+    return radius * MIXED_NODE_RING_WIDTH_RADIUS_FRACTION;
+}
+
+export function getMixedNodeRingStrokeWidth(coordinateSpan: number, renderedSize: number): number {
+    const safeCoordinateSpan = Math.max(1, Number(coordinateSpan) || 1);
+    const safeRenderedSize = Math.max(1, Number(renderedSize) || 24);
+    return getMixedNodeRingWidth(safeRenderedSize) * safeCoordinateSpan / safeRenderedSize;
+}
+
+interface NodeShapeViewBoxDimensions {
+    minX: number;
+    minY: number;
+    width: number;
+    height: number;
+}
+
+function getNodeShapeViewBoxDimensions(definition: CustomNodeShapeDefinition): NodeShapeViewBoxDimensions {
+    const dimensions = definition.viewBox.trim().split(/\s+/).map(value => Number(value));
+    if (dimensions.length === 4 && dimensions.every(Number.isFinite)) {
+        const [minX, minY, width, height] = dimensions;
+        return { minX, minY, width, height };
+    }
+
+    return { minX: 0, minY: 0, width: definition.width, height: definition.height };
+}
+
+function buildMixedNodeAngularSectorPath(
+    centerX: number,
+    centerY: number,
+    radius: number,
+    startFraction: number,
+    endFraction: number
+): string {
+    const startAngle = -Math.PI / 2 + startFraction * Math.PI * 2;
+    const endAngle = -Math.PI / 2 + endFraction * Math.PI * 2;
+    const startX = centerX + radius * Math.cos(startAngle);
+    const startY = centerY + radius * Math.sin(startAngle);
+    const endX = centerX + radius * Math.cos(endAngle);
+    const endY = centerY + radius * Math.sin(endAngle);
+    const largeArcFlag = endFraction - startFraction > 0.5 ? 1 : 0;
+
+    return [
+        `M ${formatSvgFraction(centerX)} ${formatSvgFraction(centerY)}`,
+        `L ${formatSvgFraction(startX)} ${formatSvgFraction(startY)}`,
+        `A ${formatSvgFraction(radius)} ${formatSvgFraction(radius)} 0 ${largeArcFlag} 1 ${formatSvgFraction(endX)} ${formatSvgFraction(endY)}`,
+        'Z'
+    ].join(' ');
+}
+
+function buildMixedCustomNodeShapeFillContent(
+    definition: CustomNodeShapeDefinition,
+    segments: MixedNodeShapeSegment[],
+    fallbackOpacity: number
+): string {
+    const evenSegments = getEvenMixedNodeShapeSegments(segments);
+    if (!evenSegments.length) {
+        return '';
+    }
+
+    const viewBox = getNodeShapeViewBoxDimensions(definition);
+    const centerX = viewBox.minX + viewBox.width / 2;
+    const centerY = viewBox.minY + viewBox.height / 2;
+    const coverRadius = Math.hypot(viewBox.width, viewBox.height);
+    const safeShapeKey = definition.key.replace(/[^A-Za-z0-9_-]/g, '-');
+    const clipId = `mt-mixed-${safeShapeKey}-clip`;
+    const silhouettePath = definition.fillPath ?? definition.path;
+    const sectorPaths = evenSegments.map(({ segment, startFraction, endFraction }, index) => {
+        const color = sanitizeSvgColor(segment.color);
+        const opacity = sanitizeSvgOpacity(segment.alpha ?? fallbackOpacity);
+        const path = buildMixedNodeAngularSectorPath(centerX, centerY, coverRadius, startFraction, endFraction);
+        return `<path d="${path}" fill="${color}" fill-opacity="${opacity}" stroke="none" data-mt-mixed-ring-segment="${index}" data-mt-segment-start-fraction="${formatSvgFraction(startFraction)}" data-mt-segment-end-fraction="${formatSvgFraction(endFraction)}"/>`;
+    }).join('');
+
+    return [
+        '<defs>',
+        `<clipPath id="${clipId}" clipPathUnits="userSpaceOnUse"><path d="${silhouettePath}"/></clipPath>`,
+        '</defs>',
+        `<g clip-path="url(#${clipId})" data-mt-custom-mixed-fill="silhouette-sectors">${sectorPaths}</g>`
+    ].join('');
+}
+
+function buildMixedBasicNodeShapeFillContent(
+    shapeKey: string,
+    silhouettePath: string,
+    segments: MixedNodeShapeSegment[],
+    fallbackOpacity: number,
+    transform: string = '',
+    useNativeShapeClip: boolean = false
+): string {
+    const evenSegments = getEvenMixedNodeShapeSegments(segments);
+    if (!evenSegments.length) {
+        return '';
+    }
+
+    const safeShapeKey = shapeKey.replace(/[^A-Za-z0-9_-]/g, '-');
+    const clipId = `mt-mixed-${safeShapeKey}-clip`;
+    const transformAttribute = transform ? ` transform="${transform}"` : '';
+    const coverRadius = Math.hypot(300, 300);
+    const sectorPaths = evenSegments.map(({ segment, startFraction, endFraction }, index) => {
+        const color = sanitizeSvgColor(segment.color);
+        const opacity = sanitizeSvgOpacity(segment.alpha ?? fallbackOpacity);
+        const path = buildMixedNodeAngularSectorPath(150, 150, coverRadius, startFraction, endFraction);
+        return `<path d="${path}" fill="${color}" fill-opacity="${opacity}" stroke="none" data-mt-mixed-ring-segment="${index}" data-mt-segment-start-fraction="${formatSvgFraction(startFraction)}" data-mt-segment-end-fraction="${formatSvgFraction(endFraction)}"/>`;
+    }).join('');
+
+    if (useNativeShapeClip) {
+        return `<g data-mt-basic-mixed-fill="native-shape-sectors">${sectorPaths}</g>`;
+    }
+
+    return [
+        '<defs>',
+        `<clipPath id="${clipId}" clipPathUnits="userSpaceOnUse"><path d="${silhouettePath}"${transformAttribute}/></clipPath>`,
+        '</defs>',
+        `<g clip-path="url(#${clipId})" data-mt-basic-mixed-fill="silhouette-sectors">${sectorPaths}</g>`
+    ].join('');
+}
+
+function buildMixedNodeRingStrokeElements(
+    elementName: 'circle' | 'path',
+    geometryAttributes: string,
+    segments: MixedNodeShapeSegment[],
+    fallbackOpacity: number,
+    coordinateSpan: number,
+    renderedSize: number,
+    transform: string = '',
+    ringStrokeWidthOverride?: number
+): string {
+    const evenSegments = getEvenMixedNodeShapeSegments(segments);
+    if (!evenSegments.length) {
+        return '';
+    }
+
+    const requestedRingStrokeWidth = Number(ringStrokeWidthOverride);
+    const ringStrokeWidth = Number.isFinite(requestedRingStrokeWidth) && requestedRingStrokeWidth > 0
+        ? requestedRingStrokeWidth
+        : getMixedNodeRingStrokeWidth(coordinateSpan, renderedSize);
+    const transformAttribute = transform ? ` transform="${transform}"` : '';
+    return evenSegments.map(({ segment, startFraction, endFraction }, index) => {
+        const color = sanitizeSvgColor(segment.color);
+        const opacity = sanitizeSvgOpacity(segment.alpha ?? fallbackOpacity);
+        const segmentLength = endFraction - startFraction;
+        const gapLength = 1 - segmentLength;
+
+        return `<${elementName} ${geometryAttributes} pathLength="1" fill="none" stroke="${color}" stroke-opacity="${opacity}" stroke-width="${formatSvgFraction(ringStrokeWidth)}" stroke-dasharray="${formatSvgFraction(segmentLength)} ${formatSvgFraction(gapLength)}" stroke-dashoffset="${formatSvgFraction(-startFraction)}" stroke-linecap="butt" stroke-linejoin="round" vector-effect="none" data-mt-mixed-ring-segment="${index}" data-mt-segment-start-fraction="${formatSvgFraction(startFraction)}" data-mt-segment-end-fraction="${formatSvgFraction(endFraction)}" data-mt-mixed-ring-width-radius-fraction="${MIXED_NODE_RING_WIDTH_RADIUS_FRACTION}"${transformAttribute}/>`;
+    }).join('');
+}
+
+function buildMixedBasicNodeShapeContent(
+    normalizedShapeKey: string,
+    fillColor: string,
+    strokeColor: string,
+    strokeWidth: number,
+    fillOpacity: number,
+    segments: MixedNodeShapeSegment[],
+    selectedStrokeColor?: string | null,
+    options: MixedNodeShapeDataUriOptions = {}
+): string {
+    const hasMixedRing = getEvenMixedNodeShapeSegments(segments).length > 1;
+    const safeFill = sanitizeSvgColor(hasMixedRing ? MIXED_NODE_CENTER_COLOR : fillColor);
+    const safeFillOpacity = sanitizeSvgOpacity(fillOpacity);
+    const viewBoxPadding = !options.fillCanvas
+        ? Math.max(0, Number(options.basicShapeViewBoxPadding ?? 0))
+        : 0;
+    const includeStroke = options.includeStroke !== false;
+    const outlineStroke = sanitizeSvgColor(selectedStrokeColor ?? strokeColor);
+    const coordinateSpan = 300 + (viewBoxPadding * 2);
+    const renderedSize = Number(options.renderedSize) || 24;
+    const ringStrokeWidth = getMixedNodeRingStrokeWidth(coordinateSpan, renderedSize);
+    const outlineAttributes = `fill="none" stroke="${outlineStroke}" stroke-width="${strokeWidth}" stroke-linecap="round" stroke-linejoin="round"`;
+
+    const buildBasicMixedCenterTransform = (transform: string = ''): string => [
+        transform,
+        `translate(150 150) scale(${formatSvgFraction(1 - MIXED_NODE_RING_WIDTH_RADIUS_FRACTION)}) translate(-150 -150)`
+    ].filter(Boolean).join(' ');
+
+    const buildCircleContent = (radius: number, transform: string = ''): string => {
+        const geometry = `cx="150" cy="150" r="${formatSvgFraction(radius)}"`;
+        const centerRadius = Math.max(0, radius - (ringStrokeWidth / 2));
+        const base = hasMixedRing
+            ? `<circle cx="150" cy="150" r="${formatSvgFraction(centerRadius)}" fill="${safeFill}" fill-opacity="1" stroke="none" data-mt-mixed-ring-center="basic-shape"${transform ? ` transform="${transform}"` : ''}/>`
+            : `<circle ${geometry} fill="${safeFill}" fill-opacity="${safeFillOpacity}" stroke="none"${transform ? ` transform="${transform}"` : ''}/>`;
+        const ring = buildMixedNodeRingStrokeElements('circle', geometry, segments, safeFillOpacity, coordinateSpan, renderedSize, transform || 'rotate(-90 150 150)');
+        const outline = includeStroke
+            ? `<circle ${geometry} ${outlineAttributes}${transform ? ` transform="${transform}"` : ''}/>`
+            : '';
+        return `${base}${ring}${outline}`;
+    };
+
+    const buildPathContent = (path: string, transform: string = ''): string => {
+        const geometry = `d="${path}"`;
+        const transformAttribute = transform ? ` transform="${transform}"` : '';
+        const centerTransform = buildBasicMixedCenterTransform(transform);
+        const useFullSilhouetteMixedFill = hasMixedRing
+            && FULL_SILHOUETTE_MIXED_BASIC_SHAPE_KEYS.has(normalizedShapeKey);
+        const base = useFullSilhouetteMixedFill
+            ? buildMixedBasicNodeShapeFillContent(
+                normalizedShapeKey,
+                path,
+                segments,
+                safeFillOpacity,
+                transform,
+                options.useNativeShapeClip === true
+            )
+            : hasMixedRing
+            ? `<path ${geometry} fill="${safeFill}" fill-opacity="1" stroke="none" transform="${centerTransform}" data-mt-mixed-ring-center="basic-shape"/>`
+            : `<path ${geometry} fill="${safeFill}" fill-opacity="${safeFillOpacity}" stroke="none"${transformAttribute}/>`;
+        const ring = useFullSilhouetteMixedFill
+            ? ''
+            : buildMixedNodeRingStrokeElements('path', geometry, segments, safeFillOpacity, coordinateSpan, renderedSize, transform);
+        const outline = includeStroke
+            ? `<path ${geometry} ${outlineAttributes}${transformAttribute}/>`
+            : '';
+        return `${base}${ring}${outline}`;
+    };
+
+    if (options.fillCanvas) {
+        if (normalizedShapeKey === 'ellipse') {
+            const radius = Math.max(1, 150 - (ringStrokeWidth / 2));
+            return buildCircleContent(radius);
+        }
+
+        const canvasPath = normalizedShapeKey === 'barrel'
+            ? 'M 90 45 C 60 45 45 82 45 150 C 45 218 60 255 90 255 L 210 255 C 240 255 255 218 255 150 C 255 82 240 45 210 45 Z'
+            : buildBasicNodeShapePath(normalizedShapeKey);
+        if (!canvasPath) {
+            return buildCircleContent(110);
+        }
+
+        const canvasTransform = 'translate(150 150) scale(1.28) translate(-150 -150)';
+        return buildPathContent(canvasPath, canvasTransform);
+    }
+
+    if (normalizedShapeKey === 'ellipse') {
+        return buildCircleContent(110);
+    }
+
+    const path = normalizedShapeKey === 'barrel'
+        ? 'M 90 45 C 60 45 45 82 45 150 C 45 218 60 255 90 255 L 210 255 C 240 255 255 218 255 150 C 255 82 240 45 210 45 Z'
+        : buildBasicNodeShapePath(normalizedShapeKey);
+    if (!path) {
+        return buildCircleContent(110);
+    }
+
+    return buildPathContent(path);
+}
+
+function buildMixedCustomNodeShapeContent(
+    definition: CustomNodeShapeDefinition,
+    fillColor: string,
+    strokeColor: string,
+    strokeWidth: number,
+    fillOpacity: number,
+    segments: MixedNodeShapeSegment[],
+    selectedStrokeColor?: string | null,
+    options: MixedNodeShapeDataUriOptions = {}
+): string {
+    const hasMixedRing = getEvenMixedNodeShapeSegments(segments).length > 1;
+    const safeFill = sanitizeSvgColor(hasMixedRing ? MIXED_NODE_CENTER_COLOR : fillColor);
+    const safeFillOpacity = sanitizeSvgOpacity(fillOpacity);
+    const includeStroke = options.includeStroke !== false;
+    const outlineStroke = sanitizeSvgColor(selectedStrokeColor ?? strokeColor);
+    const customShapePadding = Math.min(100, Math.max(0, Number(options.customShapePadding ?? 40)));
+    const customShapeSize = Math.max(1, 300 - (customShapePadding * 2));
+    const requestedViewBoxPadding = Math.max(0, Number(options.customShapeViewBoxPadding ?? strokeWidth));
+    const viewBoxPadding = Math.max(requestedViewBoxPadding, includeStroke ? strokeWidth / 2 : 0);
+    const mixedFill = hasMixedRing
+        ? buildMixedCustomNodeShapeFillContent(
+            definition,
+            segments,
+            fillOpacity
+        )
+        : '';
+    const outlinePath = includeStroke
+        ? `<path d="${definition.path}" fill="none" stroke="${outlineStroke}" stroke-width="${strokeWidth}" stroke-linecap="round" stroke-linejoin="round"/>`
+        : '';
+
+    return [
+        `<svg x="${customShapePadding}" y="${customShapePadding}" width="${customShapeSize}" height="${customShapeSize}" viewBox="${buildPaddedViewBox(definition.viewBox, viewBoxPadding)}" preserveAspectRatio="xMidYMid meet">`,
+        `<g transform="translate(0,${definition.height}) scale(1,-1)">`,
+        hasMixedRing
+            ? ''
+            : `<path d="${definition.fillPath ?? definition.path}" fill="${safeFill}" fill-opacity="${safeFillOpacity}" stroke="none"/>`,
+        mixedFill,
+        outlinePath,
+        '</g>',
+        '</svg>'
+    ].join('');
+}
+
+export function getMixedNodeShapeDataUri(
+    shapeKey: string,
+    fillColor: string,
+    strokeColor: string,
+    strokeWidth: number,
+    fillOpacity: number = 1,
+    segments: MixedNodeShapeSegment[] = [],
+    selectedStrokeColor?: string | null,
+    options: MixedNodeShapeDataUriOptions = {}
+): string {
+    const normalizedShapeKey = resolveNodeShapeKey(shapeKey);
+    const safeStroke = sanitizeSvgColor(strokeColor);
+    const safeStrokeWidth = Math.max(1, Number(strokeWidth) || 1);
+    const isCustomShape = isCustomNodeShape(normalizedShapeKey);
+    const basicShapeViewBoxPadding = !isCustomShape && !options.fillCanvas
+        ? Math.max(0, Number(options.basicShapeViewBoxPadding ?? 0))
+        : 0;
+    const shapeContent = isCustomShape
+        ? buildMixedCustomNodeShapeContent(CUSTOM_NODE_SHAPE_DEFINITIONS[normalizedShapeKey], fillColor, safeStroke, safeStrokeWidth, fillOpacity, segments, selectedStrokeColor, options)
+        : buildMixedBasicNodeShapeContent(normalizedShapeKey, fillColor, safeStroke, safeStrokeWidth, fillOpacity, segments, selectedStrokeColor, options);
+    const viewBox = buildPaddedViewBox('0 0 300 300', basicShapeViewBoxPadding);
+    const svg = `<?xml version="1.0" encoding="UTF-8"?><svg xmlns="http://www.w3.org/2000/svg" width="300" height="300" viewBox="${viewBox}" aria-hidden="true">${shapeContent}</svg>`;
+
+    return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`;
+}
+
 export function getMapNodeShapeDataUri(shapeKey: string, fillColor: string, strokeColor: string, strokeWidth: number, fillOpacity: number = 1): string {
     const normalizedShapeKey = resolveNodeShapeKey(shapeKey);
     if (isCustomNodeShape(normalizedShapeKey)) {
@@ -929,6 +1317,10 @@ export function getMapNodeShapeDataUri(shapeKey: string, fillColor: string, stro
     }
 
     return buildEllipseNodeShapeDataUri(fillColor, strokeColor, strokeWidth, undefined, fillOpacity);
+}
+
+export function getNodeShapePreviewDataUri(shapeKey: string): string {
+    return getMapNodeShapeDataUri(resolveNodeShapeKey(shapeKey), '#000000', '#000000', 2);
 }
 
 export function getTreeNodeShapeDataUri(shapeKey: string, fillColor: string, strokeColor: string, strokeWidth: number, fillOpacity: number = 1): string {
@@ -974,6 +1366,7 @@ export function getCustomNodeShapeVectorData(shapeKey: string): CustomNodeShapeV
     return {
         width: definition.width,
         height: definition.height,
+        viewBox: definition.viewBox,
         path: definition.path,
         fillPath: definition.fillPath ?? definition.path
     };

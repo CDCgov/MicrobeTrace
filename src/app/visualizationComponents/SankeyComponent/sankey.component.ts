@@ -1,4 +1,4 @@
-import { Injector, Component, Output, EventEmitter, OnInit, ElementRef, ChangeDetectorRef, Inject, ViewChild, OnDestroy } from '@angular/core';
+import { Injector, Component, Output, EventEmitter, OnInit, ElementRef, ChangeDetectorRef, Inject, ViewChild, OnDestroy, ChangeDetectionStrategy } from '@angular/core';
 import { EventManager } from '@angular/platform-browser';
 import { CommonService } from '@app/contactTraceCommonServices/common.service';
 import { saveAs } from 'file-saver';
@@ -11,7 +11,6 @@ import * as _ from 'lodash';
 import * as d3sankey from 'd3-sankey';
 import { BaseComponentDirective } from '@app/base-component.directive';
 import { ComponentContainer } from 'golden-layout';
-import { GoogleTagManagerService } from 'angular-google-tag-manager';
 //import { MultiSelectModule } from 'primeng/multiselect';
 import type { SankeyNode, SankeyLink } from './sankey-types';
 import { ExportService } from '@app/contactTraceCommonServices/export.service';
@@ -23,6 +22,7 @@ import { CommonStoreService } from '@app/contactTraceCommonServices/common-store
     selector: 'SankeyComponent',
     templateUrl: './sankey.component.html',
     styleUrls: ['./sankey.component.scss'],
+    changeDetection: ChangeDetectionStrategy.Eager,
     standalone: false
 })
 export class SankeyComponent extends BaseComponentDirective implements OnInit, OnDestroy {
@@ -97,8 +97,7 @@ export class SankeyComponent extends BaseComponentDirective implements OnInit, O
     @Inject(BaseComponentDirective.GoldenLayoutContainerInjectionToken) private container: ComponentContainer, 
     elRef: ElementRef,
     private cdref: ChangeDetectorRef,
-    private store: CommonStoreService,
-    private gtmService: GoogleTagManagerService) {
+    private store: CommonStoreService) {
 
     super(elRef.nativeElement);
 

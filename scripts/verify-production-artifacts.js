@@ -43,6 +43,8 @@ function verifyDistDirectory(root, violations) {
     }
   }
 
+  verifyIndexStylesheetLoading(root, violations);
+
   if (fs.existsSync(path.join(root, 'WEB-INF')) && !fs.existsSync(path.join(root, 'WEB-INF/web.xml'))) {
     violations.push('WAR header configuration missing: WEB-INF/web.xml');
   }
@@ -75,6 +77,27 @@ function verifyDistDirectory(root, violations) {
           .join(', ')}`
       );
     }
+  }
+}
+
+function verifyIndexStylesheetLoading(root, violations) {
+  const indexPath = path.join(root, 'index.html');
+
+  if (!fs.existsSync(indexPath)) {
+    violations.push('Production index missing: index.html');
+    return;
+  }
+
+  const indexHtml = fs.readFileSync(indexPath, 'utf8');
+  const stylesheetLinks = indexHtml.match(/<link\b[^>]*\brel=["']stylesheet["'][^>]*>/gi) || [];
+  const hasInlineMediaSwap = stylesheetLinks.some(
+    (link) => /\bmedia=["']print["']/i.test(link) && /\bonload\s*=/i.test(link)
+  );
+
+  if (hasInlineMediaSwap) {
+    violations.push(
+      'Stylesheet loading depends on an inline onload media swap, which is blocked by the application Content Security Policy.'
+    );
   }
 }
 

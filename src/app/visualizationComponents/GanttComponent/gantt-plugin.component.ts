@@ -1,5 +1,8 @@
-import { Injector, Component, Output, EventEmitter, OnInit, AfterViewInit,
-  ViewChild, ViewContainerRef, ElementRef, ChangeDetectorRef, Inject } from '@angular/core';
+import {
+  Injector, Component, Output, EventEmitter, OnInit, AfterViewInit,
+  ViewChild, ViewContainerRef, ElementRef, ChangeDetectorRef, Inject,
+  ChangeDetectionStrategy
+} from '@angular/core';
 import { EventManager } from '@angular/platform-browser';
 import { CommonService } from '@app/contactTraceCommonServices/common.service';
 import { SelectItem } from 'primeng/api';
@@ -12,17 +15,18 @@ import { BaseComponentDirective } from '@app/base-component.directive';
 import { ComponentContainer } from 'golden-layout';
 import { GanttChartService } from './gantt-chart/gantt-chart.service';
 import { GanttChartComponent } from './gantt-chart/gantt-chart.component';
-import { GoogleTagManagerService } from 'angular-google-tag-manager';
 import { MicrobeTraceNextVisuals } from '../../microbe-trace-next-plugin-visuals';
 import { cloneDeep } from 'lodash';
 import { ExportService } from '@app/contactTraceCommonServices/export.service';
 import { CommonStoreService } from '@app/contactTraceCommonServices/common-store.services';
+import { showColorTransparencyPicker } from '../KeyTablesComponent/color-transparency-picker';
 
 
 @Component({
     selector: 'GanttComponent',
     templateUrl: './gantt-plugin.component.html',
     styleUrls: ['./gantt-plugin.component.scss'],
+    changeDetection: ChangeDetectionStrategy.Eager,
     standalone: false
 })
 export class GanttComponent extends BaseComponentDirective implements OnInit, AfterViewInit {
@@ -105,7 +109,6 @@ export class GanttComponent extends BaseComponentDirective implements OnInit, Af
               elRef: ElementRef,
               ganttChartService: GanttChartService,
               private cdref: ChangeDetectorRef,
-              private gtmService: GoogleTagManagerService,
               private exportService: ExportService,
               private store: CommonStoreService) {
 
@@ -136,12 +139,6 @@ export class GanttComponent extends BaseComponentDirective implements OnInit, Af
   }
 
   ngOnInit(): void {
-
-    this.gtmService.pushTag({
-            event: "page_view",
-            page_location: "/gantt",
-            page_title: "Gantt Chart View"
-        });
 
     this.nodeIds = this.getNodeIds();
     this.visuals.gantt.FieldList.push(
@@ -363,6 +360,7 @@ export class GanttComponent extends BaseComponentDirective implements OnInit, Af
   }
 
   openOpacityBar(e, entryName = '') {
+    e.stopPropagation();
     let startingOpacity;
     if (entryName) {
       startingOpacity = this.ganttChartData.find(entry => entry["name"] === entryName)["opacity"]
@@ -374,16 +372,13 @@ export class GanttComponent extends BaseComponentDirective implements OnInit, Af
       $("#color-transparency-wrapper").fadeOut();
     }, 7000)
 
-    $("#color-transparency-wrapper").css({
-      top: e.clientY + 129,
-      left: e.clientX,
-      display: "block",
-      zIndex: 99999
-    });
+    const input = showColorTransparencyPicker(e, startingOpacity, 99999);
+    if (!input) {
+      return;
+    }
 
-    $("#color-transparency")
+    $(input)
       .off("change")
-      .val(startingOpacity)
       .one("change", (f) => {
         this.currentOpacity = Number(f.target['value'])
         

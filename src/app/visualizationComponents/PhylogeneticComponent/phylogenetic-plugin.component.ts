@@ -1,11 +1,12 @@
 ﻿import {
   Injector, Component, Output, EventEmitter, OnInit,
-  ElementRef, ChangeDetectorRef, Inject, OnDestroy
+  ElementRef, ChangeDetectorRef, Inject, OnDestroy,
+  ChangeDetectionStrategy
 } from '@angular/core';
 import { EventManager } from '@angular/platform-browser';
 import { CommonService } from '@app/contactTraceCommonServices/common.service';
 import { saveAs } from 'file-saver';
-import { SelectItem } from 'primeng/api';
+import { ConfirmationService, SelectItem } from 'primeng/api';
 import { DialogSettings } from '@app/helperClasses/dialogSettings';
 import * as _ from 'lodash';
 import { MicrobeTraceNextVisuals } from '@app/microbe-trace-next-plugin-visuals';
@@ -14,7 +15,6 @@ import TidyTree from './tidytree';
 import * as d3 from 'd3';
 import { BaseComponentDirective } from '@app/base-component.directive';
 import { ComponentContainer } from 'golden-layout';
-import { GoogleTagManagerService } from 'angular-google-tag-manager';
 //import { runInThisContext } from 'vm';
 //import { MatHint } from '@angular/material/form-field';
 import { ExportService, ExportOptions } from '@app/contactTraceCommonServices/export.service';
@@ -23,7 +23,25 @@ import { MicobeTraceNextPluginEvents } from '../../helperClasses/interfaces';
 import { throws } from 'assert';
 import { Subject, takeUntil } from 'rxjs';
 import { CommonStoreService } from '@app/contactTraceCommonServices/common-store.services';
-import { getTreeNodeShapeDataUri, getTreeNodeShapeScale, isCustomNodeShape as isCustomNodeIconShape, resolveNodeShapeForNode } from '@app/contactTraceCommonServices/node-shapes';
+import { getEvenMixedNodeShapeSegments, getMixedNodeRingWidth, getMixedNodeShapeDataUri, getTreeNodeShapeDataUri, getTreeNodeShapeScale, isCustomNodeShape as isCustomNodeIconShape, MIXED_NODE_CENTER_COLOR, resolveNodeShapeForNode } from '@app/contactTraceCommonServices/node-shapes';
+import { WorkerComputeService } from '@app/contactTraceCommonServices/worker-compute.service';
+import {
+  applyBootstrapSupportToTree,
+  BOOTSTRAP_DEFAULT_STABILITY_TOLERANCE_PERCENT,
+  canonicalSplitKey,
+  collectLeafIds,
+  collectTreeSplitKeys,
+  formatBootstrapSupportLabel,
+  normalizeBootstrapDecimalLength,
+  normalizeBootstrapReplicateCount,
+  normalizeBootstrapSupportThreshold,
+  parseBootstrapSupportPercent,
+} from '@app/workers/phylogenetic-bootstrap-utils';
+import type {
+  PhylogeneticBootstrapComputeResult,
+  PhylogeneticBootstrapProgress,
+} from '@app/workers/phylogenetic-bootstrap.types';
+import { createGlobalSettingsDialogRequest, GlobalSettingsDialogRequest } from '@app/helperClasses/globalSettingsDialogRequest';
 
 /**
  * @title PhylogeneticComponent
@@ -32,11 +50,13 @@ import { getTreeNodeShapeDataUri, getTreeNodeShapeScale, isCustomNodeShape as is
     selector: 'PhylogeneticComponent',
     templateUrl: './phylogenetic-plugin.component.html',
     styleUrls: ['./phylogenetic-plugin.component.scss'],
-    standalone: false
+    standalone: false,
+    changeDetection: ChangeDetectionStrategy.Eager,
+    providers: [ConfirmationService]
 })
 export class PhylogeneticComponent extends BaseComponentDirective implements OnInit, OnDestroy, MicobeTraceNextPluginEvents {
 
-  @Output() DisplayGlobalSettingsDialogEvent = new EventEmitter();
+  @Output() DisplayGlobalSettingsDialogEvent = new EventEmitter<GlobalSettingsDialogRequest>();
   viewActive: boolean = true;
   svgStyle: object = {
     height: '0px',
@@ -113,10 +133,27 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
   SelectedBranchSizeVariable = 3;
   SelectedBranchLabelSizeVariable: 12 = 12;
   SelectedLinkColorVariable = this.settings['link-color'];
-  SelectedBranchLabelShowVariable: boolean = false;
+  SelectedBranchLabelShowVariable: boolean = this.settings['tree-branch-label-show'] ?? false;
   SelectedBranchDistanceShowVariable = !(this.settings['tree-branch-distances-hide'] ?? true); // inverse of its widget; defaults to false
   SelectedBranchDistanceSizeVariable = this.settings['tree-branch-distance-size'] ?? 12;
   //SelectedBranchTooltipShowVariable = false;
+
+  // Bootstrap Tab
+  BootstrapDecimalLengthOptions: SelectItem[] = [
+    { label: '0', value: 0 },
+    { label: '1', value: 1 },
+    { label: '2', value: 2 },
+    { label: '3', value: 3 },
+  ];
+  SelectedBootstrapCustomReplicates = normalizeBootstrapReplicateCount(this.settings['tree-bootstrap-custom-replicates'] ?? 100);
+  SelectedBootstrapStopWhenStable = this.settings['tree-bootstrap-stop-when-stable'] ?? false;
+  SelectedBootstrapDecimalLength = normalizeBootstrapDecimalLength(this.settings['tree-bootstrap-decimal-length'] ?? 1);
+  SelectedBootstrapSupportThreshold = normalizeBootstrapSupportThreshold(this.settings['tree-bootstrap-support-threshold'] ?? 0);
+  BootstrapRunning = false;
+  BootstrapProgressValue = 0;
+  BootstrapStatusMessage = '';
+  BootstrapLastCompletedReplicates = 0;
+  BootstrapLastRequestedReplicates = 0;
 
   hideShowOptions: object = [
     { label: 'Hide', value: false },
@@ -158,6 +195,9 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
   originalTreeData: any = null;
   hasTreeBeenModifiedFromOriginal = false;
   private treeLeafShapeUriCache = new Map<string, string>();
+  private treeRenderRecoveryFrame: number | null = null;
+  private treeRenderRecoveryAttempts = 0;
+  private readonly maxTreeRenderRecoveryAttempts = 180;
 
   private visuals: MicrobeTraceNextVisuals;
   private destroy$ = new Subject<void>();
@@ -168,9 +208,10 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
     @Inject(BaseComponentDirective.GoldenLayoutContainerInjectionToken) private container: ComponentContainer,
     elRef: ElementRef,
     private cdref: ChangeDetectorRef,
-    private gtmService: GoogleTagManagerService,
     private store: CommonStoreService,
-    private exportService: ExportService) {
+    private exportService: ExportService,
+    private workerComputeService: WorkerComputeService,
+    private confirmationService: ConfirmationService) {
 
     super(elRef.nativeElement);
 
@@ -227,7 +268,10 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
       //});
     }
     this.hasNewickFile = this.commonService.session.files.some(file => file.format == 'newick');
-    this.markTreeRendered();
+    this.applyStoredBootstrapSupport(true);
+    if (this.ensureTreeRenderedInCanvas()) {
+      this.markTreeRendered();
+    }
     // d3.select('svg#network').exit().remove();
     // this.visuals.phylogenetic.svg = d3.select('svg#network').append('g');
 
@@ -240,8 +284,101 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
   //   let leafNodes = this.tree.data.getLeaves();
   // }
 
+  private cancelTreeRenderRecovery(resetAttempts: boolean = true): void {
+    if (this.treeRenderRecoveryFrame !== null) {
+      window.cancelAnimationFrame(this.treeRenderRecoveryFrame);
+      this.treeRenderRecoveryFrame = null;
+    }
+    if (resetAttempts) {
+      this.treeRenderRecoveryAttempts = 0;
+    }
+  }
+
+  private scheduleTreeRenderRecovery(): void {
+    if (
+      this.treeRenderRecoveryFrame !== null ||
+      this.treeRenderRecoveryAttempts >= this.maxTreeRenderRecoveryAttempts
+    ) {
+      return;
+    }
+
+    this.treeRenderRecoveryFrame = window.requestAnimationFrame(() => {
+      this.treeRenderRecoveryFrame = null;
+      this.treeRenderRecoveryAttempts++;
+      this.goldenLayoutComponentResize();
+
+      if (!this.ensureTreeRenderedInCanvas()) {
+        return;
+      }
+
+      if (this.hasBootstrapSupportMetadata()) {
+        this.applyStoredBootstrapSupport(false);
+      }
+      this.styleTree();
+      this.markTreeRendered();
+    });
+  }
+
+  private ensureTreeRenderedInCanvas(): boolean {
+    if (!this.tree?.data) {
+      this.scheduleTreeRenderRecovery();
+      return false;
+    }
+
+    const canvas = d3.select('#phylocanvas');
+    if (canvas.empty()) {
+      this.scheduleTreeRenderRecovery();
+      return false;
+    }
+
+    const sessionNewick = this.commonService.session.data?.newickString;
+    const hasSessionNewick = typeof sessionNewick === 'string' && sessionNewick.trim().length > 0;
+    const expectedLeafCount = collectLeafIds(this.tree.data).length;
+    const expectedNodeCount = this.tree.hierarchy?.descendants?.().length ?? expectedLeafCount;
+    const renderedNodeCount = canvas.selectAll('svg g.tidytree-node').size();
+    const hasRenderableTreeData = expectedLeafCount > 1;
+
+    if (hasRenderableTreeData && renderedNodeCount >= expectedNodeCount) {
+      this.cancelTreeRenderRecovery();
+      return true;
+    }
+    if (!hasRenderableTreeData && !hasSessionNewick) {
+      this.scheduleTreeRenderRecovery();
+      return false;
+    }
+
+    const canvasElement = canvas.node() as HTMLElement;
+    const canvasBounds = canvasElement.getBoundingClientRect();
+    if (canvasBounds.width <= 0 || canvasBounds.height <= 0) {
+      this.scheduleTreeRenderRecovery();
+      return false;
+    }
+
+    const sourceTree = hasRenderableTreeData ? this.tree.data : sessionNewick;
+
+    const tree: TidyTree = new TidyTree(
+      sourceTree,
+      this.getTreeOptions(),
+      this.getTreeHandlers(),
+    );
+    this.tree = tree;
+    this.commonService.visuals.phylogenetic.tree = tree;
+    this.originalTreeData = tree.data?.clone ? tree.data.clone() : tree.data;
+    this.hasTreeBeenModifiedFromOriginal = false;
+
+    const rebuiltNodeCount = canvas.selectAll('svg g.tidytree-node').size();
+    const treeRendered = rebuiltNodeCount >= expectedNodeCount;
+    if (treeRendered) {
+      this.cancelTreeRenderRecovery();
+    } else {
+      this.scheduleTreeRenderRecovery();
+    }
+    return treeRendered;
+  }
+
   styleTree = () => {
     if (!this.tree) return;
+    this.ensureTreeRenderedInCanvas();
     this.svg = d3.select('#phylocanvas svg');
     this.svg.style('overflow', 'visible');
     // let nodes = this.commonService.session.data; // This section seems redundant (replaced with getTreeHandlers)
@@ -292,8 +429,34 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
     d3.select(el).style('stroke-width', `${this.SelectedBranchSizeVariable}px`);
   }
 
+  private getBootstrapSupportForBranch(data: any): number | null {
+    const branch = data?.data ?? data;
+    const metadata = this.commonService.session.data?.phylogeneticBootstrap;
+    if (this.tree?.data && metadata?.supportBySplitKey) {
+      const allLeafIds = Array.isArray(metadata.labels) && metadata.labels.length
+        ? metadata.labels.map(label => String(label))
+        : collectLeafIds(this.tree.data);
+      const splitKey = canonicalSplitKey(collectLeafIds(branch), allLeafIds);
+
+      if (splitKey && Object.prototype.hasOwnProperty.call(metadata.supportBySplitKey, splitKey)) {
+        const value = Number(metadata.supportBySplitKey[splitKey]);
+        if (Number.isFinite(value)) return value;
+      }
+    }
+
+    return parseBootstrapSupportPercent(branch?.id);
+  }
+
   styleBranchLabel = (label, data) => {
-    d3.select(label).style('font-size', `${this.SelectedBranchLabelSizeVariable}px`);
+    const supportValue = this.getBootstrapSupportForBranch(data);
+    const selection = d3.select(label).interrupt();
+    if (supportValue !== null) {
+      selection.text(formatBootstrapSupportLabel(supportValue, this.SelectedBootstrapDecimalLength));
+    }
+    const meetsSupportThreshold = supportValue === null || supportValue >= this.SelectedBootstrapSupportThreshold;
+    selection
+      .style('font-size', `${this.SelectedBranchLabelSizeVariable}px`)
+      .style('opacity', this.SelectedBranchLabelShowVariable && meetsSupportThreshold ? 1 : 0);
   }
 
   styleBranchNode = (node, data) => {
@@ -338,18 +501,16 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
   getLeafSize = (node_id, variable): number => {
     let defaultSize = this.SelectedLeafNodeSize;
     let size = defaultSize, med = defaultSize, oldrng, min, max;
-    let nodes = this.visuals.phylogenetic.commonService.session.data.nodes;
-    const node = nodes.filter(x => {
-      if (x._id === node_id) {
-        return true;
-      }
-    });
 
     if (variable === 'None') {
       return defaultSize;
     } else {
+      const node = this.getLeafNodeData(node_id);
+      if (!node) {
+        return defaultSize;
+      }
 
-      let v = node[0][variable];
+      let v = node[variable];
       if (variable === "Cluster" || variable === "Cluster size") {
         return parseInt(v);
       }
@@ -376,14 +537,21 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
   }
 
   styleLeafNode = (node, data) => {
+    const leafId = this.getTreeLeafId(data);
+    if (leafId === null) {
+      return;
+    }
+
     let leafSize: number;
-    leafSize = this.getLeafSize(data.data.id, this.SelectedLeafNodeSizeVariable);
+    leafSize = this.getLeafSize(leafId, this.SelectedLeafNodeSizeVariable);
     const selectedColor = this.SelectedSelectedLeafNodeColorVariable;
-    const nodeData = this.getLeafNodeData(data.data.id);
+    const nodeData = this.getLeafNodeData(leafId);
     const isSelected = !!(nodeData && nodeData.selected);
     const fillStyle = this.getLeafNodeFillStyle(nodeData);
     const fillColor = fillStyle.color;
     const fillOpacity = fillStyle.alpha;
+    const mixedSegments = Array.isArray(fillStyle.segments) ? fillStyle.segments : [];
+    const hasMixedRing = mixedSegments.length > 1;
     const nodeSelection = d3.select(node);
 
     nodeSelection
@@ -392,6 +560,7 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
 
     if (!this.SelectedLeafNodeShowVariable) {
       this.removeLeafNodeShapeOverlay(node);
+      this.removeLeafNodeMixedRing(node);
       nodeSelection
         .style('fill-opacity', 0)
         .style('stroke', 'transparent')
@@ -412,14 +581,16 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
         let strokeWidth = isSelected? (leafSize > 9 ? '5px': '3px') : (leafSize > 9 ? '2px' : '1px')
         this.removeLeafNodeShapeOverlay(node);
         nodeSelection
-          .style('fill', fillColor)
-          .style('fill-opacity', fillOpacity)
+          .style('fill', hasMixedRing ? MIXED_NODE_CENTER_COLOR : fillColor)
+          .style('fill-opacity', hasMixedRing ? 1 : fillOpacity)
           .style('stroke', strokeColor)
           .style('stroke-width', strokeWidth);
+        this.renderLeafCircleMixedRing(node, mixedSegments, fillOpacity, leafSize, parseFloat(strokeWidth));
         return;
       }
 
-      this.renderLeafNodeShapeOverlay(node, shapeKey, leafSize, fillColor, strokeColor, isSelected, fillOpacity);
+      this.removeLeafNodeMixedRing(node);
+      this.renderLeafNodeShapeOverlay(node, shapeKey, leafSize, fillColor, strokeColor, isSelected, fillOpacity, mixedSegments);
       nodeSelection
         .style('fill', fillColor)
         .style('fill-opacity', 0)
@@ -431,20 +602,103 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
     this.removeLeafNodeShapeOverlay(node);
     let strokeWidth = isSelected? (leafSize > 9 ? '5px': '3px') : (leafSize > 9 ? '2px' : '1px')
     nodeSelection
-      .style('fill', fillColor)
-      .style('fill-opacity', fillOpacity)
+      .style('fill', hasMixedRing ? MIXED_NODE_CENTER_COLOR : fillColor)
+      .style('fill-opacity', hasMixedRing ? 1 : fillOpacity)
       .style('stroke', isSelected ? selectedColor : '#000000')
       .style('stroke-width', strokeWidth);
+    this.renderLeafCircleMixedRing(node, mixedSegments, fillOpacity, leafSize, parseFloat(strokeWidth));
   }
 
-  private getLeafNodeData(nodeId: string): any {
+  private getTreeLeafId(data: any): string | null {
+    const leafId = data?.data?.id ?? data?.id ?? data?.[0]?.data?.id ?? data?.[0]?.id;
+    return leafId === undefined || leafId === null ? null : String(leafId);
+  }
+
+  private getLeafNodeData(nodeId: unknown): any {
+    if (nodeId === undefined || nodeId === null) {
+      return undefined;
+    }
+
+    const normalizedNodeId = String(nodeId);
     return this.visuals.phylogenetic.commonService.session.data.nodes.find(
-      node => node._id === nodeId || node.id === nodeId
+      node => [node?._id, node?.id, node?.ID].some(
+        candidate => candidate !== undefined
+          && candidate !== null
+          && String(candidate) === normalizedNodeId
+      )
     );
   }
 
-  private getLeafNodeFillStyle(nodeData: any): { color: string; alpha: number } {
+  private getLeafNodeFillStyle(nodeData: any): { color: string; alpha: number; segments?: any[] } {
     return this.visuals.phylogenetic.commonService.getNodeFillStyle(nodeData);
+  }
+
+  private renderLeafCircleMixedRing(
+    node: SVGElement,
+    segments: any[],
+    fallbackOpacity: number,
+    leafSize: number,
+    outlineStrokeWidth: number
+  ): void {
+    const parentNode = node.parentNode as SVGGElement | null;
+    const evenSegments = getEvenMixedNodeShapeSegments(segments);
+    if (!parentNode || evenSegments.length < 2) {
+      this.removeLeafNodeMixedRing(node);
+      return;
+    }
+
+    const ringWidth = getMixedNodeRingWidth(leafSize * 2);
+    const ringRadius = leafSize - (outlineStrokeWidth / 2) - (ringWidth / 2);
+    if (ringRadius <= 0) {
+      this.removeLeafNodeMixedRing(node);
+      return;
+    }
+
+    const ringSegments = evenSegments.map(({ segment, startFraction, endFraction }, index) => ({
+      color: String(segment.color || '#000000'),
+      dashOffset: -startFraction,
+      endFraction,
+      index,
+      length: endFraction - startFraction,
+      opacity: Number.isFinite(Number(segment.alpha))
+        ? Math.min(1, Math.max(0, Number(segment.alpha)))
+        : Math.min(1, Math.max(0, Number(fallbackOpacity))),
+      startFraction
+    }));
+
+    d3.select(parentNode)
+      .selectAll<SVGCircleElement, any>('circle.tidytree-node-mixed-ring')
+      .data(ringSegments, segment => segment.index)
+      .join(
+        enter => enter
+          .insert('circle', 'text')
+          .attr('class', 'tidytree-node-mixed-ring')
+          .attr('data-mt-mixed-ring', 'true')
+          .style('pointer-events', 'none'),
+        update => update,
+        exit => exit.remove()
+      )
+      .attr('cx', 0)
+      .attr('cy', 0)
+      .attr('r', ringRadius)
+      .attr('pathLength', 1)
+      .attr('fill', 'none')
+      .attr('stroke', segment => segment.color)
+      .attr('stroke-opacity', segment => segment.opacity)
+      .attr('stroke-width', ringWidth)
+      .attr('stroke-dasharray', segment => `${segment.length} ${1 - segment.length}`)
+      .attr('stroke-dashoffset', segment => segment.dashOffset)
+      .attr('data-mt-segment-start-fraction', segment => segment.startFraction)
+      .attr('data-mt-segment-end-fraction', segment => segment.endFraction)
+      .attr('stroke-linecap', 'butt')
+      .attr('transform', 'rotate(-90)');
+  }
+
+  private removeLeafNodeMixedRing(node: SVGElement): void {
+    const parentNode = node.parentNode as SVGGElement | null;
+    if (parentNode) {
+      d3.select(parentNode).selectAll('circle.tidytree-node-mixed-ring').remove();
+    }
   }
 
   private removeLeafNodeShapeOverlay(node: SVGElement): void {
@@ -453,10 +707,14 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
       return;
     }
 
-    d3.select(parentNode).selectAll('image.tidytree-node-shape-overlay').remove();
+    d3.select(parentNode).selectAll('image.tidytree-node-shape-overlay, svg.tidytree-node-shape-overlay').remove();
   }
 
-  private getLeafShapeStrokeWidth(shapeKey: string, isSelected: boolean): number {
+  private getLeafShapeStrokeWidth(shapeKey: string, isSelected: boolean, hasMixedSegments: boolean = false): number {
+    if (hasMixedSegments && isCustomNodeIconShape(shapeKey)) {
+        return isSelected ? 48 : 32;
+    }
+
     if (shapeKey == 'lettuce') {
       return isSelected ? 10 : 3;
     } else if (shapeKey == 'ship' || shapeKey == 'tick' || shapeKey == 'swab') {
@@ -468,14 +726,27 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
     }
   }
 
-  private getLeafShapeDataUri(shapeKey: string, fillColor: string, strokeColor: string, strokeWidth: number, fillOpacity: number): string {
-    const cacheKey = `${shapeKey}|${fillColor}|${strokeColor}|${strokeWidth}|${fillOpacity}`;
+  private getLeafShapeDataUri(
+    shapeKey: string,
+    fillColor: string,
+    strokeColor: string,
+    strokeWidth: number,
+    fillOpacity: number,
+    segments: any[] = [],
+    renderedSize?: number
+  ): string {
+    const segmentKey = segments.length > 1
+      ? segments.map(segment => `${segment.value ?? ''}:${segment.color}:${segment.alpha ?? fillOpacity}:${segment.weight ?? 1}`).join(',')
+      : '';
+    const cacheKey = `${shapeKey}|${fillColor}|${strokeColor}|${strokeWidth}|${fillOpacity}|${segmentKey}|${renderedSize ?? ''}`;
     const cachedUri = this.treeLeafShapeUriCache.get(cacheKey);
     if (cachedUri) {
       return cachedUri;
     }
 
-    const dataUri = getTreeNodeShapeDataUri(shapeKey, fillColor, strokeColor, strokeWidth, fillOpacity);
+    const dataUri = segments.length > 1
+      ? getMixedNodeShapeDataUri(shapeKey, fillColor, strokeColor, strokeWidth, fillOpacity, segments, null, { customShapePadding: 0, customShapeViewBoxPadding: 0, renderedSize })
+      : getTreeNodeShapeDataUri(shapeKey, fillColor, strokeColor, strokeWidth, fillOpacity);
     this.treeLeafShapeUriCache.set(cacheKey, dataUri);
     return dataUri;
   }
@@ -487,18 +758,22 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
     fillColor: string,
     strokeColor: string,
     isSelected: boolean,
-    fillOpacity: number
+    fillOpacity: number,
+    segments: any[] = []
   ): void {
     const parentNode = node.parentNode as SVGGElement | null;
     if (!parentNode) {
       return;
     }
 
+    d3.select(parentNode).selectAll('svg.tidytree-node-shape-overlay').remove();
+
     const diameter = leafSize * 2;
     const strokeWidth = this.getLeafShapeStrokeWidth(shapeKey, isSelected);
-    const shapeUri = this.getLeafShapeDataUri(shapeKey, fillColor, strokeColor, strokeWidth, fillOpacity);
     const overlayDiameter = diameter * getTreeNodeShapeScale(shapeKey);
-    const overlayOffset = overlayDiameter / 2;
+    const overlayImageDiameter = overlayDiameter + 4;
+    const shapeUri = this.getLeafShapeDataUri(shapeKey, fillColor, strokeColor, strokeWidth, fillOpacity, segments, overlayImageDiameter);
+    const overlayOffset = overlayImageDiameter / 2;
     const overlaySelection = d3.select(parentNode)
       .selectAll<SVGImageElement, number>('image.tidytree-node-shape-overlay')
       .data([0]);
@@ -513,8 +788,8 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
       )
       .attr('x', -overlayOffset)
       .attr('y', -overlayOffset)
-      .attr('width', overlayDiameter+4)
-      .attr('height', overlayDiameter+4)
+      .attr('width', overlayImageDiameter)
+      .attr('height', overlayImageDiameter)
       .attr('preserveAspectRatio', 'xMidYMid meet')
       .attr('href', shapeUri)
       .attr('xlink:href', shapeUri);
@@ -560,12 +835,6 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
   ngOnInit() {
     let that = this;
 
-    this.gtmService.pushTag({
-      event: "page_view",
-      page_location: "/phylogenetic",
-      page_title: "Phylogenetic Tree View"
-    });
-
     this.LeafLabelFieldList.push({ label: 'None', value: 'None' });
     this.commonService.session.data['nodeFields'].map((d, i) => {
       if (['seq', 'origin', '_diff', '_ambiguity', 'index'].includes(d)) return;
@@ -593,6 +862,7 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
     })
     this.container.on('show', () => {
       this.viewActive = true;
+      this.scheduleTreeRenderRecovery();
       this.cdref.detectChanges();
     })
 
@@ -609,6 +879,7 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
   }
 
   ngOnDestroy(): void {
+    this.cancelTreeRenderRecovery();
     this.destroy$.next();
     this.destroy$.complete();
   }
@@ -756,6 +1027,7 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
     this.SelectedBranchLabelShowVariable = event;
     this.tree.setBranchLabels(event);
     this.styleTree();
+    this.settings['tree-branch-label-show'] = this.SelectedBranchLabelShowVariable;
   }
 
   onBranchLabelSizeChange(event) {
@@ -810,8 +1082,8 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
     this.settings['tree-leaf-label-show'] = this.SelectedLeafLabelShowVariable
   }
 
-  showGlobalSettings() {
-    this.DisplayGlobalSettingsDialogEvent.emit('Styling');
+  showGlobalSettings(event?: MouseEvent) {
+    this.DisplayGlobalSettingsDialogEvent.emit(createGlobalSettingsDialogRequest('Styling', event));
   }
 
   private ensureGlobalNodeShapeTableVisible(): void {
@@ -871,6 +1143,277 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
   onBranchSizeChange(event) {
     this.SelectedBranchSizeVariable = event;
     this.styleTree();
+  }
+
+  hasBootstrapSupportMetadata(): boolean {
+    const metadata = this.commonService.session.data?.phylogeneticBootstrap;
+    return !!(metadata && metadata.supportBySplitKey && Object.keys(metadata.supportBySplitKey).length > 0);
+  }
+
+  private hasNewickBackedTree(): boolean {
+    return this.hasNewickFile || this.commonService.session.files?.some(file =>
+      file?.format === 'newick' || file?.format === 'auspice' ||
+      file?.datatype === 'newick' || file?.datatype === 'auspice'
+    );
+  }
+
+  private getSelectedBootstrapReplicateCount(): number {
+    return normalizeBootstrapReplicateCount(this.SelectedBootstrapCustomReplicates);
+  }
+
+  private getBootstrapInput(): {
+    available: boolean;
+    reason?: string;
+    labels?: string[];
+    sequences?: string[];
+    baseSplitKeys?: string[];
+  } {
+    if (!this.tree?.data) {
+      return { available: false, reason: 'Bootstrap requires a rendered phylogenetic tree.' };
+    }
+
+    if (this.hasTreeBeenModifiedFromOriginal) {
+      return { available: false, reason: 'Restore the full tree before calculating bootstrap support.' };
+    }
+
+    if (this.hasNewickBackedTree()) {
+      return { available: false, reason: 'Bootstrap is available for sequence-derived trees only in this version.' };
+    }
+
+    const labels = collectLeafIds(this.tree.data);
+    if (labels.length < 3) {
+      return { available: false, reason: 'Bootstrap requires at least 3 tree leaves.' };
+    }
+
+    const nodeById = new Map<string, any>();
+    (this.commonService.session.data.nodes || []).forEach((node: any) => {
+      if (node?._id != null) nodeById.set(String(node._id), node);
+      if (node?.id != null) nodeById.set(String(node.id), node);
+    });
+
+    const sequences: string[] = [];
+    const missing: string[] = [];
+    labels.forEach(label => {
+      const node = nodeById.get(label);
+      const sequence = String(node?.seq ?? '').trim().toUpperCase();
+      if (!sequence) {
+        missing.push(label);
+      } else {
+        sequences.push(sequence);
+      }
+    });
+
+    if (missing.length) {
+      return { available: false, reason: `Bootstrap requires aligned sequence data for every tree leaf (${missing[0]} is missing).` };
+    }
+
+    const sequenceLength = sequences[0]?.length ?? 0;
+    if (sequenceLength === 0) {
+      return { available: false, reason: 'Bootstrap requires non-empty aligned sequences.' };
+    }
+
+    const firstDifferentLength = sequences.findIndex(sequence => sequence.length !== sequenceLength);
+    if (firstDifferentLength >= 0) {
+      return { available: false, reason: 'Bootstrap requires equal-length aligned sequences.' };
+    }
+
+    const baseSplitKeys = collectTreeSplitKeys(this.tree.data, labels);
+    if (!baseSplitKeys.length) {
+      return { available: false, reason: 'The current tree has no internal splits that can receive bootstrap support.' };
+    }
+
+    return { available: true, labels, sequences, baseSplitKeys };
+  }
+
+  isBootstrapCalculationAvailable(): boolean {
+    return this.getBootstrapInput().available;
+  }
+
+  getBootstrapUnavailableReason(): string {
+    return this.getBootstrapInput().reason || '';
+  }
+
+  onBootstrapCustomReplicatesChange(event) {
+    const target = event?.target as HTMLInputElement | undefined;
+    const value = target?.value ?? this.SelectedBootstrapCustomReplicates;
+    this.SelectedBootstrapCustomReplicates = normalizeBootstrapReplicateCount(value);
+    this.settings['tree-bootstrap-custom-replicates'] = this.SelectedBootstrapCustomReplicates;
+  }
+
+  onBootstrapStopWhenStableChange(event) {
+    this.SelectedBootstrapStopWhenStable = !!event;
+    this.settings['tree-bootstrap-stop-when-stable'] = this.SelectedBootstrapStopWhenStable;
+  }
+
+  onBootstrapDecimalLengthChange(event) {
+    this.SelectedBootstrapDecimalLength = normalizeBootstrapDecimalLength(event);
+    this.settings['tree-bootstrap-decimal-length'] = this.SelectedBootstrapDecimalLength;
+    const metadata = this.commonService.session.data?.phylogeneticBootstrap;
+    if (metadata) {
+      metadata.decimalLength = this.SelectedBootstrapDecimalLength;
+    }
+    this.styleTree();
+    this.cdref.detectChanges();
+  }
+
+  onBootstrapSupportThresholdChange(event) {
+    const target = event?.target as HTMLInputElement | undefined;
+    const value = target?.value ?? this.SelectedBootstrapSupportThreshold;
+    this.SelectedBootstrapSupportThreshold = normalizeBootstrapSupportThreshold(value);
+    this.settings['tree-bootstrap-support-threshold'] = this.SelectedBootstrapSupportThreshold;
+    this.styleTree();
+    this.cdref.detectChanges();
+  }
+
+  cancelBootstrapSupport() {
+    this.workerComputeService.cancelPhylogeneticBootstrapJob();
+  }
+
+  private updateBootstrapProgress(progress: PhylogeneticBootstrapProgress): void {
+    this.BootstrapProgressValue = Math.round(progress.progressPercent);
+    this.BootstrapLastCompletedReplicates = progress.completedReplicates;
+    this.BootstrapLastRequestedReplicates = progress.requestedReplicates;
+    this.BootstrapStatusMessage = progress.stoppedEarly
+      ? `Bootstrap support stabilized after ${progress.completedReplicates} replicates.`
+      : `Calculating bootstrap support: ${progress.completedReplicates} of ${progress.requestedReplicates} replicates.`;
+    this.cdref.detectChanges();
+  }
+
+  private storeBootstrapResult(
+    result: PhylogeneticBootstrapComputeResult,
+    labels: string[],
+    baseSplitKeys: string[],
+  ): void {
+    this.commonService.session.data.phylogeneticBootstrap = {
+      version: 1,
+      method: 'snp-pseudoalignment-neighbor-joining',
+      labels,
+      baseSplitKeys,
+      requestedReplicates: result.requestedReplicates,
+      completedReplicates: result.completedReplicates,
+      stoppedEarly: result.stoppedEarly,
+      stable: result.stable,
+      stabilityWindow: 100,
+      stabilityTolerancePercent: BOOTSTRAP_DEFAULT_STABILITY_TOLERANCE_PERCENT,
+      decimalLength: this.SelectedBootstrapDecimalLength,
+      splitCounts: result.splitCounts,
+      supportBySplitKey: result.supportBySplitKey,
+      calculatedAt: new Date().toISOString(),
+    };
+  }
+
+  private applyStoredBootstrapSupport(redraw: boolean = true): void {
+    const metadata = this.commonService.session.data?.phylogeneticBootstrap;
+    if (!this.tree?.data || !metadata?.supportBySplitKey) {
+      return;
+    }
+
+    const leafIds = collectLeafIds(this.tree.data);
+    applyBootstrapSupportToTree(
+      this.tree.data,
+      metadata.supportBySplitKey,
+      leafIds
+    );
+    metadata.decimalLength = this.SelectedBootstrapDecimalLength;
+    this.SelectedBranchLabelShowVariable = true;
+    this.settings['tree-branch-label-show'] = true;
+
+    const cachedAnimation = this.tree.animation;
+    this.tree.setAnimation(0);
+    this.tree.setData(this.tree.data);
+    this.tree.setAnimation(cachedAnimation);
+    this.commonService.session.data.newickString = this.tree.data.toNewick(false);
+    this.originalTreeData = this.tree.data?.clone ? this.tree.data.clone() : this.tree.data;
+    this.hasTreeBeenModifiedFromOriginal = false;
+
+    if (redraw) {
+      this.styleTree();
+      this.cdref.detectChanges();
+    }
+  }
+
+  private async runBootstrapSupportCalculation(input: {
+    labels: string[];
+    sequences: string[];
+    baseSplitKeys: string[];
+  }): Promise<void> {
+    const replicates = this.getSelectedBootstrapReplicateCount();
+    this.BootstrapRunning = true;
+    this.BootstrapProgressValue = 0;
+    this.BootstrapLastCompletedReplicates = 0;
+    this.BootstrapLastRequestedReplicates = replicates;
+    this.BootstrapStatusMessage = `Calculating bootstrap support: 0 of ${replicates} replicates.`;
+    this.cdref.detectChanges();
+
+    try {
+      const result = await this.workerComputeService.computePhylogeneticBootstrap({
+        labels: input.labels,
+        sequences: input.sequences,
+        baseSplitKeys: input.baseSplitKeys,
+        replicates,
+        stopWhenStable: this.SelectedBootstrapStopWhenStable,
+        batchSize: 10,
+        stabilityWindow: 100,
+        stabilityTolerancePercent: BOOTSTRAP_DEFAULT_STABILITY_TOLERANCE_PERCENT,
+        onProgress: progress => this.updateBootstrapProgress(progress),
+      });
+
+      this.storeBootstrapResult(result, input.labels, input.baseSplitKeys);
+      this.applyStoredBootstrapSupport(true);
+      this.BootstrapProgressValue = 100;
+      this.BootstrapStatusMessage = result.stoppedEarly
+        ? `Bootstrap support stabilized after ${result.completedReplicates} replicates.`
+        : `Bootstrap support calculated from ${result.completedReplicates} replicates.`;
+    } catch (error: any) {
+      const message = error?.message || String(error);
+      this.BootstrapStatusMessage = message.includes('cancelled')
+        ? 'Bootstrap calculation cancelled.'
+        : `Bootstrap failed: ${message}`;
+    } finally {
+      this.BootstrapRunning = false;
+      this.cdref.detectChanges();
+    }
+  }
+
+  calculateBootstrapSupport(options: { skipConfirmation?: boolean } = {}): Promise<void> {
+    const input = this.getBootstrapInput();
+    if (!input.available) {
+      this.BootstrapStatusMessage = input.reason || 'Bootstrap is unavailable for the current tree.';
+      return Promise.resolve();
+    }
+
+    const bootstrapInput = {
+      labels: input.labels || [],
+      sequences: input.sequences || [],
+      baseSplitKeys: input.baseSplitKeys || [],
+    };
+
+    const runCalculation = () => this.runBootstrapSupportCalculation(bootstrapInput);
+    if (options.skipConfirmation) {
+      return runCalculation();
+    }
+
+    return new Promise<void>((resolve) => {
+      this.confirmationService.confirm({
+        message: `Bootstrap support generates replicate trees by resampling columns from the alignment. It will not work with tree or distance matrix inputs.
+         Are you sure that you want to proceed?`,
+        closable: false,
+        closeOnEscape: false,
+        icon: 'pi pi-exclamation-triangle',
+        rejectButtonProps: {
+          label: 'Cancel',
+          severity: 'secondary',
+          outlined: true,
+        },
+        acceptButtonProps: {
+          label: 'Confirm',
+        },
+        reject: () => resolve(),
+        accept: () => {
+          void runCalculation().finally(resolve);
+        },
+      });
+    });
   }
 
   onCloseExport() {
@@ -1076,8 +1619,8 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
   }
 
   hideContextMenu = () => {
-    $('#phylo-context-menu').animate({ opacity: 0 }, 80, () => {
-      $(this).css('z-index', -1);
+    $('#phylo-context-menu').animate({ opacity: 0 }, 80, function () {
+      $(this).css({display: 'none', 'z-index': -1});
     });
   }
 
@@ -1204,6 +1747,7 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
   if (this.settings['tree-branch-distances-hide'] == this.SelectedBranchDistanceShowVariable) this.SelectedBranchDistanceShowVariable = !this.settings['tree-branch-distances-hide']
   if (this.settings['tree-branch-distance-size'] != this.SelectedBranchDistanceSizeVariable) this.SelectedBranchDistanceSizeVariable = this.settings['tree-branch-distance-size']
   if (this.settings['tree-branch-nodes-show'] != this.SelectedBranchNodeShowVariable) this.SelectedBranchNodeShowVariable = this.settings['tree-branch-nodes-show']
+  if ((this.settings['tree-branch-label-show'] ?? false) != this.SelectedBranchLabelShowVariable) this.SelectedBranchLabelShowVariable = this.settings['tree-branch-label-show'] ?? false
 
   // Leaf Labels
   if (this.settings['tree-leaf-label-show'] != this.SelectedLeafLabelShowVariable) this.SelectedLeafLabelShowVariable = this.settings['tree-leaf-label-show']
@@ -1216,6 +1760,12 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
   if (this.settings['tree-leaf-node-radius-variable'] != this.SelectedLeafNodeSizeVariable) this.SelectedLeafNodeSizeVariable = this.settings['tree-leaf-node-radius-variable']
 
   if(this.settings['tree-tooltip-show'] != this.SelectedLeafTooltipShowVariable) this.SelectedLeafTooltipShowVariable = this.settings['tree-tooltip-show']
+
+  // Bootstrap
+  this.SelectedBootstrapCustomReplicates = normalizeBootstrapReplicateCount(this.settings['tree-bootstrap-custom-replicates'] ?? this.SelectedBootstrapCustomReplicates)
+  this.SelectedBootstrapStopWhenStable = this.settings['tree-bootstrap-stop-when-stable'] ?? this.SelectedBootstrapStopWhenStable
+  this.SelectedBootstrapDecimalLength = normalizeBootstrapDecimalLength(this.settings['tree-bootstrap-decimal-length'] ?? this.SelectedBootstrapDecimalLength)
+  this.SelectedBootstrapSupportThreshold = normalizeBootstrapSupportThreshold(this.settings['tree-bootstrap-support-threshold'] ?? this.SelectedBootstrapSupportThreshold)
 
   // Colors
   if (this.settings['node-color']) {

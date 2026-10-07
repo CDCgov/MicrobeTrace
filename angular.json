@@ -17,7 +17,7 @@
         "lint": {
           "builder": "@angular-eslint/builder:lint",
           "options": {
-            "eslintConfig": ".eslintrc.json",
+            "eslintConfig": "eslint.config.js",
             "lintFilePatterns": [
                   "src/**/*.ts",
                   "src/**/*.html"
@@ -25,7 +25,7 @@
           }
         },
         "build": {
-          "builder": "@angular-devkit/build-angular:application",
+          "builder": "@angular/build:application",
           "options": {
             "outputPath": {
               "base": "dist/MicrobeTrace",
@@ -106,6 +106,9 @@
                 "input": "node_modules/leaflet/dist/leaflet.css"
               },
               {
+                "input": "node_modules/maplibre-gl/dist/maplibre-gl.css"
+              },
+              {
                 "input": "node_modules/leaflet.markercluster/dist/MarkerCluster.Default.css"
               }
             ],
@@ -145,7 +148,10 @@
               ],
               "optimization": {
                 "scripts": true,
-                "styles": true,
+                "styles": {
+                  "minify": true,
+                  "inlineCritical": false
+                },
                 "fonts": false
               },
               "outputHashing": "all",
@@ -165,7 +171,7 @@
           "defaultConfiguration": ""
         },
         "serve": {
-          "builder": "@angular-devkit/build-angular:dev-server",
+          "builder": "@angular/build:dev-server",
           "options": {
             "buildTarget": "MicrobeTrace:build"
           },
@@ -180,16 +186,18 @@
           "defaultConfiguration": "development"
         },
         "extract-i18n": {
-          "builder": "@angular-devkit/build-angular:extract-i18n",
+          "builder": "@angular/build:extract-i18n",
           "options": {
             "buildTarget": "MicrobeTrace:build"
           }
         },
         "test": {
-          "builder": "@angular-devkit/build-angular:karma",
+          "builder": "@angular/build:karma",
           "options": {
             "main": "src/test.ts",
-            "polyfills": "src/polyfills.ts",
+            "polyfills": [
+              "src/polyfills.ts"
+            ],
             "tsConfig": "src/tsconfig.spec.json",
             "karmaConfig": "src/karma.conf.js",
             "styles": [

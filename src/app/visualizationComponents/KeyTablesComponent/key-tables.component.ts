@@ -1,18 +1,32 @@
-import { ChangeDetectorRef, Component, ElementRef, EventEmitter, HostListener, Inject, OnDestroy, OnInit, Output } from '@angular/core';
+import { ChangeDetectorRef, Component, ElementRef, EventEmitter, HostListener, Inject, OnDestroy, OnInit, Output, ChangeDetectionStrategy } from '@angular/core';
 import { ComponentContainer } from 'golden-layout';
 import { BaseComponentDirective } from '@app/base-component.directive';
 import { MicobeTraceNextPluginEvents } from '@app/helperClasses/interfaces';
 import { MicrobeTraceNextVisuals } from '@app/microbe-trace-next-plugin-visuals';
+import { NODE_SHAPE_TREE_SELECT_PASS_THROUGH } from '@app/contactTraceCommonServices/node-shape-picker';
 import { DOCKED_KEY_TABLES_VIEW_NAME, KeyTableName } from './key-tables.controller';
+import {
+    StyleKeyTableAlphaRequest,
+    StyleKeyTableColorChange,
+    StyleKeyTableColumnNameChange,
+    StyleKeyTableRow,
+    StyleKeyTableRowNameChange,
+    StyleKeyTableSegmentAlphaChange,
+    StyleKeyTableShapeChange,
+    StyleKeyTableShapePanelRequest,
+    StyleKeyTableSortColumn
+} from './style-key-table.component';
 
 @Component({
     selector: 'keyTablesComponent',
     templateUrl: './key-tables.component.html',
     styleUrls: ['./key-tables.component.less'],
+    changeDetection: ChangeDetectionStrategy.Eager,
     standalone: false
 })
 export class KeyTablesComponent extends BaseComponentDirective implements OnInit, OnDestroy, MicobeTraceNextPluginEvents {
     static readonly componentTypeName = DOCKED_KEY_TABLES_VIEW_NAME;
+    readonly shapeTreeSelectPassThrough = NODE_SHAPE_TREE_SELECT_PASS_THROUGH;
 
     @Output() DisplayGlobalSettingsDialogEvent = new EventEmitter<string>();
 
@@ -114,6 +128,42 @@ export class KeyTablesComponent extends BaseComponentDirective implements OnInit
         return this.visuals.microbeTrace?.shapeAggregates ?? [];
     }
 
+    get nodeColorRows(): StyleKeyTableRow[] {
+        return this.visuals.microbeTrace?.nodeColorRows ?? [];
+    }
+
+    get linkColorRows(): StyleKeyTableRow[] {
+        return this.visuals.microbeTrace?.linkColorRows ?? [];
+    }
+
+    get nodeShapeRows(): StyleKeyTableRow[] {
+        return this.visuals.microbeTrace?.nodeShapeRows ?? [];
+    }
+
+    get polygonColorRows(): StyleKeyTableRow[] {
+        return this.visuals.twoD?.polygonColorRows ?? [];
+    }
+
+    get nodeColorTableHeaders() {
+        return this.visuals.microbeTrace?.nodeColorTableHeaders ?? { value: '', count: 'Count', frequency: 'Frequency' };
+    }
+
+    get linkColorTableHeaders() {
+        return this.visuals.microbeTrace?.linkColorTableHeaders ?? { value: '', count: 'Count', frequency: 'Frequency' };
+    }
+
+    get polygonColorTableHeaders() {
+        return this.visuals.twoD?.polygonColorTableHeaders ?? { value: '', count: 'Count', frequency: 'Frequency' };
+    }
+
+    get nodeColorTableEditable(): boolean {
+        return this.visuals.microbeTrace?.nodeColorTableEditable ?? true;
+    }
+
+    get linkColorTableEditable(): boolean {
+        return this.visuals.microbeTrace?.linkColorTableEditable ?? true;
+    }
+
     private get dockController() {
         return this.visuals.microbeTrace?.keyTablesController;
     }
@@ -140,14 +190,10 @@ export class KeyTablesComponent extends BaseComponentDirective implements OnInit
 
         if (this.hasNodeColorTable) {
             microbeTrace.generateNodeColorTable('#key-tables-node-table');
-        } else {
-            $('#key-tables-node-table').empty();
         }
 
         if (this.hasLinkColorTable) {
             microbeTrace.generateNodeLinkTable('#key-tables-link-table');
-        } else {
-            $('#key-tables-link-table').empty();
         }
 
         if (this.hasNodeShapeTable) {
@@ -359,7 +405,10 @@ export class KeyTablesComponent extends BaseComponentDirective implements OnInit
     }
 
     getNodeShapeGroupDisplayName(rawValue: any): string {
-        return this.visuals.microbeTrace?.getNodeValueDisplayName(rawValue)
+        return this.visuals.microbeTrace?.getNodeValueDisplayName(
+            rawValue,
+            this.visuals.microbeTrace?.SelectedNodeSymbolVariable
+        )
             ?? this.formatNodeShapeGroup(String(rawValue));
     }
 
@@ -380,6 +429,89 @@ export class KeyTablesComponent extends BaseComponentDirective implements OnInit
 
     onShapeTreeShow(shapeKey: string | null | undefined): void {
         this.visuals.microbeTrace?.onShapeTreeShow(shapeKey);
+    }
+
+    onStyleKeyTableColumnNameChange(change: StyleKeyTableColumnNameChange): void {
+        if (change.table === 'polygon-color') {
+            this.visuals.twoD?.onPolygonKeyTableColumnNameChange(change);
+        } else {
+            this.visuals.microbeTrace?.onStyleKeyTableColumnNameChange(change);
+        }
+        this.cdref.markForCheck();
+    }
+
+    onNodeColorRowNameChange(change: StyleKeyTableRowNameChange): void {
+        this.visuals.microbeTrace?.onNodeColorRowNameChange(change);
+        this.cdref.markForCheck();
+    }
+
+    onLinkColorRowNameChange(change: StyleKeyTableRowNameChange): void {
+        this.visuals.microbeTrace?.onLinkColorRowNameChange(change);
+        this.cdref.markForCheck();
+    }
+
+    onNodeShapeRowNameChange(change: StyleKeyTableRowNameChange): void {
+        this.visuals.microbeTrace?.onNodeShapeRowNameChange(change);
+        this.cdref.markForCheck();
+    }
+
+    onPolygonColorRowNameChange(change: StyleKeyTableRowNameChange): void {
+        this.visuals.twoD?.onPolygonColorRowNameChange(change);
+        this.cdref.markForCheck();
+    }
+
+    onStyleKeyTableSort(table: KeyTableName, column: StyleKeyTableSortColumn): void {
+        this.visuals.microbeTrace?.onStyleKeyTableSort(table, column);
+        this.cdref.markForCheck();
+    }
+
+    onPolygonColorSort(column: StyleKeyTableSortColumn): void {
+        this.visuals.twoD?.onPolygonColorSort(column);
+        this.cdref.markForCheck();
+    }
+
+    onNodeColorTableColorChange(change: StyleKeyTableColorChange): void {
+        this.visuals.microbeTrace?.onNodeColorTableColorChange(change);
+        this.cdref.markForCheck();
+    }
+
+    onLinkColorTableColorChange(change: StyleKeyTableColorChange): void {
+        this.visuals.microbeTrace?.onLinkColorTableColorChange(change);
+        this.cdref.markForCheck();
+    }
+
+    onPolygonColorTableColorChange(change: StyleKeyTableColorChange): void {
+        this.visuals.twoD?.onPolygonColorTableColorChange(change);
+        this.cdref.markForCheck();
+    }
+
+    onNodeColorAlphaRequested(request: StyleKeyTableAlphaRequest): void {
+        this.visuals.microbeTrace?.onNodeColorAlphaRequested(request);
+        this.cdref.markForCheck();
+    }
+
+    onNodeColorSegmentAlphaChange(change: StyleKeyTableSegmentAlphaChange): void {
+        this.visuals.microbeTrace?.onNodeColorSegmentAlphaChange(change);
+        this.cdref.markForCheck();
+    }
+
+    onLinkColorAlphaRequested(request: StyleKeyTableAlphaRequest): void {
+        this.visuals.microbeTrace?.onLinkColorAlphaRequested(request);
+        this.cdref.markForCheck();
+    }
+
+    onPolygonColorAlphaRequested(request: StyleKeyTableAlphaRequest): void {
+        this.visuals.twoD?.onPolygonColorAlphaRequested(request);
+        this.cdref.markForCheck();
+    }
+
+    onNodeShapeTableShapeChange(change: StyleKeyTableShapeChange): void {
+        this.visuals.microbeTrace?.onNodeShapeTableShapeChange(change);
+        this.cdref.markForCheck();
+    }
+
+    onNodeShapeTablePanelRequest(request: StyleKeyTableShapePanelRequest): void {
+        this.visuals.microbeTrace?.onNodeShapeTablePanelRequest(request);
     }
 
     private hideSettingsMenus(): void {

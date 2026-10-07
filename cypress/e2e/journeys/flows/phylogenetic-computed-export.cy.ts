@@ -93,6 +93,7 @@ describe('Journey Flow - Computed Phylogenetic Tree export on uploaded non-Newic
 
         cy.readFile(newickPath, 'utf8', { timeout: 30000 }).should((savedText) => {
           expect(normalizeNewickText(savedText), `Newick export contents for ${profile.id}`).to.equal(expectedNewick);
+          expect(savedText, `non-negative Newick branches for ${profile.id}`).not.to.match(/:-(?:\d|\.)/);
         });
       });
     });

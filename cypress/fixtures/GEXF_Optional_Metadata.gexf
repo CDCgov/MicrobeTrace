@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<gexf xmlns="http://gexf.net/1.3" xmlns:viz="http://gexf.net/1.3/viz" version="1.3">
+  <graph mode="dynamic" defaultedgetype="directed" timeformat="date">
+    <attributes class="node" mode="dynamic">
+      <attribute id="state" title="state" type="string"/>
+    </attributes>
+    <nodes>
+      <node id="Parent" label="Parent node">
+        <viz:color hex="#3366ff"/>
+        <nodes>
+          <node id="Child" label="Child node" start="2026-01-01" end="2026-02-01">
+            <attvalues>
+              <attvalue for="state" value="infectious" start="2026-01-05" end="2026-01-20"/>
+            </attvalues>
+            <spells>
+              <spell start="2026-01-01" end="2026-02-01"/>
+            </spells>
+            <viz:position x="10" y="20" z="0"/>
+            <viz:size value="3.5"/>
+            <viz:shape value="diamond"/>
+          </node>
+        </nodes>
+      </node>
+      <node id="Random" label="Random node" pid="Parent"/>
+    </nodes>
+    <edges>
+      <edge id="dynamic_edge" source="Child" target="Random" start="2026-01-10">
+        <spells>
+          <spell start="2026-01-10" end="2026-01-30"/>
+        </spells>
+      </edge>
+    </edges>
+  </graph>
+</gexf>

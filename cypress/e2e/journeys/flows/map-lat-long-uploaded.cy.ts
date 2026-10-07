@@ -31,7 +31,7 @@ describe('Journey Flow - Map uploaded latitude and longitude mapping', () => {
 
     cy.contains('.p-dialog-title', 'Excluded Nodes')
       .parents('.p-dialog')
-      .should('contain.text', 'All nodes contain location data.');
+      .should('contain.text', 'All nodes contain map location data.');
 
     cy.closeSettingsPane('Excluded Nodes');
 

@@ -1,12 +1,14 @@
-import { Injector, Component, Output, EventEmitter,
+import {
+  Injector, Component, Output, EventEmitter,
   ElementRef, Renderer2, ChangeDetectorRef, Inject, OnInit, OnDestroy,
-  ViewChild} from '@angular/core';
+  ViewChild,
+  ChangeDetectionStrategy
+} from '@angular/core';
 import { EventManager } from '@angular/platform-browser';
 import { CommonService } from '@app/contactTraceCommonServices/common.service';
 import { saveAs } from 'file-saver';
 import { BaseComponentDirective } from '@app/base-component.directive';
 import { ComponentContainer } from 'golden-layout';
-import { GoogleTagManagerService } from 'angular-google-tag-manager';
 import { DialogSettings } from '../../helperClasses/dialogSettings';
 import { PlotlyComponent, PlotlyModule } from 'angular-plotly.js';
 import { SelectItem } from 'primeng/api';
@@ -58,6 +60,7 @@ const HEATMAP_CELL_SEPARATOR = '\u0000';
     selector: 'HeatmapComponent',
     templateUrl: './heatmap.component.html',
     styleUrls: ['./heatmap.component.scss'],
+    changeDetection: ChangeDetectionStrategy.Eager,
     standalone: false
 })
 export class HeatmapComponent extends BaseComponentDirective implements OnInit, OnDestroy {
@@ -121,7 +124,6 @@ export class HeatmapComponent extends BaseComponentDirective implements OnInit, 
         @Inject(BaseComponentDirective.GoldenLayoutContainerInjectionToken) private container: ComponentContainer,
         elRef: ElementRef,
         private cdref: ChangeDetectorRef,
-        private gtmService: GoogleTagManagerService,
         private renderer: Renderer2,
         private plotlyModule: PlotlyModule,
         private store: CommonStoreService,
@@ -157,12 +159,6 @@ export class HeatmapComponent extends BaseComponentDirective implements OnInit, 
 
   ngOnInit(): void {
     this.viewActive = true;
-    this.gtmService.pushTag({
-            event: 'page_view',
-            page_location: '/heatmap',
-            page_title: 'Heatmap View'
-        });
-
     this.refreshFieldLists();
     this.syncLocalSettingsFromWidgets();
     this.goldenLayoutComponentResize(true);

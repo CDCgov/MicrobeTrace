@@ -2,6 +2,9 @@
   "extends": "../tsconfig.json",
   "compilerOptions": {
     "outDir": "../out-tsc/spec",
+    "strict": false,
+    "noImplicitAny": false,
+    "noImplicitThis": false,
     "types": [
       "jasmine",
       "node"
@@ -14,5 +17,9 @@
   "include": [
     "**/*.spec.ts",
     "**/*.d.ts"
-  ]
+  ],
+  "exclude": [],
+  "angularCompilerOptions": {
+    "strictTemplates": false
+  }
 }

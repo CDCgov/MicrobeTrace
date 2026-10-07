@@ -73,9 +73,14 @@ const selectPrimeOption = (selector: string, label: string): void => {
 };
 
 const closeSampleDatasetOverlay = (): void => {
-  cy.get(byTestId(testIds.appSampleDatasetButton), { timeout: 120000 })
-    .should('be.visible')
-    .click({ force: true });
+  cy.get('body').then(($body) => {
+    const continueButton = $body.find(`${byTestId(testIds.appSampleDatasetButton)}:visible`);
+    if (!continueButton.length) return;
+
+    cy.get(byTestId(testIds.appSampleDatasetButton), { timeout: 120000 })
+      .should('be.visible')
+      .click({ force: true });
+  });
 
   cy.get('#overlay', { timeout: 15000 }).should('not.be.visible');
 };

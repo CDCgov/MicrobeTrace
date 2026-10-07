@@ -18,6 +18,13 @@ type WinWithCy = Window & {
   cytoscapeInstance?: any;
 };
 
+type ViewportBoundingBox = {
+  x1: number;
+  y1: number;
+  x2: number;
+  y2: number;
+};
+
 const normalizeColor = (value: string): string => String(value || '').replace(/\s+/g, '').toLowerCase();
 
 const hexToRgbString = (hex: string): string => {
@@ -38,10 +45,9 @@ const escapeRegExp = (value: string): string => value.replace(/[.*+?^${}()|[\]\\
 const normalizeLogicalLinkId = (value: string): string => String(value || '').replace(/-\d+$/, '');
 
 const clickVisiblePrimeOption = (label: string): void => {
-  cy.get('.p-select-overlay', { timeout: 15000 })
+  cy.get('.p-select-overlay:visible', { timeout: 15000 })
     .last()
-    .find('p-selectitem')
-    .contains('li', new RegExp(`^${escapeRegExp(label)}$`))
+    .contains('.p-select-option', new RegExp(`^${escapeRegExp(label)}$`))
     .click({ force: true });
 };
 
@@ -189,8 +195,8 @@ describe('Journey Flow - 2D uploaded timeline controls', () => {
   const midCheckpoint = timeline.checkpoints.find((checkpoint) => checkpoint.id === 'timeline-mid') ?? timeline.checkpoints[0];
 
   it('keeps 2D timeline play/pause and manual slider checkpoints aligned on uploaded data', () => {
-    let initialLabel = '';
     let initialTime = 0;
+    let completeTimelineBounds: ViewportBoundingBox | null = null;
 
     const oracleSteps: OracleStep[] = [
       {
@@ -215,17 +221,35 @@ describe('Journey Flow - 2D uploaded timeline controls', () => {
     launchProfileToTwoD(profile);
     assertAfterLaunchCounts(profile);
 
+    cy.window().then((win: unknown) => {
+      const cyInstance = (win as WinWithCy).cytoscapeInstance;
+      expect(cyInstance, 'cytoscapeInstance').to.exist;
+      const boundingBox = cyInstance.nodes().boundingBox();
+      completeTimelineBounds = {
+        x1: boundingBox.x1,
+        y1: boundingBox.y1,
+        x2: boundingBox.x2,
+        y2: boundingBox.y2,
+      };
+    });
+
     setTimelineField(timeline.field);
+    waitForTwoDRenderIdle();
+
+    cy.window().should((win: unknown) => {
+      expect(completeTimelineBounds, 'complete timeline layout bounds').to.exist;
+      const viewport = (win as WinWithCy).cytoscapeInstance.extent();
+      const bounds = completeTimelineBounds!;
+
+      expect(viewport.x1, 'timeline viewport includes the complete layout left edge').to.be.at.most(bounds.x1);
+      expect(viewport.y1, 'timeline viewport includes the complete layout top edge').to.be.at.most(bounds.y1);
+      expect(viewport.x2, 'timeline viewport includes the complete layout right edge').to.be.at.least(bounds.x2);
+      expect(viewport.y2, 'timeline viewport includes the complete layout bottom edge').to.be.at.least(bounds.y2);
+    });
 
     getOracleSnapshot('oracleResult', 'timeline-enabled').then((snapshot) => {
       assertNetworkMatchesOracleSnapshot(snapshot);
     });
-
-    cy.get('svg g.slider text.label', { timeout: 15000 })
-      .invoke('text')
-      .then((text) => {
-        initialLabel = String(text).trim();
-      });
 
     cy.window().then((win: unknown) => {
       const value = (win as WinWithCy).commonService.session.state.timeEnd;
@@ -245,11 +269,11 @@ describe('Journey Flow - 2D uploaded timeline controls', () => {
     cy.get('#timeline-play-button').should('contain', 'Pause').click();
     cy.get('#timeline-play-button').should('contain', 'Play');
 
-    cy.get('svg g.slider text.label')
-      .invoke('text')
-      .should((text) => {
-        expect(String(text).trim(), 'timeline label after play/pause').not.to.equal(initialLabel);
-      });
+    cy.window().then((win: unknown) => {
+      const value = (win as WinWithCy).commonService.session.state.timeEnd;
+      const expectedLabel = moment(value as string | number | Date).format('MMM D');
+      cy.get('svg g.slider text.label').should('have.text', expectedLabel);
+    });
 
     assertTwoDTimelineNodeMembershipAligned();
     assertRenderedLogicalLinkCountMatchesMetric();

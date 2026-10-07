@@ -675,6 +675,7 @@ TidyTree.prototype.redraw = function () {
 
       newNodes
         .append("circle")
+        .attr("class", "tidytree-node-marker")
         .attr("title", d => d.data.id)
         .style("opacity", d =>
           (d.children && this.branchNodes) ||
@@ -735,7 +736,7 @@ TidyTree.prototype.redraw = function () {
       let nodeGlyphs = update.select("circle");
       nodeGlyphs.style("fill", d => findNodeColor(d, this.colorOptions));      
 
-      let nodeLabels = update.select("text");
+      let nodeLabels = update.select("text").text(d => d.data.id);
       if (this.layout === "vertical") {
         nodeLabels
           .attr("text-anchor", "start")
@@ -1124,7 +1125,7 @@ TidyTree.prototype.setLeafNodes = function (show) {
     //i.e. has already been drawn
     this.parent
       .select("svg")
-      .selectAll("g.tidytree-node-leaf circle")
+      .selectAll("g.tidytree-node-leaf circle.tidytree-node-marker")
       .transition()
       .duration(this.animation)
       .style("opacity", show ? 1 : 0);
@@ -1145,7 +1146,7 @@ TidyTree.prototype.eachLeafNode = function (styler) {
   }
   this.parent
     .select("svg")
-    .selectAll("g.tidytree-node-leaf circle")
+    .selectAll("g.tidytree-node-leaf circle.tidytree-node-marker")
     .each(function (d) {
       styler(this, d);
     });
@@ -1235,13 +1236,13 @@ TidyTree.prototype.setRuler = function (show) {
 TidyTree.prototype.getNodeGUIDs = function (leavesOnly, predicate) {
   let nodeList = this.parent
     .select("svg")
-    .selectAll("g.tidytree-node-leaf circle")
+    .selectAll("g.tidytree-node-leaf circle.tidytree-node-marker")
     ._groups[0];
 
   if (!leavesOnly) {
     nodeList = this.parent
       .select("svg")
-      .selectAll("g.tidytree-node-leaf circle, g.tidytree-node-internal circle")
+      .selectAll("g.tidytree-node-leaf circle.tidytree-node-marker, g.tidytree-node-internal circle.tidytree-node-marker")
       ._groups[0];
   }
 

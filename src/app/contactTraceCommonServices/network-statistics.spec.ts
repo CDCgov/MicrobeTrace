@@ -65,6 +65,10 @@ describe('computeNetworkStatistics', () => {
     expect(result.summary.componentCount).toBe(3);
     expect(result.summary.clusterCount).toBe(1);
     expect(result.summary.singletonCount).toBe(2);
+    expect(result.summary.componentMetrics.clusteredFraction).toBe(0.5);
+    expect(result.summary.componentMetrics.singletonFraction).toBe(0.5);
+    expect(result.summary.componentMetrics.largestClusterFraction).toBe(0.5);
+    expect(result.summary.componentMetrics.giniCoefficient).toBeCloseTo(1 / 6, 10);
     expect(result.summary.averagePathLength).toBe(1);
     expect(result.components.find((component) => component.nodeCount === 1)?.diameter).toBe(0);
   });
@@ -119,6 +123,8 @@ describe('computeNetworkStatistics', () => {
     expect(csv).toContain('Network Statistics Summary\r\nMetric,Value');
     expect(csv).toContain('Clusters,1');
     expect(csv).toContain('Singletons,1');
+    expect(csv).toContain('Largest Cluster Fraction (L1)');
+    expect(csv).toContain('Component-size Gini');
     expect(csv).toContain('Degree Distribution\r\nDegree,Node Count,Fraction');
     expect(csv).toContain('Node Centrality\r\nNode ID,Cluster ID,Degree,Normalized Degree,Betweenness,Normalized Betweenness');
     expect(csv).toContain('Clusters\r\nCluster ID,Node Count,Link Count,Density,Average Degree,Max Degree,Diameter,Diameter Approximate,Member IDs');

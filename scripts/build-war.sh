@@ -9,6 +9,7 @@ node -v || { echo "Node.js not found"; exit 1; }
 npm -v || { echo "npm not found"; exit 1; }
 
 echo "===> Building Angular app..."
+node scripts/generate-primeui-license.js --required || { echo "PrimeUI license preparation failed"; exit 1; }
 npm run build -- --configuration production --base-href=./ || { echo "Angular build failed"; exit 1; }
 
 echo "===> Installing WAR security header configuration..."

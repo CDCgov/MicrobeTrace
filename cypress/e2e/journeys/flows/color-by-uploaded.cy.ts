@@ -28,8 +28,18 @@ const hexToRgbString = (hex: string): string => {
 };
 
 const selectPrimeOption = (selector: string, label: string): void => {
+  const optionIdPrefix = selector.replace(/^#/, '');
+  const escapedLabel = label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
   cy.get(selector).click({ force: true });
-  cy.contains('li[role="option"]', label, { timeout: 15000 }).click({ force: true });
+  cy.contains(
+    `.p-select-overlay:visible li[role="option"][id^="${optionIdPrefix}_"]`,
+    new RegExp(`^\\s*${escapedLabel}\\s*$`),
+    { timeout: 15000 }
+  )
+    .scrollIntoView()
+    .should('be.visible')
+    .click({ force: true });
 };
 
 const closeColorTables = (): void => {
@@ -249,32 +259,52 @@ describe('Journey Flow - Uploaded color-by controls', () => {
     });
   });
 
-  it('keeps edited link origin table labels after switching away from and back to 2D', () => {
-    const originalOriginName = 'TestStyleEdgelist_snp.csv';
+  it('preserves raw origin labels in style key tables and keeps link edits across views', () => {
+    const nodeOriginName = 'TestStyleNodelist_snp.csv';
+    const linkOriginName = 'TestStyleEdgelist_snp.csv';
     const renamedOriginName = 'Renamed origin';
 
     launchProfileToTwoD(profile);
     assertAfterLaunchCounts(profile);
 
     openGlobalStylingTab();
+    selectPrimeOption('#node-color-variable', 'Origin');
+    cy.window().its('commonService.session.style.widgets.node-color-variable').should('equal', 'origin');
+    cy.get(`#key-tables-node-table td[data-value="${nodeOriginName}"]`, { timeout: 15000 })
+      .should('have.text', nodeOriginName);
+
+    selectPrimeOption('#node-symbol-variable', 'Origin');
+    cy.window().its('commonService.session.style.widgets.node-symbol-variable').should('equal', 'origin');
+    cy.get(`#key-tables-node-shape-table td[data-value="${nodeOriginName}"]`, { timeout: 15000 })
+      .should('have.text', nodeOriginName);
+
     selectPrimeOption('#link-tooltip-variable', 'Origin');
+    cy.window().its('commonService.session.style.widgets.link-color-variable').should('equal', 'origin');
+
+    const originCellSelector = `#key-tables-link-table td[data-value="${linkOriginName}"]`;
 
     cy.get('#key-tables-link-table', { timeout: 15000 }).should('be.visible');
-    cy.get(`#key-tables-link-table td[data-value="${originalOriginName}"]`, { timeout: 15000 })
-      .should('have.text', originalOriginName)
-      .dblclick()
-      .should('have.attr', 'contenteditable', 'true')
-      .focus()
-      .should('be.focused')
-      .type('{selectall}{backspace}', { delay: 0 })
-      .type(renamedOriginName, { delay: 0 })
-      .blur()
+    cy.get(originCellSelector, { timeout: 15000 })
+      .should('have.text', linkOriginName)
+      .then(($cell) => {
+        const cell = $cell.get(0);
+        const eventWindow = cell.ownerDocument.defaultView ?? window;
+
+        cell.dispatchEvent(new eventWindow.MouseEvent('dblclick', { bubbles: true }));
+        cell.focus();
+        expect(cell.getAttribute('contenteditable'), 'link label edit mode').to.equal('true');
+        expect(cell.ownerDocument.activeElement, 'focused link label cell').to.equal(cell);
+
+        cell.textContent = renamedOriginName;
+        cell.dispatchEvent(new eventWindow.FocusEvent('blur'));
+        cell.dispatchEvent(new eventWindow.Event('focusout', { bubbles: true }));
+      });
 
     cy.window().should((win: unknown) => {
       const linkValueNames = (win as WinWithCy).commonService?.session?.style?.linkValueNames;
-      expect(linkValueNames?.[originalOriginName], 'stored edited link origin label').to.equal(renamedOriginName);
+      expect(linkValueNames?.[linkOriginName], 'stored edited link origin label').to.equal(renamedOriginName);
     });
-    cy.get(`#key-tables-link-table td[data-value="${originalOriginName}"]`)
+    cy.get(originCellSelector)
       .should('have.text', renamedOriginName);
 
     cy.closeGlobalSettings();
@@ -288,8 +318,8 @@ describe('Journey Flow - Uploaded color-by controls', () => {
     cy.window().its('commonService.activeTab').should('equal', '2D Network');
 
     cy.get('#key-tables-link-table', { timeout: 15000 }).should('be.visible');
-    cy.get(`#key-tables-link-table td[data-value="${originalOriginName}"]`, { timeout: 15000 })
+    cy.get(originCellSelector, { timeout: 15000 })
       .should('have.text', renamedOriginName);
-    cy.get('#key-tables-link-table').should('not.contain.text', originalOriginName);
+    cy.get('#key-tables-link-table').should('not.contain.text', linkOriginName);
   });
 });

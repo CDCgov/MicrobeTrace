@@ -1,4 +1,4 @@
-import { ChangeDetectorRef, Component, ElementRef, Inject, Injector, OnDestroy, OnInit, Renderer2, ViewChild } from '@angular/core';
+import { ChangeDetectorRef, Component, ElementRef, Inject, Injector, OnDestroy, OnInit, Renderer2, ViewChild, ChangeDetectionStrategy } from '@angular/core';
 import { EventManager } from '@angular/platform-browser';
 import { ComponentContainer } from 'golden-layout';
 import { SelectItem } from 'primeng/api';
@@ -11,7 +11,6 @@ import { BaseComponentDirective } from '@app/base-component.directive';
 import { MicobeTraceNextPluginEvents } from '../../helperClasses/interfaces';
 import { MicrobeTraceNextVisuals } from '../../microbe-trace-next-plugin-visuals';
 import { CommonService } from '../../contactTraceCommonServices/common.service';
-import { GoogleTagManagerService } from 'angular-google-tag-manager';
 import { Subject, takeUntil } from 'rxjs';
 import { CommonStoreService } from '@app/contactTraceCommonServices/common-store.services';
 import { values } from 'lodash';
@@ -20,6 +19,7 @@ import { values } from 'lodash';
     selector: 'CrosstabComponent',
     templateUrl: './crosstab-plugin.component.html',
     styleUrls: ['./crosstab-plugin.component.scss'],
+    changeDetection: ChangeDetectionStrategy.Eager,
     standalone: false
 })
 export class CrosstabComponent extends BaseComponentDirective implements OnInit, MicobeTraceNextPluginEvents, OnDestroy {
@@ -72,8 +72,7 @@ export class CrosstabComponent extends BaseComponentDirective implements OnInit,
     @Inject(BaseComponentDirective.GoldenLayoutContainerInjectionToken) private container: ComponentContainer, 
     elRef: ElementRef,
     private cdref: ChangeDetectorRef,
-    private store: CommonStoreService,
-    private gtmService: GoogleTagManagerService) {
+    private store: CommonStoreService) {
 
       super(elRef.nativeElement);
 
@@ -83,12 +82,6 @@ export class CrosstabComponent extends BaseComponentDirective implements OnInit,
   }
 
   ngOnInit() {
-
-    this.gtmService.pushTag({
-            event: "page_view",
-            page_location: "/crosstab",
-            page_title: "Crosstab View"
-        });
 
     this.updateFieldLists();
     this.setWidgets();
@@ -451,7 +444,6 @@ export class CrosstabComponent extends BaseComponentDirective implements OnInit,
       if (this.SelectedCrossTabExportFileType == 'xlsx') {
         this.saveAsExcelFile();
       } else if (this.SelectedCrossTabExportFileType == 'csv') {
-        this.dataTable.exportFilename = this.SelectedCrossTabExportFilename;
         this.dataTable.value.push(this.totalRow)
         this.dataTable.exportCSV()
         this.dataTable.value.pop()

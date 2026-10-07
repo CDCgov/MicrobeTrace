@@ -189,12 +189,18 @@ describe('Journey Flow - TN93 distance display format', () => {
     assertAfterLaunchCounts(profile);
 
     openGlobalFilteringTab();
-    cy.get('#tn93-distance-display-format').should('be.visible');
+    cy.get('#tn93-distance-display-format')
+      .scrollIntoView()
+      .should('be.visible');
     assertThresholdInputValue(0.015);
 
     setTN93DistanceDisplayFormat('percentage');
     assertThresholdInputValue(1.5);
-    cy.contains('#filtering-threshold label', '(%)').should('be.visible');
+    cy.get('#filtering-threshold')
+      .scrollIntoView()
+      .within(() => {
+        cy.contains('label', '(%)').should('be.visible');
+      });
 
     setDisplayedThreshold(1.2, 0.012);
 
@@ -286,7 +292,9 @@ describe('Journey Flow - TN93 distance display format', () => {
       .should('equal', 'percentage');
 
     cy.contains('#global-settings-modal .nav-link', 'Filtering').click({ force: true });
-    cy.get('#tn93-distance-display-format', { timeout: 15000 }).should('be.visible');
+    cy.get('#tn93-distance-display-format', { timeout: 15000 })
+      .scrollIntoView()
+      .should('be.visible');
     cy.window().then((win: unknown) => {
       const commonService = (win as WinWithMT).commonService;
       expect(commonService.tn93PercentageDisplayEnabled('distance'), 'percentage display restored from style')

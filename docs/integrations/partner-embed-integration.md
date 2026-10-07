@@ -174,7 +174,7 @@ Supported launch settings:
 
 | Setting | Type / allowed values | Effect |
 | --- | --- | --- |
-| `launch.datasetName` | string | Names this handed-off dataset. Preferred over `metadata.datasetName` when both are supplied. |
+| `launch.datasetName` | string | Names this handed-off dataset and displays the name in the MicrobeTrace toolbar. Preferred over `metadata.datasetName` when both are supplied. |
 | `launch.defaultView` | `2D Network`, `Epi Curve`, `Sankey`, `Table`, `Crosstab`, `Map`, `Bubble`, `Gantt Chart`, `Phylogenetic Tree`, `Alignment View`, `Heatmap`, `Waterfall` | Chooses the first view MicrobeTrace opens after import. |
 | `launch.distanceMetric` | `snps` or `tn93` | Sets the distance metric used for initial network construction. |
 | `launch.linkThreshold` | non-negative number | Sets the initial filtering threshold. If both `distanceMetric` and `linkThreshold` are supplied, this custom threshold is preserved instead of being replaced by the metric default. |
