@@ -30,6 +30,7 @@ import {
 import { WorkerComputeService } from '@app/contactTraceCommonServices/worker-compute.service';
 import { GraphMLService } from '@app/contactTraceCommonServices/graphml.service';
 import { clampNegativeBranchLengthsToZero } from '@app/workers/phylogenetic-tree-utils';
+import { findRecommendedThresholdIndex } from '@app/contactTraceCommonServices/threshold-analysis';
 
 interface FileTableOption {
   label: string;
@@ -1488,6 +1489,7 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
 
     console.log('launch click');
     this.commonService.resetData();
+    this.commonService.session.meta.smartLaunchRecommendation = null;
     this.commonService.session.network.launched = true;
     this.refreshTemplateState();
     if (wasAlreadyLaunched) {
@@ -2328,6 +2330,7 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
             file: file.name,
             totalPairs: analysisResult.totalPairs,
             sampledPairs: analysisResult.edges.length,
+            method: analysisResult.method,
             skipped: analysisResult.skipped,
             skipReason: analysisResult.skipReason
           });
@@ -2335,7 +2338,8 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
           // Newick threshold analysis must be available before the first edge
           // query so Smart Launch cannot generate a guardrailed partial network
           // with the pre-launch default and apply its recommendation afterward.
-          this.applySmartLaunchRecommendation();
+          await this.applySmartLaunchRecommendation(loadGeneration);
+          if (!isCurrentLoad()) return;
           const activeThreshold = Number(this.commonService.session.style.widgets['link-threshold']);
           const requeryStart = Date.now();
           const patristicResult = await this.workerComputeService.ensurePatristicEdgesForThreshold(
@@ -2438,7 +2442,7 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
    * Applies the same highest Component Structure Score recommendation shown in
    * Global Settings before the initial view is rendered.
    */
-  private applySmartLaunchRecommendation(): void {
+  private async applySmartLaunchRecommendation(loadGeneration = this.commonService.getDataLoadGeneration()): Promise<void> {
     if (!this.smartLaunchRequested) {
       return;
     }
@@ -2446,7 +2450,29 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
     this.smartLaunchRequested = false;
     const metric = this.commonService.session.style.widgets['link-sort-variable'] || 'distance';
     const summary = this.commonService.getThresholdSweepSummary(metric);
-    const recommendedIndex = summary.recommendedIndex;
+    let recommendedIndex = summary.recommendedIndex;
+    let renderLimit: number | null = null;
+    let noRenderableThreshold = false;
+
+    if (recommendedIndex >= 0 && this.commonService.session.data.newickSource === 'newick') {
+      const renderable = await this.workerComputeService.findMaxRenderablePatristicThresholdIndex(
+        summary.thresholds,
+        this.commonService.session,
+      );
+      if (!this.commonService.isCurrentDataLoad(loadGeneration)) return;
+
+      renderLimit = renderable.hardLimit;
+      if (renderable.index >= 0) {
+        recommendedIndex = findRecommendedThresholdIndex(
+          summary.componentMetrics,
+          summary.componentStructureScores,
+          renderable.index,
+        );
+      } else {
+        noRenderableThreshold = true;
+      }
+    }
+
     const threshold = Number(summary.thresholds[recommendedIndex]);
 
     if (recommendedIndex < 0 || !Number.isFinite(threshold)) {
@@ -2460,7 +2486,21 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
     this.commonService.GlobalSettingsModel.SelectedLinkThresholdVariable = threshold;
     this.store.setLinkThreshold(threshold);
     $('#default-distance-threshold').val(threshold);
-    this.showMessage(` - Smart Launch selected threshold ${threshold} (Component Structure Score ${score.toFixed(1)}).`);
+    if (renderLimit !== null && recommendedIndex !== summary.recommendedIndex) {
+      this.commonService.session.meta.smartLaunchRecommendation = {
+        generation: loadGeneration,
+        metric,
+        threshold,
+        hardLimit: renderLimit,
+      };
+    }
+    if (noRenderableThreshold) {
+      this.showMessage(` - Smart Launch found no clustered threshold within the ${renderLimit.toLocaleString()}-link browser limit; using a bounded network backbone at the composite-score leader ${threshold}.`);
+    } else if (renderLimit !== null && recommendedIndex !== summary.recommendedIndex) {
+      this.showMessage(` - Smart Launch selected threshold ${threshold} (Component Structure Score ${score.toFixed(1)}), the highest-scoring option within the ${renderLimit.toLocaleString()}-link browser limit.`);
+    } else {
+      this.showMessage(` - Smart Launch selected threshold ${threshold} (Component Structure Score ${score.toFixed(1)}).`);
+    }
   }
 
   /**
@@ -2478,7 +2518,8 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
         skipped: true,
         reason: 'no-sequences'
       });
-      this.applySmartLaunchRecommendation();
+      await this.applySmartLaunchRecommendation(loadGeneration);
+      if (!isCurrentLoad()) return;
       return this.commonService.runHamsters();
     }
     this.commonService.session.data.nodeFields.push('seq');
@@ -2564,7 +2605,8 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
       generatedLinks: k
     });
     this.showMessage(` - Found ${k} New Links from Genomic Proximity`);
-    this.applySmartLaunchRecommendation();
+    await this.applySmartLaunchRecommendation(loadGeneration);
+    if (!isCurrentLoad()) return;
     this.commonService.runHamsters();
 
 

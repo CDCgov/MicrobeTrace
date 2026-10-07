@@ -309,12 +309,15 @@ export class CommonService extends AppComponentBase implements OnInit {
         const displayedValue = this.toDisplayedDistanceValue(numericValue, linkField);
         const usePercentageDisplay = this.tn93PercentageDisplayEnabled(linkField);
         const includeSuffix = options.includeSuffix !== false;
+        const smallValueDecimals = displayedValue !== 0 && Math.abs(displayedValue) < 0.01
+            ? Math.min(12, Math.max(3, 2 - Math.floor(Math.log10(Math.abs(displayedValue)))))
+            : 3;
         const decimals = options.decimals !== undefined && Number.isFinite(Number(options.decimals))
             ? Math.max(0, Math.floor(Number(options.decimals)))
             : normalizedField === 'distance'
-                ? (String(this.session?.style?.widgets?.['default-distance-metric'] || '').toLowerCase() === 'snps' ? 0 : 3)
+                ? (String(this.session?.style?.widgets?.['default-distance-metric'] || '').toLowerCase() === 'snps' ? 0 : smallValueDecimals)
                 : this.isTN93DisplayField(linkField)
-                    ? 3
+                    ? smallValueDecimals
                     : (Math.abs(displayedValue - Math.round(displayedValue)) < 1e-9 ? 0 : 3);
 
         if (decimals === 0) {
@@ -666,6 +669,12 @@ export class CommonService extends AppComponentBase implements OnInit {
                 readyTime: Date.now(),
                 startTime: 0,
                 anySequences: false,
+                smartLaunchRecommendation: null as {
+                    generation: number;
+                    metric: string;
+                    threshold: number;
+                    hardLimit: number;
+                } | null,
                 performance: {}
             },
             network: {

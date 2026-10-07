@@ -338,6 +338,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
     ];
     thresholdSweepMetricLabel: string = '';
     thresholdSweepSampleCount: number = 0;
+    thresholdScoreRecommendationNote: string = '';
     thresholdStabilityExpanded: boolean = false;
     thresholdScoreExplanationExpanded: boolean = false;
     thresholdStableRangesExpanded: boolean = false;
@@ -6884,6 +6885,7 @@ ${warnings.join('\n')}`,
             this.thresholdSweepSampleCount = 0;
             this.thresholdStabilityCurrent = null;
             this.thresholdScoreRecommendation = null;
+            this.thresholdScoreRecommendationNote = '';
             this.thresholdStabilityRegions = [];
             this.thresholdStabilityMessage = '';
             if (markForCheck) {
@@ -6899,10 +6901,19 @@ ${warnings.join('\n')}`,
         this.thresholdSweepMetricLabel = metric;
         this.thresholdSweepSampleCount = summary.thresholds.length;
         this.thresholdStabilityCurrent = this.getThresholdSweepSnapshotAtThreshold(summary, threshold);
-        this.thresholdScoreRecommendation = summary.recommendedIndex >= 0
+        const smartLaunchRecommendation = this.commonService.session.meta?.smartLaunchRecommendation;
+        const constrainedIndex = smartLaunchRecommendation?.generation === this.commonService.getDataLoadGeneration()
+            && smartLaunchRecommendation?.metric === metric
+            ? summary.thresholds.indexOf(smartLaunchRecommendation.threshold)
+            : -1;
+        const recommendationIndex = constrainedIndex >= 0 ? constrainedIndex : summary.recommendedIndex;
+        this.thresholdScoreRecommendationNote = constrainedIndex >= 0
+            ? `Highest composite score within the ${Number(smartLaunchRecommendation.hardLimit).toLocaleString()}-link browser limit. The overall score leader exceeds that limit.`
+            : '';
+        this.thresholdScoreRecommendation = recommendationIndex >= 0
             ? this.getThresholdSweepSnapshotAtThreshold(
                 summary,
-                summary.thresholds[summary.recommendedIndex]
+                summary.thresholds[recommendationIndex]
             )
             : null;
         this.thresholdStabilityRegions = this.buildThresholdStabilityRegions(summary, threshold);
