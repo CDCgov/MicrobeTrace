@@ -286,6 +286,9 @@ describe('Journey Flow - Custom Heatmap configuration on uploaded data', () => {
 
   it('renders link-backed custom values using source and target axes', () => {
     launchProfileToHeatmap(linkProfile);
+    cy.window()
+      .its('commonService.session.style.widgets.heatmap-axislabels-show')
+      .should('equal', false);
 
     openHeatmapSettingsDialog();
     openHeatmapConfigurationTab();
@@ -301,6 +304,8 @@ describe('Journey Flow - Custom Heatmap configuration on uploaded data', () => {
 
       expect(win.commonService.session.style.widgets['heatmap-value-source']).to.equal('link');
       expect(win.commonService.session.style.widgets['heatmap-value-variable']).to.equal('AssayScore');
+      expect(win.commonService.session.style.widgets['heatmap-axislabels-show']).to.equal(true);
+      expect(heatmap.heatmapLayout.yaxis.showticklabels, 'long row labels visible by default').to.equal(true);
       expect(trace.x, 'link-backed x labels').to.deep.equal(['Virus A', 'Virus B']);
       expect(trace.y, 'link-backed y labels').to.deep.equal(['Serum 1', 'Serum 2']);
       expect(trace.z, 'link-backed z values').to.deep.equal([
@@ -313,6 +318,9 @@ describe('Journey Flow - Custom Heatmap configuration on uploaded data', () => {
 
   it('renders wide node rows with an inferred row label and value columns', () => {
     launchProfileToHeatmap(wideProfile);
+    cy.window()
+      .its('commonService.session.style.widgets.heatmap-axislabels-show')
+      .should('equal', false);
 
     openHeatmapSettingsDialog();
     openHeatmapConfigurationTab();
@@ -327,6 +335,8 @@ describe('Journey Flow - Custom Heatmap configuration on uploaded data', () => {
 
       expect(win.commonService.session.style.widgets['heatmap-data-layout']).to.equal('wide');
       expect(win.commonService.session.style.widgets['heatmap-value-source']).to.equal('columns');
+      expect(win.commonService.session.style.widgets['heatmap-axislabels-show']).to.equal(true);
+      expect(heatmap.heatmapLayout.yaxis.showticklabels, 'wide row labels visible by default').to.equal(true);
       expect(win.commonService.session.style.widgets['heatmap-y-variable']).to.equal('Virus');
       expect(win.commonService.session.style.widgets['heatmap-column-variables']).to.deep.equal([
         'A/Bris/10/07',

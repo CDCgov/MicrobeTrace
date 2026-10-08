@@ -1302,6 +1302,11 @@ export class HeatmapComponent extends BaseComponentDirective implements OnInit, 
     this.refreshFieldLists();
     this.selectedDataLayout = layout;
 
+    if (layout === 'long' || layout === 'wide') {
+      this.heatmapShowLabels = true;
+      this.widgets['heatmap-axislabels-show'] = true;
+    }
+
     if (layout === 'distance') {
       this.selectedValueKey = this.encodeValueKey('distance', HEATMAP_DISTANCE_LABEL);
     } else if (layout === 'wide') {
