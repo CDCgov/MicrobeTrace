@@ -13,6 +13,7 @@ export const testIds = {
   appViewMenuAlignment: 'app-view-menu-alignment',
   appViewMenuAggregate: 'app-view-menu-aggregate',
   appViewMenuCrosstab: 'app-view-menu-crosstab',
+  appViewMenuHeatmap: 'app-view-menu-heatmap',
   appViewMenuWaterfall: 'app-view-menu-waterfall',
   appSampleDatasetButton: 'app-sample-dataset-button',
   filesSettingsButton: 'files-settings-button',

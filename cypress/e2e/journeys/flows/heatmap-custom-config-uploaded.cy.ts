@@ -54,6 +54,26 @@ const linkProfile: DatasetProfile = {
   expectations: {},
 };
 
+const wideProfile: DatasetProfile = {
+  id: 'heatmap-custom-hi-wide',
+  title: 'Heatmap: wide node rows render selected value columns',
+  tags: ['heatmap', 'custom-config', 'node', 'wide'],
+  files: [
+    {
+      name: 'Heatmap_Custom_HI_Wide.csv',
+      datatype: 'node',
+      field1: 'id',
+      field2: 'None',
+    },
+  ],
+  preLaunch: {
+    metric: 'snps',
+    threshold: 16,
+    defaultView: '2D Network',
+  },
+  expectations: {},
+};
+
 function escapeForRegex(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
@@ -113,6 +133,7 @@ function configureNodeHeatmap(options: {
 }): void {
   openHeatmapSettingsDialog();
   openHeatmapConfigurationTab();
+  selectHeatmapOption('#heatmap-data-layout', 'One cell value per record (long)');
   selectHeatmapOption('#heatmap-x-variable', 'Serum');
   selectHeatmapOption('#heatmap-y-variable', 'Isolate ID');
   selectHeatmapOption('#heatmap-value-variable', options.value);
@@ -268,6 +289,7 @@ describe('Journey Flow - Custom Heatmap configuration on uploaded data', () => {
 
     openHeatmapSettingsDialog();
     openHeatmapConfigurationTab();
+    selectHeatmapOption('#heatmap-data-layout', 'One cell value per record (long)');
     selectHeatmapOption('#heatmap-value-variable', 'AssayScore');
     cy.closeSettingsPane('Heatmap Settings');
     assertHeatmapReady();
@@ -286,6 +308,51 @@ describe('Journey Flow - Custom Heatmap configuration on uploaded data', () => {
         [null, null],
       ]);
       expect(missingTrace.name, 'link-backed missing trace').to.equal('No Data');
+    });
+  });
+
+  it('renders wide node rows with an inferred row label and value columns', () => {
+    launchProfileToHeatmap(wideProfile);
+
+    openHeatmapSettingsDialog();
+    openHeatmapConfigurationTab();
+    selectHeatmapOption('#heatmap-data-layout', 'Multiple cell values per record (wide)');
+    cy.closeSettingsPane('Heatmap Settings');
+    assertHeatmapReady();
+
+    cy.window().should((win: any) => {
+      const heatmap = win.commonService.visuals.heatmap;
+      const trace = heatmap.heatmapData[0];
+      const missingTrace = heatmap.heatmapData[1];
+
+      expect(win.commonService.session.style.widgets['heatmap-data-layout']).to.equal('wide');
+      expect(win.commonService.session.style.widgets['heatmap-value-source']).to.equal('columns');
+      expect(win.commonService.session.style.widgets['heatmap-y-variable']).to.equal('Virus');
+      expect(win.commonService.session.style.widgets['heatmap-column-variables']).to.deep.equal([
+        'A/Bris/10/07',
+        'A/Per/16/09',
+        'A/S Aus/3/11',
+      ]);
+      expect(trace.x, 'wide column labels').to.deep.equal([
+        'A/Bris/10/07',
+        'A/Per/16/09',
+        'A/S Aus/3/11',
+      ]);
+      expect(trace.y, 'wide row labels').to.deep.equal([
+        'A/Brisbane/10/2007',
+        'A/Perth/16/2009',
+        'A/Ghana/FS-11-1014/2011',
+      ]);
+      expect(trace.z, 'wide numeric values').to.deep.equal([
+        [1280, 80, 160],
+        [40, 1280, 640],
+        [null, 640, null],
+      ]);
+      expect(trace.colorbar.ticktext, 'wide numeric legend').to.satisfy((labels: string[]) => (
+        labels.length > 0
+        && labels.every((label) => Number.isFinite(Number(String(label).replace(/,/g, ''))))
+      ));
+      expect(missingTrace.name, 'wide missing trace legend label').to.equal('No Data');
     });
   });
 

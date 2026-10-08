@@ -19,7 +19,8 @@ import { CommonStoreService } from '@app/contactTraceCommonServices/common-store
 import { Subject, takeUntil } from 'rxjs';
 import * as d3 from 'd3';
 
-type HeatmapValueSource = 'distance' | 'node' | 'link';
+type HeatmapDataLayout = 'distance' | 'long' | 'wide';
+type HeatmapValueSource = 'distance' | 'node' | 'link' | 'columns';
 type HeatmapValueKind = 'numeric' | 'categorical';
 
 interface HeatmapAxisItem {
@@ -53,8 +54,18 @@ interface HeatmapMatrixResult {
 
 const HEATMAP_DISTANCE_LABEL = 'Distance';
 const HEATMAP_NONE = 'None';
+const HEATMAP_SELECTED_COLUMNS_LABEL = 'Selected Columns';
 const HEATMAP_VALUE_SEPARATOR = '::';
 const HEATMAP_CELL_SEPARATOR = '\u0000';
+const HEATMAP_INTERNAL_NODE_FIELDS = new Set([
+  '_id',
+  'index',
+  'selected',
+  'cluster',
+  'visible',
+  'degree',
+  'origin',
+]);
 
 @Component({
     selector: 'HeatmapComponent',
@@ -77,8 +88,10 @@ export class HeatmapComponent extends BaseComponentDirective implements OnInit, 
   heatmapData: any[] = [];
   FieldList: SelectItem[] = [];
   AxisFieldList: SelectItem[] = [];
+  ColumnFieldList: SelectItem[] = [];
   SortFieldList: SelectItem[] = [];
   ValueFieldGroups: any[] = [];
+  LongValueFieldGroups: any[] = [];
   heatmapLayout: any;
   heatmapConfig: object;
   invertX: boolean;
@@ -88,9 +101,11 @@ export class HeatmapComponent extends BaseComponentDirective implements OnInit, 
   medColor: string;
   hiColor: string;
   missingColor: string;
+  selectedDataLayout: HeatmapDataLayout;
   selectedXVariable: string;
   selectedYVariable: string;
   selectedValueKey: string;
+  selectedColumnVariables: string[] = [];
   selectedSortBy: string;
   summaryStatistic: string;
   HeatmapSettingsDialogSettings: DialogSettings = new DialogSettings('#heatmap-settings-pane', false);
@@ -98,6 +113,11 @@ export class HeatmapComponent extends BaseComponentDirective implements OnInit, 
   invertOptions: object = [
     { label: 'Yes', value: true },
     { label: 'No', value: false }
+  ];
+  dataLayoutOptions: SelectItem[] = [
+    { label: 'Calculated pairwise distances', value: 'distance' },
+    { label: 'One cell value per record (long)', value: 'long' },
+    { label: 'Multiple cell values per record (wide)', value: 'wide' },
   ];
   SelectedImageFilenameVariable = 'default_heatmap';
   SelectedNetworkExportFileTypeVariable = 'png';
@@ -212,8 +232,10 @@ export class HeatmapComponent extends BaseComponentDirective implements OnInit, 
       'heatmap-axislabels-show',
       'heatmap-x-variable',
       'heatmap-y-variable',
+      'heatmap-data-layout',
       'heatmap-value-source',
       'heatmap-value-variable',
+      'heatmap-column-variables',
       'heatmap-sort-by',
       'heatmap-summary-statistic',
     ].forEach((key) => {
@@ -222,10 +244,18 @@ export class HeatmapComponent extends BaseComponentDirective implements OnInit, 
       }
     });
 
-    if (!['distance', 'node', 'link'].includes(String(this.widgets['heatmap-value-source']))) {
+    if (!['distance', 'node', 'link', 'columns'].includes(String(this.widgets['heatmap-value-source']))) {
       this.widgets['heatmap-value-source'] = defaults['heatmap-value-source'];
       this.widgets['heatmap-value-variable'] = defaults['heatmap-value-variable'];
     }
+
+    if (!Array.isArray(this.widgets['heatmap-column-variables'])) {
+      this.widgets['heatmap-column-variables'] = [];
+    }
+
+    this.widgets['heatmap-data-layout'] = this.getDataLayoutForSource(
+      String(this.widgets['heatmap-value-source']) as HeatmapValueSource
+    );
 
     this.widgets['heatmap-summary-statistic'] = HEATMAP_NONE;
   }
@@ -251,19 +281,33 @@ export class HeatmapComponent extends BaseComponentDirective implements OnInit, 
 
     const valueSource = String(this.widgets['heatmap-value-source']) as HeatmapValueSource;
     const valueVariable = String(this.widgets['heatmap-value-variable'] || HEATMAP_DISTANCE_LABEL);
+    this.selectedDataLayout = this.getDataLayoutForSource(valueSource);
     const selectedValueKey = this.encodeValueKey(valueSource, valueVariable);
     const allowedValueKeys = this.flattenValueOptions().map((option) => option.value);
 
-    this.selectedValueKey = allowedValueKeys.length === 0 || allowedValueKeys.includes(selectedValueKey)
+    this.selectedValueKey = valueSource === 'columns'
+      ? this.encodeValueKey('columns', HEATMAP_SELECTED_COLUMNS_LABEL)
+      : allowedValueKeys.length === 0 || allowedValueKeys.includes(selectedValueKey)
       ? selectedValueKey
       : this.encodeValueKey('distance', HEATMAP_DISTANCE_LABEL);
+
+    const selectedColumns = this.widgets['heatmap-column-variables']
+      .filter((field: unknown) => axisValues.includes(String(field)))
+      .map((field: unknown) => String(field));
+    this.selectedColumnVariables = selectedColumns.length > 0
+      ? selectedColumns
+      : this.selectedDataLayout === 'wide'
+        ? this.getSuggestedWideColumnVariables(this.selectedYVariable)
+        : [];
 
     const selectedValue = this.parseValueKey(this.selectedValueKey);
     this.widgets['heatmap-x-variable'] = this.selectedXVariable;
     this.widgets['heatmap-y-variable'] = this.selectedYVariable;
     this.widgets['heatmap-sort-by'] = this.selectedSortBy;
+    this.widgets['heatmap-data-layout'] = this.selectedDataLayout;
     this.widgets['heatmap-value-source'] = selectedValue.source;
     this.widgets['heatmap-value-variable'] = selectedValue.variable;
+    this.widgets['heatmap-column-variables'] = [...this.selectedColumnVariables];
     this.widgets['heatmap-summary-statistic'] = HEATMAP_NONE;
 
     this.invertX = Boolean(this.widgets['heatmap-invertX']);
@@ -277,7 +321,19 @@ export class HeatmapComponent extends BaseComponentDirective implements OnInit, 
     this.heatmapValueDisplayLabel = this.getHeatmapValueDisplayLabel(selectedValue);
     this.heatmapValueLabel = selectedValue.source === 'distance'
       ? HEATMAP_DISTANCE_LABEL
-      : this.getFieldLabel(selectedValue.variable);
+      : selectedValue.source === 'columns'
+        ? HEATMAP_SELECTED_COLUMNS_LABEL
+        : this.getFieldLabel(selectedValue.variable);
+  }
+
+  private getDataLayoutForSource(source: HeatmapValueSource): HeatmapDataLayout {
+    if (source === 'columns') {
+      return 'wide';
+    }
+    if (source === 'node' || source === 'link') {
+      return 'long';
+    }
+    return 'distance';
   }
 
   private getNodeFields(): string[] {
@@ -286,6 +342,83 @@ export class HeatmapComponent extends BaseComponentDirective implements OnInit, 
 
   private getLinkFields(): string[] {
     return this.uniqueFields(this.commonService.session.data?.linkFields || []);
+  }
+
+  private getUserNodeFields(): string[] {
+    return this.getNodeFields().filter((field) => !HEATMAP_INTERNAL_NODE_FIELDS.has(field.toLowerCase()));
+  }
+
+  private findPreferredField(fields: string[], patterns: RegExp[], fallback = '_id'): string {
+    for (const pattern of patterns) {
+      const match = fields.find((field) => pattern.test(field.trim()));
+      if (match) {
+        return match;
+      }
+    }
+
+    return fields.includes(fallback) ? fallback : fields[0] || '_id';
+  }
+
+  private getSuggestedWideRowVariable(): string {
+    return this.findPreferredField(this.getNodeFields(), [
+      /^virus$/i,
+      /^isolate([ _-]?id)?$/i,
+      /^sample([ _-]?name)?$/i,
+      /^name$/i,
+      /^id$/i,
+    ]);
+  }
+
+  private getSuggestedWideColumnVariables(rowVariable: string): string[] {
+    const rows = this.getVisibleNodeRows();
+    const metadataPattern = /(^|[ _-])(id|name|date|type|history|label)($|[ _-])/i;
+
+    return this.getUserNodeFields().filter((field) => {
+      if (field === rowVariable || metadataPattern.test(field)) {
+        return false;
+      }
+
+      const values = rows
+        .map((row) => row?.[field])
+        .filter((value) => !this.isMissingValue(value));
+      if (values.length === 0) {
+        return false;
+      }
+
+      const numericValues = values.filter((value) => Number.isFinite(Number(value)));
+      return numericValues.length / values.length >= 0.5;
+    });
+  }
+
+  private getSuggestedLongConfiguration(): {
+    xVariable: string;
+    yVariable: string;
+    valueKey: string;
+  } {
+    const nodeFields = this.getNodeFields();
+    const userFields = this.getUserNodeFields();
+    const xVariable = this.findPreferredField(nodeFields, [
+      /^test$/i,
+      /^serum$/i,
+      /^reference([ _-]?strain)?$/i,
+    ]);
+    const yVariable = this.findPreferredField(nodeFields, [
+      /^virus$/i,
+      /^isolate([ _-]?id)?$/i,
+      /^sample([ _-]?name)?$/i,
+    ]);
+    const valueVariable = this.findPreferredField(userFields, [
+      /^result$/i,
+      /^value$/i,
+      /titer/i,
+      /score/i,
+    ], userFields[0]);
+
+    return {
+      xVariable,
+      yVariable,
+      valueKey: this.encodeValueKey('node', valueVariable),
+    };
   }
 
   private uniqueFields(fields: string[]): string[] {
@@ -327,6 +460,11 @@ export class HeatmapComponent extends BaseComponentDirective implements OnInit, 
     const linkFields = this.getLinkFields();
 
     this.AxisFieldList = nodeFields.map((field) => ({
+      label: this.getFieldLabel(field),
+      value: field,
+    }));
+
+    this.ColumnFieldList = this.getUserNodeFields().map((field) => ({
       label: this.getFieldLabel(field),
       value: field,
     }));
@@ -378,6 +516,7 @@ export class HeatmapComponent extends BaseComponentDirective implements OnInit, 
         })),
       },
     ];
+    this.LongValueFieldGroups = this.ValueFieldGroups.filter((group) => group.value !== 'distance');
   }
 
   private flattenValueOptions(): any[] {
@@ -390,20 +529,27 @@ export class HeatmapComponent extends BaseComponentDirective implements OnInit, 
 
   private parseValueKey(key: string): { source: HeatmapValueSource; variable: string } {
     const [source, ...variableParts] = String(key || '').split(HEATMAP_VALUE_SEPARATOR);
-    const parsedSource = ['distance', 'node', 'link'].includes(source)
+    const parsedSource = ['distance', 'node', 'link', 'columns'].includes(source)
       ? source as HeatmapValueSource
       : 'distance';
     const variable = variableParts.join(HEATMAP_VALUE_SEPARATOR) || HEATMAP_DISTANCE_LABEL;
 
     return {
       source: parsedSource,
-      variable: parsedSource === 'distance' ? HEATMAP_DISTANCE_LABEL : variable,
+      variable: parsedSource === 'distance'
+        ? HEATMAP_DISTANCE_LABEL
+        : parsedSource === 'columns'
+          ? HEATMAP_SELECTED_COLUMNS_LABEL
+          : variable,
     };
   }
 
   private getHeatmapValueDisplayLabel(selectedValue = this.parseValueKey(this.selectedValueKey)): string {
     if (selectedValue.source === 'distance') {
       return this.getFieldLabel(String(this.commonService.session.style.widgets['default-distance-metric'] || HEATMAP_DISTANCE_LABEL));
+    }
+    if (selectedValue.source === 'columns') {
+      return HEATMAP_SELECTED_COLUMNS_LABEL;
     }
 
     return this.getFieldLabel(selectedValue.variable);
@@ -440,7 +586,21 @@ export class HeatmapComponent extends BaseComponentDirective implements OnInit, 
   }
 
   private isMissingValue(value: unknown): boolean {
-    const missingStringValues = new Set(['', 'null', 'undefined', 'nan']);
+    const missingStringValues = new Set([
+      '',
+      'null',
+      'undefined',
+      'nan',
+      'na',
+      'n/a',
+      'nt',
+      'n/t',
+      'not tested',
+      '<',
+      '>',
+      '&lt;',
+      '&gt;',
+    ]);
     const normalizedStringValue = typeof value === 'string'
       ? value.trim().toLowerCase()
       : undefined;
@@ -685,6 +845,31 @@ export class HeatmapComponent extends BaseComponentDirective implements OnInit, 
     return this.buildCustomMatrixFromCells(cells, this.getFieldLabel(valueVariable));
   }
 
+  private buildColumnBackedMatrix(): HeatmapMatrixResult {
+    const selectedFields = this.selectedColumnVariables.filter((field) => (
+      field !== this.selectedYVariable && this.getNodeFields().includes(field)
+    ));
+    const rows = this.getVisibleNodeRows()
+      .map((row, index): HeatmapAxisItem & { row: any } => ({
+        index,
+        label: this.normalizeAxisLabel(row?.[this.selectedYVariable])
+          || this.normalizeAxisLabel(row?._id ?? row?.id)
+          || `Row ${index + 1}`,
+        sortValue: this.selectedSortBy === HEATMAP_NONE ? undefined : row?.[this.selectedSortBy],
+        row,
+      }));
+    const sortedRows = this.sortAxisItems(rows) as Array<HeatmapAxisItem & { row: any }>;
+
+    return this.finalizeMatrix({
+      rawMatrix: sortedRows.map((item) => selectedFields.map((field) => item.row?.[field])),
+      xLabels: selectedFields.map((field) => this.getFieldLabel(field)),
+      yLabels: sortedRows.map((item) => item.label),
+      isDistance: false,
+      valueLabel: 'Value',
+      duplicateCount: 0,
+    });
+  }
+
   private buildLinkBackedMatrix(valueVariable: string): HeatmapMatrixResult {
     const rows = this.getVisibleLinkRows();
     const nodeLookup = this.buildNodeLookup();
@@ -916,6 +1101,9 @@ export class HeatmapComponent extends BaseComponentDirective implements OnInit, 
     this.syncLocalSettingsFromWidgets();
 
     const selectedValue = this.parseValueKey(this.selectedValueKey);
+    if (selectedValue.source === 'columns') {
+      return this.buildColumnBackedMatrix();
+    }
     if (selectedValue.source === 'node') {
       return this.buildNodeBackedMatrix(selectedValue.variable);
     }
@@ -1110,6 +1298,39 @@ export class HeatmapComponent extends BaseComponentDirective implements OnInit, 
     this.redrawHeatmap();
   }
 
+  updateDataLayout(layout: HeatmapDataLayout): void {
+    this.refreshFieldLists();
+    this.selectedDataLayout = layout;
+
+    if (layout === 'distance') {
+      this.selectedValueKey = this.encodeValueKey('distance', HEATMAP_DISTANCE_LABEL);
+    } else if (layout === 'wide') {
+      this.selectedYVariable = this.getSuggestedWideRowVariable();
+      this.selectedColumnVariables = this.getSuggestedWideColumnVariables(this.selectedYVariable);
+      this.selectedValueKey = this.encodeValueKey('columns', HEATMAP_SELECTED_COLUMNS_LABEL);
+    } else {
+      const suggested = this.getSuggestedLongConfiguration();
+      this.selectedXVariable = suggested.xVariable;
+      this.selectedYVariable = suggested.yVariable;
+      this.selectedValueKey = suggested.valueKey;
+    }
+
+    const selectedValue = this.parseValueKey(this.selectedValueKey);
+    this.widgets['heatmap-data-layout'] = layout;
+    this.widgets['heatmap-x-variable'] = this.selectedXVariable;
+    this.widgets['heatmap-y-variable'] = this.selectedYVariable;
+    this.widgets['heatmap-value-source'] = selectedValue.source;
+    this.widgets['heatmap-value-variable'] = selectedValue.variable;
+    this.widgets['heatmap-column-variables'] = [...this.selectedColumnVariables];
+    this.heatmapValueDisplayLabel = this.getHeatmapValueDisplayLabel(selectedValue);
+    this.heatmapValueLabel = selectedValue.source === 'columns'
+      ? HEATMAP_SELECTED_COLUMNS_LABEL
+      : selectedValue.source === 'distance'
+        ? HEATMAP_DISTANCE_LABEL
+        : this.getFieldLabel(selectedValue.variable);
+    this.redrawHeatmap();
+  }
+
   updateXVariable(variable: string): void {
     this.selectedXVariable = variable;
     this.commonService.session.style.widgets['heatmap-x-variable'] = variable;
@@ -1119,12 +1340,27 @@ export class HeatmapComponent extends BaseComponentDirective implements OnInit, 
   updateYVariable(variable: string): void {
     this.selectedYVariable = variable;
     this.commonService.session.style.widgets['heatmap-y-variable'] = variable;
+    if (this.selectedDataLayout === 'wide') {
+      this.selectedColumnVariables = this.selectedColumnVariables.filter((field) => field !== variable);
+      if (this.selectedColumnVariables.length === 0) {
+        this.selectedColumnVariables = this.getSuggestedWideColumnVariables(variable);
+      }
+      this.commonService.session.style.widgets['heatmap-column-variables'] = [...this.selectedColumnVariables];
+    }
+    this.redrawHeatmap();
+  }
+
+  updateColumnVariables(variables: string[]): void {
+    this.selectedColumnVariables = (variables || []).filter((field) => field !== this.selectedYVariable);
+    this.commonService.session.style.widgets['heatmap-column-variables'] = [...this.selectedColumnVariables];
     this.redrawHeatmap();
   }
 
   updateValueVariable(valueKey: string): void {
     this.selectedValueKey = valueKey;
     const selectedValue = this.parseValueKey(valueKey);
+    this.selectedDataLayout = this.getDataLayoutForSource(selectedValue.source);
+    this.commonService.session.style.widgets['heatmap-data-layout'] = this.selectedDataLayout;
     this.commonService.session.style.widgets['heatmap-value-source'] = selectedValue.source;
     this.commonService.session.style.widgets['heatmap-value-variable'] = selectedValue.variable;
     this.heatmapValueDisplayLabel = this.getHeatmapValueDisplayLabel(selectedValue);

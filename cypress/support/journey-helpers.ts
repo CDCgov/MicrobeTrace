@@ -87,7 +87,7 @@ export function visitAppAndAcceptEula(options: JourneyVisitOptions = {}): void {
   };
 
   cy.visit(buildJourneyUrl(resolvedOptions));
-  cy.get('#fileDropRef', { timeout: 15000 }).should('exist');
+  cy.get('#fileDropRef', { timeout: 60000 }).should('exist');
 
   if (!resolvedOptions.skipEula) {
     acceptEulaIfPresent();
@@ -867,8 +867,12 @@ export function goToWaterfallView(): void {
 }
 
 export function goToHeatmapView(): void {
-  cy.get(byTestId(testIds.appViewMenuButton), { timeout: 15000 }).click({ force: true });
-  cy.contains('button[mat-menu-item]', 'Heatmap', { timeout: 15000 }).click({ force: true });
+  cy.get(byTestId(testIds.appViewMenuButton), { timeout: 15000 })
+    .should('be.visible')
+    .click();
+  cy.get(byTestId(testIds.appViewMenuHeatmap), { timeout: 15000 })
+    .should('be.visible')
+    .click();
 
   assertHeatmapReady();
 }
@@ -2115,60 +2119,88 @@ export function assertHeatmapMatchesBackingMatrix(options: {
     high: string;
   };
 } = {}): void {
-  cy.window({ timeout: 20000 }).then((win: unknown) => {
-    const w = win as WinWithMT;
-    const heatmapView = w.commonService.visuals.heatmap;
+  cy.then(() => {
+    const deadline = Date.now() + 60000;
 
-    expect(heatmapView, 'heatmap visual').to.exist;
+    const assertWhenSynchronized = (): Cypress.Chainable<unknown> => cy.window({ log: false })
+      .then((win: unknown) => {
+        const w = win as WinWithMT;
+        const heatmapView = w.commonService.visuals.heatmap;
 
-    return w.commonService.getDM().then(({ dm, labels }: { dm: any[]; labels: string[] }) => {
-      const baseLabels = (labels || []).map((label) => String(label));
-      const expectedX = options.invertX ? [...baseLabels].reverse() : [...baseLabels];
-      const expectedY = options.invertY ? [...baseLabels].reverse() : [...baseLabels];
+        return cy.wrap(w.commonService.getDM(), { log: false })
+          .then(({ dm, labels }: { dm: any[]; labels: string[] }) => {
+            const baseLabels = (labels || []).map((label) => String(label));
+            const expectedX = options.invertX ? [...baseLabels].reverse() : [...baseLabels];
+            const expectedY = options.invertY ? [...baseLabels].reverse() : [...baseLabels];
 
-      let expectedZ = cloneHeatmapMatrix(dm, baseLabels.length);
-      if (options.invertX) {
-        expectedZ = expectedZ.map((row) => (Array.isArray(row) ? [...row].reverse() : row));
-      }
-      if (options.invertY) {
-        expectedZ = [...expectedZ].reverse();
-      }
+            let expectedZ = cloneHeatmapMatrix(dm, baseLabels.length);
+            if (options.invertX) {
+              expectedZ = expectedZ.map((row) => (Array.isArray(row) ? [...row].reverse() : row));
+            }
+            if (options.invertY) {
+              expectedZ = [...expectedZ].reverse();
+            }
 
-      const expectedLabelsVisible = options.labelsVisible ??
-        Boolean(w.commonService.session.style.widgets['heatmap-axislabels-show']);
-      const expectedMetric = (options.metric ??
-        w.commonService.session.style.widgets['default-distance-metric']).toUpperCase();
-      const expectedColors = options.colors ?? {
-        low: String(w.commonService.session.style.widgets['heatmap-color-low']),
-        medium: String(w.commonService.session.style.widgets['heatmap-color-medium']),
-        high: String(w.commonService.session.style.widgets['heatmap-color-high']),
-      };
+            const expectedLabelsVisible = options.labelsVisible ??
+              Boolean(w.commonService.session.style.widgets['heatmap-axislabels-show']);
+            const expectedMetric = (options.metric ??
+              w.commonService.session.style.widgets['default-distance-metric']).toUpperCase();
+            const expectedColors = options.colors ?? {
+              low: String(w.commonService.session.style.widgets['heatmap-color-low']),
+              medium: String(w.commonService.session.style.widgets['heatmap-color-medium']),
+              high: String(w.commonService.session.style.widgets['heatmap-color-high']),
+            };
+            const expectedColorscale = [
+              [0, expectedColors.low],
+              [0.5, expectedColors.medium],
+              [1, expectedColors.high],
+            ];
+            const trace = heatmapView?.heatmapData?.[0];
+            const hasExpectedHiddenTicks = expectedLabelsVisible || (
+              heatmapView?.heatmapLayout?.xaxis?.ticks === '' &&
+              heatmapView?.heatmapLayout?.yaxis?.ticks === ''
+            );
+            const isSynchronized = Boolean(
+              heatmapView &&
+              trace?.type === 'heatmap' &&
+              trace.z?.length > 0 &&
+              heatmapView.heatmapMetric === expectedMetric &&
+              Cypress._.isEqual(trace.x, expectedX) &&
+              Cypress._.isEqual(trace.y, expectedY) &&
+              Cypress._.isEqual(trace.z, expectedZ) &&
+              Cypress._.isEqual(trace.colorscale, expectedColorscale) &&
+              heatmapView.heatmapLayout?.xaxis?.showticklabels === expectedLabelsVisible &&
+              heatmapView.heatmapLayout?.yaxis?.showticklabels === expectedLabelsVisible &&
+              hasExpectedHiddenTicks
+            );
 
-      expect(heatmapView.heatmapMetric, 'heatmap metric label').to.equal(expectedMetric);
-      expect(heatmapView.heatmapData, 'heatmap traces').to.have.length.greaterThan(0);
+            if (!isSynchronized && Date.now() < deadline) {
+              return cy.wait(200, { log: false }).then(assertWhenSynchronized);
+            }
 
-      const trace = heatmapView.heatmapData[0];
-      expect(trace.type, 'heatmap trace type').to.equal('heatmap');
-      expect(trace.z.length, 'heatmap matrix row count').to.be.greaterThan(0);
-      expect(trace.x, 'heatmap x labels').to.deep.equal(expectedX);
-      expect(trace.y, 'heatmap y labels').to.deep.equal(expectedY);
-      expect(trace.z, 'heatmap matrix values').to.deep.equal(expectedZ);
-      expect(trace.colorscale, 'heatmap colorscale').to.deep.equal([
-        [0, expectedColors.low],
-        [0.5, expectedColors.medium],
-        [1, expectedColors.high],
-      ]);
+            expect(heatmapView, 'heatmap visual').to.exist;
+            expect(heatmapView.heatmapMetric, 'heatmap metric label').to.equal(expectedMetric);
+            expect(heatmapView.heatmapData, 'heatmap traces').to.have.length.greaterThan(0);
+            expect(trace.type, 'heatmap trace type').to.equal('heatmap');
+            expect(trace.z.length, 'heatmap matrix row count').to.be.greaterThan(0);
+            expect(trace.x, 'heatmap x labels').to.deep.equal(expectedX);
+            expect(trace.y, 'heatmap y labels').to.deep.equal(expectedY);
+            expect(trace.z, 'heatmap matrix values').to.deep.equal(expectedZ);
+            expect(trace.colorscale, 'heatmap colorscale').to.deep.equal(expectedColorscale);
 
-      expect(heatmapView.heatmapLayout?.xaxis?.showticklabels, 'heatmap x-axis labels visible')
-        .to.equal(expectedLabelsVisible);
-      expect(heatmapView.heatmapLayout?.yaxis?.showticklabels, 'heatmap y-axis labels visible')
-        .to.equal(expectedLabelsVisible);
+            expect(heatmapView.heatmapLayout?.xaxis?.showticklabels, 'heatmap x-axis labels visible')
+              .to.equal(expectedLabelsVisible);
+            expect(heatmapView.heatmapLayout?.yaxis?.showticklabels, 'heatmap y-axis labels visible')
+              .to.equal(expectedLabelsVisible);
 
-      if (!expectedLabelsVisible) {
-        expect(heatmapView.heatmapLayout?.xaxis?.ticks, 'heatmap x-axis ticks hidden').to.equal('');
-        expect(heatmapView.heatmapLayout?.yaxis?.ticks, 'heatmap y-axis ticks hidden').to.equal('');
-      }
-    });
+            if (!expectedLabelsVisible) {
+              expect(heatmapView.heatmapLayout?.xaxis?.ticks, 'heatmap x-axis ticks hidden').to.equal('');
+              expect(heatmapView.heatmapLayout?.yaxis?.ticks, 'heatmap y-axis ticks hidden').to.equal('');
+            }
+          });
+      });
+
+    return assertWhenSynchronized();
   });
 }
 

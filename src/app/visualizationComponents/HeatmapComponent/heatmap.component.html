@@ -26,38 +26,96 @@
             [positionLeft]="HeatmapSettingsDialogSettings.left"
             [positionTop]="HeatmapSettingsDialogSettings.top"
             [(visible)]="HeatmapSettingsDialogSettings.isVisible"
-            [contentStyle]="{'overflow': 'visible', 'width': '430px'}"
+            [contentStyle]="{'overflow': 'visible', 'width': '500px'}"
             header="Heatmap Settings" appendTo="body"
             >
             <tabset class="tab-container tabbable-line">
               <tab heading="{{'Configuration' | localize}}" [active]="true" customClass="m-tabs__item">
-                <div class="form-group row heatmap-x-variable-row" title="Field used for Heatmap X-axis labels." style="overflow:visible">
-                  <div class="col-4"><label for="heatmap-x-variable">X Variable</label></div>
+                <div class="form-group row heatmap-data-layout-row" title="Choose how the uploaded data is arranged." style="overflow:visible">
+                  <div class="col-4"><label for="heatmap-data-layout">Data Layout</label></div>
                   <div class="col-8">
-                    <p-select id="heatmap-x-variable" [options]="AxisFieldList" appendTo="body" class="width-percent-100"
-                      [(ngModel)]="selectedXVariable" (ngModelChange)="updateXVariable($event)"></p-select>
+                    <p-select id="heatmap-data-layout" [options]="dataLayoutOptions" appendTo="body" class="width-percent-100"
+                      [(ngModel)]="selectedDataLayout" (ngModelChange)="updateDataLayout($event)"></p-select>
                   </div>
                 </div>
-                <div class="form-group row heatmap-y-variable-row" title="Field used for Heatmap Y-axis labels." style="overflow:visible">
-                  <div class="col-4"><label for="heatmap-y-variable">Y Variable</label></div>
-                  <div class="col-8">
-                    <p-select id="heatmap-y-variable" [options]="AxisFieldList" appendTo="body" class="width-percent-100"
-                      [(ngModel)]="selectedYVariable" (ngModelChange)="updateYVariable($event)"></p-select>
+
+                @if (selectedDataLayout === 'long') {
+                  <div class="heatmap-layout-help">
+                    Each record becomes one Heatmap cell. Choose the fields containing the column label, row label, and value.<br>
+                    Example: <strong>Test | Virus | Result</strong>
                   </div>
-                </div>
-                <div class="form-group row heatmap-value-variable-row" title="Field used for Heatmap cell values." style="overflow:visible">
-                  <div class="col-4"><label for="heatmap-value-variable">Value</label></div>
-                  <div class="col-8">
-                    <p-select id="heatmap-value-variable" [options]="ValueFieldGroups" appendTo="body" class="width-percent-100"
-                      [group]="true" [(ngModel)]="selectedValueKey" (ngModelChange)="updateValueVariable($event)">
-                      <ng-template let-group pTemplate="group">
-                        <span style="font-weight: bold;">{{ group.label }}</span>
-                      </ng-template>
-                    </p-select>
+                  <div class="form-group row heatmap-x-variable-row" title="Column containing the Heatmap column-axis labels." style="overflow:visible">
+                    <div class="col-4"><label for="heatmap-x-variable">Column Axis</label></div>
+                    <div class="col-8">
+                      <p-select id="heatmap-x-variable" [options]="AxisFieldList" appendTo="body" class="width-percent-100"
+                        [(ngModel)]="selectedXVariable" (ngModelChange)="updateXVariable($event)"></p-select>
+                    </div>
                   </div>
-                </div>
+                  <div class="form-group row heatmap-y-variable-row" title="Column containing the Heatmap row-axis labels." style="overflow:visible">
+                    <div class="col-4"><label for="heatmap-y-variable">Row Axis</label></div>
+                    <div class="col-8">
+                      <p-select id="heatmap-y-variable" [options]="AxisFieldList" appendTo="body" class="width-percent-100"
+                        [(ngModel)]="selectedYVariable" (ngModelChange)="updateYVariable($event)"></p-select>
+                    </div>
+                  </div>
+                  <div class="form-group row heatmap-value-variable-row" title="Column containing the Heatmap cell values." style="overflow:visible">
+                    <div class="col-4"><label for="heatmap-value-variable">Cell Value</label></div>
+                    <div class="col-8">
+                      <p-select id="heatmap-value-variable" [options]="LongValueFieldGroups" appendTo="body" class="width-percent-100"
+                        [group]="true" [(ngModel)]="selectedValueKey" (ngModelChange)="updateValueVariable($event)">
+                        <ng-template let-group pTemplate="group">
+                          <span style="font-weight: bold;">{{ group.label }}</span>
+                        </ng-template>
+                      </p-select>
+                    </div>
+                  </div>
+                }
+
+                @if (selectedDataLayout === 'wide') {
+                  <div class="heatmap-layout-help">
+                    Each record becomes one Heatmap row. Choose the field that labels the row, then choose the fields containing its values.<br>
+                    Example: <strong>Virus | A/Bris/10/07 | A/Per/16/09 | ...</strong>
+                  </div>
+                  <div class="form-group row heatmap-y-variable-row" title="Field used to label each Heatmap row." style="overflow:visible">
+                    <div class="col-4"><label for="heatmap-y-variable">Row Labels</label></div>
+                    <div class="col-8">
+                      <p-select id="heatmap-y-variable" [options]="AxisFieldList" appendTo="body" class="width-percent-100"
+                        [(ngModel)]="selectedYVariable" (ngModelChange)="updateYVariable($event)"></p-select>
+                    </div>
+                  </div>
+                  <div class="form-group row heatmap-column-variables-row" title="Fields used as Heatmap value columns." style="overflow:visible">
+                    <div class="col-4"><label for="heatmap-column-variables">Value Columns</label></div>
+                    <div class="col-8">
+                      <p-multiselect id="heatmap-column-variables" [options]="ColumnFieldList" appendTo="body"
+                        class="width-percent-100" display="chip" [maxSelectedLabels]="2"
+                        selectedItemsLabel="{0} columns selected" placeholder="Select value columns"
+                        [(ngModel)]="selectedColumnVariables" (ngModelChange)="updateColumnVariables($event)"></p-multiselect>
+                    </div>
+                  </div>
+                }
+
+                @if (selectedDataLayout === 'distance') {
+                  <div class="heatmap-layout-help">
+                    Display the active genetic distance matrix. The optional label fields only change the text shown on each axis.
+                  </div>
+                  <div class="form-group row heatmap-x-variable-row" title="Field used for Heatmap column-axis labels." style="overflow:visible">
+                    <div class="col-4"><label for="heatmap-x-variable">Column Labels</label></div>
+                    <div class="col-8">
+                      <p-select id="heatmap-x-variable" [options]="AxisFieldList" appendTo="body" class="width-percent-100"
+                        [(ngModel)]="selectedXVariable" (ngModelChange)="updateXVariable($event)"></p-select>
+                    </div>
+                  </div>
+                  <div class="form-group row heatmap-y-variable-row" title="Field used for Heatmap row-axis labels." style="overflow:visible">
+                    <div class="col-4"><label for="heatmap-y-variable">Row Labels</label></div>
+                    <div class="col-8">
+                      <p-select id="heatmap-y-variable" [options]="AxisFieldList" appendTo="body" class="width-percent-100"
+                        [(ngModel)]="selectedYVariable" (ngModelChange)="updateYVariable($event)"></p-select>
+                    </div>
+                  </div>
+                }
+
                 <div class="form-group row heatmap-sort-by-row" title="Field used to order both Heatmap axes when available." style="overflow:visible">
-                  <div class="col-4"><label for="heatmap-sort-by">Sort By</label></div>
+                  <div class="col-4"><label for="heatmap-sort-by">Sort Rows By</label></div>
                   <div class="col-8">
                     <p-select id="heatmap-sort-by" [options]="SortFieldList" appendTo="body" class="width-percent-100"
                       [(ngModel)]="selectedSortBy" (ngModelChange)="updateSortBy($event)"></p-select>
