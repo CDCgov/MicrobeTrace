@@ -108,16 +108,6 @@ function selectHeatmapOption(selectId: string, optionLabel: string): void {
   cy.get('body').find('.p-select-overlay:visible').should('not.exist');
 }
 
-function setSelectButtonValue(controlSelector: string, value: 'Yes' | 'No'): void {
-  const targetIndex = value === 'Yes' ? 0 : 1;
-
-  cy.get('@heatmapSettings')
-    .find(controlSelector)
-    .find('p-togglebutton')
-    .eq(targetIndex)
-    .click({ force: true });
-}
-
 function setColorInput(inputSelector: string, color: string): void {
   cy.get('@heatmapSettings').find(inputSelector).then(($input) => {
     const input = $input.get(0) as HTMLInputElement;
@@ -195,7 +185,10 @@ describe('Journey Flow - Custom Heatmap configuration on uploaded data', () => {
 
     openHeatmapSettingsDialog();
     openHeatmapAccordion('heatmap-labels');
-    setSelectButtonValue('#show-labels', 'Yes');
+    cy.get('@heatmapSettings')
+      .find('#show-labels p-togglebutton')
+      .eq(0)
+      .should('have.attr', 'aria-pressed', 'true');
     openHeatmapAccordion('heatmap-color');
     setColorInput('#missing-color', missingColor);
     cy.closeSettingsPane('Heatmap Settings');
