@@ -97,6 +97,10 @@ export interface NetworkStatisticsExportSection {
   rows: any[][];
 }
 
+export interface NetworkStatisticsExportOptions {
+  includeDistanceFields?: boolean;
+}
+
 interface GraphBuildResult {
   nodeIds: string[];
   selectedNodeIds: Set<string>;
@@ -588,7 +592,10 @@ function yesNo(value: boolean): string {
   return value ? 'Yes' : 'No';
 }
 
-export function buildNetworkStatisticsExportSections(result: NetworkStatisticsResult): NetworkStatisticsExportSection[] {
+export function buildNetworkStatisticsExportSections(
+  result: NetworkStatisticsResult,
+  options: NetworkStatisticsExportOptions = {},
+): NetworkStatisticsExportSection[] {
   const summary = result.summary;
   const clusterRows = result.components.filter((component) => component.nodeCount > 1);
   const largestClusterSize = result.components
@@ -628,8 +635,10 @@ export function buildNetworkStatisticsExportSections(result: NetworkStatisticsRe
         ['Transitivity', summary.transitivity],
         ['Average Reachable Path Length', summary.averagePathLength],
         ['Diameter', summary.diameter],
-        ['Distance Metric', summary.metricLabel],
-        ['Threshold', summary.threshold],
+        ...(options.includeDistanceFields === false ? [] : [
+          ['Distance Metric', summary.metricLabel],
+          ['Threshold', summary.threshold],
+        ]),
         ['Calculation Mode', calculationMode],
         ['Generated At', result.generatedAtIso],
       ],
@@ -699,8 +708,11 @@ export function buildNetworkStatisticsExportSections(result: NetworkStatisticsRe
   ];
 }
 
-export function serializeNetworkStatisticsCsv(result: NetworkStatisticsResult): string {
-  const lines = buildNetworkStatisticsExportSections(result).flatMap((section, index) => [
+export function serializeNetworkStatisticsCsv(
+  result: NetworkStatisticsResult,
+  options: NetworkStatisticsExportOptions = {},
+): string {
+  const lines = buildNetworkStatisticsExportSections(result, options).flatMap((section, index) => [
     ...(index === 0 ? [] : ['']),
     section.csvTitle,
     ...section.rows.map((row) => csvRow(row)),

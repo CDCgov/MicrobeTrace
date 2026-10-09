@@ -1121,6 +1121,23 @@ export class CommonService extends AppComponentBase implements OnInit {
         return tree && typeof tree === 'object' && Object.keys(tree).length > 0;
     }
 
+    public hasDistanceLinks(): boolean {
+        return (this.session.data?.links || []).some(link => link?.hasDistance === true);
+    }
+
+    public hasDistanceDataAvailable(): boolean {
+        if (this.hasDistanceLinks()) {
+            return true;
+        }
+
+        // Inspect the loaded nodes directly instead of relying on meta.anySequences.
+        // Older/restored sessions may not repopulate that metadata flag even though
+        // their node records still contain usable sequences.
+        const hasSequenceData = (this.session.data?.nodes || []).some(node => this.hasSeq(node));
+
+        return hasSequenceData || this.hasNewickBackedDistanceSource(this.session.data?.newickString);
+    }
+
     public setPatristicThresholdAnalysisEdges(
         metric: string,
         leafNames: string[],
@@ -4330,10 +4347,15 @@ align(params): Promise<any> {
         $("#numberOfVisibleLinks").text(linkCount.toLocaleString());
         $("#numberOfSingletonNodes").text(singletons.toLocaleString());
         $("#numberOfDisjointComponents").text(clusterCount);
-        $("#currentLinkThreshold").text(this.formatDisplayedDistanceValue(
-            Number(this.session.style.widgets['link-threshold']),
-            this.session.style.widgets['link-sort-variable']
-        ));
+        const hasDistanceDataAvailable = this.hasDistanceDataAvailable();
+        $("#link-threshold-statistic").prop("hidden", !hasDistanceDataAvailable);
+        $("#currentLinkThreshold").text(hasDistanceDataAvailable
+            ? this.formatDisplayedDistanceValue(
+                Number(this.session.style.widgets['link-threshold']),
+                this.session.style.widgets['link-sort-variable']
+            )
+            : ""
+        );
         this.recordPerformanceTiming('statistics', 'updateStatistics', start, {
             timelineMode,
             timelineDateField,

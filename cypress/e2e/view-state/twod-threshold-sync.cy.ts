@@ -57,10 +57,14 @@ describe('2D Network - Threshold Display Sync', () => {
   });
 
   it('keeps sample SNP threshold synchronized after a TN93 metric round trip', () => {
+    cy.get('#link-threshold-statistic').should('be.visible');
     cy.get('#currentLinkThreshold').should('have.text', '16');
 
     openGlobalFilteringTab();
-    cy.get('#default-distance-metric').should('have.value', 'snps');
+    cy.get('[data-testid="distance-controls-unavailable"]').should('not.exist');
+    cy.get('#default-distance-metric').should('be.enabled').and('have.value', 'snps');
+    cy.get('#link-threshold').should('be.enabled');
+    cy.get('[data-testid="threshold-stability-toggle"]').should('be.enabled');
     assertThresholdState(16, '16', '16');
 
     setGlobalDistanceMetric('tn93');

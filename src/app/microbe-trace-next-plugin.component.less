@@ -596,6 +596,25 @@ label.disabled {
   min-width: 0;
 }
 
+#global-settings-modal .distance-control-disabled {
+  opacity: 0.55;
+}
+
+#global-settings-modal .distance-control-disabled select,
+#global-settings-modal .distance-control-disabled input,
+#global-settings-modal .distance-control-disabled button {
+  cursor: not-allowed;
+}
+
+.distance-controls-unavailable {
+  color: #6c757d;
+  font-size: 11px;
+}
+
+.distance-controls-unavailable .pi {
+  margin-right: 4px;
+}
+
 .threshold-sparkline {
   display: block;
   width: 100%;
@@ -623,6 +642,12 @@ label.disabled {
   position: relative;
   z-index: 1;
   scroll-margin: 96px 0 160px;
+}
+
+.threshold-stability-toggle:disabled {
+  background: #e9ecef;
+  color: #6c757d;
+  cursor: not-allowed;
 }
 
 .threshold-stability-toggle__text {

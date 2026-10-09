@@ -1,0 +1,5 @@
+source,target,contact_type
+P001,P002,Household
+P002,P003,Workplace
+P003,P004,Social
+P004,P005,Healthcare
