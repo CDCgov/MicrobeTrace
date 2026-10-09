@@ -24,6 +24,7 @@ const hexToRgb = (hex: string): string => {
 };
 
 const openHeatmapAccordion = (panelValue: HeatmapAccordionPanel): void => {
+  cy.get('@heatmapSettings').contains('.nav-link', 'Appearance').click({ force: true });
   cy.get('@heatmapSettings')
     .find(`p-accordion-panel[value="${panelValue}"] .p-accordionheader`)
     .first()
