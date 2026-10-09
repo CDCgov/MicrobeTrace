@@ -404,6 +404,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
     SelectedColorVariable: string = '#ff8300';
     SelectedBackgroundColorVariable: string = '#ffffff';
     SelectedApplyStyleVariable: string = '';
+    styleFileStatus: NodeColorAssignmentStatus | null = null;
     nodeColorAssignmentStatus: NodeColorAssignmentStatus | null = null;
 
 
@@ -2067,23 +2068,133 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         this.cdref.markForCheck();
     }
 
+    private setStyleFileStatus(kind: NodeColorAssignmentStatus['kind'], message: string): void {
+        this.styleFileStatus = { kind, message };
+        this.cdref.markForCheck();
+    }
+
+    private normalizeImportedStyle(style: any): any {
+        const isRecord = (value: any): boolean =>
+            value !== null && typeof value === 'object' && !Array.isArray(value);
+
+        if (!isRecord(style)) {
+            throw new Error('The style file must contain a JSON object.');
+        }
+        if (!isRecord(style.widgets)) {
+            throw new Error('The style file must include a "widgets" object.');
+        }
+
+        const arrayFields = [
+            'linkAlphas',
+            'linkColors',
+            'nodeAlphas',
+            'nodeColors',
+            'nodeSymbols',
+            'polygonAlphas',
+            'polygonColors'
+        ];
+        const objectFields = [
+            'keyTableColumnNames',
+            'linkColorsTable',
+            'linkColorsTableHistory',
+            'linkColorsTableKeys',
+            'linkValueNames',
+            'nodeColorAssignments',
+            'nodeColorsTable',
+            'nodeColorsTableHistory',
+            'nodeColorsTableKeys',
+            'nodeSymbolsTable',
+            'nodeSymbolsTableKeys',
+            'nodeValueNames',
+            'overwrite',
+            'polygonValueNames'
+        ];
+
+        arrayFields.forEach(field => {
+            if (style[field] !== undefined && !Array.isArray(style[field])) {
+                throw new Error(`The style file field "${field}" must be an array.`);
+            }
+        });
+        objectFields.forEach(field => {
+            if (style[field] !== undefined && !isRecord(style[field])) {
+                throw new Error(`The style file field "${field}" must be an object.`);
+            }
+        });
+
+        const defaultStyle = this.commonService.sessionSkeleton().style;
+        return {
+            ...defaultStyle,
+            ...style,
+            widgets: {
+                ...defaultStyle.widgets,
+                ...style.widgets
+            }
+        };
+    }
+
     /**
      * Reads the file and applies the style to MicrobeTrace session.style
      * 
      */
     public onApplyStyle( file: any ){
-        $('.custom-file-label').text(this.SelectedApplyStyleVariable.substring(12))
+        const selectedFile = file?.target?.files?.[0];
+        if (!selectedFile) {
+            this.setStyleFileStatus('error', 'Choose a MicrobeTrace style file to apply.');
+            return;
+        }
+
+        $('label[for="apply-style"]').text(selectedFile.name);
+        this.styleFileStatus = null;
         const reader = new FileReader();
         reader.onload = e => {
-            this.commonService.applyStyle(JSON.parse((e as any).target.result)); 
-            this.applyStyleFileSettings();
+            const previousStyle = this.commonService.session.style;
+            try {
+                const rawContents = String((e as any).target?.result ?? '');
+                let parsedStyle: any;
+
+                try {
+                    parsedStyle = JSON.parse(rawContents);
+                } catch {
+                    throw new Error('The style file is not valid JSON.');
+                }
+
+                const normalizedStyle = this.normalizeImportedStyle(parsedStyle);
+                this.commonService.applyStyle(normalizedStyle);
+                this.applyStyleFileSettings();
+                this.setStyleFileStatus('success', `Applied style from "${selectedFile.name}".`);
+            } catch (error) {
+                const styleWasReplaced = this.commonService.session.style !== previousStyle;
+                let previousStyleRestored = false;
+
+                if (styleWasReplaced) {
+                    try {
+                        this.commonService.applyStyle(previousStyle);
+                        this.applyStyleFileSettings();
+                        previousStyleRestored = true;
+                    } catch (rollbackError) {
+                        console.error('Unable to restore the previous style after an import failure.', rollbackError);
+                    }
+                }
+
+                this.setStyleFileStatus(
+                    'error',
+                    previousStyleRestored
+                        ? 'The style file could not be applied. The previous style was restored.'
+                        : error instanceof Error ? error.message : 'The style file could not be applied.'
+                );
+            }
         }
-        reader.readAsText(file.target.files[0]);
+        reader.onerror = () => {
+            this.setStyleFileStatus('error', `Unable to read "${selectedFile.name}".`);
+        };
+        reader.readAsText(selectedFile);
 
     }
 
     applyStyleFileSettings() {
         this.widgets = this.commonService.session.style.widgets;
+
+        this.applyStyleFileFilterSettings();
 
         if (this.SelectedClusterMinimumSizeVariable != this.widgets['cluster-minimum-size']){
             this.SelectedClusterMinimumSizeVariable = this.widgets['cluster-minimum-size'];
@@ -2119,6 +2230,34 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         }
 
         this.applySavedNodeShapeSettingsFromSession();
+    }
+
+    private applyStyleFileFilterSettings(): void {
+        const importedMetric = String(
+            this.widgets['default-distance-metric'] ?? this.SelectedDistanceMetricVariable ?? 'snps'
+        ).toLowerCase();
+        const calculationMetric = this.commonService.normalizeDistanceMetric(importedMetric);
+
+        this.SelectedDistanceMetricVariable = importedMetric;
+        this.metric = calculationMetric;
+        this.commonService.GlobalSettingsModel.SelectedDistanceMetricVariable = importedMetric;
+        this.store.updatecurrentThresholdStepSize(calculationMetric);
+
+        const importedLinkSort = String(
+            this.widgets['link-sort-variable'] ?? this.SelectedLinkSortVariable ?? 'distance'
+        );
+        this.SelectedLinkSortVariable = importedLinkSort;
+        this.commonService.GlobalSettingsModel.SelectedLinkSortVariable = importedLinkSort;
+        this._lastLinkSortValue = importedLinkSort;
+
+        const importedThreshold = Number(this.widgets['link-threshold']);
+        if (!Number.isFinite(importedThreshold)) {
+            return;
+        }
+
+        this.SelectedLinkThresholdVariable = importedThreshold;
+        this.commonService.GlobalSettingsModel.SelectedLinkThresholdVariable = importedThreshold;
+        this.onLinkThresholdChanged(importedThreshold);
     }
 
     onEpsilonValueChange() {
