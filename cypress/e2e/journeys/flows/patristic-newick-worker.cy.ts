@@ -178,6 +178,28 @@ describe('Journey Flow - Patristic Newick worker safeguards', () => {
     setThresholdAndAssertVisibleLinks(0.015, 14);
   });
 
+  it('reuses the cached Newick tree when only trailing whitespace changes', () => {
+    launchProfileToTwoD(tn93Profile);
+    assertVisibleLinkCount(14);
+
+    let initialTreeInitCount = 0;
+    cy.window().then((win: any) => {
+      initialTreeInitCount = Number(
+        win.commonService.session.meta.performance.patristic.treeInitCount || 0,
+      );
+      win.commonService.session.data.newickString += '\r\n  ';
+    });
+
+    setThresholdAndAssertVisibleLinks(0.02, 45);
+
+    cy.window().should((win: any) => {
+      expect(
+        Number(win.commonService.session.meta.performance.patristic.treeInitCount || 0),
+        'tree init count after whitespace-only Newick change',
+      ).to.equal(initialTreeInitCount);
+    });
+  });
+
   it('warns and skips additional Newick edges when a threshold exceeds the browser guardrail', () => {
     visitAppAndAcceptEula();
     cy.loadFiles(tn93Profile.files);

@@ -4933,12 +4933,25 @@ ${warnings.join('\n')}`,
 
     getHeight() {
         const timelineHeight = this.commonService.session.style.widgets["timeline-date-field"] == 'None' ? 0 : 150
-        if (this.officialInstance()) {
-            return window.innerHeight - 80 - timelineHeight;
-        } else {
-            const warningHeight = $('#url-warning-div').height()
-            return window.innerHeight - 80 - warningHeight - timelineHeight;
+        const warningHeight = this.officialInstance() ? 0 : Number($('#url-warning-div').outerHeight() || 0);
+        const visualWrapper = this.visualWrapperRef?.nativeElement
+            ?? document.getElementById('visualwrapper');
+
+        if (visualWrapper) {
+            const wrapperDocumentTop = visualWrapper.getBoundingClientRect().top + window.scrollY;
+            const viewportBottomSpacing = 10;
+
+            return Math.max(
+                0,
+                window.innerHeight
+                    - wrapperDocumentTop
+                    - viewportBottomSpacing
+                    - warningHeight
+                    - timelineHeight
+            );
         }
+
+        return Math.max(0, window.innerHeight - 80 - warningHeight - timelineHeight);
     }
 
     showSpinner() {

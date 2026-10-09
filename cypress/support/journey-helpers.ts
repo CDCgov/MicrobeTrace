@@ -677,11 +677,11 @@ export function launchAndWaitForProcessing(timeout = 60000): void {
     .should('equal', true);
 }
 
-export function goTo2DNetworkView(): void {
+export function goTo2DNetworkView(timeout = 30000): void {
   cy.get(byTestId(testIds.appViewMenuButton), { timeout: 15000 }).click({ force: true });
   cy.get(byTestId(testIds.appViewMenuTwoD), { timeout: 15000 }).click({ force: true });
 
-  assertTwoDNetworkReady();
+  assertTwoDNetworkReady(timeout);
 }
 
 export function assertTwoDNetworkReady(timeout = 30000): void {
@@ -997,14 +997,14 @@ export function ensureCrosstabView(): void {
   });
 }
 
-export function ensureTwoDNetworkView(): void {
+export function ensureTwoDNetworkView(timeout = 30000): void {
   cy.get('body', { timeout: 15000 }).then(($body) => {
     if ($body.find('#cy:visible').length) {
-      assertTwoDNetworkReady();
+      assertTwoDNetworkReady(timeout);
       return;
     }
 
-    goTo2DNetworkView();
+    goTo2DNetworkView(timeout);
   });
 }
 

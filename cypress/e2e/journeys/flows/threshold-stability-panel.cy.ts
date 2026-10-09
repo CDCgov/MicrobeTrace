@@ -357,6 +357,55 @@ describe('Journey Flow - Threshold Stability Panel', () => {
     });
   });
 
+  it('preserves a fractional generic-distance recommendation when the default metric is SNPs', () => {
+    launchProfileToTwoD(mixedOriginProfile);
+
+    cy.window().then((win: any) => {
+      const commonService = win.commonService;
+      const app = commonService.visuals.microbeTrace;
+      const metric = commonService.session.style.widgets['link-sort-variable'];
+
+      commonService.session.data.links.forEach((link: any) => {
+        if (link.hasDistance === true && Number.isFinite(Number(link[metric]))) {
+          link[metric] = Number(link[metric]) / 10;
+        }
+      });
+      commonService.session.style.widgets['default-distance-metric'] = 'snps';
+      commonService.invalidateThresholdAnalysisCache();
+      app.SelectedLinkSortVariable = metric;
+      app.refreshThresholdStabilityPanel();
+
+      const summary = commonService.getThresholdSweepSummary(metric);
+      const recommendation = Number(summary.thresholds[summary.recommendedIndex]);
+      expect(recommendation, 'fractional generic-distance recommendation').to.equal(0.2);
+      expect(
+        commonService.formatDisplayedDistanceValue(recommendation, metric),
+        'displayed recommendation',
+      ).to.equal('0.2');
+    });
+
+    openGlobalFilteringTab();
+    cy.get('[data-testid="threshold-stability-toggle"]')
+      .scrollIntoView()
+      .click({ force: true });
+    cy.get('[data-testid="threshold-score-recommendation"] .threshold-score-recommendation__threshold')
+      .should(($threshold) => {
+        expect($threshold.text().trim(), 'recommended threshold label').to.equal('0.2');
+      });
+    cy.get('[data-testid="threshold-score-apply"]')
+      .should('have.attr', 'data-threshold', '0.2')
+      .and('contain.text', 'Use threshold 0.2')
+      .click({ force: true });
+    waitForProcessingDialogToClear();
+
+    cy.window().its('commonService.session.style.widgets.link-threshold').should((threshold) => {
+      expect(Number(threshold), 'applied fractional recommendation').to.equal(0.2);
+    });
+    cy.get('#link-threshold').invoke('val').should((value) => {
+      expect(Number(value), 'Global Settings threshold input').to.equal(0.2);
+    });
+  });
+
   it('applies the composite Newick recommendation from Global Settings after a guardrailed load', () => {
     visitAppAndAcceptEula();
     cy.loadFiles(newickProfile.files);
