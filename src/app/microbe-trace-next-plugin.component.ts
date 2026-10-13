@@ -30,6 +30,7 @@ import { KeyTablesComponent } from './visualizationComponents/KeyTablesComponent
 import { KEY_TABLE_NAMES, KeyTableName, KeyTablesController } from './visualizationComponents/KeyTablesComponent/key-tables.controller';
 import { NetworkStatisticsComponent } from './visualizationComponents/NetworkStatisticsComponent/network-statistics-plugin.component';
 import type { ThresholdSweepSummary } from './contactTraceCommonServices/threshold-analysis';
+import { FEATURE_FLAGS } from './feature-flags';
 import {
     computeComponentStructureMetrics,
     scoreComponentStructureMetrics,
@@ -163,6 +164,8 @@ function buildNodeShapeTreeOptions(groups: NodeShapeOptionGroup[], defaultExpand
 })
 
 export class MicrobeTraceNextHomeComponent extends AppComponentBase implements AfterViewInit, OnInit, OnDestroy {
+
+    readonly componentStructureThresholdRecommendationEnabled = FEATURE_FLAGS.componentStructureThresholdRecommendation;
 
     colorTransparencyPercent = 100;
     readonly shapeTreeSelectPassThrough = NODE_SHAPE_TREE_SELECT_PASS_THROUGH;
@@ -6839,21 +6842,26 @@ ${warnings.join('\n')}`,
         this.thresholdSweepMetricLabel = metric;
         this.thresholdSweepSampleCount = summary.thresholds.length;
         this.thresholdStabilityCurrent = this.getThresholdSweepSnapshotAtThreshold(summary, threshold);
-        const smartLaunchRecommendation = this.commonService.session.meta?.smartLaunchRecommendation;
-        const constrainedIndex = smartLaunchRecommendation?.generation === this.commonService.getDataLoadGeneration()
-            && smartLaunchRecommendation?.metric === metric
-            ? summary.thresholds.indexOf(smartLaunchRecommendation.threshold)
-            : -1;
-        const recommendationIndex = constrainedIndex >= 0 ? constrainedIndex : summary.recommendedIndex;
-        this.thresholdScoreRecommendationNote = constrainedIndex >= 0
-            ? `Highest composite score within the ${Number(smartLaunchRecommendation.hardLimit).toLocaleString()}-link browser limit. The overall score leader exceeds that limit.`
-            : '';
-        this.thresholdScoreRecommendation = recommendationIndex >= 0
-            ? this.getThresholdSweepSnapshotAtThreshold(
-                summary,
-                summary.thresholds[recommendationIndex]
-            )
-            : null;
+        if (this.componentStructureThresholdRecommendationEnabled) {
+            const smartLaunchRecommendation = this.commonService.session.meta?.smartLaunchRecommendation;
+            const constrainedIndex = smartLaunchRecommendation?.generation === this.commonService.getDataLoadGeneration()
+                && smartLaunchRecommendation?.metric === metric
+                ? summary.thresholds.indexOf(smartLaunchRecommendation.threshold)
+                : -1;
+            const recommendationIndex = constrainedIndex >= 0 ? constrainedIndex : summary.recommendedIndex;
+            this.thresholdScoreRecommendationNote = constrainedIndex >= 0
+                ? `Highest composite score within the ${Number(smartLaunchRecommendation.hardLimit).toLocaleString()}-link browser limit. The overall score leader exceeds that limit.`
+                : '';
+            this.thresholdScoreRecommendation = recommendationIndex >= 0
+                ? this.getThresholdSweepSnapshotAtThreshold(
+                    summary,
+                    summary.thresholds[recommendationIndex]
+                )
+                : null;
+        } else {
+            this.thresholdScoreRecommendation = null;
+            this.thresholdScoreRecommendationNote = '';
+        }
         this.thresholdStabilityRegions = this.buildThresholdStabilityRegions(summary, threshold);
 
         if (summary.thresholds.length === 0) {
@@ -6877,7 +6885,7 @@ ${warnings.join('\n')}`,
     }
 
     applyThresholdScoreRecommendation(): void {
-        if (!this.thresholdScoreRecommendation) {
+        if (!this.componentStructureThresholdRecommendationEnabled || !this.thresholdScoreRecommendation) {
             return;
         }
 

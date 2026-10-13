@@ -31,6 +31,7 @@ import { WorkerComputeService } from '@app/contactTraceCommonServices/worker-com
 import { GraphMLService } from '@app/contactTraceCommonServices/graphml.service';
 import { clampNegativeBranchLengthsToZero } from '@app/workers/phylogenetic-tree-utils';
 import { findRecommendedThresholdIndex } from '@app/contactTraceCommonServices/threshold-analysis';
+import { FEATURE_FLAGS } from '@app/feature-flags';
 
 interface FileTableOption {
   label: string;
@@ -65,6 +66,8 @@ interface AddToTableOptions {
 export class FilesComponent extends BaseComponentDirective implements OnInit {
 
   @Output() LoadDefaultVisualizationEvent = new EventEmitter();
+
+  readonly smartLaunchEnabled = FEATURE_FLAGS.smartLaunch;
 
   auspiceUrlVal: any;
 
@@ -1441,7 +1444,7 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
    */
   launchClick(options: { resetSettings?: boolean; smartThreshold?: boolean; embedHandoff?: boolean } = {}) {
 
-    this.smartLaunchRequested = options.smartThreshold === true;
+    this.smartLaunchRequested = this.smartLaunchEnabled && options.smartThreshold === true;
 
     if (!options.embedHandoff) {
       this.pendingEmbedLaunchOptions = null;
@@ -2444,7 +2447,7 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
    * Global Settings before the initial view is rendered.
    */
   private async applySmartLaunchRecommendation(loadGeneration = this.commonService.getDataLoadGeneration()): Promise<void> {
-    if (!this.smartLaunchRequested) {
+    if (!this.smartLaunchEnabled || !this.smartLaunchRequested) {
       return;
     }
 
