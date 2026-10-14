@@ -6,6 +6,7 @@ import {
   applyPreLaunchFileSettings,
   assertBubbleReady,
   assertSessionAfterLaunchCounts,
+  continuePastMissingNodeCoverageWarning,
   ensurePreLaunchProfileSynced,
   visitAppAndAcceptEula,
 } from '../../../support/journey-helpers';
@@ -31,6 +32,7 @@ const launchProfileDirectToBubble = (profile: DatasetProfile): void => {
   applyPreLaunchFileSettings(profile);
   ensurePreLaunchProfileSynced(profile);
   cy.get('#launch', { timeout: 15000 }).should('not.be.disabled').click({ force: true });
+  continuePastMissingNodeCoverageWarning();
   cy.window({ timeout: 120000 })
     .its('commonService.session.network.isFullyLoaded')
     .should('equal', true);

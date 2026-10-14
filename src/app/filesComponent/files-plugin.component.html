@@ -314,6 +314,78 @@
       </div>
     </p-dialog>
 
+    <p-dialog
+      header="Potentially Missing Node Data"
+      [(visible)]="displayMissingNodeCoverageDialog"
+      [modal]="true"
+      [dismissableMask]="false"
+      [closeOnEscape]="true"
+      [style]="{ width: '42rem', maxWidth: 'calc(100vw - 2rem)' }"
+      appendTo="body"
+      (onHide)="cancelMissingNodeCoverageLaunch()">
+      @if (missingNodeCoverageSummary) {
+        <div data-testid="files-missing-node-coverage-dialog" class="pr-2" style="max-height: min(60vh, 36rem); overflow-y: auto;">
+          <p>
+            Some identifiers are not represented in both the imported node data and the imported link or topology data.
+            You can continue with the available data or cancel and adjust the uploaded files.
+          </p>
+
+          @if (missingNodeCoverageSummary.missingNodeData.total > 0) {
+            <section data-testid="files-missing-node-data-section" class="mt-4">
+              <h3 class="h6 font-weight-bold mb-1">Missing node data ({{ missingNodeCoverageSummary.missingNodeData.total }})</h3>
+              <p class="mb-2">These identifiers occur in link or topology data but not in node data.</p>
+              <ol data-testid="files-missing-node-data-list" class="mb-2 pl-4 text-break">
+                @for (nodeId of missingNodeCoverageSummary.missingNodeData.ids; track nodeId) {
+                  <li>{{ nodeId }}</li>
+                }
+              </ol>
+              @if (missingNodeCoverageSummary.missingNodeData.hidden > 0) {
+                <p class="font-italic">
+                  {{ missingNodeCoverageSummary.missingNodeData.hidden }} additional IDs not shown.
+                </p>
+              }
+            </section>
+          }
+
+          @if (missingNodeCoverageSummary.missingLinkInformation.total > 0) {
+            <section data-testid="files-missing-link-information-section" class="mt-4">
+              <h3 class="h6 font-weight-bold mb-1">Missing link information ({{ missingNodeCoverageSummary.missingLinkInformation.total }})</h3>
+              <p class="mb-2">These identifiers occur in node data but not in link or topology data.</p>
+              <ol data-testid="files-missing-link-information-list" class="mb-2 pl-4 text-break">
+                @for (nodeId of missingNodeCoverageSummary.missingLinkInformation.ids; track nodeId) {
+                  <li>{{ nodeId }}</li>
+                }
+              </ol>
+              @if (missingNodeCoverageSummary.missingLinkInformation.hidden > 0) {
+                <p class="font-italic">
+                  {{ missingNodeCoverageSummary.missingLinkInformation.hidden }} additional IDs not shown.
+                </p>
+              }
+            </section>
+          }
+        </div>
+      }
+
+      <ng-template #footer>
+        <div class="d-flex justify-content-end">
+          <button
+            type="button"
+            data-testid="files-missing-node-coverage-cancel"
+            class="btn btn-secondary"
+            (click)="cancelMissingNodeCoverageLaunch()">
+            Cancel
+          </button>
+          <button
+            type="button"
+            data-testid="files-missing-node-coverage-continue"
+            class="btn btn-primary ml-2"
+            (click)="continueMissingNodeCoverageLaunch()">
+            Continue
+          </button>
+        </div>
+      </ng-template>
+    </p-dialog>
+
   </div><div id="file-footer">
   <br/>
 

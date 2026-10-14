@@ -89,7 +89,11 @@ describe('Dashboard View State - Golden Layout mechanics', () => {
       });
     });
 
+    cy.window().then((win) => {
+      win.commonService.visuals.bubble.goldenLayoutComponentResize();
+    });
     closeDashboardTab('Bubble');
+    cy.wait(250);
     assertOpenDashboardTabs(['2D Network', 'Map', 'Table']);
 
     focusDashboardTab('2D Network');

@@ -61,6 +61,7 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
   @ViewChild('bubbleTooltip') toolTip: ElementRef;
   
   cy: Core;
+  private resizeTimer: ReturnType<typeof setTimeout> | null = null;
   
   visuals: MicrobeTraceNextVisuals;
   widgets: any;
@@ -210,6 +211,11 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
     this.destroy$.next();
     this.destroy$.complete();
     $(document).off('.bubbleView');
+
+    if (this.resizeTimer !== null) {
+      clearTimeout(this.resizeTimer);
+      this.resizeTimer = null;
+    }
 
     if (this.cy){
         this.cy.removeAllListeners();
@@ -1133,8 +1139,19 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
     this.viewHeight = this.container.height - 73;
     this.viewWidth = this.container.width - 42;
     this.cdref.detectChanges()
-    setTimeout(() => {
-      this.cy.fit(this.cy.nodes(), 30);
+
+    if (this.resizeTimer !== null) {
+      clearTimeout(this.resizeTimer);
+    }
+
+    this.resizeTimer = setTimeout(() => {
+      this.resizeTimer = null;
+      const cy = this.cy;
+      if (!cy || cy.destroyed()) {
+        return;
+      }
+
+      cy.fit(cy.nodes(), 30);
       this.onLabelSizeChange()
     }, 200);
   }
