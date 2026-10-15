@@ -4625,11 +4625,13 @@ ${warnings.join('\n')}`,
 
     onNetworkSubsetNodeFieldChanged(field: string): void {
         this.SelectedNetworkSubsetNodeField = field;
+        this.SelectedNetworkSubsetNodeValue = '';
         this.refreshNetworkSubsetNodeValueOptions();
     }
 
     onNetworkSubsetLinkFieldChanged(field: string): void {
         this.SelectedNetworkSubsetLinkField = field;
+        this.SelectedNetworkSubsetLinkValue = '';
         this.refreshNetworkSubsetLinkValueOptions();
     }
 
