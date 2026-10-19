@@ -1,0 +1,16 @@
+source,target,distance
+jan-weighted-counts,jan-weighted-decimals,1
+jan-weighted-decimals,jan-solid-control,1
+feb-weighted-percent,feb-weighted-reversed,1
+feb-weighted-reversed,feb-unweighted-control,1
+feb-unweighted-control,feb-invalid-partial,1
+mar-weighted-duplicates,mar-weighted-comma,1
+mar-weighted-comma,mar-weighted-three-way,1
+mar-weighted-three-way,mar-invalid-zero,1
+jan-weighted-counts,feb-weighted-percent,2
+jan-weighted-decimals,feb-weighted-reversed,2
+jan-solid-control,feb-unweighted-control,2
+feb-weighted-percent,mar-weighted-duplicates,2
+feb-weighted-reversed,mar-weighted-comma,2
+feb-unweighted-control,mar-weighted-three-way,2
+feb-invalid-partial,mar-invalid-zero,2

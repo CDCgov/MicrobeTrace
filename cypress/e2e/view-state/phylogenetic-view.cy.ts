@@ -95,7 +95,9 @@ describe('Phylogenetic Tree View', () => {
       cy.closeGlobalSettings();
 
       cy.get('#key-tables-node-table td input').first().invoke('val', '#777777').trigger('input').trigger('change');  // invoke('val', 24).trigger('input').trigger('change');
-      cy.get(selectors.treeSvg).find('g.tidytree-node-leaf circle').first().should('have.css', 'fill', 'rgb(119, 119, 119)'); // make sure it works and we are good
+      cy.get(selectors.treeSvg)
+        .find('g.tidytree-node-leaf circle[title="MZ797519"]')
+        .should('have.css', 'fill', 'rgb(119, 119, 119)');
 
       cy.wait(100);
     })
@@ -114,8 +116,7 @@ describe('Phylogenetic Tree View', () => {
       cy.closeGlobalSettings();
 
       cy.get(selectors.treeSvg)
-        .find('g.tidytree-node-leaf circle')
-        .first()
+        .find('g.tidytree-node-leaf circle[title="MZ797519"]')
         .should(($circle) => {
           expect(parseFloat($circle.css('fill-opacity'))).to.be.closeTo(alpha, 0.01);
         });

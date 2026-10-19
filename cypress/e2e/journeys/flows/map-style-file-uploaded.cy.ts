@@ -58,6 +58,8 @@ describe('Journey Flow - Uploaded style file reflected on Map', () => {
 
     cy.closeGlobalSettings();
 
+    // The imported online-basemap preference is asserted above. Use the
+    // offline layer for rendering so this styling test does not require WebGL.
     goToMapView();
     openMapSettingsDialog();
     selectMapField('map-field-zipcode', 'Zipcode', 'map-field-zipcode', 'Zip_code');
@@ -80,8 +82,10 @@ describe('Journey Flow - Uploaded style file reflected on Map', () => {
       const expectedClassroomColor = getExpectedLinkStyleColor(typedWindow, 'Contact type', 'classroom');
       const expectedFamilyColor = getExpectedLinkStyleColor(typedWindow, 'Contact type', 'family member');
 
-      expect(mapView.lmap.hasLayer(mapView.layers.basemap), 'style-enabled basemap layer attached').to.equal(true);
+      expect(mapView.commonService.session.style.widgets['map-basemap-show'], 'online basemap disabled for rendering').to.equal(false);
+      expect(mapView.lmap.hasLayer(mapView.layers.basemap), 'online basemap detached').to.equal(false);
       expect(mapView.lmap.hasLayer(mapView.layers.countries), 'style-disabled countries layer detached').to.equal(false);
+      expect(mapView.lmap.hasLayer(mapView.layers.states), 'style-enabled offline states layer attached').to.equal(true);
       expect(educationNode, 'education node rendered on map').to.exist;
       expect(readRenderedMapNodeStyle(educationNode).fillColor, 'education node fill color from style file')
         .to.equal(normalizeColor('#f22020'));

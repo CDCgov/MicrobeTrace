@@ -13,7 +13,7 @@ import { BaseComponentDirective } from '@app/base-component.directive';
 import { saveSvgAsPng } from 'save-svg-as-png';
 import { ComponentContainer } from 'golden-layout';
 import { GraphData } from './data';
-import { getCustomNodeShapeData, getCustomNodeShapeVectorData, isCustomNodeShape as isCustomNodeIconShape, resolveNodeShapeCytoscapeShape as resolveCustomNodeIconCytoscapeShape, resolveNodeShapeForNode, resolveNodeShapeKey } from '@app/contactTraceCommonServices/node-shapes';
+import { getCustomNodeShapeData, getCustomNodeShapeVectorData, getMixedNodeShapeDataUri, isCustomNodeShape as isCustomNodeIconShape, resolveNodeShapeCytoscapeShape as resolveCustomNodeIconCytoscapeShape, resolveNodeShapeForNode, resolveNodeShapeKey } from '@app/contactTraceCommonServices/node-shapes';
 import cytoscape, { Core, Style } from 'cytoscape';
 import svg from 'cytoscape-svg';
 import { Subject, Subscription, takeUntil } from 'rxjs';
@@ -30,8 +30,10 @@ import {
     StyleKeyTableRowNameChange,
     StyleKeyTableSortColumn
 } from '../KeyTablesComponent/style-key-table.component';
+import { showColorTransparencyPicker } from '../KeyTablesComponent/color-transparency-picker';
 import { buildThresholdConnectedComponents } from '@app/contactTraceCommonServices/threshold-analysis';
-import { buildPieChartSvgDataUri, PieChartSlice } from '@app/contactTraceCommonServices/pie-chart-utils';
+import { buildPieChartSlicesWithSegmentedFills, buildPieChartSvgDataUri, getCollapsedAggregateBorderWidth, getCollapsedAggregateMinimumRenderedSize, PieChartSlice } from '@app/contactTraceCommonServices/pie-chart-utils';
+import { buildCanonicalNodeColorCounts } from '@app/contactTraceCommonServices/color-mapping.service';
 import { createGlobalSettingsDialogRequest, GlobalSettingsDialogRequest } from '@app/helperClasses/globalSettingsDialogRequest';
 
 interface CustomNodeSvgExportReplacement {
@@ -54,6 +56,13 @@ interface CollapsedAggregatePositionAnchor {
     id: string;
     memberIds: Set<string>;
     position: { x: number; y: number };
+}
+
+interface TwoDViewportBoundingBox {
+    x1: number;
+    y1: number;
+    x2: number;
+    y2: number;
 }
 
 @Component({
@@ -94,6 +103,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
     private collapsedAggregatePositionAnchors: CollapsedAggregatePositionAnchor[] = [];
     private timelineFinalCollapsedAggregatePositionAnchors: CollapsedAggregatePositionAnchor[] = [];
     private timelineFinalCollapsedLayoutReady = false;
+    private timelineCompleteFitBoundingBox: TwoDViewportBoundingBox | null = null;
     private nodeCollapseShapeWarningConfirmed = false;
     private nodeCollapseShapeWarningPending = false;
     private nodeCollapseRefreshPending = false;
@@ -394,6 +404,8 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
     }
 
     private buildCytoscapeNodeData(node: any, shapeKey: string, parent: any): any {
+        const mixedColorImageCoversShape = !!node.mixedColorImage
+            && this.mixedColorImageShouldCoverShape(shapeKey);
         return {
             ...this.getCytoscapeNodeMetadata(node),
             id: node.id,
@@ -418,6 +430,8 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             aggregateRenderedSize: node.aggregateRenderedSize,
             nodeColor: node.nodeColor,
             bgOpacity: node.bgOpacity,
+            mixedColorImage: node.mixedColorImage,
+            mixedColorImageCoversShape,
             pieBackgroundImage: node.pieBackgroundImage,
             borderWidth: node.borderWidth,
             selectedBorderColor: this.widgets['selected-color'],
@@ -426,6 +440,63 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             shapeKey,
             ...getCustomNodeShapeData(shapeKey, node.nodeColor)
         };
+    }
+
+    private mixedColorImageShouldCoverShape(shapeKey: string): boolean {
+        const normalizedShapeKey = resolveNodeShapeKey(shapeKey);
+        return normalizedShapeKey === 'star' || normalizedShapeKey === 'vee';
+    }
+
+    private getMixedColorNodeImage(
+        node: any,
+        shapeKey: string,
+        fillColor: string,
+        fillOpacity: number,
+        renderedSize?: number
+    ): string | undefined {
+        const segments = this.commonService.getNodeFillStyle(node).segments;
+        if (!segments || segments.length < 2) {
+            return undefined;
+        }
+
+        const normalizedShapeKey = resolveNodeShapeKey(shapeKey);
+        const isCustomShape = isCustomNodeIconShape(normalizedShapeKey);
+
+        return getMixedNodeShapeDataUri(
+            normalizedShapeKey,
+            fillColor,
+            '#000000',
+            1,
+            fillOpacity,
+            segments,
+            null,
+            {
+                fillCanvas: !isCustomShape,
+                includeStroke: isCustomShape,
+                useNativeShapeClip: this.mixedColorImageShouldCoverShape(normalizedShapeKey),
+                customShapePadding: 0,
+                customShapeViewBoxPadding: 0,
+                renderedSize: renderedSize ?? this.mapNodeSize(Number(node?.nodeSize ?? this.widgets['node-radius']))
+            }
+        );
+    }
+
+    private setMixedColorNodeImageData(
+        node: cytoscape.NodeSingular,
+        fullNode: any,
+        shapeKey: string,
+        fillColor: string,
+        fillOpacity: number,
+        renderedSize?: number
+    ): void {
+        const mixedColorImage = this.getMixedColorNodeImage(fullNode, shapeKey, fillColor, fillOpacity, renderedSize);
+        if (mixedColorImage) {
+            node.data('mixedColorImage', mixedColorImage);
+            node.data('mixedColorImageCoversShape', this.mixedColorImageShouldCoverShape(shapeKey));
+        } else {
+            node.removeData('mixedColorImage');
+            node.removeData('mixedColorImageCoversShape');
+        }
     }
 
     private yieldToBrowser(): Promise<void> {
@@ -754,6 +825,30 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
 
     private isTimelineFilteringActive(): boolean {
         return this.commonService.session.style.widgets["timeline-date-field"] !== 'None';
+    }
+
+    private captureTimelineCompleteFitBoundingBox(): void {
+        if (!this.cy || this.timelineCompleteFitBoundingBox || !this.isTimelineFilteringActive()) {
+            return;
+        }
+
+        // The first timeline visibility event arrives while Cytoscape still contains
+        // the complete, laid-out network. Preserve those bounds before the event
+        // replaces the elements with the initial-date subset.
+        const boundingBox = this.cy.nodes().boundingBox();
+        const coordinates = [boundingBox.x1, boundingBox.y1, boundingBox.x2, boundingBox.y2];
+        if (
+            coordinates.every(coordinate => Number.isFinite(coordinate))
+            && boundingBox.x2 > boundingBox.x1
+            && boundingBox.y2 > boundingBox.y1
+        ) {
+            this.timelineCompleteFitBoundingBox = {
+                x1: boundingBox.x1,
+                y1: boundingBox.y1,
+                x2: boundingBox.x2,
+                y2: boundingBox.y2
+            };
+        }
     }
 
     private getLinkEndpointId(endpoint: any): string {
@@ -1389,7 +1484,12 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
     }
 
     private getCollapsedNodeRenderedSize(totalCount: number): number {
-        return this.mapNodeSize(this.getCollapsedNodeBaseSize()) * Math.sqrt(Math.max(1, Number(totalCount) || 1));
+        const scaledSize = this.mapNodeSize(this.getCollapsedNodeBaseSize())
+            * Math.sqrt(Math.max(1, Number(totalCount) || 1));
+        return Math.max(
+            scaledSize,
+            getCollapsedAggregateMinimumRenderedSize(this.widgets?.['node-border-width'])
+        );
     }
 
     private buildCollapsedNodeCounts(memberNodes: any[]): Array<{ label: string; count: number }> {
@@ -1399,30 +1499,28 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             return [{ label: 'All Nodes', count: memberNodes.length }];
         }
 
-        const counts = new Map<string, number>();
-        memberNodes.forEach(node => {
-            const rawLabel = node?.[colorVariable];
-            const label = rawLabel === undefined || rawLabel === null ? '' : String(rawLabel);
-            counts.set(label, (counts.get(label) || 0) + 1);
-        });
-
-        return Array.from(counts.entries()).map(([label, count]) => ({ label, count }));
+        return buildCanonicalNodeColorCounts(
+            memberNodes.map(node => node?.[colorVariable]),
+            this.commonService.session.style.nodeColorsTableKeys?.[colorVariable] || [],
+            this.widgets['node-mixed-colors-enabled'] === true
+        );
     }
 
     private getCollapsedPieSlices(counts: Array<{ label: string; count: number }>): PieChartSlice[] {
         const colorVariable = this.widgets['node-color-variable'];
         const fixedColor = this.widgets['node-color'];
 
-        return counts.map(count => ({
-            label: count.label,
-            count: count.count,
-            color: colorVariable === 'None'
-                ? fixedColor
-                : this.commonService.temp.style.nodeColorMap(count.label),
-            alpha: colorVariable === 'None'
-                ? 1 - Number(this.widgets['node-opacity'] || 0)
-                : this.commonService.temp.style.nodeAlphaMap(count.label)
-        }));
+        return buildPieChartSlicesWithSegmentedFills(counts, label => {
+            if (colorVariable === 'None') {
+                return {
+                    color: fixedColor,
+                    alpha: 1 - Number(this.widgets['node-opacity'] || 0)
+                };
+            }
+
+            const syntheticNode = { [colorVariable]: label };
+            return this.commonService.getNodeFillStyle(syntheticNode);
+        });
     }
 
     private getCollapsedSolidNodeColor(counts: Array<{ label: string; count: number }>): [string, number] {
@@ -1433,10 +1531,8 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         }
 
         const label = counts[0]?.label ?? '';
-        return [
-            this.commonService.temp.style.nodeColorMap(label),
-            this.commonService.temp.style.nodeAlphaMap(label)
-        ];
+        const nodeStyle = this.commonService.getNodeFillStyle({ [colorVariable]: label });
+        return [nodeStyle.color, nodeStyle.alpha];
     }
 
     private getCollapsedNodeDistanceSummary(
@@ -1515,7 +1611,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         const aggregateRenderedSize = this.getCollapsedNodeRenderedSize(totalCount);
         const counts = this.buildCollapsedNodeCounts(memberNodes);
         const slices = this.getCollapsedPieSlices(counts);
-        const hasPie = this.widgets['node-color-variable'] !== 'None' && slices.length > 1;
+        const hasPie = slices.length > 0;
         const [solidColor, solidOpacity] = this.getCollapsedSolidNodeColor(counts);
         const distanceSummary = this.getCollapsedNodeDistanceSummary(memberNodes, metric);
 
@@ -1543,7 +1639,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             aggregateRenderedSize,
             nodeColor: hasPie ? 'transparent' : solidColor,
             bgOpacity: hasPie ? 0 : solidOpacity,
-            borderWidth: this.getNodeBorderWidth(firstMember),
+            borderWidth: this.getNodeBorderWidth({ isCollapsedAggregate: true }),
             pieBackgroundImage: hasPie
                 ? buildPieChartSvgDataUri(`twod-collapse-pie-${componentIndex}`, aggregateRenderedSize, slices)
                 : undefined
@@ -1782,6 +1878,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
 	            [node.nodeColor, node.bgOpacity] = this.getNodeColor(node);
 	            node.borderWidth = this.getNodeBorderWidth(node);
 	            const shapeKey = this.getNodeShape(node);
+	            node.mixedColorImage = this.getMixedColorNodeImage(node, shapeKey, node.nodeColor, node.bgOpacity);
 	            const parent = (node.group && this.widgets['polygons-show']) || undefined;
 	            return {
 	                data: this.buildCytoscapeNodeData(node, shapeKey, parent),
@@ -1793,6 +1890,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
 	            [node.nodeColor, node.bgOpacity] = this.getNodeColor(node); // <-- Added for dynamic node color
 	            node.borderWidth = this.getNodeBorderWidth(node);
 	            const shapeKey = this.getNodeShape(node);
+	            node.mixedColorImage = this.getMixedColorNodeImage(node, shapeKey, node.nodeColor, node.bgOpacity);
 	            const parent = (node.group && this.widgets['polygons-show']) || undefined;
 	            return {
 	                data: this.buildCytoscapeNodeData(node, shapeKey, parent),
@@ -1901,6 +1999,37 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                     'background-image-opacity': 'data(bgOpacity)',
                     'background-opacity': 0,
                     'border-width': 0
+                }
+            },
+            {
+                selector: 'node[!isParent][mixedColorImage]',
+                css: {
+                    // @ts-ignore
+                    'background-image': 'data(mixedColorImage)',
+                    'background-image-containment': 'inside',
+                    'background-fit': 'contain',
+                    'background-clip': 'node',
+                    'background-position-x': '50%',
+                    'background-position-y': '50%',
+                    'background-repeat': 'no-repeat',
+                    // @ts-ignore
+                    'background-image-opacity': 1,
+                    'background-opacity': 0,
+                    'border-width': 'data(borderWidth)'
+                }
+            },
+            {
+                selector: 'node[!isParent][mixedColorImage][customIconKey]',
+                css: {
+                    'border-width': 0
+                }
+            },
+            {
+                selector: 'node[!isParent][mixedColorImage][mixedColorImageCoversShape]',
+                css: {
+                    'background-image-containment': 'inside',
+                    'background-fit': 'cover',
+                    'background-clip': 'node'
                 }
             },
             {
@@ -2025,12 +2154,34 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                 }
             },
             {
+                selector: 'node:selected[!isParent][mixedColorImage]',
+                css: {
+                    // @ts-ignore
+                    'background-image': 'data(mixedColorImage)',
+                    'background-image-containment': 'inside',
+                    'background-fit': 'contain',
+                    'background-clip': 'node',
+                    // @ts-ignore
+                    'background-image-opacity': 1,
+                    'background-opacity': 0,
+                    'border-color': 'data(selectedBorderColor)',
+                    'border-width': 3
+                }
+            },
+            {
                 selector: 'node:selected[!isParent][pieBackgroundImage]',
                 css: {
                     'background-color': 'transparent',
                     'background-opacity': 0,
                     'border-color': 'data(selectedBorderColor)',
                     'border-width': 3
+                }
+            },
+            {
+                selector: 'node:selected[!isParent][isCollapsedAggregate]',
+                css: {
+                    'border-color': 'data(selectedBorderColor)',
+                    'border-width': 'data(borderWidth)'
                 }
             },
             {
@@ -2795,6 +2946,9 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             if (!isCustomNodeIconShape(shapeKey)) {
                 return;
             }
+            if (node.data('mixedColorImage')) {
+                return;
+            }
 
             const vectorData = getCustomNodeShapeVectorData(shapeKey);
             if (!vectorData) {
@@ -3121,7 +3275,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
 
     private addCollapsedPieSvgExportOutlines(doc: XMLDocument): void {
         const svgNamespace = 'http://www.w3.org/2000/svg';
-        const borderWidth = Math.max(0, Number(this.widgets?.['node-border-width']) || 0);
+        const borderWidth = getCollapsedAggregateBorderWidth(this.widgets?.['node-border-width']);
         if (borderWidth <= 0) {
             return;
         }
@@ -3148,7 +3302,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
 
             const imageX = this.getSvgLengthAttribute(image, 'x') ?? 0;
             const imageY = this.getSvgLengthAttribute(image, 'y') ?? 0;
-            const radius = Math.max(0.1, (Math.min(imageWidth, imageHeight) / 2) - (borderWidth / 2));
+            const radius = Math.max(0.1, Math.min(imageWidth, imageHeight) / 2);
             const outline = doc.createElementNS(svgNamespace, 'circle');
             outline.setAttribute('cx', `${imageX + (imageWidth / 2)}`);
             outline.setAttribute('cy', `${imageY + (imageHeight / 2)}`);
@@ -3378,15 +3532,16 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
     }
 
     onPolygonColorAlphaRequested(request: StyleKeyTableAlphaRequest): void {
-        $("#color-transparency-wrapper").css({
-            top: request.event.clientY + 129,
-            left: request.event.clientX,
-            display: "block"
-        });
+        const input = showColorTransparencyPicker(
+            request.event,
+            this.commonService.temp.style.polygonAlphaMap(request.value)
+        );
+        if (!input) {
+            return;
+        }
 
-        $("#color-transparency")
+        $(input)
             .off("change")
-            .val(this.commonService.temp.style.polygonAlphaMap(request.value))
             .one("change", event => {
                 const polygonGroup = this.commonService.temp.polygonGroups.find(x => x.key == request.value);
                 const locInPolygonAlphas = polygonGroup?.index ?? request.row.index;
@@ -4182,7 +4337,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
           const countRows = (d.counts || []).map(count => {
             const countValue = Number(count.count || 0);
             const percent = totalCount > 0 ? (countValue / totalCount * 100).toFixed(1) + '%' : '0.0%';
-            return [count.label, countValue, percent];
+            return [this.commonService.titleize(count.label), countValue, percent];
           });
 
           tooltipHtml = this.tabulate([
@@ -5196,6 +5351,10 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
     public onNodeBorderWidthChange(e) {
         this.widgets['node-border-width'] = e;
         this.updateMinMaxNode()
+        if (this.isNodeCollapseEnabled() && this.cy) {
+            this.refreshNodeCollapseRender();
+            return;
+        }
         this.updateNodeBorders(); // Update border widths without rerendering the entire network
     }
 
@@ -5231,6 +5390,12 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                 this.rerenderOnActive = true;
             }
             return;
+        }
+
+        if (this.isTimelineFilteringActive()) {
+            this.captureTimelineCompleteFitBoundingBox();
+        } else {
+            this.timelineCompleteFitBoundingBox = null;
         }
 
         if (!timelineTick) {
@@ -6333,11 +6498,12 @@ private updateArrowStyles(): void {
 	        this.cy.nodes().forEach(node => {
 	            const fullNode = this.getFullNodeDataForCyNode(node);
 	            const [newColor, opacity] = this.getNodeColor(fullNode);
-	            node.data('nodeColor', newColor);
+            node.data('nodeColor', newColor);
             node.data('bgOpacity', opacity);
             node.data('borderColor', newColor);
 
-            const shapeKey = node.data('shapeKey');
+            const shapeKey = node.data('shapeKey') || this.getNodeShape(fullNode);
+            this.setMixedColorNodeImageData(node, fullNode, shapeKey, newColor, opacity);
             if (isCustomNodeIconShape(shapeKey)) {
                 const customShapeData = getCustomNodeShapeData(shapeKey, newColor);
                 node.data('iconBackgroundImage', customShapeData.iconBackgroundImage);
@@ -6410,7 +6576,13 @@ scaleLinkWidth() {
     fit() {
         if (this.cy) {
             this.cy.resize();
-            this.cy.fit(this.cy.nodes(), 30);
+            if (this.isTimelineFilteringActive() && this.timelineCompleteFitBoundingBox) {
+                // Cytoscape accepts a bounding box at runtime, although its public
+                // TypeScript signature only advertises an element collection here.
+                (this.cy as any).fit(this.timelineCompleteFitBoundingBox, 30);
+            } else {
+                this.cy.fit(this.cy.nodes(), 30);
+            }
         }
     };
 
@@ -6928,6 +7100,7 @@ scaleLinkWidth() {
         node.removeData('shapeKey');
         node.removeData('iconBackgroundImage');
         node.removeData('customIconKey');
+        node.removeData('mixedColorImageCoversShape');
     }
 
     /**
@@ -6961,8 +7134,18 @@ scaleLinkWidth() {
 	        if (!this.cy) return;
 	        this.cy.nodes().forEach(node => {
             if (this.isGroupNode(node)) return;
-	            const newSize = Number(this.getNodeSize(this.getFullNodeDataForCyNode(node)));
+	            const fullNode = this.getFullNodeDataForCyNode(node);
+	            const newSize = Number(this.getNodeSize(fullNode));
 	            node.data('nodeSize', newSize);
+	            const shapeKey = node.data('shapeKey') || this.getNodeShape(fullNode);
+	            this.setMixedColorNodeImageData(
+                    node,
+                    fullNode,
+                    shapeKey,
+                    node.data('nodeColor'),
+                    Number(node.data('bgOpacity')),
+                    this.mapNodeSize(newSize)
+                );
 	        });
         this.cy.style().update(); // Refresh Cytoscape styles to apply changes
     }
@@ -6974,7 +7157,8 @@ scaleLinkWidth() {
 	        if (!this.cy) return;
 	        this.cy.nodes().forEach(node => {
             if (this.isGroupNode(node)) return;
-	            const newBorderWidth = this.getNodeBorderWidth(this.getFullNodeDataForCyNode(node));
+	            const fullNode = this.getFullNodeDataForCyNode(node);
+	            const newBorderWidth = this.getNodeBorderWidth(fullNode);
 	            node.data('borderWidth', newBorderWidth);
 	        });
         this.cy.style().update(); // Refresh Cytoscape styles to apply changes
@@ -7051,11 +7235,12 @@ scaleLinkWidth() {
                 return;
             }
 	            const shapeKey = this.getNodeShape(fullNode);
-	            node.data('shapeKey', shapeKey);
+            node.data('shapeKey', shapeKey);
             node.data('shape', resolveCustomNodeIconCytoscapeShape(shapeKey));
+            const [nodeColor, nodeOpacity] = this.getNodeColor(fullNode);
+            this.setMixedColorNodeImageData(node, fullNode, shapeKey, nodeColor, nodeOpacity);
 
 	            if (isCustomNodeIconShape(shapeKey)) {
-	                const nodeColor = node.data('nodeColor') || this.getNodeColor(fullNode)[0];
                 const customShapeData = getCustomNodeShapeData(shapeKey, nodeColor);
                 node.data('iconBackgroundImage', customShapeData.iconBackgroundImage);
                 node.data('customIconKey', customShapeData.customIconKey);
@@ -7095,7 +7280,10 @@ scaleLinkWidth() {
      */
     getNodeBorderWidth(node: any): number {
         const borderWidth = Number(this.widgets['node-border-width']);
-        return Number.isFinite(borderWidth) ? borderWidth : 2;
+        const normalBorderWidth = Number.isFinite(borderWidth) ? Math.max(0, borderWidth) : 2;
+        return node?.isCollapsedAggregate === true
+            ? getCollapsedAggregateBorderWidth(normalBorderWidth)
+            : normalBorderWidth;
     }
 
 
