@@ -34,6 +34,7 @@ import {
   ImportNodeCoverageService,
   ImportNodeCoverageSummary,
 } from '@app/contactTraceCommonServices/import-node-coverage.service';
+import { FEATURE_FLAGS } from '@app/feature-flags';
 
 interface FileTableOption {
   label: string;
@@ -74,6 +75,8 @@ interface LaunchOptions {
 export class FilesComponent extends BaseComponentDirective implements OnInit {
 
   @Output() LoadDefaultVisualizationEvent = new EventEmitter();
+
+  readonly smartLaunchEnabled = FEATURE_FLAGS.smartLaunch;
 
   auspiceUrlVal: any;
 
@@ -1497,7 +1500,7 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
 
   private executeLaunch(options: LaunchOptions = {}): void {
 
-    this.smartLaunchRequested = options.smartThreshold === true;
+    this.smartLaunchRequested = this.smartLaunchEnabled && options.smartThreshold === true;
 
     if (!options.embedHandoff) {
       this.pendingEmbedLaunchOptions = null;
@@ -2487,7 +2490,7 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
    * Global Settings before the initial view is rendered.
    */
   private async applySmartLaunchRecommendation(loadGeneration = this.commonService.getDataLoadGeneration()): Promise<void> {
-    if (!this.smartLaunchRequested) {
+    if (!this.smartLaunchEnabled || !this.smartLaunchRequested) {
       return;
     }
 
