@@ -32,6 +32,7 @@ import {
   collectLeafIds,
   collectTreeSplitKeys,
   formatBootstrapSupportLabel,
+  hasBootstrapSupportLabels,
   normalizeBootstrapDecimalLength,
   normalizeBootstrapReplicateCount,
   normalizeBootstrapSupportThreshold,
@@ -145,10 +146,15 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
     { label: '2', value: 2 },
     { label: '3', value: 3 },
   ];
+  BootstrapSupportAccordionValue = ['tree-bootstrap-support'];
   SelectedBootstrapCustomReplicates = normalizeBootstrapReplicateCount(this.settings['tree-bootstrap-custom-replicates'] ?? 100);
   SelectedBootstrapStopWhenStable = this.settings['tree-bootstrap-stop-when-stable'] ?? false;
   SelectedBootstrapDecimalLength = normalizeBootstrapDecimalLength(this.settings['tree-bootstrap-decimal-length'] ?? 1);
+  SelectedBootstrapLabelShowVariable = this.settings['tree-bootstrap-label-show'] ?? true;
+  SelectedBootstrapLabelSizeVariable = Math.min(16, Math.max(1, Number(this.settings['tree-bootstrap-label-size']) || 12));
   SelectedBootstrapSupportThreshold = normalizeBootstrapSupportThreshold(this.settings['tree-bootstrap-support-threshold'] ?? 0);
+  BootstrapSupportAvailable = false;
+  ImportedBootstrapSupportAvailable = false;
   BootstrapRunning = false;
   BootstrapProgressValue = 0;
   BootstrapStatusMessage = '';
@@ -404,7 +410,10 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
     //       return g;
     //     }
     //   );
-    this.tree.setBranchLabels(this.SelectedBranchLabelShowVariable);
+    this.tree.setBranchLabels(
+      this.SelectedBranchLabelShowVariable ||
+      (this.BootstrapSupportAvailable && this.SelectedBootstrapLabelShowVariable)
+    );
     this.tree.eachBranchLabel(this.styleBranchLabel);
     this.tree.setBranchNodes(this.SelectedBranchNodeShowVariable);
     this.tree.eachBranchNode(this.styleBranchNode);
@@ -455,8 +464,10 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
     }
     const meetsSupportThreshold = supportValue === null || supportValue >= this.SelectedBootstrapSupportThreshold;
     selection
-      .style('font-size', `${this.SelectedBranchLabelSizeVariable}px`)
-      .style('opacity', this.SelectedBranchLabelShowVariable && meetsSupportThreshold ? 1 : 0);
+      .style('font-size', `${supportValue === null ? this.SelectedBranchLabelSizeVariable : this.SelectedBootstrapLabelSizeVariable}px`)
+      .style('opacity', supportValue === null
+        ? (this.SelectedBranchLabelShowVariable ? 1 : 0)
+        : (this.SelectedBootstrapLabelShowVariable && meetsSupportThreshold ? 1 : 0));
   }
 
   styleBranchNode = (node, data) => {
@@ -1025,7 +1036,6 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
 
   onBranchLabelShowChange(event) {
     this.SelectedBranchLabelShowVariable = event;
-    this.tree.setBranchLabels(event);
     this.styleTree();
     this.settings['tree-branch-label-show'] = this.SelectedBranchLabelShowVariable;
   }
@@ -1150,6 +1160,22 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
     return !!(metadata && metadata.supportBySplitKey && Object.keys(metadata.supportBySplitKey).length > 0);
   }
 
+  hasBootstrapSupportValues(): boolean {
+    return this.BootstrapSupportAvailable;
+  }
+
+  hasImportedBootstrapSupport(): boolean {
+    return this.ImportedBootstrapSupportAvailable;
+  }
+
+  private refreshBootstrapSupportAvailability(): void {
+    const hasStoredBootstrapMetadata = !!this.commonService.session.data?.phylogeneticBootstrap;
+    const hasStoredSupport = this.hasBootstrapSupportMetadata();
+    const hasImportedLabels = hasBootstrapSupportLabels(this.tree?.data);
+    this.BootstrapSupportAvailable = hasStoredSupport || hasImportedLabels;
+    this.ImportedBootstrapSupportAvailable = !hasStoredBootstrapMetadata && this.hasNewickBackedTree() && hasImportedLabels;
+  }
+
   private hasNewickBackedTree(): boolean {
     return this.hasNewickFile || this.commonService.session.files?.some(file =>
       file?.format === 'newick' || file?.format === 'auspice' ||
@@ -1245,6 +1271,21 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
     this.settings['tree-bootstrap-stop-when-stable'] = this.SelectedBootstrapStopWhenStable;
   }
 
+  onBootstrapLabelShowChange(event) {
+    this.SelectedBootstrapLabelShowVariable = !!event;
+    this.settings['tree-bootstrap-label-show'] = this.SelectedBootstrapLabelShowVariable;
+    this.styleTree();
+  }
+
+  onBootstrapLabelSizeChange(event) {
+    const value = Number(event);
+    this.SelectedBootstrapLabelSizeVariable = Number.isFinite(value)
+      ? Math.min(16, Math.max(1, value))
+      : 12;
+    this.settings['tree-bootstrap-label-size'] = this.SelectedBootstrapLabelSizeVariable;
+    this.styleTree();
+  }
+
   onBootstrapDecimalLengthChange(event) {
     this.SelectedBootstrapDecimalLength = normalizeBootstrapDecimalLength(event);
     this.settings['tree-bootstrap-decimal-length'] = this.SelectedBootstrapDecimalLength;
@@ -1302,9 +1343,11 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
     };
   }
 
-  private applyStoredBootstrapSupport(redraw: boolean = true): void {
+  private applyStoredBootstrapSupport(redraw: boolean = true, showLabels: boolean = false): void {
     const metadata = this.commonService.session.data?.phylogeneticBootstrap;
     if (!this.tree?.data || !metadata?.supportBySplitKey) {
+      this.refreshBootstrapSupportAvailability();
+      if (redraw) this.styleTree();
       return;
     }
 
@@ -1315,8 +1358,10 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
       leafIds
     );
     metadata.decimalLength = this.SelectedBootstrapDecimalLength;
-    this.SelectedBranchLabelShowVariable = true;
-    this.settings['tree-branch-label-show'] = true;
+    if (showLabels) {
+      this.SelectedBootstrapLabelShowVariable = true;
+      this.settings['tree-bootstrap-label-show'] = true;
+    }
 
     const cachedAnimation = this.tree.animation;
     this.tree.setAnimation(0);
@@ -1325,6 +1370,7 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
     this.commonService.session.data.newickString = this.tree.data.toNewick(false);
     this.originalTreeData = this.tree.data?.clone ? this.tree.data.clone() : this.tree.data;
     this.hasTreeBeenModifiedFromOriginal = false;
+    this.refreshBootstrapSupportAvailability();
 
     if (redraw) {
       this.styleTree();
@@ -1359,7 +1405,7 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
       });
 
       this.storeBootstrapResult(result, input.labels, input.baseSplitKeys);
-      this.applyStoredBootstrapSupport(true);
+      this.applyStoredBootstrapSupport(true, true);
       this.BootstrapProgressValue = 100;
       this.BootstrapStatusMessage = result.stoppedEarly
         ? `Bootstrap support stabilized after ${result.completedReplicates} replicates.`
@@ -1765,6 +1811,8 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
   this.SelectedBootstrapCustomReplicates = normalizeBootstrapReplicateCount(this.settings['tree-bootstrap-custom-replicates'] ?? this.SelectedBootstrapCustomReplicates)
   this.SelectedBootstrapStopWhenStable = this.settings['tree-bootstrap-stop-when-stable'] ?? this.SelectedBootstrapStopWhenStable
   this.SelectedBootstrapDecimalLength = normalizeBootstrapDecimalLength(this.settings['tree-bootstrap-decimal-length'] ?? this.SelectedBootstrapDecimalLength)
+  this.SelectedBootstrapLabelShowVariable = this.settings['tree-bootstrap-label-show'] ?? this.SelectedBootstrapLabelShowVariable
+  this.SelectedBootstrapLabelSizeVariable = Math.min(16, Math.max(1, Number(this.settings['tree-bootstrap-label-size']) || this.SelectedBootstrapLabelSizeVariable))
   this.SelectedBootstrapSupportThreshold = normalizeBootstrapSupportThreshold(this.settings['tree-bootstrap-support-threshold'] ?? this.SelectedBootstrapSupportThreshold)
 
   // Colors

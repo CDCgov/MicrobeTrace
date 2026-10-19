@@ -1021,8 +1021,16 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
     private waitForDashboardRestoreSync(expectedComponentCount: number, orderedLabels: string[], activeLabel?: string, attempt: number = 0): void {
         const openEntries = this.getOpenDashboardEntries();
 
-        if (expectedComponentCount === 0 || openEntries.length >= expectedComponentCount || attempt >= 20) {
+        const componentsReady = expectedComponentCount === 0 || openEntries.length >= expectedComponentCount;
+        // Styling initialization can queue docking/focus callbacks. Finish it
+        // before restoring the saved active pane or exposing the final dashboard.
+        if ((componentsReady && this.store.settingsLoadedValue) || attempt >= 20) {
             this.syncHomepageTabsFromDashboardLayout(orderedLabels, activeLabel);
+            // loadLayout bypasses addComponent's launch-completion callback.
+            // Mark the restored session ready only after its views are attached.
+            this.commonService.session.tabLoaded = true;
+            this.commonService.session.network.isFullyLoaded = true;
+            this.clearLoadingInformationModal();
             this.publishLoadNewData();
             this.cdref.detectChanges();
             this.applyingPendingDashboardRestore = false;
@@ -1035,22 +1043,15 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         }, 50);
     }
 
-    private schedulePendingDashboardRestore(attempt: number = 0): void {
-        if (!this.commonService.pendingDashboardRestore?.dashboardLayout?.root) {
+    private schedulePendingDashboardRestore(): void {
+        if (!this.commonService.pendingDashboardRestore?.dashboardLayout?.root
+            || !this._goldenLayoutHostComponent?.goldenLayout) {
             return;
         }
 
-        const twoDInstance = this.commonService.visuals.twoD?.cy || (window as any).cytoscapeInstance;
-        const twoDReady = !!twoDInstance && !(
-            typeof twoDInstance.destroyed === 'function' &&
-            twoDInstance.destroyed()
-        );
-        if (twoDReady || attempt >= 40) {
-            this.restorePendingDashboardSession();
-            return;
-        }
-
-        setTimeout(() => this.schedulePendingDashboardRestore(attempt + 1), 100);
+        // The saved layout creates its own views; it must not depend on a
+        // temporary 2D view being rendered first (the launch view may be a tree).
+        this.restorePendingDashboardSession();
     }
 
     private restorePendingDashboardSession(): void {
@@ -1075,6 +1076,13 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         try {
             this.restoreDashboardKeyTablesState(pendingRestore, layoutToLoad);
             this._goldenLayoutHostComponent.goldenLayout.loadLayout(layoutToLoad);
+            // loadLayout bypasses addComponent's normal launch callback. Start
+            // saved-filter/styling initialization once the views are attached;
+            // marking data loaded prevents that update from launching a new view.
+            this.commonService.session.network.isFullyLoaded = true;
+            if (!this.store.settingsLoadedValue) {
+                this.loadFilterSettings();
+            }
         } catch (error) {
             console.error('Unable to restore the saved dashboard layout.', error);
             this.applyingPendingDashboardRestore = false;
@@ -4978,6 +4986,14 @@ ${warnings.join('\n')}`,
         // actually opening during file or session load.
         this.updateLaunchView(e);
 
+        if (this.commonService.pendingDashboardRestore?.dashboardLayout?.root) {
+            // Let the launch handler apply global settings before creating views.
+            // Do not open a temporary default view: replacing it later would
+            // discard its open Settings dialog and in-progress interactions.
+            setTimeout(() => this.schedulePendingDashboardRestore(), 0);
+            return;
+        }
+
         if (!this.auspiceUrlVal) this.resetLayout();
 
         // TODO:: see if timeout needed
@@ -4987,15 +5003,11 @@ ${warnings.join('\n')}`,
             this.Viewclick(e);
         }
 
-        if (this.commonService.pendingDashboardRestore?.dashboardLayout?.root) {
-            setTimeout(() => this.schedulePendingDashboardRestore(), 0);
-        } else {
-            // UI settings can be applied before the launch view is opened. In that
-            // order, resetLayout removes the newly docked key-table panel while the
-            // controller still records its tables as docked. Reconcile the panel
-            // after the launch layout has finished opening.
-            setTimeout(() => this.ensureDockedKeyTablesViewOpenIfNeeded(), 0);
-        }
+        // UI settings can be applied before the launch view is opened. In that
+        // order, resetLayout removes the newly docked key-table panel while the
+        // controller still records its tables as docked. Reconcile the panel
+        // after the launch layout has finished opening.
+        setTimeout(() => this.ensureDockedKeyTablesViewOpenIfNeeded(), 0);
         // }, 500);
         
     }
@@ -6539,6 +6551,14 @@ ${warnings.join('\n')}`,
     }
 
     private ensureKeyTablesViewOpen(focusView: boolean = true): void {
+        // The saved layout owns docking and focus during restoration. Styling
+        // initialization must not queue context-pane focus changes that outlive
+        // the restore and override the saved active tab.
+        if (this.commonService.pendingDashboardRestore?.dashboardLayout?.root
+            || this.applyingPendingDashboardRestore) {
+            return;
+        }
+
         const viewName = KeyTablesComponent.componentTypeName;
         const contextTab = this.getKeyTablesContextTab();
         const tabToKeepActive = focusView
