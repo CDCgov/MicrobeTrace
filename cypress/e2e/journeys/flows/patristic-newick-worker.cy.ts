@@ -19,8 +19,12 @@ import {
 const TN93_NEWICK_FILE = 'AngularTesting_seqs_TN93_BS.nwk';
 const SYNTHETIC_SNP_FILE = 'PatristicSynthetic_snp_gt1.nwk';
 const DUPLICATE_TIP_FILE = 'PatristicDuplicateTips.nwk';
+const CORRECTED_TIP_FILE = 'PatristicCorrectedTips.nwk';
+const INVALID_ROOT_DEPTH_FILE = 'PatristicInvalidRootDepth.nwk';
 const NEGATIVE_BRANCH_FILE = 'PatristicNegativeBranch.nwk';
 const NEGATIVE_TERMINAL_BRANCH_FILE = 'PatristicNegativeTerminalBranch.nwk';
+const MULTIPLE_NEGATIVE_BRANCHES_A_FILE = 'PatristicMultipleNegativeBranchesA.nwk';
+const MULTIPLE_NEGATIVE_BRANCHES_B_FILE = 'PatristicMultipleNegativeBranchesB.nwk';
 
 const tn93Profile = getProfile('load-twod-newick-tn93-angular-testing');
 
@@ -70,6 +74,42 @@ const duplicateTipProfile: DatasetProfile = {
   expectations: {},
 };
 
+const correctedTipProfile: DatasetProfile = {
+  id: 'patristic-corrected-tip-retry',
+  title: 'Corrected-tip Newick loads after a duplicate-tip failure',
+  tags: ['newick', 'patristic-worker'],
+  files: [
+    {
+      name: CORRECTED_TIP_FILE,
+      datatype: 'newick',
+    },
+  ],
+  preLaunch: {
+    metric: 'tn93',
+    threshold: 0.02,
+    defaultView: '2D Network',
+  },
+  expectations: {},
+};
+
+const invalidRootDepthProfile: DatasetProfile = {
+  id: 'patristic-invalid-root-depth-validation',
+  title: 'Malformed Newick reports its validation reason',
+  tags: ['newick', 'patristic-worker', 'invalid'],
+  files: [
+    {
+      name: INVALID_ROOT_DEPTH_FILE,
+      datatype: 'newick',
+    },
+  ],
+  preLaunch: {
+    metric: 'tn93',
+    threshold: 0.015,
+    defaultView: '2D Network',
+  },
+  expectations: {},
+};
+
 const negativeBranchProfile: DatasetProfile = {
   id: 'patristic-negative-branch-normalization',
   title: 'Negative internal Newick branches are normalized with a warning',
@@ -95,6 +135,28 @@ const negativeTerminalBranchProfile: DatasetProfile = {
   files: [
     {
       name: NEGATIVE_TERMINAL_BRANCH_FILE,
+      datatype: 'newick',
+    },
+  ],
+  preLaunch: {
+    metric: 'tn93',
+    threshold: 0.015,
+    defaultView: '2D Network',
+  },
+  expectations: {},
+};
+
+const multipleNegativeBranchesProfile: DatasetProfile = {
+  id: 'patristic-multiple-negative-branch-normalization',
+  title: 'Multiple Newick files aggregate negative-branch warnings',
+  tags: ['newick', 'patristic-worker'],
+  files: [
+    {
+      name: MULTIPLE_NEGATIVE_BRANCHES_A_FILE,
+      datatype: 'newick',
+    },
+    {
+      name: MULTIPLE_NEGATIVE_BRANCHES_B_FILE,
       datatype: 'newick',
     },
   ],
@@ -178,6 +240,19 @@ const confirmNegativeBranchWarning = (fileName: string, normalizedBranchCount = 
     .contains('button', 'OK')
     .should('be.visible')
     .click({ force: true });
+};
+
+const launchAndCaptureNewickError = (expectedMessage: string): void => {
+  cy.get('#launch', { timeout: 15000 }).should('not.be.disabled');
+  cy.get('#launch').click({ force: true });
+
+  cy.contains('.p-dialog-title', 'Unable to Process NWK', { timeout: 30000 })
+    .should('be.visible')
+    .parents('.p-dialog')
+    .as('newickErrorDialog');
+
+  cy.get('@newickErrorDialog').should('contain.text', expectedMessage);
+  waitForProcessingDialogToClear(30000);
 };
 
 describe('Journey Flow - Patristic Newick worker safeguards', () => {
@@ -366,20 +441,9 @@ describe('Journey Flow - Patristic Newick worker safeguards', () => {
     visitAppAndAcceptEula();
     cy.loadFiles(duplicateTipProfile.files);
 
-    cy.get('#launch', { timeout: 15000 }).should('not.be.disabled');
-    cy.get('#launch').click({ force: true });
-
-    cy.contains('.p-dialog-title', 'Unable to Process NWK', { timeout: 30000 })
-      .should('be.visible')
-      .parents('.p-dialog')
-      .as('newickErrorDialog');
-
-    cy.get('@newickErrorDialog')
-      .should(
-        'contain.text',
-        'Unable to process NWK due to duplication in leaf names. Please re-try after fixing the naming issue.',
-      );
-    waitForProcessingDialogToClear(30000);
+    launchAndCaptureNewickError(
+      'Unable to process NWK due to duplication in leaf names. Please re-try after fixing the naming issue.',
+    );
     cy.get('#loading-information-modal').should('not.be.visible');
     cy.get('#loading-information-modal img[alt="logo"]').should('not.exist');
 
@@ -396,6 +460,79 @@ describe('Journey Flow - Patristic Newick worker safeguards', () => {
     cy.contains('#file-table .file-table-row', DUPLICATE_TIP_FILE).should('be.visible');
     cy.get('#launch').should('be.visible').and('not.be.disabled').and('contain.text', 'Launch');
     cy.get('@newickErrorDialog').contains('button', 'OK').click({ force: true });
+  });
+
+  it('shows the validation reason for other malformed Newick input', () => {
+    visitAppAndAcceptEula();
+    cy.loadFiles(invalidRootDepthProfile.files);
+
+    launchAndCaptureNewickError('Unable to process NWK: Invalid root depth in Newick tree');
+    cy.get('@newickErrorDialog')
+      .should('contain.text', 'Check for missing or invalid branch lengths.')
+      .contains('button', 'OK')
+      .click({ force: true });
+
+    cy.window().should((win: any) => {
+      expect(win.commonService.session.network.isFullyLoaded, 'network should not finish loading').to.equal(false);
+      expect(win.commonService.session.data.nodes || [], 'nodes after malformed-tree rejection').to.have.length(0);
+      expect(win.commonService.session.data.links || [], 'links after malformed-tree rejection').to.have.length(0);
+    });
+  });
+
+  it('loads a corrected Newick file after a duplicate-tip failure without refreshing', () => {
+    visitAppAndAcceptEula();
+    cy.loadFiles(duplicateTipProfile.files);
+    applyPreLaunchFileSettings(correctedTipProfile);
+    ensurePreLaunchProfileSynced(correctedTipProfile);
+
+    launchAndCaptureNewickError(
+      'Unable to process NWK due to duplication in leaf names. Please re-try after fixing the naming issue.',
+    );
+    cy.get('@newickErrorDialog').contains('button', 'OK').click({ force: true });
+
+    cy.window().should((win: any) => {
+      const widgets = win.commonService.session.style.widgets;
+      expect(widgets['default-distance-metric'], 'metric retained after failed launch').to.equal('tn93');
+      expect(Number(widgets['link-threshold']), 'threshold retained after failed launch').to.equal(0.02);
+      expect(widgets['default-view'], 'default view retained after failed launch').to.equal('2D Network');
+    });
+
+    cy.contains('#file-table .file-table-row', DUPLICATE_TIP_FILE)
+      .find('.flaticon-delete-1')
+      .click({ force: true });
+    cy.contains('#file-table .file-table-row', DUPLICATE_TIP_FILE).should('not.exist');
+
+    cy.loadFiles(correctedTipProfile.files);
+    cy.window().should((win: any) => {
+      const widgets = win.commonService.session.style.widgets;
+      expect(widgets['default-distance-metric'], 'metric retained for retry').to.equal('tn93');
+      expect(Number(widgets['link-threshold']), 'threshold retained for retry').to.equal(0.02);
+      expect(widgets['default-view'], 'default view retained for retry').to.equal('2D Network');
+    });
+
+    launchAndWaitForProcessing(30000);
+    waitForProcessingDialogToClear(30000);
+    ensureTwoDNetworkView();
+    assertMetricCount('#numberOfNodes', 3);
+    assertVisibleLinkCount(1);
+
+    cy.window().should((win: any) => {
+      const storedNewick = String(win.commonService.session.data.newickString || '');
+      expect(win.commonService.session.network.isFullyLoaded, 'corrected retry should finish loading').to.equal(true);
+      expect(storedNewick, 'corrected leaf name is stored').to.contain('C');
+      expect(
+        win.commonService.session.files.some((file: any) => file.name === DUPLICATE_TIP_FILE),
+        'invalid file removed before retry',
+      ).to.equal(false);
+      expect(
+        win.commonService.session.files.some((file: any) => file.name === CORRECTED_TIP_FILE),
+        'corrected file retained after retry',
+      ).to.equal(true);
+    });
+
+    cy.wait(250, { log: false });
+    assertMetricCount('#numberOfNodes', 3);
+    assertVisibleLinkCount(1);
   });
 
   it('normalizes negative terminal branches from neighbor-joining exports', () => {
@@ -431,6 +568,41 @@ describe('Journey Flow - Patristic Newick worker safeguards', () => {
       expect(win.commonService.session.data.nodes || [], 'imported leaf nodes').to.have.length(3);
       expect(storedNewick, 'internal branch label remains present').to.contain('BAD_INTERNAL');
       expect(storedNewick, 'no negative branch lengths remain').not.to.match(/:-(?:\d|\.)/);
+    });
+  });
+
+  it('aggregates plural negative-branch warnings for multiple Newick files', () => {
+    visitAppAndAcceptEula();
+    cy.loadFiles(multipleNegativeBranchesProfile.files);
+
+    cy.get('#launch', { timeout: 15000 }).should('not.be.disabled');
+    cy.get('#launch').click({ force: true });
+
+    cy.contains('.p-dialog-title', 'NWK Branch Length Warning', { timeout: 30000 })
+      .should('be.visible')
+      .parents('.p-dialog')
+      .as('aggregatedNewickBranchWarning');
+
+    cy.contains('.p-dialog-title:visible', 'NWK Branch Length Warning').should('have.length', 1);
+    cy.get('@aggregatedNewickBranchWarning')
+      .should(
+        'contain.text',
+        `MicrobeTrace found 2 negative branch lengths in ${MULTIPLE_NEGATIVE_BRANCHES_A_FILE} and set them to zero before processing.`,
+      )
+      .and(
+        'contain.text',
+        `MicrobeTrace found 3 negative branch lengths in ${MULTIPLE_NEGATIVE_BRANCHES_B_FILE} and set them to zero before processing.`,
+      )
+      .contains('button', 'OK')
+      .click({ force: true });
+
+    waitForProcessingDialogToClear(30000);
+    cy.window().should((win: any) => {
+      const storedNewick = String(win.commonService.session.data.newickString || '');
+      expect(win.commonService.session.network.isFullyLoaded, 'multi-file import should finish loading').to.equal(true);
+      expect(win.commonService.session.data.nodes || [], 'imported leaf nodes').to.have.length(3);
+      expect(storedNewick, 'last normalized file remains stored').to.contain('GROUP_B');
+      expect(storedNewick, 'stored Newick has no negative branch lengths').not.to.match(/:-(?:\d|\.)/);
     });
   });
 });
