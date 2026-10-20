@@ -25,10 +25,12 @@ import { formatMixedNodeColorDisplayName, getMixedNodeColorLegendEntries } from 
 import * as XLSX from 'xlsx';
 import { buildDate, commitHash, version as appVersion } from "src/environments/version";
 import { EmbedHandoffService } from './embed/embed-handoff.service';
+import { LocalSessionLinkService } from './local-session-link.service';
 import { KeyTablesComponent } from './visualizationComponents/KeyTablesComponent/key-tables.component';
 import { KEY_TABLE_NAMES, KeyTableName, KeyTablesController } from './visualizationComponents/KeyTablesComponent/key-tables.controller';
 import { NetworkStatisticsComponent } from './visualizationComponents/NetworkStatisticsComponent/network-statistics-plugin.component';
 import type { ThresholdSweepSummary } from './contactTraceCommonServices/threshold-analysis';
+import { FEATURE_FLAGS } from './feature-flags';
 import {
     computeComponentStructureMetrics,
     scoreComponentStructureMetrics,
@@ -164,6 +166,8 @@ function buildNodeShapeTreeOptions(groups: NodeShapeOptionGroup[], defaultExpand
 
 export class MicrobeTraceNextHomeComponent extends AppComponentBase implements AfterViewInit, OnInit, OnDestroy {
 
+    readonly componentStructureThresholdRecommendationEnabled = FEATURE_FLAGS.componentStructureThresholdRecommendation;
+
     colorTransparencyPercent = 100;
     readonly shapeTreeSelectPassThrough = NODE_SHAPE_TREE_SELECT_PASS_THROUGH;
 
@@ -255,9 +259,15 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
     saveByCluster: boolean = false;
     saveFileTypeOptions = [
         { label: 'session', value: 'session'},
+        { label: 'Local link', value: 'local-link'},
         { label: 'style', value: 'style'}
     ];
     selectedSaveFileType: string = 'session';
+    localSessionLinkUrl: string | null = null;
+    localSessionLinkError: string | null = null;
+    localSessionLinkCopied = false;
+    localSessionLinkSaving = false;
+    localSessionLinkLoadError: string | null = null;
 
     searchField: string = '';
     searchText: string = '';
@@ -339,6 +349,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
     ];
     thresholdSweepMetricLabel: string = '';
     thresholdSweepSampleCount: number = 0;
+    thresholdScoreRecommendationNote: string = '';
     thresholdStabilityExpanded: boolean = false;
     thresholdScoreExplanationExpanded: boolean = false;
     thresholdStableRangesExpanded: boolean = false;
@@ -497,6 +508,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
         public exportService: ExportService,
         private graphMLService: GraphMLService,
         private embedHandoffService: EmbedHandoffService,
+        private localSessionLinkService: LocalSessionLinkService,
         private colorAssignmentService: ColorAssignmentService,
         private analyticsService: AnalyticsService
     ) {
@@ -4776,11 +4788,13 @@ ${warnings.join('\n')}`,
 
     onNetworkSubsetNodeFieldChanged(field: string): void {
         this.SelectedNetworkSubsetNodeField = field;
+        this.SelectedNetworkSubsetNodeValue = '';
         this.refreshNetworkSubsetNodeValueOptions();
     }
 
     onNetworkSubsetLinkFieldChanged(field: string): void {
         this.SelectedNetworkSubsetLinkField = field;
+        this.SelectedNetworkSubsetLinkValue = '';
         this.refreshNetworkSubsetLinkValueOptions();
     }
 
@@ -5003,6 +5017,7 @@ ${warnings.join('\n')}`,
 
         this.store.updatecurrentThresholdStepSize(this.SelectedDistanceMetricVariable);
         console.log('tab changed end: ');
+        void this.loadLocalSessionLink();
     }
 
 
@@ -5086,12 +5101,25 @@ ${warnings.join('\n')}`,
 
     getHeight() {
         const timelineHeight = this.commonService.session.style.widgets["timeline-date-field"] == 'None' ? 0 : 150
-        if (this.officialInstance()) {
-            return window.innerHeight - 80 - timelineHeight;
-        } else {
-            const warningHeight = $('#url-warning-div').height()
-            return window.innerHeight - 80 - warningHeight - timelineHeight;
+        const warningHeight = this.officialInstance() ? 0 : Number($('#url-warning-div').outerHeight() || 0);
+        const visualWrapper = this.visualWrapperRef?.nativeElement
+            ?? document.getElementById('visualwrapper');
+
+        if (visualWrapper) {
+            const wrapperDocumentTop = visualWrapper.getBoundingClientRect().top + window.scrollY;
+            const viewportBottomSpacing = 10;
+
+            return Math.max(
+                0,
+                window.innerHeight
+                    - wrapperDocumentTop
+                    - viewportBottomSpacing
+                    - warningHeight
+                    - timelineHeight
+            );
         }
+
+        return Math.max(0, window.innerHeight - 80 - warningHeight - timelineHeight);
     }
 
     showSpinner() {
@@ -5312,6 +5340,84 @@ ${warnings.join('\n')}`,
         saveAs(content as any, filename);
     }
 
+    private buildSessionStash(): StashObjects {
+        this.commonService.session.files.forEach(file => {
+            if (file.extension === 'xlsx' || file.extension === 'xls') {
+                this.convertFileToCSV(file);
+            }
+        });
+
+        const stash: StashObjects = {
+            session: this.commonService.session,
+            tabs: this.homepageTabs.map(x => ({
+                label: x.label,
+                tabTitle: x.tabTitle,
+                isActive: x.isActive,
+                componentRef: undefined,
+                templateRef: undefined
+            }))
+        };
+
+        const dashboardLayout = this.getSerializableDashboardLayout();
+        const dashboardState = this.getSerializableDashboardState();
+        if (dashboardLayout) stash.dashboardLayout = dashboardLayout;
+        if (dashboardState) stash.dashboardState = dashboardState;
+        return stash;
+    }
+
+    clearLocalSessionLinkResult(): void {
+        this.localSessionLinkUrl = null;
+        this.localSessionLinkError = null;
+        this.localSessionLinkCopied = false;
+    }
+
+    async copyLocalSessionLink(): Promise<void> {
+        if (!this.localSessionLinkUrl) return;
+        try {
+            await navigator.clipboard.writeText(this.localSessionLinkUrl);
+            this.localSessionLinkCopied = true;
+        } catch {
+            const input = document.getElementById('local-session-link-url') as HTMLInputElement | null;
+            input?.select();
+            this.localSessionLinkError = 'Copy was unavailable. Select and copy the link above.';
+        }
+        this.cdref.markForCheck();
+    }
+
+    private async saveLocalSessionLink(): Promise<void> {
+        if (this.localSessionLinkSaving) return;
+        this.localSessionLinkSaving = true;
+        this.localSessionLinkError = null;
+        try {
+            this.localSessionLinkUrl = await this.localSessionLinkService.save(this.saveFileName, this.buildSessionStash());
+        } catch (error) {
+            console.error('Unable to save a local session link.', error);
+            this.localSessionLinkError = 'The session could not be saved in this browser. Check that browser storage is available and has enough space.';
+        } finally {
+            this.localSessionLinkSaving = false;
+            this.cdref.markForCheck();
+        }
+    }
+
+    private async loadLocalSessionLink(): Promise<void> {
+        const key = this.localSessionLinkService.getKeyFromUrl();
+        if (key === null || this.embedHandoffService.hasPendingHandoffInUrl() || this.auspiceUrlVal) return;
+
+        try {
+            const stash = await this.localSessionLinkService.load(key);
+            if (!stash) {
+                this.localSessionLinkLoadError = 'This local session link was not found in this browser. It only works in the browser and site where it was saved, while its site data remains available.';
+            } else {
+                this.commonService.session = this.commonService.sessionSkeleton();
+                await this.commonService.applySession(stash);
+            }
+        } catch (error) {
+            console.error('Unable to open a local session link.', error);
+            this.localSessionLinkLoadError = 'This local session could not be opened. Its saved data may be unavailable or damaged.';
+        }
+        this.cdref.markForCheck();
+    }
+
     DisplayStashDialog(saveStash: string) {
         switch (saveStash) {
             case "Save": {
@@ -5324,17 +5430,12 @@ ${warnings.join('\n')}`,
                     return;
                 }
 
-                const zip = new JSZip();
+                if (this.selectedSaveFileType === 'local-link') {
+                    void this.saveLocalSessionLink();
+                    return;
+                }
 
-                const lightTabs: HomePageTabItem[] = this.homepageTabs.map(x => {
-                    return {
-                        label: x.label,
-                        tabTitle: x.tabTitle,
-                        isActive: x.isActive,
-                        componentRef: undefined,
-                        templateRef: undefined
-                    }
-                });
+                const zip = new JSZip();
 
                 if(this.saveByCluster){
                     const clusterNodeList = [];
@@ -5429,26 +5530,7 @@ ${warnings.join('\n')}`,
                           that.saveGeneratedFile(content, `${that.saveFileName}.zip`);
                       });
                 } else {
-                    this.commonService.session.files.forEach(file => {
-                        if (file.extension == 'xlsx' || file.extension == 'xls') {
-                            this.convertFileToCSV(file);
-                        }
-                    });
-
-                    const dashboardLayout = this.getSerializableDashboardLayout();
-                    const dashboardState = this.getSerializableDashboardState();
-                    const stash: StashObjects = {
-                        session: this.commonService.session,
-                        tabs: lightTabs
-                    };
-
-                    if (dashboardLayout) {
-                        stash.dashboardLayout = dashboardLayout;
-                    }
-
-                    if (dashboardState) {
-                        stash.dashboardState = dashboardState;
-                    }
+                    const stash = this.buildSessionStash();
 
                     const that = this;
 
@@ -5602,6 +5684,7 @@ ${warnings.join('\n')}`,
                 this.saveFileName = '';
                 this.saveByCluster = false;
                 this.selectedSaveFileType = 'session';
+                this.clearLocalSessionLinkResult();
                 this.displayStashDialog = true;
                 break;
             }
@@ -6908,6 +6991,7 @@ ${warnings.join('\n')}`,
             this.thresholdSweepSampleCount = 0;
             this.thresholdStabilityCurrent = null;
             this.thresholdScoreRecommendation = null;
+            this.thresholdScoreRecommendationNote = '';
             this.thresholdStabilityRegions = [];
             this.thresholdStabilityMessage = '';
             if (markForCheck) {
@@ -6923,12 +7007,26 @@ ${warnings.join('\n')}`,
         this.thresholdSweepMetricLabel = metric;
         this.thresholdSweepSampleCount = summary.thresholds.length;
         this.thresholdStabilityCurrent = this.getThresholdSweepSnapshotAtThreshold(summary, threshold);
-        this.thresholdScoreRecommendation = summary.recommendedIndex >= 0
-            ? this.getThresholdSweepSnapshotAtThreshold(
-                summary,
-                summary.thresholds[summary.recommendedIndex]
-            )
-            : null;
+        if (this.componentStructureThresholdRecommendationEnabled) {
+            const smartLaunchRecommendation = this.commonService.session.meta?.smartLaunchRecommendation;
+            const constrainedIndex = smartLaunchRecommendation?.generation === this.commonService.getDataLoadGeneration()
+                && smartLaunchRecommendation?.metric === metric
+                ? summary.thresholds.indexOf(smartLaunchRecommendation.threshold)
+                : -1;
+            const recommendationIndex = constrainedIndex >= 0 ? constrainedIndex : summary.recommendedIndex;
+            this.thresholdScoreRecommendationNote = constrainedIndex >= 0
+                ? `Highest composite score within the ${Number(smartLaunchRecommendation.hardLimit).toLocaleString()}-link browser limit. The overall score leader exceeds that limit.`
+                : '';
+            this.thresholdScoreRecommendation = recommendationIndex >= 0
+                ? this.getThresholdSweepSnapshotAtThreshold(
+                    summary,
+                    summary.thresholds[recommendationIndex]
+                )
+                : null;
+        } else {
+            this.thresholdScoreRecommendation = null;
+            this.thresholdScoreRecommendationNote = '';
+        }
         this.thresholdStabilityRegions = this.buildThresholdStabilityRegions(summary, threshold);
 
         if (summary.thresholds.length === 0) {
@@ -6952,7 +7050,7 @@ ${warnings.join('\n')}`,
     }
 
     applyThresholdScoreRecommendation(): void {
-        if (!this.thresholdScoreRecommendation) {
+        if (!this.componentStructureThresholdRecommendationEnabled || !this.thresholdScoreRecommendation) {
             return;
         }
 

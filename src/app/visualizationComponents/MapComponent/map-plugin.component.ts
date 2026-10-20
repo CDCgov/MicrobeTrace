@@ -10,6 +10,7 @@ import * as L from 'leaflet';
 //import moment from 'moment';
 import 'leaflet.markercluster';
 import { maplibreGL } from '@maplibre/maplibre-gl-leaflet';
+import { setWorkerUrl } from 'maplibre-gl';
 
 import * as MarkerCluster from 'leaflet.markercluster';
 import { SelectItem } from 'primeng/api';
@@ -321,6 +322,7 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
     private readonly manualFloorplanYField: string = 'map_floorplan_y';
     private readonly manualMapLatitudeField: string = 'map_manual_latitude';
     private readonly manualMapLongitudeField: string = 'map_manual_longitude';
+    private networkRefreshPending: boolean = false;
     private readonly floorplanBoundaryIdField: string = 'map_floorplan_boundary_id';
     private readonly floorplanBoundaryXField: string = 'map_floorplan_boundary_x';
     private readonly floorplanBoundaryYField: string = 'map_floorplan_boundary_y';
@@ -482,11 +484,15 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
             .pipe(takeUntil(this.destroy$))
             .subscribe(newPruned => {
                 console.log('--- Map updated', newPruned, this.viewActive);
-                if (this.viewActive && newPruned) {
-                    this.refreshManualPositionControls();
-                    this.drawNodes(false)
-                    this.drawLinks();
-                    this.store.setNetworkUpdated(false); 
+                if (!newPruned) {
+                    return;
+                }
+
+                if (this.viewActive) {
+                    this.onFilterDataChange();
+                    this.store.setNetworkUpdated(false);
+                } else {
+                    this.networkRefreshPending = true;
                 }
         });
 
@@ -501,6 +507,11 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
         this.container.on('show', () => { 
             this.viewActive = true; 
             this.cdref.detectChanges();
+
+            if (this.networkRefreshPending) {
+                this.networkRefreshPending = false;
+                setTimeout(() => this.onFilterDataChange(), 0);
+            }
         })
 
         // Subscribe to style file applied event
@@ -529,6 +540,7 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
     }
 
     initializeLeafletMap(latitude: number, longitude: number) {
+        setWorkerUrl(new URL('assets/maplibre/maplibre-gl-csp-worker.js', document.baseURI).href);
         this.layers.basemap = maplibreGL({
             style: OPENFREEMAP_STYLE_URL,
             preserveDrawingBuffer: true,

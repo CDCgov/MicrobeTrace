@@ -64,6 +64,44 @@ export interface ThresholdSweepSummary {
   scoreWeights: ComponentStructureScoreWeights;
 }
 
+export function findRecommendedThresholdIndex(
+  componentMetrics: ComponentStructureMetrics[],
+  componentStructureScores: number[],
+  maximumIndex = componentMetrics.length - 1,
+): number {
+  let recommendedIndex = -1;
+
+  componentMetrics.forEach((metrics, index) => {
+    if (index > maximumIndex || metrics.clusterCount === 0) return;
+
+    if (recommendedIndex === -1) {
+      recommendedIndex = index;
+      return;
+    }
+
+    const scoreDifference = componentStructureScores[index] - componentStructureScores[recommendedIndex];
+    if (scoreDifference > 1e-9) {
+      recommendedIndex = index;
+      return;
+    }
+
+    if (Math.abs(scoreDifference) <= 1e-9) {
+      const recommendedMetrics = componentMetrics[recommendedIndex];
+      if (
+        metrics.clusteredFraction > recommendedMetrics.clusteredFraction
+        || (
+          metrics.clusteredFraction === recommendedMetrics.clusteredFraction
+          && metrics.largestClusterFraction < recommendedMetrics.largestClusterFraction
+        )
+      ) {
+        recommendedIndex = index;
+      }
+    }
+  });
+
+  return recommendedIndex;
+}
+
 export interface VisibleClusterSummary {
   clusters: Array<{
     id: number;
@@ -386,37 +424,7 @@ export function buildThresholdSweepSummary(
   ));
   const componentStructureScores = scoreResults.map((result) => result.score);
   const componentStructureScoreBreakdowns = scoreResults.map((result) => result.breakdown);
-  let recommendedIndex = -1;
-
-  componentMetrics.forEach((metrics, index) => {
-    if (metrics.clusterCount === 0) {
-      return;
-    }
-
-    if (recommendedIndex === -1) {
-      recommendedIndex = index;
-      return;
-    }
-
-    const scoreDifference = componentStructureScores[index] - componentStructureScores[recommendedIndex];
-    if (scoreDifference > 1e-9) {
-      recommendedIndex = index;
-      return;
-    }
-
-    if (Math.abs(scoreDifference) <= 1e-9) {
-      const recommendedMetrics = componentMetrics[recommendedIndex];
-      if (
-        metrics.clusteredFraction > recommendedMetrics.clusteredFraction
-        || (
-          metrics.clusteredFraction === recommendedMetrics.clusteredFraction
-          && metrics.largestClusterFraction < recommendedMetrics.largestClusterFraction
-        )
-      ) {
-        recommendedIndex = index;
-      }
-    }
-  });
+  const recommendedIndex = findRecommendedThresholdIndex(componentMetrics, componentStructureScores);
 
   return {
     metric: cache.metric,

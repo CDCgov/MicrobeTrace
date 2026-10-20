@@ -43,24 +43,19 @@ const dispatchMapDrag = (win: WinWithMap, start: { clientX: number; clientY: num
     cancelable: true,
     composed: true,
     button: 0,
-    pointerId: 1,
-    pointerType: 'mouse',
-    isPrimary: true,
     clientX: end.clientX,
     clientY: end.clientY,
   }));
 
-  container.dispatchEvent(new MouseEvent('mouseend', {
+  win.document.dispatchEvent(new MouseEvent('mouseup', {
     bubbles: true,
     cancelable: true,
     composed: true,
     button: 0,
-    pointerId: 1,
-    pointerType: 'mouse',
-    isPrimary: true,
     clientX: end.clientX,
     clientY: end.clientY,
   }));
+
 };
 
 const clickAndWaitForMapEvent = (selector: string, eventName: 'zoomend' | 'moveend'): void => {
@@ -148,7 +143,7 @@ describe('Journey Flow - Map navigation controls on uploaded data', () => {
       expect(map.getZoom(), 'zoom unchanged by pan').to.equal(baselineZoom);
     });
 
-    cy.get('#centerMapButton').click({ force: true });
+    clickAndWaitForMapEvent('#centerMapButton', 'moveend');
 
     cy.window().should((win: unknown) => {
       assertMapCenteredOnRenderedNodes(win as WinWithMap, 'center control after pan');
