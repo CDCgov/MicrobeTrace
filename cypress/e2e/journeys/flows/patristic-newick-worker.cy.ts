@@ -71,9 +71,9 @@ const duplicateTipProfile: DatasetProfile = {
 };
 
 const negativeBranchProfile: DatasetProfile = {
-  id: 'patristic-negative-branch-validation',
-  title: 'Negative-branch Newick is rejected with branch context',
-  tags: ['newick', 'patristic-worker', 'invalid'],
+  id: 'patristic-negative-branch-normalization',
+  title: 'Negative internal Newick branches are normalized with a warning',
+  tags: ['newick', 'patristic-worker'],
   files: [
     {
       name: NEGATIVE_BRANCH_FILE,
@@ -161,9 +161,29 @@ const setThresholdAndAssertVisibleLinks = (threshold: number, expectedVisibleLin
   assertVisibleLinkCount(expectedVisibleLinks);
 };
 
+const confirmNegativeBranchWarning = (fileName: string, normalizedBranchCount = 1): void => {
+  const branchLabel = normalizedBranchCount === 1 ? 'branch length' : 'branch lengths';
+  const pronoun = normalizedBranchCount === 1 ? 'it' : 'them';
+
+  cy.contains('.p-dialog-title', 'NWK Branch Length Warning', { timeout: 30000 })
+    .should('be.visible')
+    .parents('.p-dialog')
+    .as('newickBranchWarning');
+
+  cy.get('@newickBranchWarning')
+    .should(
+      'contain.text',
+      `MicrobeTrace found ${normalizedBranchCount} negative ${branchLabel} in ${fileName} and set ${pronoun} to zero before processing.`,
+    )
+    .contains('button', 'OK')
+    .should('be.visible')
+    .click({ force: true });
+};
+
 describe('Journey Flow - Patristic Newick worker safeguards', () => {
   it('preserves Newick launch counts, distances, and file metadata', () => {
     launchProfileToTwoD(tn93Profile);
+    cy.contains('.p-dialog-title', 'NWK Branch Length Warning').should('not.exist');
     assertAfterLaunchCounts(tn93Profile);
     assertStoredNewickString();
     assertVisibleEdgesHaveNewickMetadata(TN93_NEWICK_FILE);
@@ -349,16 +369,33 @@ describe('Journey Flow - Patristic Newick worker safeguards', () => {
     cy.get('#launch', { timeout: 15000 }).should('not.be.disabled');
     cy.get('#launch').click({ force: true });
 
-    cy.contains(
-      '#loading-information',
-      /duplicate (leaf|tip|tax|name)|Error processing Newick tree/i,
-      { timeout: 30000 },
-    ).should('be.visible');
+    cy.contains('.p-dialog-title', 'Unable to Process NWK', { timeout: 30000 })
+      .should('be.visible')
+      .parents('.p-dialog')
+      .as('newickErrorDialog');
+
+    cy.get('@newickErrorDialog')
+      .should(
+        'contain.text',
+        'Unable to process NWK due to duplication in leaf names. Please re-try after fixing the naming issue.',
+      );
+    waitForProcessingDialogToClear(30000);
+    cy.get('#loading-information-modal').should('not.be.visible');
+    cy.get('#loading-information-modal img[alt="logo"]').should('not.exist');
 
     cy.window().should((win: any) => {
-      expect(win.commonService.session.network.isFullyLoaded, 'network should not finish loading').to.not.equal(true);
+      expect(win.commonService.session.network.isFullyLoaded, 'network should not finish loading').to.equal(false);
+      expect(win.commonService.session.data.nodes || [], 'nodes after duplicate-tip rejection').to.have.length(0);
       expect(win.commonService.session.data.links || [], 'links after duplicate-tip rejection').to.have.length(0);
+      expect(
+        win.commonService.session.files.some((file: any) => file.name === DUPLICATE_TIP_FILE),
+        'duplicate-tip file remains available for correction/replacement',
+      ).to.equal(true);
     });
+
+    cy.contains('#file-table .file-table-row', DUPLICATE_TIP_FILE).should('be.visible');
+    cy.get('#launch').should('be.visible').and('not.be.disabled').and('contain.text', 'Launch');
+    cy.get('@newickErrorDialog').contains('button', 'OK').click({ force: true });
   });
 
   it('normalizes negative terminal branches from neighbor-joining exports', () => {
@@ -367,6 +404,7 @@ describe('Journey Flow - Patristic Newick worker safeguards', () => {
 
     cy.get('#launch', { timeout: 15000 }).should('not.be.disabled');
     cy.get('#launch').click({ force: true });
+    confirmNegativeBranchWarning(NEGATIVE_TERMINAL_BRANCH_FILE);
     waitForProcessingDialogToClear(30000);
 
     cy.window().should((win: any) => {
@@ -378,22 +416,21 @@ describe('Journey Flow - Patristic Newick worker safeguards', () => {
     });
   });
 
-  it('rejects negative-branch Newick input with branch label context', () => {
+  it('normalizes negative internal branches and preserves their labels', () => {
     visitAppAndAcceptEula();
     cy.loadFiles(negativeBranchProfile.files);
 
     cy.get('#launch', { timeout: 15000 }).should('not.be.disabled');
     cy.get('#launch').click({ force: true });
-
-    cy.contains(
-      '#loading-information',
-      /Negative branch length.*BAD_INTERNAL.*parent/i,
-      { timeout: 30000 },
-    ).should('be.visible');
+    confirmNegativeBranchWarning(NEGATIVE_BRANCH_FILE);
+    waitForProcessingDialogToClear(30000);
 
     cy.window().should((win: any) => {
-      expect(win.commonService.session.network.isFullyLoaded, 'network should not finish loading').to.not.equal(true);
-      expect(win.commonService.session.data.links || [], 'links after negative-branch rejection').to.have.length(0);
+      const storedNewick = String(win.commonService.session.data.newickString || '');
+      expect(win.commonService.session.network.isFullyLoaded, 'network should finish loading').to.equal(true);
+      expect(win.commonService.session.data.nodes || [], 'imported leaf nodes').to.have.length(3);
+      expect(storedNewick, 'internal branch label remains present').to.contain('BAD_INTERNAL');
+      expect(storedNewick, 'no negative branch lengths remain').not.to.match(/:-(?:\d|\.)/);
     });
   });
 });
