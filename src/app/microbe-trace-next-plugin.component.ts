@@ -5789,6 +5789,8 @@ ${warnings.join('\n')}`,
         else {
             
             const container = this._goldenLayoutHostComponent.focusComponent(viewName);
+            this.activeTabIndex = tabNdx;
+            this.setActiveTabProperties(tabNdx);
 
             const instance = this._goldenLayoutHostComponent.getComponentRef(container).instance as any;
             console.log('--- viewClick exisitng view - load settings');

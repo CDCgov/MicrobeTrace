@@ -5,15 +5,14 @@ import {
   focusDashboardTab,
   openDashboardViews,
 } from '../../support/dashboard-helpers';
+import { assertTwoDNetworkSummary } from '../../support/twod-renderer-harness';
 
 const loadSampleDataset = (): void => {
   cy.contains('button', 'Continue with Sample Dataset', { timeout: 15000 })
     .should('be.visible')
     .click({ force: true });
   cy.get('#overlay', { timeout: 15000 }).should('not.be.visible');
-  cy.get('[data-testid="network-render-summary"]', { timeout: 30000 })
-    .should('contain.text', '33 nodes')
-    .and('contain.text', '74 available links');
+  assertTwoDNetworkSummary(33, 74);
 };
 
 describe('Sigma renderer lifecycle', () => {
@@ -56,9 +55,7 @@ describe('Sigma renderer lifecycle', () => {
       });
 
       openDashboardViews(['2D Network']);
-      cy.get('[data-testid="network-render-summary"]', { timeout: 30000 })
-        .should('contain.text', '33 nodes')
-        .and('contain.text', '74 available links');
+      assertTwoDNetworkSummary(33, 74);
     });
 
     cy.window().then(win => {
@@ -113,9 +110,7 @@ describe('Sigma renderer lifecycle', () => {
       focusDashboardTab('Table');
       cy.get('.table-wrapper', { timeout: 30000 }).should('be.visible');
       focusDashboardTab('2D Network');
-      cy.get('[data-testid="network-render-summary"]', { timeout: 30000 })
-        .should('contain.text', '33 nodes')
-        .and('contain.text', '74 available links');
+      assertTwoDNetworkSummary(33, 74);
 
       cy.window().then(win => {
         const appWindow = win as any;

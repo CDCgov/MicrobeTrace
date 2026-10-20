@@ -6,6 +6,7 @@ import {
   openTwoDSettingsDialog,
   writeCapturedDownloadToDisk,
 } from '../../support/journey-helpers';
+import { assertTwoDNetworkSummary } from '../../support/twod-renderer-harness';
 
 const loadSampleDataset = (): void => {
   cy.visit('/?skipEula=1');
@@ -13,9 +14,7 @@ const loadSampleDataset = (): void => {
     .should('be.visible')
     .click({ force: true });
   cy.get('#overlay', { timeout: 15000 }).should('not.be.visible');
-  cy.get('[data-testid="network-render-summary"]', { timeout: 30000 })
-    .should('contain.text', '33 nodes')
-    .and('contain.text', '74 available links');
+  assertTwoDNetworkSummary(33, 74);
 };
 
 const expectSigmaGraph = (assertion: (win: any, twoD: any, graph: any) => void): void => {

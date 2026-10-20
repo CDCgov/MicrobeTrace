@@ -5,6 +5,7 @@ import {
   saveSessionFromFileMenu,
   writeCapturedDownloadToDisk,
 } from '../../support/journey-helpers';
+import { assertTwoDNetworkSummary } from '../../support/twod-renderer-harness';
 
 type RendererViewState = {
   centerX: number;
@@ -18,9 +19,7 @@ const loadSampleDataset = (): void => {
     .should('be.visible')
     .click({ force: true });
   cy.get('#overlay', { timeout: 15000 }).should('not.be.visible');
-  cy.get('[data-testid="network-render-summary"]', { timeout: 30000 })
-    .should('contain.text', '33 nodes')
-    .and('contain.text', '74 available links');
+  assertTwoDNetworkSummary(33, 74);
 };
 
 const expectCloseTo = (actual: number, expected: number, label: string): void => {
@@ -106,10 +105,7 @@ describe('Sigma session round-trip', () => {
     cy.window({ timeout: 60000 })
       .its('commonService.session.network.isFullyLoaded')
       .should('equal', true);
-    cy.get('[data-testid="network-render-summary"]', { timeout: 60000 })
-      .should('contain.text', '33 nodes')
-      .and('contain.text', '74 available links')
-      .and('contain.text', '74 links displayed');
+    assertTwoDNetworkSummary(33, 74);
     cy.get('#cy').should('not.exist');
 
     cy.window().then(win => {

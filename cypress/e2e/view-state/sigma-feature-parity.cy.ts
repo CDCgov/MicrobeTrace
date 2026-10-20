@@ -1,13 +1,13 @@
 /// <reference types="cypress" />
 
+import { assertTwoDNetworkSummary } from '../../support/twod-renderer-harness';
+
 const loadSampleDataset = (): void => {
   cy.contains('button', 'Continue with Sample Dataset', { timeout: 15000 })
     .should('be.visible')
     .click({ force: true });
   cy.get('#overlay', { timeout: 15000 }).should('not.be.visible');
-  cy.get('[data-testid="network-render-summary"]', { timeout: 30000 })
-    .should('contain.text', '33 nodes')
-    .and('contain.text', '74 available links');
+  assertTwoDNetworkSummary(33, 74);
 };
 
 describe('Sigma renderer feature parity', () => {

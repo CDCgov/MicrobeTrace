@@ -87,6 +87,24 @@ export function assertTwoDRendererReady(mode: TwoDRendererMode, timeout = 60000)
   });
 }
 
+export function assertTwoDNetworkSummary(
+  expectedNodes: number,
+  expectedLinks: number,
+  timeout = 60000,
+): void {
+  cy.get('[data-testid="network-render-summary"]', { timeout })
+    .should('be.visible')
+    .and($summary => {
+      const summary = $summary.text().replace(/\s+/g, ' ').trim();
+      expect(summary, 'network render summary').to.match(
+        new RegExp(`\\b${expectedNodes}\\s+nodes?\\b`, 'i'),
+      );
+      expect(summary, 'network render summary').to.match(
+        new RegExp(`\\b${expectedLinks}\\s+(?:available\\s+)?links?\\b`, 'i'),
+      );
+    });
+}
+
 export function getTwoDNodeSnapshots(win: any): TwoDNodeSnapshot[] {
   const twoD = getTwoD(win);
   if (twoD.sigmaActive) {
