@@ -56,7 +56,7 @@ function buildDrilldownExpectation(win: WaterfallWindow): DrilldownExpectation {
     linkRowCount: nodeLinks.length,
     linkIndex: Number(link.index),
     linkPeerId: String(link.source === nodeId ? link.target : link.source),
-    linkDistanceText: Number(link.distance).toLocaleString(),
+    linkDistanceText: commonService.formatDisplayedDistanceValue(link.distance, 'distance'),
   };
 }
 

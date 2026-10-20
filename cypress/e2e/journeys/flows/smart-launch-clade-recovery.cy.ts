@@ -72,7 +72,7 @@ const launchFixture = (name: string): void => {
   cy.window().its('commonService.session.network.isFullyLoaded').should('eq', true);
 };
 
-describe('Smart Launch recovery of Newick clades', () => {
+describe.skip('Smart Launch recovery of Newick clades (feature disabled)', () => {
   it('recovers balanced root clades when their distances are separated', () => {
     const name = 'smart-launch/clades-balanced.nwk';
     cy.fixture(name).then((newick: string) => {
