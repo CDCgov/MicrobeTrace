@@ -8,6 +8,7 @@ import {
   launchProfileToHeatmap,
   openGlobalFilteringTab,
   setGlobalDistanceMetric,
+  waitForProcessingDialogToClear,
 } from '../../../support/journey-helpers';
 
 type MetricSwitchCase = {
@@ -47,6 +48,7 @@ describe('Journey Flow - Heatmap post-launch distance metric switch', () => {
       openGlobalFilteringTab();
       setGlobalDistanceMetric(metricSwitchCase.nextMetric);
       cy.closeGlobalSettings();
+      waitForProcessingDialogToClear(60000);
 
       cy.window()
         .its('commonService.session.style.widgets.default-distance-metric')

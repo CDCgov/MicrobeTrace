@@ -13,6 +13,7 @@ type HeatmapAccordionPanel = 'heatmap-invert' | 'heatmap-labels' | 'heatmap-colo
 type HeatmapImageFileType = 'png' | 'jpeg' | 'svg';
 
 function openHeatmapAccordion(panelValue: HeatmapAccordionPanel): void {
+  cy.get('@heatmapSettings').contains('.nav-link', 'Appearance').click({ force: true });
   cy.get('@heatmapSettings')
     .find(`p-accordion-panel[value="${panelValue}"] .p-accordionheader`)
     .first()
