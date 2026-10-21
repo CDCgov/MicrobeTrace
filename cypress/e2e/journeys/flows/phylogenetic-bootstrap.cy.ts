@@ -49,18 +49,17 @@ const assertNamedLabels = (visible: boolean, size = 12): void => {
   });
 };
 
-const assertImportedTabDisabled = (): void => {
-  cy.get('@phyloSettings').find('#tree-bootstrap-tab-link').should('have.class', 'disabled');
-  cy.get('@phyloSettings').find('#tree-bootstrap-tab-heading')
-    .should('have.attr', 'title', 'This tree already contains bootstrap support. Display settings are under Branches.');
-  // Exercise activation as well as checking the disabled appearance.
-  cy.get('@phyloSettings').find('#tree-bootstrap-tab-link').click({ force: true });
-  cy.get('@phyloSettings').find('#tree-bootstrap-tab-link').should('not.have.class', 'active');
-  cy.get('@phyloSettings').find('#bootstrap-replicates').should('not.be.visible');
+const assertImportedCalculationDisabled = (): void => {
+  openBootstrapTab();
+  cy.get('@phyloSettings').find('#tree-bootstrap-tab-link').should('have.class', 'active');
+  cy.get('@phyloSettings').find('#calculate-bootstrap').scrollIntoView().should('be.visible').and('be.disabled');
+  cy.get('@phyloSettings').find('#bootstrap-status')
+    .should('contain.text', 'This imported tree already contains support values.');
 };
 
-const setBootstrapLabelSize = (size: number): void => {
-  cy.get('@phyloSettings').find('#bootstrap-label-size').scrollIntoView().should('be.visible')
+const setInternalLabelSize = (size: number): void => {
+  openBootstrapSupportControls();
+  cy.get('@phyloSettings').find('#internal-label-size').scrollIntoView().should('be.visible')
     .invoke('val', String(size)).trigger('input').trigger('change');
 };
 
@@ -75,23 +74,48 @@ const openBootstrapTab = (): void => {
   cy.get('@phyloSettings').find('#tree-bootstrap-tab-link')
     .should('not.have.class', 'disabled')
     .click({ force: true });
-  cy.get('@phyloSettings').find('#bootstrap-replicates').then(($replicates) => {
-    if (!$replicates.is(':visible')) {
-      cy.get('@phyloSettings').contains('p-accordion-header', 'Bootstrap').click({ force: true });
+  cy.get('@phyloSettings').contains('p-accordion-header', 'Calculate Bootstrap').then(($header) => {
+    if ($header.attr('aria-expanded') !== 'true') {
+      cy.wrap($header).scrollIntoView().click();
     }
   });
-  cy.get('@phyloSettings').find('#bootstrap-replicates').should('be.visible');
+  cy.get('@phyloSettings').find('#bootstrap-replicates').scrollIntoView().should('be.visible');
 };
 
 const openBootstrapSupportControls = (): void => {
-  cy.get('@phyloSettings').contains('a', 'Branches').click({ force: true });
-  // Do not expand it here: discoverability requires it to be open already.
-  cy.get('@phyloSettings').find('#bootstrap-label-visibility').should('be.visible');
+  cy.get('@phyloSettings').find('#tree-bootstrap-tab-link').click();
+  cy.get('@phyloSettings').contains('p-accordion-header', 'Branch Node Labels/Support Values').then(($header) => {
+    if ($header.attr('aria-expanded') !== 'true') {
+      cy.wrap($header).scrollIntoView().click();
+    }
+  });
+  cy.get('@phyloSettings').find('#internal-label-visibility').scrollIntoView().should('be.visible');
+};
+
+const assertInternalLabelControlsUnavailable = (): void => {
+  openBootstrapSupportControls();
+  cy.get('@phyloSettings').find('#internal-label-visibility [role="button"]')
+    .should('have.length', 2).each($button => {
+      cy.wrap($button).should('have.attr', 'data-p-disabled', 'true').and('have.attr', 'tabindex', '-1');
+    });
+  cy.get('@phyloSettings').should('contain.text', 'Load a tree with labels or calculate bootstrap support to enable these settings.');
+  cy.get('@phyloSettings').find('#internal-label-size, #bootstrap-decimal-length, #bootstrap-support-threshold').should('not.exist');
+  cy.window().then((win: WinWithMT) => {
+    const widgets = win.commonService.session.style.widgets;
+    const visibility = widgets['tree-node-label-show'];
+    const legacyVisibility = widgets['tree-bootstrap-label-show'];
+    // Intentionally try the disabled option: it must not change saved settings.
+    cy.get('@phyloSettings').find('#internal-label-visibility').contains('Show').click({ force: true });
+    cy.window().its('commonService.session.style.widgets').should(updated => {
+      expect(updated['tree-node-label-show']).to.equal(visibility);
+      expect(updated['tree-bootstrap-label-show']).to.equal(legacyVisibility);
+    });
+  });
 };
 
 const selectBootstrapDecimals = (label: string): void => {
   openBootstrapSupportControls();
-  cy.get('@phyloSettings').find('#bootstrap-decimal-length').click({ force: true });
+  cy.get('@phyloSettings').find('#bootstrap-decimal-length').scrollIntoView().click();
   cy.get('li[role="option"]').contains(new RegExp(`^${label}$`)).click();
   cy.get('@phyloSettings').find('#bootstrap-decimal-length').should('contain.text', label);
   cy.get('.p-select-overlay:visible').should('not.exist');
@@ -117,11 +141,12 @@ const setBootstrapSupportThreshold = (threshold: string): void => {
     .should('have.value', threshold);
 };
 
-const setBootstrapLabelsVisible = (visible: boolean): void => {
+const setInternalLabelsVisible = (visible: boolean): void => {
   openBootstrapSupportControls();
-  cy.get('@phyloSettings').find('#bootstrap-label-visibility')
+  cy.get('@phyloSettings').find('#internal-label-visibility')
     .contains(visible ? 'Show' : 'Hide')
-    .click({ force: true });
+    .closest('[role="button"]').should('have.attr', 'data-p-disabled', 'false').click()
+    .should('have.attr', 'aria-pressed', 'true');
 };
 
 const assertBootstrapConfirmationVisible = (): void => {
@@ -175,7 +200,7 @@ const persistPhyloAsDefaultView = (): void => {
   });
 };
 
-const ensureRestoredTreeReady = (leafCount: number): void => {
+const ensureRestoredTreeReady = (leafCount: number, nodeCount = leafCount): void => {
   // Wait for both the uploaded data and its saved dashboard to finish loading
   // before navigating or capturing DOM aliases.
   cy.window({ timeout: 60000 }).should((win: WinWithMT) => {
@@ -183,13 +208,15 @@ const ensureRestoredTreeReady = (leafCount: number): void => {
     // Require the uploaded session's data before testing completion flags.
     // Assert the count, not the sequence-bearing array: logging the full nodes
     // during retries can stall the runner and delay application callbacks.
-    expect(win.commonService.session.data.nodes.length, 'restored session node count').to.equal(leafCount);
+    expect(win.commonService.session.data.nodes.length, 'restored session node count').to.equal(nodeCount);
     expect(win.commonService.session.network.isFullyLoaded, 'session loaded').to.equal(true);
     expect(win.commonService.pendingDashboardRestore, 'no pending layout restore').to.equal(null);
     expect(win.commonService.visuals.microbeTrace.applyingPendingDashboardRestore, 'layout restore finished').to.equal(false);
   });
   cy.get('body').then($body => {
-    if (!$body.find('#phylocanvas:visible').length) goToPhyloTreeView();
+    const treeTab = $body.find('.lm_tab[title="Phylogenetic Tree"]');
+    if (treeTab.length) cy.wrap(treeTab).click();
+    else goToPhyloTreeView();
   });
   cy.get('.lm_tab[title="Phylogenetic Tree"]').click();
   assertPhyloTreeReady(60000);
@@ -200,37 +227,49 @@ const ensureRestoredTreeReady = (leafCount: number): void => {
 };
 
 describe('Journey Flow - Phylogenetic bootstrap support', () => {
-  it('shows exact imported values and controls named internal labels independently', () => {
+  it('enables label settings on the default dataset only after bootstrap is calculated', () => {
+    visitAppAndAcceptEula({ skipDemoSession: false, dismissWelcomeOverlay: true });
+    // The welcome overlay closes before the sample data and dashboard finish loading.
+    // Only 30 of its 33 network nodes have sequences for the tree.
+    ensureRestoredTreeReady(30, 33);
+    openPhyloSettingsDialog();
+    assertInternalLabelControlsUnavailable();
+    calculateSmallBootstrap();
+    assertBootstrapLabelsVisible();
+    setInternalLabelsVisible(false);
+    assertBootstrapLabelsHidden();
+    setInternalLabelsVisible(true);
+    assertBootstrapLabelsVisible();
+  });
+
+  it('controls mixed names and support together while filtering only support values', () => {
     launchProfileToPhyloTree(mixedLabelProfile);
     assertPhyloTreeReady();
     assertExactSupportLabels(['95.5', '72.0', '100.0', '40.0']);
-    assertNamedLabels(false);
+    assertNamedLabels(true);
     openPhyloSettingsDialog();
-    assertImportedTabDisabled();
-    openBootstrapSupportControls();
+    // Display settings are expanded on first entering the Bootstrap tab.
+    cy.get('@phyloSettings').find('#tree-bootstrap-tab-link').click();
+    cy.get('@phyloSettings').find('#internal-label-visibility').should('be.visible');
+    assertImportedCalculationDisabled();
     selectBootstrapDecimals('2');
-    setBootstrapLabelSize(16);
+    setInternalLabelSize(16);
     setBootstrapSupportThreshold('72');
     assertExactSupportLabels(['95.50', '72.00', '100.00'], ['40.00'], 16);
-
-    cy.get('@phyloSettings').contains('p-accordion-header', 'Bootstrap Support').click();
-    cy.get('@phyloSettings').contains('p-accordion-header', 'Branch Nodes').click();
-    cy.get('@phyloSettings').find('#branch-node-visibility2').contains('Show').click();
-    cy.get('@phyloSettings').contains('.form-group.row', 'Branch Node Label Size')
-      .find('input[type="range"]').scrollIntoView().should('be.visible')
-      .invoke('val', '14').trigger('input').trigger('change');
+    assertNamedLabels(true, 16);
+    setInternalLabelSize(14);
     assertNamedLabels(true, 14);
-    assertExactSupportLabels(['95.50', '72.00', '100.00'], ['40.00'], 16);
-    cy.get('@phyloSettings').contains('p-accordion-header', 'Branch Nodes').click();
-    cy.get('@phyloSettings').contains('p-accordion-header', 'Bootstrap Support').click();
-    setBootstrapLabelsVisible(false);
-    assertExactSupportLabels([], ['95.50', '72.00', '100.00', '40.00'], 16);
+    assertExactSupportLabels(['95.50', '72.00', '100.00'], ['40.00'], 14);
+    setInternalLabelsVisible(false);
+    assertExactSupportLabels([], ['95.50', '72.00', '100.00', '40.00'], 14);
+    assertNamedLabels(false, 14);
+    setInternalLabelsVisible(true);
     assertNamedLabels(true, 14);
-    setBootstrapLabelsVisible(true);
     setBootstrapSupportThreshold('100');
-    assertExactSupportLabels(['100.00'], ['95.50', '72.00', '40.00'], 16);
+    assertExactSupportLabels(['100.00'], ['95.50', '72.00', '40.00'], 14);
+    assertNamedLabels(true, 14);
     setBootstrapSupportThreshold('0');
-    assertExactSupportLabels(['95.50', '72.00', '100.00', '40.00'], [], 16);
+    assertExactSupportLabels(['95.50', '72.00', '100.00', '40.00'], [], 14);
   });
 
   it('preserves imported support formatting across layout redraws and reopening the tree view', () => {
@@ -238,39 +277,46 @@ describe('Journey Flow - Phylogenetic bootstrap support', () => {
     assertPhyloTreeReady();
     openPhyloSettingsDialog();
     selectBootstrapDecimals('2');
-    setBootstrapLabelSize(14);
+    setInternalLabelSize(14);
     setBootstrapSupportThreshold('90');
     cy.get('@phyloSettings').contains('a', 'Tree').click();
     cy.get('@phyloSettings').contains('p-accordion-header', 'Layout').click();
     cy.get('@phyloSettings').find('#tree-layout').click();
     cy.contains('li[role="option"]', 'Circular').click();
     assertExactSupportLabels(['95.50', '100.00'], ['72.00', '40.00'], 14);
-    setBootstrapLabelsVisible(false);
+    setInternalLabelsVisible(false);
     cy.closeSettingsPane('Phylogenetic Tree Settings');
     cy.get('.lm_tab[title="Phylogenetic Tree"]>.lm_close_tab').click({ force: true });
     cy.get('#phylocanvas').should('not.exist');
     goToPhyloTreeView();
     assertPhyloTreeReady();
     assertExactSupportLabels([], ['95.50', '72.00', '100.00', '40.00'], 14);
+    assertNamedLabels(false, 14);
     openPhyloSettingsDialog();
-    assertImportedTabDisabled();
-    setBootstrapLabelsVisible(true);
+    assertImportedCalculationDisabled();
+    setInternalLabelsVisible(true);
     assertExactSupportLabels(['95.50', '100.00'], ['72.00', '40.00'], 14);
+    assertNamedLabels(true, 14);
   });
 
-  [false, true].forEach(legacy => {
-    it(legacy
-      ? 'defaults imported support to visible at 12px when loading a session without the new widget keys'
-      : 'preserves all imported support display preferences and tab state through a session round-trip', () => {
-      const filename = `cypress_imported_bootstrap_${legacy ? 'legacy' : 'current'}_${Date.now()}.microbetrace`;
+  const sessionCases = [
+    { version: 'current', title: 'preserves unified label settings through a session round-trip' },
+    { version: 'separate', title: 'restores legacy separate support settings into the unified controls' },
+    { version: 'defaults', title: 'defaults imported support to visible at 12px without saved support settings' },
+  ];
+  sessionCases.forEach(({ version, title }) => {
+    it(title, () => {
+      const defaultSettings = version === 'defaults';
+      const restoredSize = defaultSettings ? 12 : 16;
+      const filename = `cypress_imported_bootstrap_${version}_${Date.now()}.microbetrace`;
       const path = `${Cypress.config('downloadsFolder')}/${filename}`;
       launchProfileToPhyloTree(mixedLabelProfile);
       assertPhyloTreeReady();
       openPhyloSettingsDialog();
       selectBootstrapDecimals('2');
-      setBootstrapLabelSize(16);
+      setInternalLabelSize(16);
       setBootstrapSupportThreshold('72');
-      setBootstrapLabelsVisible(false);
+      setInternalLabelsVisible(false);
       cy.closeSettingsPane('Phylogenetic Tree Settings');
       persistPhyloAsDefaultView();
       installSaveAsCaptureHook();
@@ -279,9 +325,20 @@ describe('Journey Flow - Phylogenetic bootstrap support', () => {
       cy.readFile(path).then(saved => {
         const payload = typeof saved === 'string' ? JSON.parse(saved) : saved;
         expect(payload.session.data.phylogeneticBootstrap, 'imported tree has no calculated metadata').to.be.null;
-        if (legacy) {
-          delete payload.session.style.widgets['tree-bootstrap-label-show'];
-          delete payload.session.style.widgets['tree-bootstrap-label-size'];
+        const widgets = payload.session.style.widgets;
+        expect(widgets['tree-node-label-show']).to.equal(false);
+        expect(widgets['tree-node-label-size']).to.equal(16);
+        if (version !== 'current') {
+          delete widgets['tree-node-label-show'];
+          delete widgets['tree-node-label-size'];
+          if (defaultSettings) {
+            delete widgets['tree-bootstrap-label-show'];
+            delete widgets['tree-bootstrap-label-size'];
+          } else {
+            // Conflicting old branch preferences must not override support preferences.
+            widgets['tree-branch-label-show'] = true;
+            widgets['tree-branch-label-size'] = 9;
+          }
           cy.writeFile(path, payload);
         }
       });
@@ -296,27 +353,29 @@ describe('Journey Flow - Phylogenetic bootstrap support', () => {
       // Restoring a saved dashboard must not open a disposable default tree
       // through Viewclick before loading the final layout.
       cy.get('@restoreViewClick').should('not.have.been.calledWith', 'Phylogenetic Tree');
-      assertNamedLabels(false);
-      if (legacy) {
+      assertNamedLabels(defaultSettings, restoredSize);
+      if (defaultSettings) {
         assertExactSupportLabels(['95.50', '72.00', '100.00'], ['40.00'], 12);
       } else {
         assertExactSupportLabels([], ['95.50', '72.00', '100.00', '40.00'], 16);
       }
       openPhyloSettingsDialog();
-      assertImportedTabDisabled();
-      setBootstrapLabelsVisible(true);
+      assertImportedCalculationDisabled();
+      setInternalLabelsVisible(true);
       cy.get('@phyloSettings').find('#bootstrap-decimal-length').should('contain.text', '2');
       cy.get('@phyloSettings').find('#bootstrap-support-threshold').should('have.value', '72');
-      assertExactSupportLabels(['95.50', '72.00', '100.00'], ['40.00'], legacy ? 12 : 16);
+      assertExactSupportLabels(['95.50', '72.00', '100.00'], ['40.00'], restoredSize);
+      assertNamedLabels(true, restoredSize);
     });
   });
 
-  it('recalculates support after hiding values without changing generic internal-label preferences', () => {
+  it('shows newly recalculated support after hiding labels and retains the shared label size', () => {
     launchProfileToPhyloTree(getProfile('phylo-snps16-fasta'));
     assertPhyloTreeReady();
     openPhyloSettingsDialog();
     calculateSmallBootstrap();
-    setBootstrapLabelsVisible(false);
+    setInternalLabelSize(14);
+    setInternalLabelsVisible(false);
     assertBootstrapLabelsHidden();
     setBootstrapReplicates('7');
     cy.get('@phyloSettings').find('#calculate-bootstrap').should('not.be.disabled').click();
@@ -326,10 +385,14 @@ describe('Journey Flow - Phylogenetic bootstrap support', () => {
       expect(metadata.requestedReplicates).to.equal(7);
       expect(metadata.completedReplicates).to.equal(7);
     });
-    cy.window().its('commonService.visuals.phylogenetic.SelectedBranchLabelShowVariable').should('equal', false);
+    cy.window().its('commonService.session.style.widgets').should(widgets => {
+      expect(widgets['tree-node-label-show']).to.equal(true);
+      expect(widgets['tree-node-label-size']).to.equal(14);
+    });
     assertBootstrapLabelsVisible();
+    cy.get(SELECTORS.internalNodeLabels).should('have.css', 'font-size', '14px');
     openBootstrapSupportControls();
-    cy.get('@phyloSettings').find('#bootstrap-label-visibility').contains('Show')
+    cy.get('@phyloSettings').find('#internal-label-visibility').contains('Show')
       .closest('[role="button"]').should('have.attr', 'aria-pressed', 'true');
   });
 
@@ -340,6 +403,7 @@ describe('Journey Flow - Phylogenetic bootstrap support', () => {
     assertPhyloTreeReady();
 
     openPhyloSettingsDialog();
+    assertInternalLabelControlsUnavailable();
     openBootstrapTab();
 
     cy.window()
@@ -359,6 +423,7 @@ describe('Journey Flow - Phylogenetic bootstrap support', () => {
     cy.get('@bootstrapConfirmDialog').contains('button', 'Cancel').click({ force: true });
     cy.contains('.p-dialog:visible', BOOTSTRAP_CONFIRMATION_TEXT).should('not.exist');
     cy.get('#bootstrap-status').should('not.exist');
+    assertInternalLabelControlsUnavailable();
 
     calculateSmallBootstrap();
     cy.get('@phyloSettings').find('#tree-bootstrap-tab-link').should('not.have.class', 'disabled');
@@ -371,6 +436,9 @@ describe('Journey Flow - Phylogenetic bootstrap support', () => {
         expect(Object.keys(metadata.supportBySplitKey || {}).length).to.be.greaterThan(0);
       });
     assertBootstrapLabelsVisible();
+    openBootstrapSupportControls();
+    cy.get('@phyloSettings').find('#internal-label-visibility [role="button"]')
+      .each($button => cy.wrap($button).should('have.attr', 'data-p-disabled', 'false'));
     cy.window().then((win: WinWithMT) => {
       newickAfterBootstrap = win.commonService.session.data.newickString;
       expect(newickAfterBootstrap).to.match(/\)(?:0(?:\.\d+)?|1(?:\.0+)?):/);
@@ -403,9 +471,7 @@ describe('Journey Flow - Phylogenetic bootstrap support', () => {
     assertBootstrapLabelsVisible();
 
     openPhyloSettingsDialog();
-    cy.get('@phyloSettings').find('#tree-bootstrap-tab-link').should('have.class', 'disabled');
-    cy.get('@phyloSettings').find('#tree-bootstrap-tab-heading')
-      .should('have.attr', 'title', 'This tree already contains bootstrap support. Display settings are under Branches.');
+    assertImportedCalculationDisabled();
     openBootstrapSupportControls();
 
     assertBootstrapLabelsVisible();
@@ -428,10 +494,7 @@ describe('Journey Flow - Phylogenetic bootstrap support', () => {
       expect(visible.every(label => label.value >= 90), 'visible labels meet threshold').to.equal(true);
     });
 
-    cy.get('@phyloSettings').find('#bootstrap-label-size')
-      .invoke('val', '16')
-      .trigger('input', { force: true })
-      .trigger('change', { force: true });
+    setInternalLabelSize(16);
     cy.get(SELECTORS.internalNodeLabels).should(($labels) => {
       const visibleSupportLabel = Array.from($labels).find(label =>
         Number.isFinite(parseFloat(String(label.textContent || ''))) && getComputedStyle(label).opacity !== '0'
@@ -440,12 +503,9 @@ describe('Journey Flow - Phylogenetic bootstrap support', () => {
       expect(getComputedStyle(visibleSupportLabel!).fontSize).to.equal('16px');
     });
 
-    setBootstrapLabelsVisible(false);
+    setInternalLabelsVisible(false);
     assertBootstrapLabelsHidden();
-    cy.get('@phyloSettings').contains('p-accordion-header', 'Branch Nodes').click({ force: true });
-    cy.get('@phyloSettings').find('#branch-node-visibility2').contains('Show').click({ force: true });
-    assertBootstrapLabelsHidden();
-    setBootstrapLabelsVisible(true);
+    setInternalLabelsVisible(true);
     assertBootstrapLabelsVisible(/^\d+\.\d{2}$/);
   });
 
@@ -455,12 +515,40 @@ describe('Journey Flow - Phylogenetic bootstrap support', () => {
       assertPhyloTreeReady();
 
       openPhyloSettingsDialog();
+      assertInternalLabelControlsUnavailable();
       openBootstrapTab();
 
       cy.get('@phyloSettings').find('#calculate-bootstrap').should('be.disabled');
       cy.get('#bootstrap-status').should('contain.text', 'sequence');
       cy.closeSettingsPane('Phylogenetic Tree Settings');
     });
+  });
+
+  it('enables imported node names without treating a numeric root or leaf names as support', () => {
+    launchProfileToPhyloTree({
+      ...mixedLabelProfile,
+      files: [{ name: 'BranchNamedLabels.nwk', datatype: 'newick' as const }],
+    });
+    assertPhyloTreeReady();
+    openPhyloSettingsDialog();
+    setInternalLabelsVisible(true);
+    cy.get('@phyloSettings').find('#bootstrap-decimal-length, #bootstrap-support-threshold').should('not.exist');
+    setInternalLabelSize(14);
+    assertNamedLabels(true, 14);
+    cy.get(SELECTORS.internalNodeLabels).should($labels => {
+      const root = Array.from($labels).find(label => label.textContent === '0.95');
+      expect(root, 'numeric root remains a literal node label').to.exist;
+      expect(getComputedStyle(root!).opacity).to.equal('1');
+      expect(getComputedStyle(root!).fontSize).to.equal('14px');
+      expect(Array.from($labels).map(label => label.textContent).filter(Boolean).sort())
+        .to.deep.equal(['0.95', 'Clade_A', 'Clade_B']);
+    });
+    cy.get('#phylocanvas svg g.tidytree-node-leaf text').should($labels => {
+      expect(Array.from($labels).map(label => label.textContent).sort()).to.deep.equal(['0.8', '95', 'A', 'B']);
+    });
+    setInternalLabelsVisible(false);
+    assertNamedLabels(false, 14);
+    cy.get(SELECTORS.internalNodeLabels).should('have.css', 'opacity', '0');
   });
 
   it('can display an early stop when the stable-support rule is satisfied', () => {
@@ -512,11 +600,8 @@ describe('Journey Flow - Phylogenetic bootstrap support', () => {
     openBootstrapTab();
     calculateSmallBootstrap();
     openBootstrapSupportControls();
-    cy.get('@phyloSettings').find('#bootstrap-label-size')
-      .invoke('val', '14')
-      .trigger('input', { force: true })
-      .trigger('change', { force: true });
-    setBootstrapLabelsVisible(false);
+    setInternalLabelSize(14);
+    setInternalLabelsVisible(false);
     assertBootstrapLabelsHidden();
     cy.closeSettingsPane('Phylogenetic Tree Settings');
     persistPhyloAsDefaultView();
@@ -543,6 +628,8 @@ describe('Journey Flow - Phylogenetic bootstrap support', () => {
     cy.window()
       .its('commonService.session.style.widgets')
       .should((widgets) => {
+        expect(widgets['tree-node-label-show']).to.equal(false);
+        expect(widgets['tree-node-label-size']).to.equal(14);
         expect(widgets['tree-bootstrap-label-show']).to.equal(false);
         expect(widgets['tree-bootstrap-label-size']).to.equal(14);
       });
@@ -550,7 +637,7 @@ describe('Journey Flow - Phylogenetic bootstrap support', () => {
 
     openPhyloSettingsDialog();
     cy.get('@phyloSettings').find('#tree-bootstrap-tab-link').should('not.have.class', 'disabled');
-    setBootstrapLabelsVisible(true);
+    setInternalLabelsVisible(true);
     assertBootstrapLabelsVisible();
   });
 });
