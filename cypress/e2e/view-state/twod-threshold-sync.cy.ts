@@ -31,10 +31,12 @@ const assertHistogramHoverReadout = (): void => {
     expect($bars.length, 'threshold histogram bars').to.be.greaterThan(0);
   });
   cy.get('#link-threshold-sparkline')
-    .should('be.visible')
+    .should('exist')
     .then(($svg) => {
       const svg = $svg.get(0) as SVGElement;
       const rect = svg.getBoundingClientRect();
+      expect(rect.width, 'threshold histogram width').to.be.greaterThan(0);
+      expect(rect.height, 'threshold histogram height').to.be.greaterThan(0);
 
       cy.wrap($svg).trigger('mousemove', {
         clientX: rect.left + rect.width * 0.4,
@@ -50,7 +52,7 @@ const assertHistogramHoverReadout = (): void => {
 
 describe('2D Network - Threshold Display Sync', () => {
   beforeEach(() => {
-    visitAppAndAcceptEula({ skipDemoSession: false });
+    visitAppAndAcceptEula({ skipDemoSession: false, dismissWelcomeOverlay: true });
     ensureTwoDNetworkView();
   });
 

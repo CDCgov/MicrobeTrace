@@ -184,8 +184,12 @@ Cypress.Commands.add('openGlobalSettings', () => {
       (win as any).commonService?.visuals?.microbeTrace?.DisplayGlobalSettingsDialog?.();
     });
   });
-  cy.contains('.p-dialog-title:visible', 'Global Settings', { timeout: 15000 }).should('be.visible');
-  cy.contains('.nav-link:visible', 'Timeline', { timeout: 15000 }).should('be.visible');
+  cy.contains('.p-dialog-title:visible', 'Global Settings', { timeout: 15000 })
+    .should('be.visible')
+    .closest('.p-dialog')
+    .within(() => {
+      cy.contains('.nav-link', 'Timeline', { timeout: 15000 }).should('be.visible');
+    });
 });
 
 Cypress.Commands.add('closeGlobalSettings', () => {

@@ -3,11 +3,17 @@
 import { getProfile } from '../datasets/profile';
 import {
   assertAfterLaunchCounts,
+  assertMapReady,
+  assertMapRenderedCounts,
   assertMetricCount,
   goTo2DNetworkView,
+  goToMapView,
   goToTableView,
   launchProfileToTwoD,
+  openMapSettingsDialog,
   openGlobalFilteringTab,
+  selectMapField,
+  setMapNodeCollapsing,
 } from '../../../support/journey-helpers';
 import {
   assertTableDatasetMatchesSession,
@@ -120,5 +126,43 @@ describe('Journey Flow - Network subset filtering', () => {
     cy.get('[data-testid="network-subset-filter-clear"]').click({ force: true });
     cy.get('[data-testid="network-subset-filter-notice"]').should('not.exist');
     assertAfterLaunchCounts(profile);
+  });
+
+  it('keeps the toolbar accessible and refreshes an existing Map tab after the subset changes', () => {
+    cy.viewport(904, 650);
+    launchProfileToTwoD(profile);
+
+    applyNodeSubset('Profession', 'equals', 'Healthcare', 'Florida');
+    goToMapView();
+    openMapSettingsDialog();
+    selectMapField('map-field-zipcode', 'Zipcode', 'map-field-zipcode', 'Zip_code');
+    setMapNodeCollapsing('Off');
+    cy.closeSettingsPane('Geospatial Settings');
+    assertMapRenderedCounts({ nodes: 2, links: 1 });
+
+    cy.get('.lm_tab[title="2D Network"]', { timeout: 15000 }).click({ force: true });
+    cy.get('#cy', { timeout: 15000 }).should('be.visible');
+    cy.window().should((win) => {
+      expect(win.scrollY, 'document scroll after returning to 2D').to.equal(0);
+    });
+    cy.get('[data-testid="app-global-settings-button"]')
+      .should('be.visible')
+      .and('not.be.disabled');
+
+    clearSubset();
+    applyNodeSubset('Profession', 'equals', 'Education', 'Florida');
+
+    cy.get('.lm_tab[title="Map"]', { timeout: 15000 }).click({ force: true });
+    assertMapReady();
+    assertMapRenderedCounts({ nodes: 2, links: 1 });
+    cy.window().should((win: any) => {
+      const renderedNodeIds = win.commonService.visuals.gisMap.layers.featureGroup
+        .getLayers()
+        .map((layer: any) => String(layer.data?._id || ''))
+        .sort();
+
+      expect(renderedNodeIds, 'Map nodes after changing the subset').to.deep.equal(['B', 'D']);
+      expect(win.scrollY, 'document scroll after returning to Map').to.equal(0);
+    });
   });
 });

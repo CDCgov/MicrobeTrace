@@ -298,7 +298,7 @@ export function launchPerformanceScenarioToTwoD(
     marks.viewStart = marks.fullyLoaded;
   });
 
-  ensureTwoDNetworkView();
+  ensureTwoDNetworkView(timeout);
 
   return cy.window().then((win: unknown) => {
     marks.viewReady = (win as Window).performance.now();

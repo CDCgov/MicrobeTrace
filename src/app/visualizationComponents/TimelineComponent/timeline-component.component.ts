@@ -13,6 +13,7 @@ import { SelectItem } from 'primeng/api';
 import { ExportService } from '@app/contactTraceCommonServices/export.service';
 import { Subject, takeUntil } from 'rxjs';
 import { CommonStoreService } from '@app/contactTraceCommonServices/common-store.services';
+import { showColorTransparencyPicker } from '../KeyTablesComponent/color-transparency-picker';
 
 @Component({
     selector: 'app-timeline-component',
@@ -726,7 +727,7 @@ private getBinDateRange(bin): string {
   if (end.isBefore(start)) {
     end = moment(bin.x1);
   }
-  if (this.widgets['epiCurve-binSize'] == 'Day') { 
+  if (this.widgets['epiCurve-binSize'] == 'Day') {
     return `Date: ${start.format("MMM D, YYYY")}`
   } else {
     return `Date range: ${start.format("MMM D, YYYY")} - ${end.format("MMM D, YYYY")}`;
@@ -1217,16 +1218,13 @@ openStackGroupTransparencyPicker(event, item) {
   event.preventDefault();
   event.stopPropagation();
 
-  $("#color-transparency-wrapper").css({
-    top: event.clientY + 129,
-    left: event.clientX,
-    display: "block",
-    zIndex: 99999
-  });
+  const input = showColorTransparencyPicker(event, this.getStackOpacity(item.value), 99999);
+  if (!input) {
+    return;
+  }
 
-  $("#color-transparency")
+  $(input)
     .off("change")
-    .val(this.getStackOpacity(item.value))
     .one("change", sliderEvent => {
       const opacity = Number(sliderEvent.target['value']);
       const transparency = Number.isFinite(opacity) ? this.clampStackAlpha(1 - opacity) : 0;

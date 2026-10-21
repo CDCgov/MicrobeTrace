@@ -89,6 +89,11 @@ export interface PatristicBuildEdgesRequest {
   batchSize?: number;
 }
 
+export interface PatristicBuildMstEdgesRequest {
+  type: 'BUILD_MST_EDGES';
+  jobId: number;
+}
+
 export interface PatristicBuildNearestNeighborRequest {
   type: 'BUILD_NEAREST_NEIGHBOR_EDGES';
   jobId: number;
@@ -111,6 +116,7 @@ export interface PatristicCancelRequest {
 export type PatristicWorkerRequest =
   | PatristicInitTreeRequest
   | PatristicBuildEdgesRequest
+  | PatristicBuildMstEdgesRequest
   | PatristicBuildNearestNeighborRequest
   | PatristicExportMatrixRequest
   | PatristicCancelRequest;
