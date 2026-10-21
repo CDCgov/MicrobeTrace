@@ -5,6 +5,7 @@ import {
   collectTreeSplitKeys,
   countMatchingTreeSplits,
   formatBootstrapSupportLabel,
+  hasBootstrapSupportLabels,
   isSupportStable,
   normalizeBootstrapSupportThreshold,
   parseBootstrapSupportPercent,
@@ -55,6 +56,47 @@ describe('phylogenetic bootstrap utilities', () => {
     expect(parseBootstrapSupportPercent('clade-a')).toBeNull();
     expect(parseBootstrapSupportPercent('-0.5')).toBeNull();
     expect(parseBootstrapSupportPercent('101')).toBeNull();
+  });
+
+  it('detects valid bootstrap values on non-root internal nodes', () => {
+    ['0.8095', '85.25', '91.5%'].forEach(id => {
+      const tree: any = {
+        id: '100',
+        children: [
+          { id, children: [{ id: 'A' }, { id: 'B' }] },
+          { id: 'C' },
+        ],
+      };
+
+      expect(hasBootstrapSupportLabels(tree)).withContext(id).toBeTrue();
+    });
+  });
+
+  it('ignores named, out-of-range, leaf-only, and root-only numeric labels', () => {
+    const namedInternalNode: any = {
+      children: [
+        { id: 'clade-a', children: [{ id: 'A' }, { id: 'B' }] },
+        { id: 'C' },
+      ],
+    };
+    const outOfRangeInternalNode: any = {
+      children: [
+        { id: '101', children: [{ id: 'A' }, { id: 'B' }] },
+        { id: 'C' },
+      ],
+    };
+    const numericLeavesOnly: any = {
+      children: [{ id: '0.8' }, { id: '95' }],
+    };
+    const numericRootOnly: any = {
+      id: '0.95',
+      children: [{ id: 'A' }, { id: 'B' }],
+    };
+
+    expect(hasBootstrapSupportLabels(namedInternalNode)).toBeFalse();
+    expect(hasBootstrapSupportLabels(outOfRangeInternalNode)).toBeFalse();
+    expect(hasBootstrapSupportLabels(numericLeavesOnly)).toBeFalse();
+    expect(hasBootstrapSupportLabels(numericRootOnly)).toBeFalse();
   });
 
   it('bounds bootstrap support thresholds to percentages', () => {
