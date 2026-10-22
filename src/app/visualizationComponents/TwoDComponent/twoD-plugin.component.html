@@ -6,33 +6,139 @@
   <span style="overflow: visible; position: relative; width: 110px;">
     <a title="Settings" data-testid="twod-settings-button" class="btn btn-sm btn-clean btn-icon btn-icon-md" style="float:left" (click)="openSettings()"><i class="flaticon-settings primary"></i></a>
   </span>
-  <span style="overflow: visible; position: relative; width: 110px;">
-    <a title="Export Screen" class="btn btn-sm btn-clean btn-icon btn-icon-md" style="float:left" (click)="openExport()"><i class="flaticon-download primary"></i></a>
-  </span>
-  <span style="overflow: visible; position: relative; width: 110px;">
-    <a title="Center Screen" class="btn btn-sm btn-clean btn-icon btn-icon-md" style="float:left" (click)="openCenter()"><i class="flaticon-eye primary"></i></a>
-  </span>
-  <span style="overflow: visible; position: relative; width: 110px;">
-    <a title="Pin All Nodes" data-testid="twod-pin-all-button" class="btn btn-sm btn-clean btn-icon btn-icon-md" style="float:left" (click)="pinNodes()"
-      [style.background]="commonService.session.network.allPinned ? 'lightblue': null"
-      ><i class="flaticon-pin primary"></i></a>
+  @if (!canvasFallbackSuppressed) {
+    <span style="overflow: visible; position: relative; width: 110px;">
+      <a title="Export Screen" data-testid="twod-export-button" class="btn btn-sm btn-clean btn-icon btn-icon-md" style="float:left" (click)="openExport()"><i class="flaticon-download primary"></i></a>
     </span>
     <span style="overflow: visible; position: relative; width: 110px;">
-      <a  title="Recalculate Layout. Disabled when nodes are pinned." data-testid="twod-recalculate-layout-button" class="btn btn-sm btn-clean btn-icon btn-icon-md" style="float:left" (click)="updateLayout()"
+      <a title="Center Screen" class="btn btn-sm btn-clean btn-icon btn-icon-md" style="float:left" (click)="openCenter()"><i class="flaticon-eye primary"></i></a>
+    </span>
+    <span style="overflow: visible; position: relative; width: 110px;">
+      <a title="Pin All Nodes" data-testid="twod-pin-all-button" class="btn btn-sm btn-clean btn-icon btn-icon-md" style="float:left" (click)="pinNodes()"
+        [style.background]="commonService.session.network.allPinned ? 'lightblue': null"
+        ><i class="flaticon-pin primary"></i></a>
+    </span>
+    <span style="overflow: visible; position: relative; width: 110px;">
+      <a title="Recalculate Layout. Disabled when nodes are pinned." data-testid="twod-recalculate-layout-button" class="btn btn-sm btn-clean btn-icon btn-icon-md" style="float:left" (click)="updateLayout()"
         [ngClass]="commonService.session.network.allPinned ? 'disabled' : ''">
         <i class="flaticon-refresh primary"></i></a>
-      </span>
+    </span>
+  }
+</div>
+
+@if (sigmaRequested && sigmaActive) {
+  <div class="network-detail-control" data-testid="network-detail-control">
+    <div class="network-detail-control__header">
+      <div class="network-detail-control__title">
+        <span class="network-detail-control__label">Link detail</span>
+        <button type="button" class="network-detail-control__info"
+          data-testid="network-detail-info"
+          aria-label="About link detail options"
+          aria-describedby="network-detail-tooltip">
+          <i class="pi pi-info-circle" aria-hidden="true"></i>
+        </button>
+        <div id="network-detail-tooltip" class="network-detail-control__tooltip" role="tooltip"
+          data-testid="network-detail-tooltip">
+          <p class="network-detail-control__tooltip-intro">
+            These options change what is drawn, not your data, filters, or link totals.
+          </p>
+          <p><strong>Overview</strong> uses a link allowance based on network size and zoom. When links need to be reduced, it keeps a stable shortest-link backbone, then favors short links that connect nodes and groups in the current view, nearby links per node, and links just outside the view. Zoom in to reveal more; zoom out to show fewer.</p>
+          <p><strong>Detailed</strong> uses the same selection rules with a higher link allowance and more nearby connections per node. Zoom still adjusts what is shown.</p>
+          <p><strong>All links</strong> draws every link remaining after your filters and Link Threshold. Zoom and camera position do not hide links. Large networks may look crowded and respond more slowly.</p>
+          <p class="network-detail-control__tooltip-note">
+            In Overview or Detailed, selecting one node shows all of that node's links. Hovering does the same when <strong>Highlight neighbors</strong> is enabled.
+          </p>
+        </div>
+      </div>
+      @if (sigmaLoading) {
+        <span class="network-detail-control__status" data-testid="network-display-status" role="status">
+          <span class="network-detail-control__spinner" aria-hidden="true"></span>
+          {{ sigmaLoadingMessage }}
+        </span>
+      } @else if (sigmaRecoveryMessage) {
+        <span class="network-detail-control__status" data-testid="network-display-status" role="status">
+          {{ sigmaRecoveryMessage }}
+        </span>
+      }
     </div>
+    <div class="network-detail-control__segments" role="group" aria-label="Link detail level">
+      <button type="button" data-testid="network-detail-overview"
+        [class.active]="sigmaSummary.edgeDetailMode === 'overview'"
+        [attr.aria-pressed]="sigmaSummary.edgeDetailMode === 'overview'"
+        title="Use a zoom-aware selection of the most useful links."
+        (click)="setSigmaEdgeDetailMode('overview')">Overview</button>
+      <button type="button" data-testid="network-detail-detailed"
+        [class.active]="sigmaSummary.edgeDetailMode === 'detail'"
+        [attr.aria-pressed]="sigmaSummary.edgeDetailMode === 'detail'"
+        title="Use the same selection rules with a higher link allowance."
+        (click)="setSigmaEdgeDetailMode('detail')">Detailed</button>
+      <button type="button" data-testid="network-detail-all"
+        [class.active]="sigmaSummary.edgeDetailMode === 'all'"
+        [attr.aria-pressed]="sigmaSummary.edgeDetailMode === 'all'"
+        title="Draw every link remaining after filters and Link Threshold."
+        (click)="setSigmaEdgeDetailMode('all')">All links</button>
+    </div>
+    @if (!sigmaLoading) {
+      <div class="network-detail-control__metrics" data-testid="network-render-summary"
+        aria-live="polite" aria-atomic="true">
+        <span><strong>{{ sigmaSummary.residentNodeCount.toLocaleString() }}</strong> nodes</span>
+        <span class="network-detail-control__metrics-separator" aria-hidden="true">&bull;</span>
+        <span>
+          <strong>{{ sigmaSummary.drawnLinkCount.toLocaleString() }}</strong>
+          @if (sigmaSummary.drawnLinkCount < sigmaSummary.residentLinkCount) {
+            of <strong>{{ sigmaSummary.residentLinkCount.toLocaleString() }}</strong>
+          }
+          links shown
+        </span>
+      </div>
+    }
+  </div>
+}
 
     <!-- <div #cy id="cy" style="width: 100%; height: 100%;"></div> -->
 
     <div #exportContainer class="cytoscape-container" style="position: relative;">
-      <div #cy id="cy" style="width: 100%; height: 100%; position: relative;"></div>
+      @if (sigmaActive) {
+        <div #sigmaNetwork id="sigma-network" data-testid="sigma-network" tabindex="0"
+          role="application" aria-label="Network visualization"
+          aria-describedby="network-renderer-keyboard-instructions network-renderer-live-status"
+          [style.background-color]="widgets['background-color'] || '#ffffff'"
+          (pointerdown)="onRendererPointerInteraction()" (click)="onRendererPointerInteraction()"
+          (focus)="onRendererKeyboardFocus($event)" (keydown)="onRendererKeydown($event)"></div>
+      } @else if (!canvasFallbackSuppressed) {
+        <div #cy id="cy" tabindex="0" role="application" aria-label="Network visualization"
+          aria-describedby="network-renderer-keyboard-instructions network-renderer-live-status"
+          style="width: 100%; height: 100%; position: relative;"
+          (pointerdown)="onRendererPointerInteraction()" (click)="onRendererPointerInteraction()"
+          (focus)="onRendererKeyboardFocus($event)" (keydown)="onRendererKeydown($event)"></div>
+      } @else {
+        <section class="network-canvas-safety-message" data-testid="network-canvas-safety-message"
+          aria-label="Interactive network display unavailable">
+          <h3>Interactive network display unavailable</h3>
+          <p>{{ sigmaFallbackReason }}</p>
+        </section>
+      }
       <div class="grid-overlay" [class.hidden]="!widgets['network-gridlines-show']"></div>
 
       <!-- Static Watermark (Optional) -->
       <div id="watermark" class="watermark"></div>
     </div>
+    <div id="network-renderer-keyboard-instructions" class="sr-only">
+      Use arrow keys, Home, or End to move through nodes. Press Enter or Space to toggle selection. Press Escape to clear selection.
+    </div>
+    <p id="network-renderer-live-status" class="sr-only" aria-live="polite" aria-atomic="true"
+      data-testid="network-renderer-live-status">{{ rendererKeyboardLiveStatus }}</p>
+    <section class="sr-only" data-testid="renderer-accessible-feature-summary"
+      aria-label="Network feature summary">
+      <p aria-live="polite">{{ rendererAccessibleFeatureSummary }}</p>
+      <ul>
+        @for (item of rendererAccessibleFeatureItems; track item.id) {
+          <li [attr.data-node-id]="item.id">
+            {{ item.id }}: {{ item.description }}{{ item.selected ? '; selected' : '' }}
+          </li>
+        }
+      </ul>
+    </section>
     <div id="network-statistics-wrapper">
       <div id="network-statistics-draghandle"><span class="oi oi-move"></span></div>
       <table #networkStats id="network-statistics-table">
@@ -127,10 +233,10 @@
                             pButton
                             type="button"
                             id="open-global-shape-settings"
-                            label="Show Shapes"
                             class="ui-button-raised width-percent-100"
                             (click)="showGlobalSettings($event)"
                             [style]="{'background-color': '#2196f3', 'border': '1px solid #2196f3'}">
+                            <span class="p-button-label">Show Shapes</span>
                           </button>
                         </div>
                       </div>
@@ -232,7 +338,7 @@
             <p-accordion-content><div #linkcontrolsshapes>
               <div id="link-transparency-row" class="form-group row" title="How transparent should the links be?">
                 <div class="col-4"><label for="link-opacity">Transparency</label></div>
-                <div class="col-8"><input type="range" class="custom-range" id="link-opacity" min="0" max="1" value="0" step="0.01" [(ngModel)]="SelectedLinkTransparencyVariable" (ngModelChange)="onLinkOpacityChange($event)"></div>
+                <div class="col-8"><input type="range" class="custom-range" id="link-opacity" min="0" max="1" value="1" step="0.01" [(ngModel)]="SelectedLinkTransparencyVariable" (ngModelChange)="onLinkOpacityChange($event)"></div>
               </div>
               <div class="form-group row" title="Which variable should determine the width of a link?">
                 <div class="col-4"><label for="link-width-variable">Width By</label></div>
@@ -307,6 +413,23 @@
               <p-select id="network-layout" data-testid="twod-network-layout" [options]="NetworkLayoutOptions" appendTo="body" class="width-percent-100" [disabled]="commonService.session.network.allPinned" [(ngModel)]="SelectedNetworkLayoutVariable" (ngModelChange)="onNetworkLayoutChange($event)"></p-select>
             </div>
           </div>
+          <div class="form-group row" title="Position network nodes using the selected latitude and longitude fields.">
+            <div class="col-3">Geographic Layout</div>
+            <div class="col-9">
+              <p-select-button id="network-geographic-overlay" [options]="hideShowOptions" [allowEmpty]="false" fluid
+                [(ngModel)]="widgets['network-geographic-overlay']" (ngModelChange)="onRendererGeographicSettingsChange()"></p-select-button>
+            </div>
+          </div>
+          @if (widgets['network-geographic-overlay']) {
+            <div class="form-group row">
+              <div class="col-3"><label for="network-geographic-latitude">Latitude</label></div>
+              <div class="col-9"><p-select id="network-geographic-latitude" [options]="FieldList" appendTo="body" class="width-percent-100" [(ngModel)]="widgets['map-field-lat']" (ngModelChange)="onRendererGeographicSettingsChange()"></p-select></div>
+            </div>
+            <div class="form-group row">
+              <div class="col-3"><label for="network-geographic-longitude">Longitude</label></div>
+              <div class="col-9"><p-select id="network-geographic-longitude" [options]="FieldList" appendTo="body" class="width-percent-100" [(ngModel)]="widgets['map-field-lon']" (ngModelChange)="onRendererGeographicSettingsChange()"></p-select></div>
+            </div>
+          }
         </div>
       </p-accordion-content>
     </p-accordion-panel>

@@ -31,6 +31,15 @@ export default defineConfig({
       treeValidationMode: 0,
     },
     setupNodeEvents(on, config) {
+      if (config.env.perfMode) {
+        on('before:browser:launch', (browser, launchOptions) => {
+          if (browser.family === 'chromium') {
+            launchOptions.args.push('--enable-precise-memory-info');
+            launchOptions.args.push('--js-flags=--expose-gc');
+          }
+          return launchOptions;
+        });
+      }
       registerOracleTasks(on);
       registerPerformanceTasks(on);
       return config;
