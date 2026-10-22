@@ -1,0 +1,33 @@
+{
+  "version": "v2",
+  "meta": {
+    "title": "Synthetic minimal MicrobeTrace export",
+    "updated": "2026-09-22",
+    "panels": [
+      "tree"
+    ],
+    "display_defaults": {
+      "distance_measure": "div"
+    }
+  },
+  "tree": {
+    "name": "NODE_0000000",
+    "node_attrs": {
+      "div": 0
+    },
+    "children": [
+      {
+        "name": "sample_b",
+        "node_attrs": {
+          "div": 0.2
+        }
+      },
+      {
+        "name": "sample_a",
+        "node_attrs": {
+          "div": 0.1
+        }
+      }
+    ]
+  }
+}

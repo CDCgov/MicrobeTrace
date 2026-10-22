@@ -42,6 +42,22 @@ import type {
   PhylogeneticBootstrapProgress,
 } from '@app/workers/phylogenetic-bootstrap.types';
 import { createGlobalSettingsDialogRequest, GlobalSettingsDialogRequest } from '@app/helperClasses/globalSettingsDialogRequest';
+import {
+  AuspiceExportError,
+  AuspiceExportFieldOption,
+  AuspiceExportOptions,
+  AuspiceColoringStyle,
+  AuspiceGeographyField,
+  AuspiceMapLookupData,
+  AuspiceSourceTreeNode,
+  AuspiceTreeScope,
+  buildAuspiceV2Dataset,
+  ensureAuspiceJsonFilename,
+  getAuspiceExportFieldOptions,
+  resolveAuspiceExportNodeCoordinates,
+} from '@app/helperClasses/auspiceExporter';
+
+type AuspiceExportSelectionCategory = 'metadata' | 'colorings' | 'filters';
 
 /**
  * @title PhylogeneticComponent
@@ -170,6 +186,16 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
 
   SelectedTreeImageFilenameVariable = 'default_tree';
   SelectedNewickStringFilenameVariable = 'default_tree.nwk';
+  SelectedAuspiceFilenameVariable = 'microbetrace-auspice.json';
+  SelectedAuspiceTreeScope: AuspiceTreeScope = 'full';
+  AuspiceExportErrorMessage = '';
+  AuspiceMetadataFieldOptions: AuspiceExportFieldOption[] = [];
+  AuspiceColoringFieldOptions: AuspiceExportFieldOption[] = [];
+  SelectedAuspiceMetadataFieldKeys = new Set<string>();
+  SelectedAuspiceColoringFieldKeys = new Set<string>();
+  SelectedAuspiceFilterFieldKeys = new Set<string>();
+  private auspiceFilenameSourceName = '';
+  private auspiceExportSelectionsCustomized = false;
 
   NetworkExportFileTypeList: object = [
     { label: 'png', value: 'png' },
@@ -194,6 +220,8 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
   tree: TidyTree = null;
   originalTreeData: any = null;
   hasTreeBeenModifiedFromOriginal = false;
+  private auspiceFullTreeData: AuspiceSourceTreeNode | null = null;
+  private isSubtreeView = false;
   private treeLeafShapeUriCache = new Map<string, string>();
   private treeRenderRecoveryFrame: number | null = null;
   private treeRenderRecoveryAttempts = 0;
@@ -249,6 +277,8 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
       this.commonService.visuals.phylogenetic.tree = tree;
       this.originalTreeData = tree.data?.clone ? tree.data.clone() : tree.data;
       this.hasTreeBeenModifiedFromOriginal = false;
+      this.isSubtreeView = false;
+      this.captureAuspiceFullTreeData();
       //this.mergeNodeData();
       this.hideTooltip();
       this.styleTree();
@@ -262,6 +292,8 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
         this.commonService.visuals.phylogenetic.tree = tree;
         this.originalTreeData = tree.data?.clone ? tree.data.clone() : tree.data;
         this.hasTreeBeenModifiedFromOriginal = false;
+        this.isSubtreeView = false;
+        this.captureAuspiceFullTreeData();
         //this.mergeNodeData();
         this.hideTooltip();
         this.styleTree();
@@ -365,6 +397,8 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
     this.commonService.visuals.phylogenetic.tree = tree;
     this.originalTreeData = tree.data?.clone ? tree.data.clone() : tree.data;
     this.hasTreeBeenModifiedFromOriginal = false;
+    this.isSubtreeView = false;
+    this.captureAuspiceFullTreeData();
 
     const rebuiltNodeCount = canvas.selectAll('svg g.tidytree-node').size();
     const treeRendered = rebuiltNodeCount >= expectedNodeCount;
@@ -907,6 +941,15 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
 
 
   openExport() {
+    const sourceName = this.getAuspiceSourceName();
+    if (sourceName !== this.auspiceFilenameSourceName) {
+      this.SelectedAuspiceFilenameVariable = `${sourceName}-auspice.json`;
+      this.auspiceFilenameSourceName = sourceName;
+    }
+    this.AuspiceExportErrorMessage = '';
+    this.SelectedAuspiceTreeScope = 'full';
+    this.auspiceExportSelectionsCustomized = false;
+    this.prepareAuspiceExportOptions(true);
     this.ShowPhylogeneticExportPane = true;
 
     this.isExportClosed = false;
@@ -1325,6 +1368,8 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
     this.commonService.session.data.newickString = this.tree.data.toNewick(false);
     this.originalTreeData = this.tree.data?.clone ? this.tree.data.clone() : this.tree.data;
     this.hasTreeBeenModifiedFromOriginal = false;
+    this.isSubtreeView = false;
+    this.captureAuspiceFullTreeData();
 
     if (redraw) {
       this.styleTree();
@@ -1522,6 +1567,415 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
     saveAs(newickBlob, this.SelectedNewickStringFilenameVariable);
   }
 
+  async saveAuspiceJson(): Promise<void> {
+    this.AuspiceExportErrorMessage = '';
+
+    try {
+      const exportOptions = await this.getResolvedAuspiceExportOptions();
+      this.prepareAuspiceExportOptions(false, exportOptions);
+      const dataset = buildAuspiceV2Dataset({
+        ...exportOptions,
+        metadataFieldKeys: Array.from(this.SelectedAuspiceMetadataFieldKeys),
+        coloringFieldKeys: Array.from(this.SelectedAuspiceColoringFieldKeys),
+        filterFieldKeys: Array.from(this.SelectedAuspiceFilterFieldKeys),
+      });
+      const filename = ensureAuspiceJsonFilename(
+        this.SelectedAuspiceFilenameVariable,
+        `${this.getAuspiceSourceName()}-auspice.json`,
+      );
+      this.SelectedAuspiceFilenameVariable = filename;
+      const auspiceBlob = new Blob(
+        [JSON.stringify(dataset, null, 2)],
+        { type: 'application/json;charset=utf-8' },
+      );
+      saveAs(auspiceBlob, filename);
+      this.ShowPhylogeneticExportPane = false;
+    } catch (error) {
+      if (!(error instanceof AuspiceExportError)) {
+        console.error('Unable to export the current tree as Auspice JSON.', error);
+      }
+      this.AuspiceExportErrorMessage = error instanceof Error
+        ? error.message
+        : 'Unable to export the current tree as Auspice JSON.';
+    }
+  }
+
+  prepareAuspiceExportOptions(
+    resetSelections = false,
+    exportOptions: AuspiceExportOptions = this.getAuspiceExportOptions(),
+  ): void {
+    try {
+      const fieldOptions = getAuspiceExportFieldOptions(exportOptions)
+        .sort((left, right) => left.title.localeCompare(right.title));
+      this.AuspiceMetadataFieldOptions = fieldOptions.filter(field => !field.synthetic);
+      this.AuspiceColoringFieldOptions = fieldOptions;
+      this.AuspiceExportErrorMessage = '';
+
+      if (resetSelections || !this.auspiceExportSelectionsCustomized) {
+        this.SelectedAuspiceMetadataFieldKeys = new Set(
+          this.AuspiceMetadataFieldOptions.map(field => field.key),
+        );
+        this.SelectedAuspiceColoringFieldKeys = new Set(fieldOptions.map(field => field.key));
+        this.SelectedAuspiceFilterFieldKeys = new Set(fieldOptions.map(field => field.key));
+        return;
+      }
+
+      const availableKeys = new Set(fieldOptions.map(field => field.key));
+      const metadataKeys = new Set(this.AuspiceMetadataFieldOptions.map(field => field.key));
+      this.SelectedAuspiceMetadataFieldKeys = new Set(
+        Array.from(this.SelectedAuspiceMetadataFieldKeys)
+          .filter(key => metadataKeys.has(key)),
+      );
+      this.SelectedAuspiceColoringFieldKeys = this.reconcileAuspiceMenuSelection(
+        this.SelectedAuspiceColoringFieldKeys,
+        availableKeys,
+      );
+      this.SelectedAuspiceFilterFieldKeys = this.reconcileAuspiceMenuSelection(
+        this.SelectedAuspiceFilterFieldKeys,
+        availableKeys,
+      );
+    } catch (error) {
+      this.AuspiceMetadataFieldOptions = [];
+      this.AuspiceColoringFieldOptions = [];
+      this.SelectedAuspiceMetadataFieldKeys = new Set();
+      this.SelectedAuspiceColoringFieldKeys = new Set();
+      this.SelectedAuspiceFilterFieldKeys = new Set();
+      this.AuspiceExportErrorMessage = error instanceof Error
+        ? error.message
+        : 'Unable to prepare Auspice export options.';
+    }
+  }
+
+  onAuspiceTreeScopeChange(): void {
+    this.AuspiceExportErrorMessage = '';
+    this.prepareAuspiceExportOptions();
+  }
+
+  isAuspiceFieldSelected(category: AuspiceExportSelectionCategory, key: string): boolean {
+    return this.getAuspiceSelection(category).has(key);
+  }
+
+  setAuspiceFieldSelection(
+    category: AuspiceExportSelectionCategory,
+    key: string,
+    selected: boolean,
+  ): void {
+    this.auspiceExportSelectionsCustomized = true;
+    const selection = this.getAuspiceSelection(category);
+    selected ? selection.add(key) : selection.delete(key);
+
+    if (category === 'metadata' && !selected) {
+      this.SelectedAuspiceColoringFieldKeys.delete(key);
+      this.SelectedAuspiceFilterFieldKeys.delete(key);
+    } else if (category !== 'metadata' && selected) {
+      const field = this.AuspiceColoringFieldOptions.find(option => option.key === key);
+      if (field && !field.synthetic) this.SelectedAuspiceMetadataFieldKeys.add(key);
+    }
+  }
+
+  toggleAllAuspiceFields(category: AuspiceExportSelectionCategory): void {
+    this.auspiceExportSelectionsCustomized = true;
+    const fields = this.getAuspiceMenuFields(category);
+    const shouldSelect = !this.areAllAuspiceFieldsSelected(category);
+    const selection = this.getAuspiceSelection(category);
+
+    fields.forEach(field => {
+      shouldSelect ? selection.add(field.key) : selection.delete(field.key);
+      if (category === 'metadata' && !shouldSelect) {
+        this.SelectedAuspiceColoringFieldKeys.delete(field.key);
+        this.SelectedAuspiceFilterFieldKeys.delete(field.key);
+      } else if (category !== 'metadata' && shouldSelect && !field.synthetic) {
+        this.SelectedAuspiceMetadataFieldKeys.add(field.key);
+      }
+    });
+  }
+
+  areAllAuspiceFieldsSelected(category: AuspiceExportSelectionCategory): boolean {
+    const fields = this.getAuspiceMenuFields(category);
+    const selection = this.getAuspiceSelection(category);
+    return fields.length > 0 && fields.every(field => selection.has(field.key));
+  }
+
+  private getAuspiceExportOptions(nodes = this.commonService.session.data?.nodes): AuspiceExportOptions {
+    const widgets = this.commonService.session.style.widgets;
+    return {
+      tree: this.tree?.data,
+      fullTree: this.auspiceFullTreeData ?? this.originalTreeData ?? this.tree?.data,
+      attributeTree: this.getAuspiceAttributeTreeData(),
+      treeScope: this.SelectedAuspiceTreeScope,
+      nodes,
+      nodeFields: this.commonService.session.data?.nodeFields,
+      title: this.getAuspiceExportTitle(),
+      updated: new Date(),
+      colorBy: widgets['node-color-variable'],
+      temporalFields: this.getAuspiceTemporalFields(),
+      coloringStyles: this.getAuspiceColoringStyles(),
+      latitudeField: widgets['map-field-lat'],
+      longitudeField: widgets['map-field-lon'],
+      geographyFields: this.getAuspiceGeographyFields(),
+      bootstrap: this.commonService.session.data?.phylogeneticBootstrap,
+    };
+  }
+
+  private async getResolvedAuspiceExportOptions(): Promise<AuspiceExportOptions> {
+    const options = this.getAuspiceExportOptions();
+    const mapData = await this.loadAuspiceMapLookupData(options.geographyFields || []);
+    return {
+      ...options,
+      nodes: resolveAuspiceExportNodeCoordinates(options, mapData),
+    };
+  }
+
+  private async loadAuspiceMapLookupData(
+    geographyFields: AuspiceGeographyField[],
+  ): Promise<AuspiceMapLookupData> {
+    const keys = new Set(geographyFields.map(definition => definition.key));
+    const mapData: AuspiceMapLookupData = {};
+    const requests: Promise<void>[] = [];
+    const load = (type: string, assign: (data: any) => void): void => {
+      requests.push(this.commonService.getMapData(type).then(data => assign(data)));
+    };
+
+    if (keys.has('country')) load('countries.json', data => { mapData.countries = data; });
+    if (keys.has('state') || keys.has('division') || keys.has('county')) {
+      load('states.json', data => { mapData.states = data; });
+    }
+    if (keys.has('county')) load('counties.json', data => { mapData.counties = data; });
+    if (keys.has('zipcode')) load('zipcodes.csv', data => { mapData.zipcodes = data; });
+    if (keys.has('tract')) load('tracts.csv', data => { mapData.tracts = data; });
+
+    await Promise.all(requests);
+    return mapData;
+  }
+
+  private getAuspiceAttributeTreeData(): AuspiceSourceTreeNode | undefined {
+    const datedNewickTree = this.commonService.session.data?.datedNewickTree;
+    if (this.isAuspiceSourceTree(datedNewickTree)) return datedNewickTree;
+    const sessionTree = this.commonService.session.data?.tree;
+    if (this.isAuspiceSourceTree(sessionTree)) return sessionTree;
+    return this.auspiceFullTreeData ?? undefined;
+  }
+
+  private isAuspiceSourceTree(value: any): value is AuspiceSourceTreeNode {
+    return !!value && typeof value === 'object' && (
+      Array.isArray(value.children)
+      || (value.id !== undefined && value.id !== null && String(value.id).trim().length > 0)
+    );
+  }
+
+  private captureAuspiceFullTreeData(): void {
+    if (!this.tree?.data) return;
+    this.auspiceFullTreeData = this.snapshotAuspiceTree(this.tree.data);
+  }
+
+  private snapshotAuspiceTree(source: any): AuspiceSourceTreeNode {
+    const snapshot: AuspiceSourceTreeNode = {
+      id: source?.id,
+      length: source?.length,
+    };
+    if (source?.data && typeof source.data === 'object' && !Array.isArray(source.data)) {
+      snapshot.data = { ...source.data };
+    }
+    const children = Array.isArray(source?.children) ? source.children : [];
+    if (children.length) {
+      snapshot.children = children.map(child => this.snapshotAuspiceTree(child));
+    }
+    return snapshot;
+  }
+
+  private getAuspiceSelection(category: AuspiceExportSelectionCategory): Set<string> {
+    if (category === 'metadata') return this.SelectedAuspiceMetadataFieldKeys;
+    if (category === 'colorings') return this.SelectedAuspiceColoringFieldKeys;
+    return this.SelectedAuspiceFilterFieldKeys;
+  }
+
+  private getAuspiceMenuFields(
+    category: AuspiceExportSelectionCategory,
+  ): AuspiceExportFieldOption[] {
+    if (category === 'metadata') return this.AuspiceMetadataFieldOptions;
+    return this.AuspiceColoringFieldOptions;
+  }
+
+  private reconcileAuspiceMenuSelection(
+    selection: Set<string>,
+    availableKeys: Set<string>,
+  ): Set<string> {
+    const syntheticKeys = new Set(
+      this.AuspiceColoringFieldOptions
+        .filter(field => field.synthetic)
+        .map(field => field.key),
+    );
+    return new Set(Array.from(selection).filter(key => (
+      availableKeys.has(key)
+      && (syntheticKeys.has(key) || this.SelectedAuspiceMetadataFieldKeys.has(key))
+    )));
+  }
+
+  private getAuspiceSourceName(): string {
+    const files = Array.isArray(this.commonService.session.files)
+      ? this.commonService.session.files
+      : [];
+    const source = files.find(file => (
+      ['auspice', 'newick', 'fasta', 'matrix', 'node', 'link', 'network'].includes(file?.format)
+      || ['auspice', 'newick', 'fasta', 'matrix', 'node', 'link', 'network'].includes(file?.datatype)
+    )) || files[0];
+    const sourceName = String(source?.name ?? '').trim().replace(/\.[^.]+$/, '');
+    return sourceName || 'microbetrace-tree';
+  }
+
+  private getAuspiceExportTitle(): string {
+    const partnerDatasetName = String(
+      (this.commonService.session.meta as any)?.partnerEmbed?.datasetName ?? '',
+    ).trim();
+    return partnerDatasetName || this.getAuspiceSourceName();
+  }
+
+  private getAuspiceTemporalFields(): string[] {
+    const widgets = this.commonService.session.style.widgets;
+    const timelineFields = [
+      widgets['timeline-date-field'],
+      ...(Array.isArray(widgets['epiCurve-date-fields']) ? widgets['epiCurve-date-fields'] : []),
+    ];
+    return timelineFields.filter(field => (
+      typeof field === 'string' && field.trim() && field !== 'None'
+    ));
+  }
+
+  private getAuspiceColoringStyles(): Record<string, AuspiceColoringStyle> {
+    const sessionStyle: any = this.commonService.session.style || {};
+    const nodes = Array.isArray(this.commonService.session.data?.nodes)
+      ? this.commonService.session.data.nodes
+      : [];
+    const fields = new Set<string>(
+      (Array.isArray(this.commonService.session.data?.nodeFields)
+        ? this.commonService.session.data.nodeFields
+        : [])
+        .filter(field => typeof field === 'string' && field.trim()),
+    );
+    nodes.forEach(node => Object.keys(node || {}).forEach(field => fields.add(field)));
+
+    const colorTables = sessionStyle.nodeColorsTable;
+    const colorTableKeys = sessionStyle.nodeColorsTableKeys;
+    const colorHistory = sessionStyle.nodeColorsTableHistory;
+    const colorAssignments = sessionStyle.nodeColorAssignments;
+    const valueNames = sessionStyle.nodeValueNames;
+    const isRecord = (value: unknown): value is Record<string, any> => (
+      !!value && typeof value === 'object' && !Array.isArray(value)
+    );
+    const styles: Record<string, AuspiceColoringStyle> = Object.create(null);
+
+    fields.forEach(field => {
+      const valuesByKey = new Map<string, string | number>();
+      nodes.forEach(node => {
+        const value = node?.[field];
+        if ((typeof value === 'string' && value.trim())
+            || (typeof value === 'number' && Number.isFinite(value))) {
+          const key = String(value);
+          if (!valuesByKey.has(key)) valuesByKey.set(key, value);
+        }
+      });
+      if (!valuesByKey.size) return;
+
+      const keys = Array.isArray(colorTableKeys?.[field]) ? colorTableKeys[field] : [];
+      const colors = Array.isArray(colorTables?.[field]) ? colorTables[field] : [];
+      const history = isRecord(colorHistory?.[field]) ? colorHistory[field] : {};
+      const assignments = isRecord(colorAssignments?.[field]) ? colorAssignments[field] : {};
+      const orderedKeys = Array.from(new Set([
+        ...keys.map(value => String(value)),
+        ...Object.keys(history),
+        ...Object.keys(assignments),
+      ]));
+      const scale = orderedKeys.flatMap(valueKey => {
+        const value = valuesByKey.get(valueKey);
+        if (value === undefined) return [];
+        const tableIndex = keys.findIndex(candidate => String(candidate) === valueKey);
+        const color = assignments[valueKey]
+          ?? history[valueKey]
+          ?? (tableIndex >= 0 ? colors[tableIndex] : undefined);
+        return typeof color === 'string' ? [[value, color] as [string | number, string]] : [];
+      });
+      const hasLegendLabels = isRecord(valueNames) && Array.from(valuesByKey.keys()).some(valueKey => (
+        Object.prototype.hasOwnProperty.call(valueNames, valueKey)
+        && (typeof valueNames[valueKey] === 'string' || typeof valueNames[valueKey] === 'number')
+      ));
+      const legend = hasLegendLabels
+        ? Array.from(valuesByKey.entries()).map(([valueKey, value]) => {
+          const display = valueNames[valueKey];
+          return typeof display === 'string' || typeof display === 'number'
+            ? { value, display }
+            : { value };
+        })
+        : [];
+
+      if (scale.length || legend.length) {
+        styles[field] = {
+          ...(scale.length ? { scale } : {}),
+          ...(legend.length ? { legend } : {}),
+        };
+      }
+    });
+
+    return styles;
+  }
+
+  private getAuspiceGeographyFields(): AuspiceGeographyField[] {
+    const widgets = this.commonService.session.style.widgets;
+    const availableFields = new Set<string>(
+      (Array.isArray(this.commonService.session.data?.nodeFields)
+        ? this.commonService.session.data.nodeFields
+        : [])
+        .filter((field): field is string => typeof field === 'string'),
+    );
+    const nodes = Array.isArray(this.commonService.session.data?.nodes)
+      ? this.commonService.session.data.nodes
+      : [];
+    nodes.forEach(node => Object.keys(node || {}).forEach(field => availableFields.add(field)));
+    const fieldByLowerName = new Map<string, string>();
+    availableFields.forEach(field => {
+      const normalized = field.trim().toLowerCase();
+      if (normalized && !fieldByLowerName.has(normalized)) fieldByLowerName.set(normalized, field);
+    });
+    const resolveField = (widgetKey: string, inferredNames: string[]): string | null => {
+      const configured = widgets[widgetKey];
+      if (typeof configured === 'string'
+          && configured.trim()
+          && configured.trim().toLowerCase() !== 'none') {
+        return configured.trim();
+      }
+      for (const name of inferredNames) {
+        const match = fieldByLowerName.get(name);
+        if (match) return match;
+      }
+      return null;
+    };
+    const definitions: Array<{
+      key: string;
+      title: string;
+      widgetKey: string;
+      inferredNames: string[];
+    }> = [
+      { key: 'country', title: 'Country', widgetKey: 'map-field-country', inferredNames: ['country', 'country_name', 'nation'] },
+      { key: 'state', title: 'State', widgetKey: 'map-field-state', inferredNames: ['state', 'state_name', 'division', 'province'] },
+      { key: 'county', title: 'County', widgetKey: 'map-field-county', inferredNames: ['county', 'county_name'] },
+      { key: 'zipcode', title: 'ZIP code', widgetKey: 'map-field-zipcode', inferredNames: ['zipcode', 'zip_code', 'postal_code'] },
+      { key: 'tract', title: 'Census tract', widgetKey: 'map-field-tract', inferredNames: ['tract', 'census_tract'] },
+      {
+        key: 'site',
+        title: 'Site',
+        widgetKey: '',
+        inferredNames: [
+          'site', 'site_name', 'location', 'location_name', 'facility', 'facility_name',
+          'venue', 'venue_name', 'microbetrace_location',
+        ],
+      },
+    ];
+
+    return definitions.flatMap(definition => {
+      const field = resolveField(definition.widgetKey, definition.inferredNames);
+      return field ? [{ key: definition.key, title: definition.title, field }] : [];
+    });
+  }
+
 
   getContextLeftVal = (xPos) => {
     if (xPos - 175 < 0) {
@@ -1557,6 +2011,7 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
       .style('top', `${topVal}px`);
     d3.select('#reroot').on('click', c => {
       tree.setData(d[0].data.reroot());
+      if (!this.isSubtreeView) this.captureAuspiceFullTreeData();
       this.hasTreeBeenModifiedFromOriginal = true;
       this.styleTree();
       this.hideContextMenu();
@@ -1564,6 +2019,7 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
     });
     d3.select('#rotate').on('click', c => {
       tree.setData(d[0].data.rotate().getRoot());
+      if (!this.isSubtreeView) this.captureAuspiceFullTreeData();
       this.hasTreeBeenModifiedFromOriginal = true;
       this.styleTree();
       this.hideContextMenu();
@@ -1571,6 +2027,7 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
     });
     d3.select('#flip').on('click', c => {
       tree.setData(d[0].data.flip().getRoot());
+      if (!this.isSubtreeView) this.captureAuspiceFullTreeData();
       this.hasTreeBeenModifiedFromOriginal = true;
       this.styleTree();
       this.hideContextMenu();
@@ -1595,12 +2052,17 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
     const isBranchNode = !!(clickedNode && clickedNode.children && clickedNode.children.length > 0);
     if (!isBranchNode) return;
 
+    if (!this.isSubtreeView) {
+      this.captureAuspiceFullTreeData();
+    }
+
     const subtreeData = clickedNode.data?.clone ? clickedNode.data.clone() : clickedNode.data;
     // Normalize subtree root so weighted ruler starts at 0 for subtree view.
     if (subtreeData) {
       subtreeData.length = 0;
     }
     this.tree.setData(subtreeData);
+    this.isSubtreeView = true;
     this.hasTreeBeenModifiedFromOriginal = true;
     this.styleTree();
     this.openCenter();
@@ -1612,6 +2074,8 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
 
     const fullTreeData = this.originalTreeData.clone ? this.originalTreeData.clone() : this.originalTreeData;
     this.tree.setData(fullTreeData);
+    this.isSubtreeView = false;
+    this.captureAuspiceFullTreeData();
     this.hasTreeBeenModifiedFromOriginal = false;
     this.styleTree();
     this.openCenter();

@@ -1,0 +1,9 @@
+_id,risk_group,severity_rank,valid_date,invalid_date,country,state,county,zipcode,tract,site,latitude,longitude,selected,visible,div,none,constructor,field with spaces,seq
+A,high,3,2024-02-29,2023-02-29,USA,Georgia,Fulton,30303,13121003500,Atlanta Clinic,33.7490,-84.3880,true,true,101,reserved-a,prototype-a,spaces-a,AACCGGTTAACCGGTTAACC
+B,high,2,2024-03-01,2024-04-31,USA,Georgia,Fulton,30303,13121003500,Atlanta Clinic,33.7490,-84.3880,false,true,102,reserved-b,prototype-b,spaces-b,AACCGGTTAACCGGTTAACA
+C,medium,2,2025-12-31,2025-13-01,USA,Georgia,Chatham,31401,13051004000,Savannah Lab,32.0809,-81.0912,false,true,103,reserved-c,prototype-c,spaces-c,AACCGGTTAACCGGTTAGCA
+D,low,1,2026-02-XX,2026-XX-15,USA,Alabama,Mobile,36602,01097000200,Mobile Site,30.6954,-88.0399,false,true,104,reserved-d,prototype-d,spaces-d,AACCGGTTAACCGGTTGGCA
+E,medium,3,2026-XX-XX,2026-00-10,Canada,Ontario,Toronto,M5H,5350012,Toronto Centre,43.6532,-79.3832,false,true,105,reserved-e,prototype-e,spaces-e,AACCGGTTAACCGATTGGCA
+F,low,1,2026-01-15,2026-01-32,USA,Alabama,Montgomery,36104,01101000100,Invalid Coordinate Site,34abc,-86.8000,false,true,106,reserved-f,prototype-f,spaces-f,AACCGGTTAACCGATTGTCA
+G,high,3,2025-07-04,not-a-date,USA,Texas,Travis,78701,48453001100,Austin Clinic,30.2672,-97.7431,false,true,107,reserved-g,prototype-g,spaces-g,AACCGGTTAACCAATTGTCA
+H,low,2,2025-01-01,2025-02-30,USA,Texas,Travis,78702,48453001200,Unmapped Site,,,false,false,108,reserved-h,prototype-h,spaces-h,AACCGGTTAACAAATTGTCA

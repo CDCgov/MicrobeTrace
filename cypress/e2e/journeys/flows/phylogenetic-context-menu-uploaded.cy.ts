@@ -13,6 +13,7 @@ type WinWithMT = Window & {
 const SELECTORS = {
   internalNodeGroups: '#phylocanvas svg g.tidytree-node-internal',
   settingsButton: '#tool-btn-container-phylo a[title="Settings"]',
+  exportButton: '#tool-btn-container-phylo a[title="Export Screen"]',
   restoreTreeButton: '#tool-btn-container-phylo a[title="Restore Full Tree"]',
 };
 
@@ -113,6 +114,51 @@ const applyContextMenuAction = (actionId: 'reroot' | 'rotate' | 'flip' | 'view-s
   cy.get(`#${actionId}`).should('be.visible').click({ force: true });
 };
 
+const orderedTopology = (node: any, nameKey: 'id' | 'name'): any => {
+  const children = Array.isArray(node?.children) ? node.children : [];
+  return children.length
+    ? children.map(child => orderedTopology(child, nameKey))
+    : String(node?.[nameKey] ?? '');
+};
+
+const auspiceDisplayTopology = (node: any): any => {
+  const children = Array.isArray(node?.children) ? node.children : [];
+  return children.length
+    ? [...children].reverse().map(auspiceDisplayTopology)
+    : String(node?.name ?? '');
+};
+
+const exportAndAssertCurrentAuspiceTopology = (
+  label: string,
+  treeScope: 'full' | 'visible' = 'full',
+): void => {
+  cy.window().then((win: WinWithMT) => {
+    const expectedTopology = orderedTopology(
+      win.commonService.visuals.phylogenetic.tree.data,
+      'id',
+    );
+    const filenameBase = `cypress_tree_auspice_${label}_${Date.now()}`;
+    const exportPath = `cypress/downloads/${filenameBase}.json`;
+
+    cy.get(SELECTORS.exportButton).click({ force: true });
+    cy.contains('.p-dialog:visible .nav-link', /^Auspice JSON$/).click({ force: true });
+    if (treeScope === 'visible') {
+      cy.get('#auspice-advanced-options').find('summary').click();
+      cy.get('#auspice-tree-scope-visible').check({ force: true });
+    }
+    cy.get('#auspice-json-filename')
+      .clear({ force: true })
+      .type(filenameBase, { delay: 0, force: true });
+    cy.get('#export-auspice-json').click({ force: true });
+    cy.readFile(exportPath, null, { timeout: 30000 }).then((savedContents) => {
+      const savedText = Cypress.Buffer.from(savedContents).toString('utf8');
+      const dataset = JSON.parse(savedText);
+      expect(auspiceDisplayTopology(dataset.tree), `${label} Auspice display topology`)
+        .to.deep.equal(expectedTopology);
+    });
+  });
+};
+
 describe('Journey Flow - Phylogenetic Tree context menu mutations on uploaded data', () => {
   beforeEach(() => {
     launchProfileToPhyloTree(profile);
@@ -128,6 +174,7 @@ describe('Journey Flow - Phylogenetic Tree context menu mutations on uploaded da
 
     assertTreeDiffersFromInitialNewick();
     assertRestoreButtonState(true);
+    exportAndAssertCurrentAuspiceTopology('rerooted');
 
     cy.get('@initialLeafCount').then((initialLeafCount) => {
       cy.window().then((win: WinWithMT) => {
@@ -148,6 +195,7 @@ describe('Journey Flow - Phylogenetic Tree context menu mutations on uploaded da
 
     assertTreeDiffersFromInitialNewick();
     assertRestoreButtonState(true);
+    exportAndAssertCurrentAuspiceTopology('rotated');
 
     cy.get('@initialLeafCount').then((initialLeafCount) => {
       cy.window().then((win: WinWithMT) => {
@@ -168,6 +216,7 @@ describe('Journey Flow - Phylogenetic Tree context menu mutations on uploaded da
 
     assertTreeDiffersFromInitialNewick();
     assertRestoreButtonState(true);
+    exportAndAssertCurrentAuspiceTopology('flipped');
 
     cy.get('@initialLeafCount').then((initialLeafCount) => {
       cy.window().then((win: WinWithMT) => {
@@ -188,6 +237,7 @@ describe('Journey Flow - Phylogenetic Tree context menu mutations on uploaded da
 
     assertTreeDiffersFromInitialNewick();
     assertRestoreButtonState(true);
+    exportAndAssertCurrentAuspiceTopology('subtree', 'visible');
 
     cy.get('@initialLeafCount').then((initialLeafCount) => {
       cy.window().then((win: WinWithMT) => {

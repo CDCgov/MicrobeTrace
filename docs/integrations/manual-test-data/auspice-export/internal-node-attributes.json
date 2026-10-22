@@ -1,0 +1,113 @@
+{
+  "version": "v2",
+  "meta": {
+    "title": "Internal-node attribute round trip",
+    "updated": "2026-09-23",
+    "panels": ["tree", "map"],
+    "colorings": [
+      {
+        "key": "host",
+        "title": "Host",
+        "type": "categorical"
+      },
+      {
+        "key": "clade_score",
+        "title": "Clade score",
+        "type": "continuous"
+      }
+    ],
+    "filters": ["host", "clade_score"],
+    "geo_resolutions": [
+      {
+        "key": "site",
+        "title": "Site",
+        "demes": {
+          "North Lab": { "latitude": 42.3601, "longitude": -71.0589 },
+          "South Lab": { "latitude": 29.7604, "longitude": -95.3698 }
+        }
+      }
+    ],
+    "display_defaults": {
+      "distance_measure": "div",
+      "color_by": "host",
+      "geo_resolution": "site"
+    }
+  },
+  "tree": {
+    "name": "ORIGINAL_ROOT",
+    "node_attrs": {
+      "div": 0,
+      "clade_score": { "value": 99 },
+      "root_note": { "value": "retain me" }
+    },
+    "branch_attrs": {
+      "labels": {
+        "source_label": "ORIGINAL_ROOT"
+      }
+    },
+    "children": [
+      {
+        "name": "NORTH_CLADE",
+        "node_attrs": {
+          "div": 0.2,
+          "clade_score": { "value": 80 },
+          "internal_note": { "value": "north ancestor" }
+        },
+        "branch_attrs": {
+          "labels": {
+            "source_label": "NORTH_CLADE"
+          }
+        },
+        "children": [
+          {
+            "name": "I1",
+            "node_attrs": {
+              "div": 0.3,
+              "host": { "value": "human" },
+              "site": { "value": "North Lab" }
+            }
+          },
+          {
+            "name": "I2",
+            "node_attrs": {
+              "div": 0.4,
+              "host": { "value": "animal" },
+              "site": { "value": "North Lab" }
+            }
+          }
+        ]
+      },
+      {
+        "name": "SOUTH_CLADE",
+        "node_attrs": {
+          "div": 0.25,
+          "clade_score": { "value": 70 },
+          "internal_note": { "value": "south ancestor" }
+        },
+        "branch_attrs": {
+          "labels": {
+            "source_label": "SOUTH_CLADE"
+          }
+        },
+        "children": [
+          {
+            "name": "I3",
+            "node_attrs": {
+              "div": 0.35,
+              "host": { "value": "human" },
+              "site": { "value": "South Lab" }
+            }
+          },
+          {
+            "name": "I4",
+            "node_attrs": {
+              "div": 0.45,
+              "host": { "value": "animal" },
+              "site": { "value": "South Lab" }
+            }
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -32,6 +32,11 @@ const openNewickExportTab = (): void => {
   cy.get('#newick-string-filename').should('be.visible');
 };
 
+const openAuspiceExportTab = (): void => {
+  cy.contains('.p-dialog:visible .nav-link', /^Auspice JSON$/).click({ force: true });
+  cy.get('#auspice-json-filename').should('be.visible');
+};
+
 describe('Journey Flow - Computed Phylogenetic Tree export on uploaded non-Newick data', () => {
   const profiles: DatasetProfile[] = [
     getProfile('phylo-snps16-matrix'),
@@ -48,6 +53,8 @@ describe('Journey Flow - Computed Phylogenetic Tree export on uploaded non-Newic
       const svgPath = `cypress/downloads/${svgFileBase}.svg`;
       const newickFileBase = `cypress_tree_computed_nwk_${runId}`;
       const newickPath = `cypress/downloads/${newickFileBase}.txt`;
+      const auspiceFileBase = `cypress_tree_computed_auspice_${runId}`;
+      const auspicePath = `cypress/downloads/${auspiceFileBase}.json`;
 
       launchProfileToTwoD(profile);
       assertAfterLaunchCounts(profile);
@@ -94,6 +101,38 @@ describe('Journey Flow - Computed Phylogenetic Tree export on uploaded non-Newic
         cy.readFile(newickPath, 'utf8', { timeout: 30000 }).should((savedText) => {
           expect(normalizeNewickText(savedText), `Newick export contents for ${profile.id}`).to.equal(expectedNewick);
           expect(savedText, `non-negative Newick branches for ${profile.id}`).not.to.match(/:-(?:\d|\.)/);
+        });
+      });
+
+      openAuspiceExportTab();
+      cy.get('#auspice-json-filename')
+        .clear({ force: true })
+        .type(auspiceFileBase, { delay: 0, force: true });
+      cy.get('#export-auspice-json').click({ force: true });
+
+      cy.readFile(auspicePath, null, { timeout: 30000 }).then((savedContents) => {
+        const savedText = Cypress.Buffer.from(savedContents).toString('utf8');
+        const dataset = JSON.parse(savedText);
+        expect(dataset.version, `Auspice version for ${profile.id}`).to.equal('v2');
+        expect(dataset.meta.display_defaults.distance_measure).to.equal('div');
+        expect(dataset.meta.panels, `Auspice panels for ${profile.id}`).to.deep.equal(['tree']);
+        expect(dataset.meta.geo_resolutions, `Auspice geography for ${profile.id}`).to.equal(undefined);
+        expect(savedText, `raw sequence fields for ${profile.id}`).not.to.match(/"(?:seq|sequence|_seq|_seqint)"\s*:/i);
+
+        const assertTree = (node: any, parentDiv = 0): string[] => {
+          expect(node.node_attrs.div, `finite divergence for ${profile.id}`).to.be.a('number');
+          expect(node.node_attrs.div, `non-negative divergence for ${profile.id}`).to.be.at.least(parentDiv);
+          const children = Array.isArray(node.children) ? node.children : [];
+          return children.length
+            ? [...children].reverse().flatMap((child: any) => assertTree(child, node.node_attrs.div))
+            : [String(node.name)];
+        };
+        const exportedLeaves = assertTree(dataset.tree);
+        cy.window().then((win: any) => {
+          const renderedLeaves = win.commonService.visuals.phylogenetic.tree.data
+            .getLeaves()
+            .map((leaf: any) => String(leaf.id));
+          expect(exportedLeaves, `Auspice leaves for ${profile.id}`).to.deep.equal(renderedLeaves);
         });
       });
     });

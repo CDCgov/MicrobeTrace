@@ -1,0 +1,104 @@
+{
+  "version": "v2",
+  "meta": {
+    "title": "Synthetic rich MicrobeTrace export",
+    "updated": "2026-09-22",
+    "panels": [
+      "tree",
+      "map"
+    ],
+    "colorings": [
+      { "key": "_id", "title": "_id", "type": "categorical" },
+      { "key": "cluster", "title": "cluster", "type": "categorical" },
+      { "key": "score", "title": "score", "type": "continuous" },
+      { "key": "selected", "title": "selected", "type": "boolean" },
+      { "key": "visible", "title": "visible", "type": "boolean" },
+      { "key": "collection_date", "title": "collection_date", "type": "temporal" },
+      { "key": "microbetrace_location", "title": "MicrobeTrace location", "type": "categorical" }
+    ],
+    "filters": [
+      "_id",
+      "cluster",
+      "score",
+      "selected",
+      "visible",
+      "collection_date",
+      "microbetrace_location"
+    ],
+    "geo_resolutions": [
+      {
+        "key": "microbetrace_location",
+        "title": "MicrobeTrace location",
+        "demes": {
+          "sample_a": { "latitude": 33.749, "longitude": -84.388 },
+          "sample_b": { "latitude": 40.713, "longitude": -74.006 }
+        }
+      }
+    ],
+    "display_defaults": {
+      "distance_measure": "div",
+      "color_by": "cluster",
+      "geo_resolution": "microbetrace_location",
+      "branch_label": "bootstrap"
+    }
+  },
+  "tree": {
+    "name": "NODE_0000000",
+    "node_attrs": { "div": 0 },
+    "branch_attrs": {
+      "labels": { "microbetrace": "synthetic_root" }
+    },
+    "children": [
+      {
+        "name": "sample_c",
+        "node_attrs": {
+          "div": 0.4,
+          "_id": { "value": "sample_c" },
+          "cluster": { "value": "beta" },
+          "score": { "value": 3.5 },
+          "selected": { "value": false },
+          "visible": { "value": false },
+          "collection_date": { "value": "2026-09-03" }
+        }
+      },
+      {
+        "name": "NODE_0000001",
+        "node_attrs": { "div": 0.1 },
+        "branch_attrs": {
+          "labels": {
+            "bootstrap": "98.0",
+            "microbetrace": "synthetic_clade"
+          }
+        },
+        "children": [
+          {
+            "name": "sample_b",
+            "node_attrs": {
+              "div": 0.3,
+              "_id": { "value": "sample_b" },
+              "cluster": { "value": "alpha" },
+              "score": { "value": 2.5 },
+              "selected": { "value": false },
+              "visible": { "value": true },
+              "collection_date": { "value": "2026-09-02" },
+              "microbetrace_location": { "value": "sample_b" }
+            }
+          },
+          {
+            "name": "sample_a",
+            "node_attrs": {
+              "div": 0.2,
+              "_id": { "value": "sample_a" },
+              "cluster": { "value": "alpha" },
+              "score": { "value": 1.5 },
+              "selected": { "value": true },
+              "visible": { "value": true },
+              "collection_date": { "value": "2026-09-01" },
+              "microbetrace_location": { "value": "sample_a" }
+            }
+          }
+        ]
+      }
+    ]
+  }
+}

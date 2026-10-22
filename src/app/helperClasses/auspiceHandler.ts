@@ -1,5 +1,9 @@
 import { CommonService } from '../contactTraceCommonServices/common.service';
 import * as patristic from 'patristic';
+import {
+  AUSPICE_NUM_DATE_STORAGE_KEY,
+  normalizeAuspiceNumDateAttribute,
+} from './auspiceExporter';
 
 export default class AuspiceHandler {
 
@@ -27,7 +31,9 @@ export default class AuspiceHandler {
       const rootNode = this.makeNode(tree);
       this.nodeList.push(rootNode);
       const newTree = new patristic.Branch(rootNode);
-      for (const child of tree.children) {
+      // Auspice displays serialized children in reverse order. Mirror that
+      // traversal so the imported MicrobeTrace tree has the same orientation.
+      for (const child of [...tree.children].reverse()) {
         const node = this.recurseChildren(child);
         newTree.addChild(node);
       }
@@ -45,6 +51,8 @@ export default class AuspiceHandler {
       node.mutations = tree.branch_attrs.mutations.nuc;
     }
     const nodeAttrs = tree.node_attrs || {};
+    const numDate = normalizeAuspiceNumDateAttribute(nodeAttrs.num_date);
+    if (numDate) node[AUSPICE_NUM_DATE_STORAGE_KEY] = numDate;
     for (const attribute of Object.keys(nodeAttrs)) {
       if (attribute !== 'div') {
         node[attribute] = nodeAttrs[attribute]?.value;
@@ -82,7 +90,7 @@ export default class AuspiceHandler {
 
     function recurse(node, parentX) {
       if (node.hasOwnProperty('children')) {
-        const childSubtrees = node.children.map((child) => {
+        const childSubtrees = [...node.children].reverse().map((child) => {
           const subtree = recurse(child, getXVal(node));
           return subtree;
         });
@@ -175,7 +183,9 @@ export default class AuspiceHandler {
     const latitude = Number(coordinates.latitude);
     const longitude = Number(coordinates.longitude);
 
-    if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+    if (!Number.isFinite(latitude) || !Number.isFinite(longitude)
+        || latitude < -90 || latitude > 90
+        || longitude < -180 || longitude > 180) {
       return null;
     }
 
@@ -208,6 +218,22 @@ export default class AuspiceHandler {
     });
   }
 
+  private getPreferredGeoResolution = (metadata) => {
+    const geoResolutions = this.getGeoResolutions(metadata).filter(resolution => (
+      resolution?.key
+      && resolution?.demes
+      && Object.keys(resolution.demes).some(deme => (
+        this.getDemeCoordinates(resolution, deme) !== null
+      ))
+    ));
+    const configuredKey = metadata?.display_defaults?.geo_resolution;
+    return geoResolutions.find(candidate => candidate.key === configuredKey)
+      || geoResolutions.find(candidate => candidate.key === 'site')
+      || geoResolutions.find(candidate => candidate.key === 'microbetrace_location')
+      || geoResolutions.find(candidate => candidate.key === 'location')
+      || geoResolutions[0];
+  }
+
   private buildMapData = (metadata) => {
     const mapData = {
       countries: this.emptyFeatureCollection(),
@@ -222,19 +248,25 @@ export default class AuspiceHandler {
     this.addResolutionFeatures(
       mapData.states.features,
       geoResolutions.find(resolution => resolution.key === 'division')
+        || geoResolutions.find(resolution => resolution.key === 'state')
     );
+    const preferredResolution = this.getPreferredGeoResolution(metadata);
+    if (preferredResolution && !['country', 'division', 'state'].includes(preferredResolution.key)) {
+      this.addResolutionFeatures(mapData.countries.features, preferredResolution);
+    }
 
     return mapData;
   }
 
   public addLatLong = (nodes, metadata) => {
     const newNodes = [];
-    const geoResolutions = this.getGeoResolutions(metadata);
-    const preferredKey = 'location';
+    const resolution = this.getPreferredGeoResolution(metadata);
+    const preferredKey = resolution?.key;
 
     for (const node of nodes) {
-      const resolution = geoResolutions.find(x => x.key === preferredKey);
-      const coordinates = this.getDemeCoordinates(resolution, node[preferredKey]);
+      const coordinates = preferredKey
+        ? this.getDemeCoordinates(resolution, node[preferredKey])
+        : null;
       if (coordinates) {
         node.latitude = coordinates.latitude;
         node.longitude = coordinates.longitude;
@@ -251,8 +283,13 @@ export default class AuspiceHandler {
     const updatedTree = this.combineMutations(fullTree);
     const bareNewickString =  this.treeToNewick(jsonObj.tree, false, false);
     this.nodeList = this.addLatLong(this.nodeList, jsonObj.meta);
+    const sessionNodes = this.nodeList.map(node => {
+      const sessionNode = { ...node };
+      delete sessionNode[AUSPICE_NUM_DATE_STORAGE_KEY];
+      return sessionNode;
+    });
     return {
-      nodes: this.nodeList,
+      nodes: sessionNodes,
       links: [],
       tree: updatedTree,
       newick: bareNewickString,

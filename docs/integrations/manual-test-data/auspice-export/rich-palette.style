@@ -1,0 +1,69 @@
+{
+  "linkAlphas": [1],
+  "linkColors": ["#a6cee3", "#1f78b4"],
+  "linkValueNames": {},
+  "keyTableColumnNames": {},
+  "nodeAlphas": [1, 1, 1],
+  "nodeColors": ["#d73027", "#fee08b", "#1a9850"],
+  "nodeColorAssignments": {
+    "risk_group": {
+      "high": "#d73027",
+      "medium": "#fee08b",
+      "low": "#1a9850"
+    },
+    "severity_rank": {
+      "1": "#1a9850",
+      "2": "#fee08b",
+      "3": "#d73027"
+    }
+  },
+  "nodeColorsTable": {
+    "risk_group": ["#d73027", "#fee08b", "#1a9850"],
+    "severity_rank": ["#1a9850", "#fee08b", "#d73027"]
+  },
+  "nodeColorsTableHistory": {
+    "risk_group": {
+      "high": "#d73027",
+      "medium": "#fee08b",
+      "low": "#1a9850"
+    },
+    "severity_rank": {
+      "1": "#1a9850",
+      "2": "#fee08b",
+      "3": "#d73027"
+    }
+  },
+  "nodeColorsTableKeys": {
+    "risk_group": ["high", "medium", "low"],
+    "severity_rank": [1, 2, 3]
+  },
+  "linkColorsTable": {},
+  "linkColorsTableHistory": {},
+  "linkColorsTableKeys": {},
+  "nodeSymbols": ["ellipse", "triangle", "rectangle"],
+  "nodeSymbolsTable": {},
+  "nodeSymbolsTableKeys": {},
+  "nodeValueNames": {
+    "high": "High priority",
+    "medium": "Medium priority",
+    "low": "Low priority",
+    "1": "Rank 1 — lowest",
+    "2": "Rank 2 — middle",
+    "3": "Rank 3 — highest"
+  },
+  "polygonAlphas": [0.5],
+  "polygonColors": ["#66c2a5", "#fc8d62"],
+  "polygonValueNames": {},
+  "overwrite": {},
+  "widgets": {
+    "node-color-variable": "risk_group",
+    "timeline-date-field": "valid_date",
+    "map-field-lat": "latitude",
+    "map-field-lon": "longitude",
+    "map-field-country": "country",
+    "map-field-state": "state",
+    "map-field-county": "county",
+    "map-field-zipcode": "zipcode",
+    "map-field-tract": "tract"
+  }
+}

@@ -30,6 +30,7 @@ import {
 import { WorkerComputeService } from '@app/contactTraceCommonServices/worker-compute.service';
 import { GraphMLService } from '@app/contactTraceCommonServices/graphml.service';
 import { clampNegativeBranchLengthsToZero } from '@app/workers/phylogenetic-tree-utils';
+import { parseDatedNewick } from '@app/helperClasses/datedNewick';
 import { findRecommendedThresholdIndex } from '@app/contactTraceCommonServices/threshold-analysis';
 import { FEATURE_FLAGS } from '@app/feature-flags';
 
@@ -1616,6 +1617,7 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
           this.commonService.session.data.tree = auspiceData['tree'];
           this.commonService.session.data.newickString = auspiceData['newick'];
           this.commonService.session.data.newickSource = 'auspice';
+          this.commonService.session.data.datedNewickTree = null;
           let nodeCount = 0;
           const nodeRegex = /^NODE_[0-9]{7}$/i;
           auspiceData['nodes'].forEach(node => {
@@ -2278,10 +2280,11 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
 
       } else { // if(file.format === 'newick'){
 
-        let normalizedNewick = file.contents;
+        const datedNewick = parseDatedNewick(file.contents);
+        let normalizedNewick = datedNewick?.sanitizedNewick ?? file.contents;
         let normalizedTerminalBranchCount = 0;
         try {
-          const parsedNewick = patristic.parseNewick(file.contents);
+          const parsedNewick = patristic.parseNewick(normalizedNewick);
           normalizedTerminalBranchCount = clampNegativeBranchLengthsToZero(parsedNewick, { terminalOnly: true });
           if (normalizedTerminalBranchCount > 0) {
             normalizedNewick = parsedNewick.toNewick(false);
@@ -2292,6 +2295,11 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
 
         this.commonService.session.data.newickString = normalizedNewick;
         this.commonService.session.data.newickSource = 'newick';
+        if (datedNewick) {
+          this.commonService.session.data.datedNewickTree = datedNewick.tree;
+        } else {
+          this.commonService.session.data.datedNewickTree = null;
+        }
         const patristicStart = Date.now();
         this.workerComputeService.initPatristicTree(normalizedNewick).then(async treeReady => {
           if (!isCurrentLoad()) return;

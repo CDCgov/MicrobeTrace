@@ -1,6 +1,6 @@
 # Phylogenetic Tree Cypress E2E Checklist
 
-Current on `cypressTesting` as of 2026-04-04.
+Current on `cypressTesting` as of 2026-09-23.
 
 Companion QA tracker: `docs/testing/views/phylogenetic-tree/phylogenetic-view-cypress-qa-tracker.csv`
 
@@ -54,6 +54,9 @@ For maintained tree journeys, prefer this pattern:
 - [x] Uploaded metadata-backed trees cover branch distance labels, branch nodes, branch size, and single-click leaf selection.
 - [x] Uploaded style files are reflected on the active tree for layout, mode, type, colors, and branch-distance styling.
 - [x] Uploaded Newick trees cover context-menu actions for reroot, rotate, flip, subtree view, and Restore Full Tree.
+- [x] The current tree exports as Auspice v2 JSON with divergence, scalar traits, current color-by, partial geography, and matching bootstrap labels while excluding raw sequences.
+- [x] Auspice JSON exports preserve rendered topology and visible branch orientation after rerooting, rotation, flipping, and subtree selection, and cover Newick, matrix, FASTA, and sequence-node-list tree sources.
+- [x] A generated Auspice JSON file can be imported back into MicrobeTrace with its ordered leaf set and synthetic tip coordinates intact.
 
 ## Legacy-Only Coverage
 
@@ -74,6 +77,7 @@ For maintained tree journeys, prefer this pattern:
 - The maintained tree session round-trip journey is `cypress/e2e/journeys/flows/phylogenetic-session-roundtrip.cy.ts`.
 - The maintained metadata-backed tree controls and style-file journey is `cypress/e2e/journeys/flows/phylogenetic-metadata-uploaded.cy.ts`.
 - The maintained uploaded Newick context-menu journey is `cypress/e2e/journeys/flows/phylogenetic-context-menu-uploaded.cy.ts`.
+- Auspice download, metadata, privacy exclusion, and ordered re-import coverage is maintained in `cypress/e2e/journeys/flows/phylogenetic-view-export.cy.ts`; computed-source coverage is maintained in `cypress/e2e/journeys/flows/phylogenetic-computed-export.cy.ts`; reroot, rotation, flip, and subtree display-topology coverage is maintained in the context-menu journey.
 - The broader sample-data mechanics spec remains `cypress/e2e/view-state/phylogenetic-view.cy.ts`.
 - Phylogenetic bug rows use `PBG###` IDs so bug-tracker issue titles do not collide with 2D `BG###` or Map `MBG###` rows.
 - `PBG001` was fixed on 2026-04-04; direct file launch with File Settings default view = `Phylogenetic Tree` is now covered for non-Newick computed-tree inputs.

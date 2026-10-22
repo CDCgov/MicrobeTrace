@@ -1,0 +1,264 @@
+{
+  "version": "v2",
+  "meta": {
+    "title": "Synthetic MicrobeTrace temporal map round trip",
+    "updated": "2026-09-28",
+    "panels": [
+      "tree",
+      "map"
+    ],
+    "colorings": [
+      {
+        "key": "num_date",
+        "title": "Sampling date",
+        "type": "temporal"
+      },
+      {
+        "key": "sample_group",
+        "title": "Sample group",
+        "type": "categorical"
+      },
+      {
+        "key": "country",
+        "title": "Country",
+        "type": "categorical"
+      },
+      {
+        "key": "division",
+        "title": "Division",
+        "type": "categorical"
+      },
+      {
+        "key": "site",
+        "title": "Site",
+        "type": "categorical"
+      }
+    ],
+    "filters": [
+      "num_date",
+      "sample_group",
+      "country",
+      "division",
+      "site"
+    ],
+    "geo_resolutions": [
+      {
+        "key": "country",
+        "title": "Country",
+        "demes": {
+          "United States": {
+            "latitude": 37.29523484,
+            "longitude": -99.30217773
+          }
+        }
+      },
+      {
+        "key": "division",
+        "title": "Division",
+        "demes": {
+          "Georgia": {
+            "latitude": 33.749,
+            "longitude": -84.388
+          },
+          "New York": {
+            "latitude": 40.713,
+            "longitude": -74.006
+          },
+          "California": {
+            "latitude": 34.0522,
+            "longitude": -118.2437
+          }
+        }
+      },
+      {
+        "key": "site",
+        "title": "Site",
+        "demes": {
+          "Atlanta Clinic": {
+            "latitude": 33.749,
+            "longitude": -84.388
+          },
+          "New York Laboratory": {
+            "latitude": 40.713,
+            "longitude": -74.006
+          },
+          "Los Angeles Laboratory": {
+            "latitude": 34.0522,
+            "longitude": -118.2437
+          }
+        }
+      }
+    ],
+    "display_defaults": {
+      "distance_measure": "div",
+      "color_by": "num_date",
+      "geo_resolution": "site"
+    }
+  },
+  "tree": {
+    "name": "NODE_0000000",
+    "node_attrs": {
+      "div": 0,
+      "num_date": {
+        "value": 2024,
+        "confidence": [
+          2023.95,
+          2024.05
+        ]
+      }
+    },
+    "branch_attrs": {
+      "labels": {
+        "microbetrace": "synthetic_root"
+      }
+    },
+    "children": [
+      {
+        "name": "NODE_0000001",
+        "node_attrs": {
+          "div": 0.1,
+          "num_date": {
+            "value": 2024.15,
+            "confidence": [
+              2024.1,
+              2024.2
+            ]
+          }
+        },
+        "branch_attrs": {
+          "labels": {
+            "microbetrace": "west_clade"
+          }
+        },
+        "children": [
+          {
+            "name": "sample_d",
+            "node_attrs": {
+              "div": 0.3,
+              "num_date": {
+                "value": 2024.48,
+                "confidence": [
+                  2024.416,
+                  2024.499
+                ],
+                "inferred": true,
+                "raw_value": "2024-06-XX"
+              },
+              "sample_group": {
+                "value": "west"
+              },
+              "country": {
+                "value": "United States"
+              },
+              "division": {
+                "value": "California"
+              },
+              "site": {
+                "value": "Los Angeles Laboratory"
+              }
+            }
+          },
+          {
+            "name": "sample_c",
+            "node_attrs": {
+              "div": 0.25,
+              "num_date": {
+                "value": 2024.4,
+                "confidence": [
+                  2024.39,
+                  2024.41
+                ],
+                "inferred": false
+              },
+              "sample_group": {
+                "value": "west"
+              },
+              "country": {
+                "value": "United States"
+              },
+              "division": {
+                "value": "California"
+              },
+              "site": {
+                "value": "Los Angeles Laboratory"
+              }
+            }
+          }
+        ]
+      },
+      {
+        "name": "NODE_0000002",
+        "node_attrs": {
+          "div": 0.08,
+          "num_date": {
+            "value": 2024.1,
+            "confidence": [
+              2024.05,
+              2024.15
+            ]
+          }
+        },
+        "branch_attrs": {
+          "labels": {
+            "microbetrace": "east_clade"
+          }
+        },
+        "children": [
+          {
+            "name": "sample_b",
+            "node_attrs": {
+              "div": 0.22,
+              "num_date": {
+                "value": 2024.3,
+                "confidence": [
+                  2024.249,
+                  2024.333
+                ],
+                "inferred": true,
+                "raw_value": "2024-04-XX"
+              },
+              "sample_group": {
+                "value": "east"
+              },
+              "country": {
+                "value": "United States"
+              },
+              "division": {
+                "value": "New York"
+              },
+              "site": {
+                "value": "New York Laboratory"
+              }
+            }
+          },
+          {
+            "name": "sample_a",
+            "node_attrs": {
+              "div": 0.2,
+              "num_date": {
+                "value": 2024.2,
+                "confidence": [
+                  2024.19,
+                  2024.21
+                ],
+                "inferred": false
+              },
+              "sample_group": {
+                "value": "east"
+              },
+              "country": {
+                "value": "United States"
+              },
+              "division": {
+                "value": "Georgia"
+              },
+              "site": {
+                "value": "Atlanta Clinic"
+              }
+            }
+          }
+        ]
+      }
+    ]
+  }
+}

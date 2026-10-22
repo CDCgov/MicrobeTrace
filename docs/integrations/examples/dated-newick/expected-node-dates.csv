@@ -1,0 +1,16 @@
+node,parent,is_tip,num_date,branch_years
+ROOT,,false,2020.0,0
+SOUTH,ROOT,false,2021.0,1.0
+AB_CLADE,SOUTH,false,2022.0,1.0
+A,AB_CLADE,true,2024.0,2.0
+B,AB_CLADE,true,2024.5,2.5
+CD_CLADE,SOUTH,false,2022.25,1.25
+C,CD_CLADE,true,2025.0,2.75
+D,CD_CLADE,true,2025.5,3.25
+NORTH,ROOT,false,2021.5,1.5
+EF_CLADE,NORTH,false,2023.0,1.5
+E,EF_CLADE,true,2025.25,2.25
+F,EF_CLADE,true,2025.75,2.75
+GH_CLADE,NORTH,false,2023.5,2.0
+G,GH_CLADE,true,2026.0,2.5
+H,GH_CLADE,true,2026.5,3.0
