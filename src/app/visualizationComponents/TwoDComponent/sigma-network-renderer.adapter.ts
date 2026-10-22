@@ -739,7 +739,7 @@ export class SigmaNetworkRendererAdapter {
       graph.addNode(node.id, {
         x: Number.isFinite(node.x) ? node.x : 0,
         y: Number.isFinite(node.y) ? node.y : 0,
-        label: node.label || node.id,
+        label: node.label ?? node.id,
         labelSize: Math.max(6, Number(node.labelSize) || 12),
         labelPosition: node.labelPosition || 'right',
         shape: node.shape || 'circle',

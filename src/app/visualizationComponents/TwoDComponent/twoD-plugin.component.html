@@ -413,14 +413,7 @@
               <p-select id="network-layout" data-testid="twod-network-layout" [options]="NetworkLayoutOptions" appendTo="body" class="width-percent-100" [disabled]="commonService.session.network.allPinned" [(ngModel)]="SelectedNetworkLayoutVariable" (ngModelChange)="onNetworkLayoutChange($event)"></p-select>
             </div>
           </div>
-          <div class="form-group row" title="Position network nodes using the selected latitude and longitude fields.">
-            <div class="col-3">Geographic Layout</div>
-            <div class="col-9">
-              <p-select-button id="network-geographic-overlay" [options]="hideShowOptions" [allowEmpty]="false" fluid
-                [(ngModel)]="widgets['network-geographic-overlay']" (ngModelChange)="onRendererGeographicSettingsChange()"></p-select-button>
-            </div>
-          </div>
-          @if (widgets['network-geographic-overlay']) {
+          @if (SelectedNetworkLayoutVariable === 'geographic' && sigmaActive) {
             <div class="form-group row">
               <div class="col-3"><label for="network-geographic-latitude">Latitude</label></div>
               <div class="col-9"><p-select id="network-geographic-latitude" [options]="FieldList" appendTo="body" class="width-percent-100" [(ngModel)]="widgets['map-field-lat']" (ngModelChange)="onRendererGeographicSettingsChange()"></p-select></div>

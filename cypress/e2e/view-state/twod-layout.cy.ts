@@ -2,6 +2,13 @@
 
 import { Core } from 'cytoscape';
 import {
+  assertTwoDRendererReady,
+  getTwoDNodeSnapshots,
+  getTwoDEdgeSnapshots,
+  rendererVisitOptions,
+  TWO_D_RENDERER_CASES,
+} from '../../support/twod-renderer-harness';
+import {
   ensureTwoDNetworkView,
   openGlobalFilteringTab,
   setGlobalLinkThreshold,
@@ -30,16 +37,55 @@ interface RenderedNodePosition {
   y: number;
 }
 
-const getRenderedNodePositions = (cyInstance: Core): Map<string, RenderedNodePosition> => new Map(
-  cyInstance.nodes()
-    .filter(node => !node.hasClass('parent') && !node.hasClass('hidden') && node.children().length === 0)
-    .map(node => [node.id(), { ...node.position() }])
+const getRenderedNodePositions = (win: any): Map<string, RenderedNodePosition> => new Map(
+  getTwoDNodeSnapshots(win).map(node => [node.id, { x: node.x, y: node.y }])
 );
 
 const getRenderedComponentBounds = (
-  cyInstance: Core,
+  win: any,
   minimumComponentSize: number
 ): RenderedComponentBounds[] => {
+  if (win.commonService.visuals.twoD.sigmaActive) {
+    const nodes = getTwoDNodeSnapshots(win);
+    const byId = new Map(nodes.map(node => [node.id, node]));
+    const adjacency = new Map(nodes.map(node => [node.id, new Set<string>()]));
+    getTwoDEdgeSnapshots(win).forEach(edge => {
+      adjacency.get(edge.source)?.add(edge.target);
+      adjacency.get(edge.target)?.add(edge.source);
+    });
+    const seen = new Set<string>();
+    const components: RenderedComponentBounds[] = [];
+    nodes.forEach(start => {
+      if (seen.has(start.id)) return;
+      const pending = [start.id];
+      const members: typeof nodes = [];
+      seen.add(start.id);
+      while (pending.length) {
+        const id = pending.pop()!;
+        members.push(byId.get(id)!);
+        adjacency.get(id)!.forEach(neighbor => {
+          if (!seen.has(neighbor)) {
+            seen.add(neighbor);
+            pending.push(neighbor);
+          }
+        });
+      }
+      const minX = Math.min(...members.map(node => node.x));
+      const maxX = Math.max(...members.map(node => node.x));
+      components.push({
+        size: members.reduce((sum, node) => sum + (node.raw.isCollapsedAggregate ? node.raw.totalCount : 1), 0),
+        minX, maxX,
+        // Sigma's graph Y axis points upward; test the order visible on screen.
+        minY: Math.min(...members.map(node => -node.y)),
+        maxY: Math.max(...members.map(node => -node.y)),
+        layoutWidth: Math.max(minimumComponentSize,
+          Math.max(...members.map(node => node.x + node.diameter / 2 + node.borderWidth))
+          - Math.min(...members.map(node => node.x - node.diameter / 2 - node.borderWidth))),
+      });
+    });
+    return components;
+  }
+  const cyInstance = win.cytoscapeInstance as Core;
   const nodes = cyInstance.nodes().filter((node: any) => (
     !node.hasClass('parent')
     && node.children().length === 0
@@ -83,13 +129,13 @@ const getRenderedComponentBounds = (
 };
 
 const getRenderedComponentRows = (
-  cyInstance: Core,
+  win: any,
   minimumComponentSize: number
 ): RenderedComponentRow[] => {
   const rows: RenderedComponentRow[] = [];
   const overlapTolerance = 1;
 
-  getRenderedComponentBounds(cyInstance, minimumComponentSize)
+  getRenderedComponentBounds(win, minimumComponentSize)
     .sort((left, right) => left.minY - right.minY || left.minX - right.minX)
     .forEach(component => {
       const row = rows.find(candidate => (
@@ -161,26 +207,25 @@ const selectOrderByClusterSizeLayout = (): void => {
     .as('settingsDialog');
 
   cy.get('@settingsDialog').contains('.nav-link', 'Network').click();
-  cy.get('@settingsDialog').find('.tab-pane.active').contains('p-accordion-panel', 'Display').click();
+  cy.get('@settingsDialog').find('.tab-pane.active').contains('p-accordion-header', 'Display').click();
   cy.get('@settingsDialog').find(byTestId(testIds.twodNetworkLayout)).click();
   cy.contains('li[role="option"]', 'Order clusters by size').click();
   cy.window().its('commonService.session.style.widgets.network-layout').should('equal', 'order-by-size');
 };
 
-describe('2D Network - Cluster Size Layout', () => {
+TWO_D_RENDERER_CASES.forEach(({ label, mode }) => describe('2D Network - Cluster Size Layout - ' + label, () => {
   beforeEach(() => {
-    cy.viewport(1024, 720);
-    visitAppAndAcceptEula({ skipDemoSession: false, dismissWelcomeOverlay: true });
+    cy.viewport(1280, 720);
+    visitAppAndAcceptEula({ skipDemoSession: false, dismissWelcomeOverlay: true, ...rendererVisitOptions(mode) });
     ensureTwoDNetworkView();
-    cy.get('#cy', { timeout: 15000 }).should('be.visible');
-    cy.window({ timeout: 15000 }).should('have.property', 'cytoscapeInstance');
+    assertTwoDRendererReady(mode);
   });
 
   it('fills a horizontal size-ordered row before wrapping overflow', () => {
     let originalPositions: Map<string, RenderedNodePosition>;
 
     cy.window().then((win: any) => {
-      originalPositions = getRenderedNodePositions(win.cytoscapeInstance as Core);
+      originalPositions = getRenderedNodePositions(win);
     });
 
     cy.window().its('commonService.session.style.widgets.network-layout').should('equal', 'force-directed');
@@ -188,12 +233,11 @@ describe('2D Network - Cluster Size Layout', () => {
     cy.get('@settingsDialog').find(byTestId(testIds.twodNetworkLayout)).should('contain.text', 'Order clusters by size');
 
     cy.window().should((win: any) => {
-      const cyInstance = win.cytoscapeInstance as Core;
       const spacing = Math.max(
         48,
         Number(win.commonService.session.style.widgets['node-radius'] || 20) * 3
       );
-      const rows = getRenderedComponentRows(cyInstance, spacing);
+      const rows = getRenderedComponentRows(win, spacing);
 
       expect(rows.length, 'standard-width layout stays on one horizontal row').to.equal(1);
       assertOrderedNonOverlappingRows(rows);
@@ -201,14 +245,14 @@ describe('2D Network - Cluster Size Layout', () => {
 
     cy.viewport(800, 720);
     cy.window().should((win: any) => {
-      const cyInstance = win.cytoscapeInstance as Core;
       const spacing = Math.max(
         48,
         Number(win.commonService.session.style.widgets['node-radius'] || 20) * 3
       );
-      const rows = getRenderedComponentRows(cyInstance, spacing);
+      const rows = getRenderedComponentRows(win, spacing);
       const orderedComponents = rows.flatMap(row => row.components);
-      const containerWidth = cyInstance.container()?.getBoundingClientRect().width || 1;
+      const container = win.document.querySelector(mode === 'sigma' ? '[data-testid="sigma-network"]' : '#cy');
+      const containerWidth = container.getBoundingClientRect().width || 1;
       const minimumHorizontalScale = 0.75;
       const targetWidth = Math.max(
         ...orderedComponents.map(component => component.layoutWidth),
@@ -231,7 +275,7 @@ describe('2D Network - Cluster Size Layout', () => {
     });
 
     cy.window().should((win: any) => {
-      const orderedPositions = getRenderedNodePositions(win.cytoscapeInstance as Core);
+      const orderedPositions = getRenderedNodePositions(win);
       const movedNodeCount = Array.from(originalPositions.entries()).filter(([nodeId, originalPosition]) => {
         const orderedPosition = orderedPositions.get(nodeId);
         return orderedPosition && Math.hypot(
@@ -248,7 +292,7 @@ describe('2D Network - Cluster Size Layout', () => {
     cy.window().its('commonService.session.style.widgets.network-layout').should('equal', 'force-directed');
 
     cy.window().should((win: any) => {
-      const restoredPositions = getRenderedNodePositions(win.cytoscapeInstance as Core);
+      const restoredPositions = getRenderedNodePositions(win);
       expect(restoredPositions.size, 'restored node count').to.equal(originalPositions.size);
       originalPositions.forEach((originalPosition, nodeId) => {
         const restoredPosition = restoredPositions.get(nodeId);
@@ -271,19 +315,19 @@ describe('2D Network - Cluster Size Layout', () => {
     setTimelineRange('2021-06-28', '2021-06-28');
 
     cy.window().should((win: any) => {
-      const renderedPositions = getRenderedNodePositions(win.cytoscapeInstance as Core);
+      const renderedPositions = getRenderedNodePositions(win);
       const expectedVisibleNodeCount = win.commonService.getVisibleNodes().length;
 
       expect(renderedPositions.size, 'rendered timeline-start nodes').to.equal(expectedVisibleNodeCount);
       expect(renderedPositions.size, 'timeline-start node count').to.be.greaterThan(0);
     }).then((win: any) => {
-      initialPositions = getRenderedNodePositions(win.cytoscapeInstance as Core);
+      initialPositions = getRenderedNodePositions(win);
     });
 
     setTimelineRange('2021-06-28', '2021-07-16');
 
     cy.window().should((win: any) => {
-      const expandedPositions = getRenderedNodePositions(win.cytoscapeInstance as Core);
+      const expandedPositions = getRenderedNodePositions(win);
       const expectedVisibleNodeCount = win.commonService.getVisibleNodes().length;
 
       expect(expandedPositions.size, 'rendered expanded-timeline nodes').to.equal(expectedVisibleNodeCount);
@@ -299,12 +343,13 @@ describe('2D Network - Cluster Size Layout', () => {
     });
   });
 
-  it('settles merged components with a second layout pass only after a threshold increase', () => {
+  it('settles merged components only after a threshold increase', () => {
     selectOrderByClusterSizeLayout();
     cy.closeSettingsPane('2D Network Settings');
 
     cy.window().then((win: any) => {
       cy.spy(win.commonService.visuals.twoD as any, '_partialUpdate').as('thresholdLayoutRefresh');
+      cy.spy(win.commonService.visuals.twoD as any, 'precomputePositionsWithD3').as('thresholdLayoutSettle');
     });
 
     openGlobalFilteringTab();
@@ -312,39 +357,41 @@ describe('2D Network - Cluster Size Layout', () => {
     cy.closeGlobalSettings();
 
     cy.window().should((win: any) => {
-      const cyInstance = win.cytoscapeInstance as Core;
-      const nodes = cyInstance.nodes()
-        .filter(node => !node.hasClass('parent') && !node.hasClass('hidden'));
-      const nodeIds = new Set(nodes.map(node => node.id()));
-      const edges = cyInstance.edges().filter((edge: any) => (
-        !edge.hasClass('hidden')
-        && nodeIds.has(edge.source().id())
-        && nodeIds.has(edge.target().id())
-      ));
-      const components = nodes.union(edges).components()
-        .map((component: any) => ({
-          size: component.nodes().length,
-          bounds: component.nodes().boundingBox({
-            includeLabels: false,
-            includeOverlays: false,
-          }),
-        }))
-        .sort((left, right) => left.size - right.size);
+      const components = getRenderedComponentBounds(win, 48).sort((left, right) => left.size - right.size);
 
       expect(components.map(component => component.size), 'merged component sizes').to.deep.equal([14, 19]);
       expect(
-        Math.max(components[0].bounds.w, components[0].bounds.h),
+        Math.max(components[0].maxX - components[0].minX, components[0].maxY - components[0].minY),
         'newly merged component is compact',
       ).to.be.lessThan(275);
     });
 
-    cy.get('@thresholdLayoutRefresh').its('callCount').should('equal', 2);
+    if (mode === 'sigma') cy.get('@thresholdLayoutSettle').its('callCount').should('equal', 1);
+    else cy.get('@thresholdLayoutRefresh').its('callCount').should('equal', 2);
 
     cy.get('@thresholdLayoutRefresh').then((refreshSpy: any) => refreshSpy.resetHistory());
+    cy.get('@thresholdLayoutSettle').then((settleSpy: any) => settleSpy.resetHistory());
     openGlobalFilteringTab();
     setGlobalLinkThreshold(16);
     cy.closeGlobalSettings();
 
-    cy.get('@thresholdLayoutRefresh').its('callCount').should('equal', 1);
+    if (mode === 'sigma') cy.get('@thresholdLayoutSettle').should('not.have.been.called');
+    else cy.get('@thresholdLayoutRefresh').its('callCount').should('equal', 1);
   });
-});
+
+  it('disables layout changes while all nodes are pinned', () => {
+    const positions = new Map<string, RenderedNodePosition>();
+    cy.window().then((win: any) => getRenderedNodePositions(win).forEach((position, id) => positions.set(id, position)));
+    cy.get(byTestId(testIds.twodPinAllButton)).click();
+    cy.get(byTestId(testIds.twodSettingsButton)).click();
+    cy.contains('.p-dialog-title', '2D Network Settings').parents('.p-dialog').as('settingsDialog');
+    cy.get('@settingsDialog').contains('.nav-link', 'Network').click();
+    cy.get('@settingsDialog').contains('p-accordion-header', 'Display').click();
+    cy.get('@settingsDialog').find(byTestId(testIds.twodNetworkLayout))
+      .find('[role="combobox"]').should('have.attr', 'aria-disabled', 'true');
+    cy.window().should((win: any) => {
+      expect(win.commonService.session.style.widgets['network-layout']).to.equal('force-directed');
+      expect(Array.from(getRenderedNodePositions(win))).to.deep.equal(Array.from(positions));
+    });
+  });
+}));

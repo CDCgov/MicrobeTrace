@@ -1,6 +1,7 @@
 /// <reference types="cypress" />
 
-import { assertTwoDNetworkSummary } from '../../support/twod-renderer-harness';
+import { assertTwoDNetworkSummary, assertTwoDRendererReady } from '../../support/twod-renderer-harness';
+import { visitAppAndAcceptEula, waitForProcessingDialogToClear } from '../../support/journey-helpers';
 
 const loadSampleDataset = (): void => {
   cy.contains('button', 'Continue with Sample Dataset', { timeout: 15000 })
@@ -11,6 +12,28 @@ const loadSampleDataset = (): void => {
 };
 
 describe('Sigma renderer feature parity', () => {
+  it('restores a legacy geographic toggle into the Layout dropdown', () => {
+    const path = `${Cypress.config('downloadsFolder')}/legacy-geographic-${Date.now()}.microbetrace`;
+    cy.readFile('src/COVID_DummySession.microbetrace').then(saved => {
+      const session = typeof saved === 'string' ? JSON.parse(saved) : saved;
+      session.style.widgets['network-layout'] = 'order-by-size';
+      session.style.widgets['network-geographic-overlay'] = true;
+      cy.writeFile(path, session);
+    });
+    visitAppAndAcceptEula({ extraQuery: { renderer: 'sigma' } });
+    cy.get('#fileDropRef').selectFile(path, { force: true });
+    waitForProcessingDialogToClear(60000);
+    assertTwoDRendererReady('sigma');
+    cy.window().its('commonService.session.style.widgets.network-layout').should('equal', 'geographic');
+    cy.get('[data-testid="twod-settings-button"]').click();
+    cy.contains('.p-dialog-title', '2D Network Settings').parents('.p-dialog').as('networkSettings');
+    cy.get('@networkSettings').contains('.nav-link', 'Network').click();
+    cy.get('@networkSettings').contains('p-accordion-header', 'Display').click();
+    cy.get('@networkSettings').find('#network-layout').should('contain.text', 'Geographic');
+    cy.get('@networkSettings').find('#network-geographic-latitude, #network-geographic-longitude').should('be.visible');
+    cy.get('@networkSettings').find('#network-geographic-overlay').should('not.exist');
+  });
+
   it('supports grouping, geographic overlays, box selection, and composite export together', () => {
     let groupedAdapter: any;
     let geographicAdapter: any;
@@ -65,14 +88,24 @@ describe('Sigma renderer feature parity', () => {
     cy.window().then(win => {
       const twoD = (win as any).commonService.visuals.twoD;
       geographicAdapter = twoD.sigmaRenderer;
-      twoD.widgets['network-geographic-overlay'] = true;
       twoD.widgets['map-field-lat'] = 'MigrationLatitude';
       twoD.widgets['map-field-lon'] = 'MigrationLongitude';
-      twoD.onRendererGeographicSettingsChange();
     });
+
+    cy.get('[data-testid="twod-settings-button"]').click();
+    cy.contains('.p-dialog-title', '2D Network Settings').parents('.p-dialog').as('networkSettings');
+    cy.get('@networkSettings').contains('.nav-link', 'Network').click();
+    cy.get('@networkSettings').contains('p-accordion-header', 'Display').click();
+    cy.get('@networkSettings').find('#network-layout').click();
+    cy.contains('li[role="option"]', /^Geographic$/).click();
+    cy.get('@networkSettings').find('#network-layout').should('contain.text', 'Geographic');
+    cy.get('@networkSettings').find('#network-geographic-latitude, #network-geographic-longitude').should('be.visible');
+    cy.get('@networkSettings').find('#network-geographic-overlay').should('not.exist');
+    cy.closeSettingsPane('2D Network Settings');
 
     cy.window({ timeout: 30000 }).should(win => {
       const twoD = (win as any).commonService.visuals.twoD;
+      expect(twoD.widgets['network-layout'], 'saved geographic layout choice').to.equal('geographic');
       expect(twoD.sigmaRenderer, 'geographic render uses a fresh adapter')
         .not.to.equal(geographicAdapter);
       expect(twoD.sigmaSummary.residentNodeCount).to.equal(33);

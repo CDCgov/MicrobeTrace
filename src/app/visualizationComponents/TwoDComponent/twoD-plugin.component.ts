@@ -16,6 +16,7 @@ import { GraphData } from './data';
 import { getCustomNodeShapeData, getCustomNodeShapeVectorData, getMixedNodeShapeDataUri, isCustomNodeShape as isCustomNodeIconShape, resolveNodeShapeCytoscapeShape as resolveCustomNodeIconCytoscapeShape, resolveNodeShapeForNode, resolveNodeShapeKey } from '@app/contactTraceCommonServices/node-shapes';
 import type cytoscape from 'cytoscape';
 import type { Core, Style } from 'cytoscape';
+import { layoutClustersBySize } from './cluster-size-layout';
 import { Subject, Subscription, takeUntil } from 'rxjs';
 //import fcose from 'cytoscape-fcose';
 import * as d3f from 'd3-force';
@@ -85,7 +86,7 @@ interface CustomNodeSvgExportReplacement {
 }
 
 type PolygonColorTableDisplayMode = 'Show' | 'Dock' | 'Hide';
-type TwoDNetworkLayout = 'force-directed' | 'order-by-size';
+type TwoDNetworkLayout = 'force-directed' | 'order-by-size' | 'geographic';
 
 interface CollapsedAggregatePositionAnchor {
     id: string;
@@ -193,8 +194,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             this.containerResizeTimer = null;
             if (this.isDestroyed) return;
             if (
-                !this.sigmaActive
-                && this.getNetworkLayout() === 'order-by-size'
+                this.getNetworkLayout() === 'order-by-size'
                 && !this.isTimelineFilteringActive()
                 && !this.commonService.session.network.allPinned
             ) {
@@ -871,10 +871,13 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
 
     SelectedNetworkGridLineTypeVariable: string = "Hide";
 
-    readonly NetworkLayoutOptions: { label: string; value: TwoDNetworkLayout }[] = [
-        { label: 'Force directed', value: 'force-directed' },
-        { label: 'Order clusters by size', value: 'order-by-size' }
-    ];
+    get NetworkLayoutOptions(): { label: string; value: TwoDNetworkLayout; disabled?: boolean }[] {
+        return [
+            { label: 'Force directed', value: 'force-directed' },
+            { label: 'Order clusters by size', value: 'order-by-size' },
+            { label: 'Geographic', value: 'geographic', disabled: !this.sigmaActive },
+        ];
+    }
     SelectedNetworkLayoutVariable: TwoDNetworkLayout = 'force-directed';
 
     SelecetedNetworkLinkStrengthVariable: any = 0.123;
@@ -1843,10 +1846,16 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             const showGroupHulls = Boolean(groupField);
             this.syncSigmaPolygonGroups(sigmaGroupingNodes, groupField);
             const layoutBackbone = selectSigmaLayoutBackbone(networkData.links, 3);
+            const settleMergedClusters = this.pendingThresholdIncreaseRelayout
+                && this.getNetworkLayout() === 'order-by-size'
+                && !this.isTimelineFilteringActive();
+            this.pendingThresholdIncreaseRelayout = false;
             const needsInitialLayout = !this.sigmaRenderer
                 || networkData.nodes.some(node => !this.hasFinitePosition(node));
 
-            if (needsInitialLayout) {
+            if ((needsInitialLayout || settleMergedClusters)
+                && !this.commonService.session.network.allPinned
+                && !this.widgets['network-geographic-overlay']) {
                 this.sigmaLoadingMessage = 'Computing the network layout';
                 this.cdref.markForCheck();
                 const overviewLayout = assignSigmaOverviewPositions(
@@ -1859,7 +1868,8 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                     const layout = await this.precomputePositionsWithD3(
                         networkData.nodes,
                         layoutBackbone,
-                        networkData.nodes.length > 2500 ? 90 : 180
+                        networkData.nodes.length > 2500 ? 90 : 180,
+                        !settleMergedClusters
                     );
                     networkData.nodes = layout.nodes;
                 }
@@ -1878,6 +1888,12 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                     this.sigmaLayoutGroupByNodeId.set(nodeId, String(node._sigmaLayoutGroup));
                 }
             });
+            if (this.getNetworkLayout() === 'order-by-size'
+                && !this.isTimelineFilteringActive()
+                && !this.commonService.session.network.allPinned
+                && !this.widgets['network-geographic-overlay']) {
+                this.layoutSigmaClusters(networkData.nodes, networkData.links);
+            }
             this.updateRendererAccessibleFeatures(networkData.nodes);
 
             const sigmaNodes = networkData.nodes.map(node => {
@@ -1903,7 +1919,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                     id: nodeId,
                     x: Number(node.x) || 0,
                     y: Number(node.y) || 0,
-                    label: String(this.getNodeLabel(node) || nodeId),
+                    label: node.isCollapsedAggregate ? '' : String(this.getNodeLabel(node) || nodeId),
                     labelSize: Math.max(6, Number(this.widgets['node-label-size']) || 12),
                     labelPosition: this.getSigmaLabelPosition(),
                     shape: this.getSigmaNodeShape(shapeKey),
@@ -2089,16 +2105,20 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         }
         if (!this.widgets) return;
 
-        const layout = this.widgets['network-layout'];
-        if (layout !== 'force-directed' && layout !== 'order-by-size') {
-            this.widgets['network-layout'] = 'force-directed';
+        let layout = this.widgets['network-layout'];
+        // Older sessions stored geographic placement as an independent toggle.
+        if (this.widgets['network-geographic-overlay']) {
+            layout = 'geographic';
+        } else if (layout !== 'force-directed' && layout !== 'order-by-size' && layout !== 'geographic') {
+            layout = 'force-directed';
         }
+        this.widgets['network-layout'] = layout;
+        this.widgets['network-geographic-overlay'] = layout === 'geographic';
     }
 
     private getNetworkLayout(): TwoDNetworkLayout {
-        return this.widgets?.['network-layout'] === 'order-by-size'
-            ? 'order-by-size'
-            : 'force-directed';
+        const layout = this.widgets?.['network-layout'];
+        return layout === 'order-by-size' || layout === 'geographic' ? layout : 'force-directed';
     }
 
     private getNodeCollapseMetric(): string {
@@ -5530,182 +5550,90 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
     }
 
     private applyOrderByClusterSizeLayout(): void {
-        if (!this.cy || this.commonService.session.network.allPinned) return;
+        if (this.commonService.session.network.allPinned) return;
+        if (this.sigmaActive) {
+            if (!this.widgets['network-geographic-overlay']) {
+                void this.renderSigma().then(() => this.fit());
+            }
+            return;
+        }
+        if (!this.cy) return;
 
         const layoutStart = this.getPerformanceNow();
         const renderedNodes = this.cy.nodes()
             .filter((node: any) => this.isRenderedLayoutNode(node as cytoscape.NodeSingular))
             .toArray() as cytoscape.NodeSingular[];
-        if (renderedNodes.length === 0) return;
-
-        const nodeById = new Map(renderedNodes.map(node => [node.id(), node]));
-        const adjacentNodeIds = new Map<string, Set<string>>(
-            renderedNodes.map(node => [node.id(), new Set<string>()])
-        );
-        this.getRenderedLayoutLinks().forEach(link => {
-            if (link.source === link.target) return;
-            adjacentNodeIds.get(link.source)?.add(link.target);
-            adjacentNodeIds.get(link.target)?.add(link.source);
-        });
-
-        type OrderedComponent = {
-            key: string;
-            nodes: cytoscape.NodeSingular[];
-            size: number;
-            minX: number;
-            minY: number;
-            width: number;
-            height: number;
-        };
-
-        const visitedNodeIds = new Set<string>();
-        const components: OrderedComponent[] = [];
-        Array.from(nodeById.keys()).sort().forEach(startNodeId => {
-            if (visitedNodeIds.has(startNodeId)) return;
-
-            const componentNodeIds: string[] = [];
-            const pendingNodeIds = [startNodeId];
-            visitedNodeIds.add(startNodeId);
-            while (pendingNodeIds.length > 0) {
-                const nodeId = pendingNodeIds.pop();
-                if (!nodeId) continue;
-
-                componentNodeIds.push(nodeId);
-                adjacentNodeIds.get(nodeId)?.forEach(adjacentNodeId => {
-                    if (!visitedNodeIds.has(adjacentNodeId) && nodeById.has(adjacentNodeId)) {
-                        visitedNodeIds.add(adjacentNodeId);
-                        pendingNodeIds.push(adjacentNodeId);
-                    }
-                });
-            }
-
-            const componentNodes = componentNodeIds
-                .sort()
-                .map(nodeId => nodeById.get(nodeId))
-                .filter((node): node is cytoscape.NodeSingular => !!node);
-            let minX = Number.POSITIVE_INFINITY;
-            let minY = Number.POSITIVE_INFINITY;
-            let maxX = Number.NEGATIVE_INFINITY;
-            let maxY = Number.NEGATIVE_INFINITY;
-            componentNodes.forEach(node => {
-                const bounds = node.boundingBox({
-                    includeLabels: false,
-                    includeOverlays: false
-                });
-                minX = Math.min(minX, bounds.x1);
-                minY = Math.min(minY, bounds.y1);
-                maxX = Math.max(maxX, bounds.x2);
-                maxY = Math.max(maxY, bounds.y2);
-            });
-            const representedNodeCount = componentNodes.reduce((count, node) => {
-                const aggregateCount = Number(node.data('totalCount'));
-                return count + (
-                    node.data('isCollapsedAggregate') === true
-                    && Number.isFinite(aggregateCount)
-                    && aggregateCount > 0
-                        ? aggregateCount
-                        : 1
-                );
-            }, 0);
-
-            const minimumComponentSize = this.getNodeLayoutSpacing();
-            components.push({
-                key: componentNodeIds[0],
-                nodes: componentNodes,
-                size: representedNodeCount,
-                minX,
-                minY,
-                width: Math.max(minimumComponentSize, maxX - minX),
-                height: Math.max(minimumComponentSize, maxY - minY)
-            });
-        });
-
-        components.sort((left, right) => left.size - right.size || left.key.localeCompare(right.key));
-        const clusterSizes = Array.from(new Set(components.map(component => component.size)));
-
-        const spacing = this.getNodeLayoutSpacing();
-        const columnGap = spacing * 1.25;
-        const bandGap = spacing * 2;
-        const rowGap = spacing * 1.5;
-        const containerRect = this.cyContainer?.nativeElement?.getBoundingClientRect();
-        const containerWidth = Math.max(1, Number(containerRect?.width || 1));
-        const fitPadding = 30;
-        const minimumHorizontalScale = 0.75;
-        const targetWidth = Math.max(
-            ...components.map(component => component.width),
-            (containerWidth - (fitPadding * 2)) / minimumHorizontalScale
-        );
-
-        type ComponentRow = { items: OrderedComponent[]; width: number; height: number };
-        const rows: ComponentRow[] = [];
-        let currentRow: ComponentRow = { items: [], width: 0, height: 0 };
-        components.forEach(component => {
-            const previousComponent = currentRow.items[currentRow.items.length - 1];
-            const itemGap = previousComponent
-                ? (previousComponent.size === component.size ? columnGap : bandGap)
-                : 0;
-            const nextWidth = currentRow.width + itemGap + component.width;
-
-            if (currentRow.items.length > 0 && nextWidth > targetWidth) {
-                rows.push(currentRow);
-                currentRow = { items: [], width: 0, height: 0 };
-            }
-
-            const rowPreviousComponent = currentRow.items[currentRow.items.length - 1];
-            const rowItemGap = rowPreviousComponent
-                ? (rowPreviousComponent.size === component.size ? columnGap : bandGap)
-                : 0;
-            currentRow.width += rowItemGap + component.width;
-            currentRow.height = Math.max(currentRow.height, component.height);
-            currentRow.items.push(component);
-        });
-        if (currentRow.items.length > 0) rows.push(currentRow);
-
-        let currentY = 0;
-        this.cy.batch(() => {
-            rows.forEach((row, rowIndex) => {
-                let currentX = 0;
-                row.items.forEach((component, componentIndex) => {
-                    if (componentIndex > 0) {
-                        const previousComponent = row.items[componentIndex - 1];
-                        currentX += previousComponent.size === component.size ? columnGap : bandGap;
-                    }
-
-                    const componentY = currentY + ((row.height - component.height) / 2);
-                    const offsetX = currentX - component.minX;
-                    const offsetY = componentY - component.minY;
-                    component.nodes.forEach(node => {
-                        const position = node.position();
-                        node.position({
-                            x: position.x + offsetX,
-                            y: position.y + offsetY
-                        });
-                    });
-                    currentX += component.width;
-                });
-
-                currentY += row.height;
-                if (rowIndex < rows.length - 1) currentY += rowGap;
-            });
-        });
-
+        if (!renderedNodes.length) return;
+        const links = this.getRenderedLayoutLinks();
+        const result = layoutClustersBySize(renderedNodes.map(node => {
+            const position = node.position();
+            const bounds = node.boundingBox({ includeLabels: false, includeOverlays: false });
+            return {
+                id: node.id(), ...position,
+                minX: bounds.x1, minY: bounds.y1, maxX: bounds.x2, maxY: bounds.y2,
+                count: this.getRepresentedLayoutNodeCount(node.data()),
+            };
+        }), links, this.getNodeLayoutSpacing(), this.cyContainer.nativeElement.getBoundingClientRect().width);
+        this.cy.batch(() => renderedNodes.forEach(node => node.position(result.positions.get(node.id())!)));
         renderedNodes.forEach(node => this.nodePositions.set(node.id(), { ...node.position() }));
         this.syncVisibleNodePositionsFromCy();
         this.cacheCollapsedAggregatePositions();
         this.fit();
-        this.recordTwoDRenderTiming('twoDOrderClustersBySizeLayout', layoutStart, {
-            nodes: renderedNodes.length,
-            edges: this.getRenderedLayoutLinks().length,
-            clusters: components.length,
-            rows: rows.length,
-            targetWidth,
-            clusterSizes
-        });
+        this.recordClusterSizeLayout(layoutStart, renderedNodes.length, links.length, result);
+    }
+
+    private getRepresentedLayoutNodeCount(node: any): number {
+        const count = Number(node.totalCount);
+        return node.isCollapsedAggregate === true && Number.isFinite(count) && count > 0 ? count : 1;
+    }
+
+    private recordClusterSizeLayout(start: number, nodes: number, edges: number, result: ReturnType<typeof layoutClustersBySize>): void {
+        const { positions, ...details } = result;
+        this.recordTwoDRenderTiming('twoDOrderClustersBySizeLayout', start, { nodes, edges, ...details });
+    }
+
+    private layoutSigmaClusters(nodes: any[], links: any[]): void {
+        const layoutStart = this.getPerformanceNow();
+        // Sigma's graph Y axis points up. Pack in screen order, then convert back.
+        const result = layoutClustersBySize(nodes.map(node => {
+            const radius = this.getSigmaNodeRadius(node) + this.getNodeBorderWidth(node);
+            const x = Number(node.x);
+            const y = -Number(node.y);
+            return {
+                id: this.getNodeId(node), x, y,
+                minX: x - radius, minY: y - radius, maxX: x + radius, maxY: y + radius,
+                count: this.getRepresentedLayoutNodeCount(node),
+            };
+        }), links.map(link => ({
+            source: this.getLinkEndpointId(link.source), target: this.getLinkEndpointId(link.target),
+        })), this.getNodeLayoutSpacing(), this.sigmaContainer.nativeElement.getBoundingClientRect().width);
+        const positions = new Map(Array.from(result.positions, ([id, position]) => [id, { x: position.x, y: -position.y }]));
+        nodes.forEach(node => Object.assign(node, positions.get(this.getNodeId(node))));
+        this.setSigmaNodePositions(positions);
+        this.recordClusterSizeLayout(layoutStart, nodes.length, links.length, result);
+    }
+
+    private setSigmaNodePositions(positions: Map<string, { x: number; y: number }>): void {
+        positions.forEach((position, id) => this.nodePositions.set(id, { ...position }));
+        const data = this.commonService.session.data;
+        const collections = new Set([
+            data.nodes, data.nodeFilteredValues, this.commonService.session.network.nodes,
+        ]);
+        collections.forEach(nodes => (nodes || []).forEach(node => {
+            const position = positions.get(this.getNodeId(node));
+            if (position) Object.assign(node, position, { vx: 0, vy: 0 });
+        }));
     }
 
     private captureForceDirectedLayout(): void {
         const cy = this.cy;
         this.forceDirectedLayoutSnapshot.clear();
+        if (this.sigmaActive) {
+            this.sigmaRenderer?.getGraph().forEachNode((id, attributes) => {
+                this.forceDirectedLayoutSnapshot.set(id, { x: attributes.x, y: attributes.y });
+            });
+            return;
+        }
         if (!this.isCytoscapeUsable(cy)) return;
 
         cy.nodes()
@@ -5716,6 +5644,16 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
     }
 
     private restoreForceDirectedLayout(): boolean {
+        if (this.sigmaActive) {
+            const ids = this.sigmaRenderer?.getGraph().nodes() || [];
+            if (!ids.length || ids.some(id => !this.forceDirectedLayoutSnapshot.has(id))) {
+                this.forceDirectedLayoutSnapshot.clear();
+                return false;
+            }
+            this.setSigmaNodePositions(this.forceDirectedLayoutSnapshot);
+            this.forceDirectedLayoutSnapshot.clear();
+            return true;
+        }
         const cy = this.cy;
         if (!this.isCytoscapeUsable(cy) || this.forceDirectedLayoutSnapshot.size === 0) {
             return false;
@@ -5749,26 +5687,35 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
     async onNetworkLayoutChange(layout: TwoDNetworkLayout): Promise<void> {
         this.ensureNetworkLayoutWidgetDefault();
         const previousLayout = this.getNetworkLayout();
-        const selectedLayout: TwoDNetworkLayout = layout === 'order-by-size'
-            ? 'order-by-size'
-            : 'force-directed';
+        const selectedLayout: TwoDNetworkLayout = layout === 'geographic' && this.sigmaActive
+            ? 'geographic' : layout === 'order-by-size' ? 'order-by-size' : 'force-directed';
 
         if (previousLayout === 'force-directed' && selectedLayout === 'order-by-size') {
             this.captureForceDirectedLayout();
         }
 
         this.widgets['network-layout'] = selectedLayout;
+        this.widgets['network-geographic-overlay'] = selectedLayout === 'geographic';
         this.SelectedNetworkLayoutVariable = selectedLayout;
 
-        if (this.cy && !this.commonService.session.network.allPinned) {
+        if ((this.cy || this.sigmaActive) && !this.commonService.session.network.allPinned) {
             if (
                 previousLayout === 'order-by-size'
                 && selectedLayout === 'force-directed'
                 && this.restoreForceDirectedLayout()
             ) {
+                if (this.sigmaActive) {
+                    await this.renderSigma();
+                    this.fit();
+                }
                 return;
             }
-            await this.updateLayout();
+            if (this.sigmaActive && selectedLayout === 'order-by-size') {
+                await this.renderSigma();
+                this.fit();
+            } else {
+                await this.updateLayout();
+            }
         }
     }
 
@@ -6429,7 +6376,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
 
         // If no label variable then should be none
         if (node?.isCollapsedAggregate) {
-            return (this.widgets['node-label-variable'] == 'None') ? '' : (node.label || `${node.totalCount || 0} nodes`);
+            return '';
         }
         return (this.widgets['node-label-variable'] == 'None') ? '' : (String(node[this.widgets['node-label-variable']]) || '');
 
