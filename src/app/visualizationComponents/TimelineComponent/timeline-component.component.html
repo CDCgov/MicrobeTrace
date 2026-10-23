@@ -34,7 +34,7 @@
                 <div class="col-6" style="padding-right: 5px">
                   <p-select [options]="FieldList" appendTo="body" class="width-percent-100" [(ngModel)]="SelectedDateFieldVariable" (ngModelChange)="onDateFieldChange(0)"></p-select>
                 </div>
-                @if (selectedGraphType!='Single Date Field' || widgets['epiCurve-stackColorBy'] == 'None') {
+                @if (selectedGraphType!='Single Date Field' || widgets['epiCurve-stackColorBy'] == noFieldOptionValue) {
                   <div class="col-2" style="padding: 0px 15px 0px 10px" title="Select a color for this date field.">
                     <input type="color" id="epi-color-select" class="form-control" style="padding: 5px 8px;" [(ngModel)]="widgets['epiCurve-colors'][0]" (change)="onNodeColorChanged()">
                   </div>
@@ -128,7 +128,7 @@
               <p-select [options]="FieldListStack" appendTo="body" class="width-percent-100" [(ngModel)]="this.widgets['epiCurve-stackColorBy']" (ngModelChange)="onUseNodeColorChange()"></p-select>
             </div>
           </div>
-          @if (widgets['epiCurve-stackColorBy'] != 'None') {
+          @if (widgets['epiCurve-stackColorBy'] != noFieldOptionValue) {
             <div class="form-group row" title="Select the order for stacked color groups.">
               <div class="col-4">
                 <label>Stack Order</label>
@@ -143,7 +143,7 @@
                   <ng-template #item let-item>
                     <div class="d-flex align-items-center width-percent-100" style="gap: 8px;">
                       <span style="flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis;">{{ item.label }}</span>
-                      @if (widgets['epiCurve-stackColorBy'] != 'Node Color') {
+                      @if (widgets['epiCurve-stackColorBy'] != timelineNodeColorOptionValue) {
                         <input type="color" class="form-control form-control-sm" style="width: 42px; padding: 2px;" [style.opacity]="1 - item.transparency" [ngModel]="item.color" (change)="onStackGroupColorChange(item, $any($event.target).value)" (click)="$event.stopPropagation()" (mousedown)="$event.stopPropagation()" (pointerdown)="$event.stopPropagation()" title="Color">
                         <a class="transparency-symbol" style="cursor: pointer;" title="Transparency" (click)="openStackGroupTransparencyPicker($event, item)" (mousedown)="$event.stopPropagation()" (pointerdown)="$event.stopPropagation()">&#8691;</a>
                       }

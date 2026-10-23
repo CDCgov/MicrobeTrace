@@ -227,8 +227,8 @@ describe('Journey Flow - TN93 distance display format', () => {
 
     goToTableView();
     selectTableDataset('Link');
-    setVisibleTableColumns(['Distance']);
-    assertTableColumnContainsPercent('Distance');
+    setVisibleTableColumns(['distance']);
+    assertTableColumnContainsPercent('distance');
 
     selectTableDataset('Cluster');
     assertTableColumnMatchingContainsPercent(/mean.*genetic.*distance/i);

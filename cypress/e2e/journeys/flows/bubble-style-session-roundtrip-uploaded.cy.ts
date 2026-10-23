@@ -102,7 +102,7 @@ describe('Journey Flow - Bubble style and session roundtrip on uploaded data', (
     goToBubbleView();
     openBubbleSettingsDialog();
     setBubbleAxis('#bubble-axis-x', 'State', 'bubble-x', 'State');
-    setBubbleAxis('#bubble-axis-y', 'NodeClass', 'bubble-y', 'Node_Class');
+    setBubbleAxis('#bubble-axis-y', 'Node_Class', 'bubble-y', 'Node_Class');
     cy.get('@bubbleSettings').find('#bubble-node-collapsing').contains('On').click({ force: true });
     cy.window().its('commonService.visuals.bubble.SelectedNodeCollapsingTypeVariable').should('equal', true);
     setBubbleNodeSize(roundtripBubbleSize);

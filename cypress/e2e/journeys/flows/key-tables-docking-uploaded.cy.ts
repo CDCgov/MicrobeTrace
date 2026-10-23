@@ -622,7 +622,7 @@ const enableFloatingGroupColorTable = (groupByLabel: 'Subtype' | 'Cluster' = 'Su
   cy.window().its('commonService.session.style.widgets.polygons-show').should('equal', true);
 
   if (groupByLabel === 'Subtype') {
-    selectPrimeOption('#polygons-foci', 'Subtype');
+    selectPrimeOption('#polygons-foci', 'subtype');
     cy.window().its('commonService.session.style.widgets.polygons-foci').should('equal', 'subtype');
   } else {
     cy.window().its('commonService.session.style.widgets.polygons-foci').should('equal', 'cluster');

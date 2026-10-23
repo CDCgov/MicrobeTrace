@@ -830,7 +830,7 @@ export function assertPaneRect(selector: string, minWidth: number, minHeight: nu
 export function configureDashboardMapZipcode(collapse: 'On' | 'Off' = 'Off'): void {
   focusDashboardTab('Map');
   openMapSettingsDialog();
-  selectMapField('map-field-zipcode', 'Zipcode', 'map-field-zipcode', 'Zip_code');
+  selectMapField('map-field-zipcode', 'Zip_code', 'map-field-zipcode', 'Zip_code');
   setMapNodeCollapsing(collapse);
   cy.closeSettingsPane('Geospatial Settings');
   assertDashboardViewReady('Map');

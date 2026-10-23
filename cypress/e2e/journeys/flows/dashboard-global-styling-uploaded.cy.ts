@@ -638,7 +638,7 @@ describe('Journey Flow - Dashboard global styling propagation', () => {
 
       focusDashboardTab('2D Network');
       openGlobalStylingTab();
-      selectPrimeOption('#link-tooltip-variable', 'Cluster');
+      selectPrimeOption('#link-tooltip-variable', 'cluster');
       cy.window().its('commonService.session.style.widgets.link-color-variable').should('equal', 'cluster');
       cy.get('#key-tables-link-table', { timeout: 15000 }).should('be.visible');
 

@@ -412,29 +412,12 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
 
         this.IsDataAvailable = (this.commonService.session.data.nodes.length == 0 ? false : true);
 
-        this.FieldList = [];
-
-        this.FieldList.push({ label: "None", value: "None" });
-        this.commonService.session.data['nodeFields'].map((d, i) => {
-            if (this.isManualPositionField(d)) return;
-
-            this.FieldList.push(
-                {
-                    label: this.commonService.capitalize(d.replace("_", "")),
-                    value: d
-                });
-
-        });
-
-        this.LinkToolTipList = [{ label: "None", value: "None" }];
-        this.commonService.session.data['linkFields'].map((d, i) => {
-            if (d == 'source' || d == 'target' || d == 'nn') return;
-
-            this.LinkToolTipList.push({
-                    label: this.commonService.capitalize(d.replace("_", "")),
-                    value: d
-                });
-        });
+        this.FieldList = this.commonService.createFieldSelectOptions(
+            this.commonService.session.data.nodeFields.filter(field => !this.isManualPositionField(field))
+        );
+        this.LinkToolTipList = this.commonService.createFieldSelectOptions(
+            this.commonService.session.data.linkFields.filter(field => !['source', 'target', 'nn'].includes(field))
+        );
 
         //this.geocoder = new google.maps.Geocoder();
         this.initializeMap("US");
@@ -4058,8 +4041,8 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
     }
 
     private applyLatLongFieldCoordinates(node: any, latField: string, lonField: string): boolean {
-        const latitude = this.parseMapCoordinateValue(node[latField], 'S');
-        const longitude = this.parseMapCoordinateValue(node[lonField], 'W');
+        const latitude = this.parseMapCoordinateValue(this.commonService.getFieldValue(node, latField), 'S');
+        const longitude = this.parseMapCoordinateValue(this.commonService.getFieldValue(node, lonField), 'W');
 
         if (latitude === null || longitude === null) {
             return false;
@@ -4128,7 +4111,7 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
             this.nodes.forEach(n => {
                 const country = this.findMapFeature(
                     this.commonService.temp.mapData.countries.features,
-                    this.expandCountryLookupValues(n[val]),
+                    this.expandCountryLookupValues(this.commonService.getFieldValue(n, val)),
                     ['id', 'name']
                 );
 
@@ -4144,7 +4127,7 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
             this.nodes.forEach(n => {
                 const state = this.findMapFeature(
                     this.commonService.temp.mapData.states.features,
-                    [n[sval]],
+                    [this.commonService.getFieldValue(n, sval)],
                     ['id', 'name', 'usps']
                 );
 
@@ -4161,17 +4144,17 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
             this.nodes.forEach(n => {
                 var county;
                 county = this.commonService.temp.mapData.counties.features.find(c => {
-                    return (c.properties.fips == n[cval] ||
-                        parseFloat(c.properties.fips) == parseFloat(n[cval]));
+                    return (c.properties.fips == this.commonService.getFieldValue(n, cval) ||
+                        parseFloat(c.properties.fips) == parseFloat(this.commonService.getFieldValue(n, cval)));
                 });
                 if (county) {
                     n._lat = county.properties._lat;
                     n._lon = county.properties._lon;
                     return;
                 }
-                var state = this.commonService.temp.mapData.states.features.find(s => s.properties.usps == n[sval].toUpperCase() || s.properties.name.toLowerCase().includes(n[sval].toLowerCase()));
+                var state = this.commonService.temp.mapData.states.features.find(s => s.properties.usps == this.commonService.getFieldValue(n, sval).toUpperCase() || s.properties.name.toLowerCase().includes(this.commonService.getFieldValue(n, sval).toLowerCase()));
                 county = this.commonService.temp.mapData.counties.features.find(c => {
-                    var small = n[cval].toLowerCase();
+                    var small = this.commonService.getFieldValue(n, cval).toLowerCase();
                     return c.properties.state == state.properties.usps && (
                         c.properties.name.includes(small) ||
                         small.includes(c.properties.name)
@@ -4190,7 +4173,7 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
             }
             var val = this.commonService.session.style.widgets['map-field-zipcode'];
             this.nodes.forEach(n => {
-                var zo = this.commonService.temp.mapData.zipcodes.find(z => z.zipcode == n[val]);
+                var zo = this.commonService.temp.mapData.zipcodes.find(z => z.zipcode == this.commonService.getFieldValue(n, val));
                 if (zo) {
                     n._lat = zo._lat;
                     n._lon = zo._lon;
@@ -4204,7 +4187,7 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
             }
             var val = this.commonService.session.style.widgets['map-field-tract'];
             this.nodes.forEach(n => {
-                var tract = this.commonService.temp.mapData.tracts.find(t => t.tract == n[val]);
+                var tract = this.commonService.temp.mapData.tracts.find(t => t.tract == this.commonService.getFieldValue(n, val));
                 if (tract) {
                     n._lat = tract._lat;
                     n._lon = tract._lon;
@@ -4392,7 +4375,7 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
         var opacity = 1 - this.commonService.session.style.widgets['map-link-transparency'];
         var links = this.commonService.getVisibleLinks();
         const getLinkColorValue = (link: any) => {
-            const value = link[lcv];
+            const value = this.commonService.getFieldValue(link, lcv);
             if (String(lcv).toLowerCase() === 'origin' && Array.isArray(value)) {
                 return value.length > 1 ? 'Duo-Link' : this.commonService.normalizeStyleCategoryValue(value[0]);
             }
@@ -4482,11 +4465,11 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
         var data = e.target.data;
         var locationData = e.target.locationDetail;
         var variable = this.commonService.session.style.widgets['map-node-tooltip-variable'];
-        if (variable !== 'None' && (data[variable] || data[variable] == 0)) {
+        if (variable !== 'None' && (this.commonService.getFieldValue(data, variable) || this.commonService.getFieldValue(data, variable) == 0)) {
 
-            let htmlText = data[variable];
+            let htmlText = this.commonService.getFieldValue(data, variable);
             if (locationData) {
-                htmlText = `<p><strong>${variable}:</strong> ${data[variable]}</p>`
+                htmlText = `<p><strong>${this.commonService.getFieldOptionDisplayLabel(variable)}:</strong> ${this.commonService.getFieldValue(data, variable)}</p>`
                 htmlText += `<p><strong>Location:</strong> ${locationData.Name}</p>`
                 htmlText += `<p><strong>Address:</strong> ${locationData.FullAddress}</p>`
             }
@@ -4506,10 +4489,10 @@ export class MapComponent extends BaseComponentDirective implements OnInit, Mico
     showLinkTooltip(e) {
         var d = e.target.data;
         var v = this.commonService.session.style.widgets['map-link-tooltip-variable'];
-        if (v !== 'None' && (d[v] || d[v] == 0)) {
+        if (v !== 'None' && (this.commonService.getFieldValue(d, v) || this.commonService.getFieldValue(d, v) == 0)) {
             const formattedValue = v === 'distance'
-                ? this.commonService.formatDisplayedDistanceValue(d[v], 'distance')
-                : d[v];
+                ? this.commonService.formatDisplayedDistanceValue(this.commonService.getFieldValue(d, v), 'distance')
+                : this.commonService.getFieldValue(d, v);
             d3.select(this.mapTooltip)
                 .html(formattedValue)
                 .style('position', 'absolute')

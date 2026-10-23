@@ -333,8 +333,8 @@ function hexToRgbString(hex: string): string {
 
     // Group By (only visible when showGroups=true)
     if (g.showGroups) {
-      const groupByLabel = g.groupBy;
-      const groupByValue = String(groupByLabel).toLowerCase();
+      const groupByValue = String(g.groupBy).toLowerCase();
+      const groupByLabel = groupByValue;
 
       cy.get('@groupingTab').find('#polygons-foci').should('be.visible').click({ force: true });
       cy.contains('li[role="option"]', groupByLabel).click({ force: true });
@@ -1665,7 +1665,7 @@ export function assertStyleTablesFromProfile(profile: DatasetProfile): void {
 }
 
 export function setTwoDLinkLabelVariable(variable: LinkLabelVariable): void {
-  const optionLabel = variable === 'distance' ? 'Distance' : variable;
+  const optionLabel = variable;
 
   openTwoDSettingsDialog();
   cy.get('@twoDSettings').contains('.nav-link', 'Links').click({ force: true });
@@ -1674,9 +1674,11 @@ export function setTwoDLinkLabelVariable(variable: LinkLabelVariable): void {
     .should('exist')
     .as('linksTab');
 
-  cy.get('@linksTab').contains('p-accordion-panel', 'Labels and Tooltips').click({ force: true });
-  cy.get('@linksTab').contains('.form-group', 'Label').find('p-select').click({ force: true });
-  cy.contains('li[role="option"]', optionLabel).click({ force: true });
+  expandAccordionTabByHeader('@linksTab', 'Labels and Tooltips');
+  cy.get('@linksTab').find('#link-label-variable').click({ force: true });
+  cy.contains('[role="listbox"]:visible li[role="option"]', new RegExp(`^${optionLabel}$`))
+    .click({ force: true });
+  cy.get('.p-select-overlay:visible').should('not.exist');
 
   cy.window()
     .its('commonService.session.style.widgets.link-label-variable')
@@ -2234,7 +2236,7 @@ export function enableGroupingShow(groupBy: 'cluster' | 'subtype' = 'cluster'): 
     .should('equal', true);
 
   // Set group-by if needed (only visible after show=true)
-  const groupByLabel = groupBy === 'cluster' ? 'Cluster' : 'Subtype';
+  const groupByLabel = groupBy;
 
   cy.get('@groupingTab')
     .find('#polygons-foci')

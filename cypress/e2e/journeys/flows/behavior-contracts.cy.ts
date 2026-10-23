@@ -125,7 +125,7 @@ const contractMode =
         .find('#link-width-variable')
         .click({ force: true });
 
-      cy.contains('li[role="option"]', 'Distance').click({ force: true });
+      cy.contains('li[role="option"]', /^distance$/).click({ force: true });
       cy.window().its('commonService.session.style.widgets.link-width-variable').should('equal', 'distance');
       expandAccordionTabByHeader('.p-dialog:visible .tab-pane:visible', 'Shapes and Sizes');
 

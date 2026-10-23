@@ -26,26 +26,26 @@ describe('Journey Flow - Table filter operators on uploaded data', () => {
     assertAfterLaunchCounts(nodeAndLinkProfile);
     goToTableView();
 
-    setTableFilterType('Id', 'Contains');
-    setTableFilterValue('Id', 'D');
-    assertSingleVisibleRowValue('Id', 'D');
+    setTableFilterType('_id', 'Contains');
+    setTableFilterValue('_id', 'D');
+    assertSingleVisibleRowValue('_id', 'D');
 
-    setTableFilterType('Id', '=');
-    setTableFilterValue('Id', 'A');
-    assertSingleVisibleRowValue('Id', 'A');
+    setTableFilterType('_id', '=');
+    setTableFilterValue('_id', 'A');
+    assertSingleVisibleRowValue('_id', 'A');
 
-    setTableFilterType('Id', '!=');
-    setTableFilterValue('Id', 'A');
+    setTableFilterType('_id', '!=');
+    setTableFilterValue('_id', 'A');
     assertTableVisibleRowCount(3);
-    assertFirstVisibleRowValue('Id', 'B');
+    assertFirstVisibleRowValue('_id', 'B');
 
-    setTableFilterType('Id', 'Starts With');
-    setTableFilterValue('Id', 'C');
-    assertSingleVisibleRowValue('Id', 'C');
+    setTableFilterType('_id', 'Starts With');
+    setTableFilterValue('_id', 'C');
+    assertSingleVisibleRowValue('_id', 'C');
 
-    setTableFilterType('Id', 'Ends With');
-    setTableFilterValue('Id', 'D');
-    assertSingleVisibleRowValue('Id', 'D');
+    setTableFilterType('_id', 'Ends With');
+    setTableFilterValue('_id', 'D');
+    assertSingleVisibleRowValue('_id', 'D');
   });
 
   it('applies numeric filter operators on link-table columns', () => {
@@ -55,25 +55,25 @@ describe('Journey Flow - Table filter operators on uploaded data', () => {
     selectTableDataset('Link');
     assertTableDatasetMatchesSession('Link');
 
-    setTableFilterType('Distance', '<');
-    setTableFilterValue('Distance', '7');
+    setTableFilterType('distance', '<');
+    setTableFilterValue('distance', '7');
     assertTableVisibleRowCount(1);
-    assertFirstVisibleRowValue('Distance', '5');
+    assertFirstVisibleRowValue('distance', '5');
 
-    setTableFilterType('Distance', '<=');
-    setTableFilterValue('Distance', '7');
+    setTableFilterType('distance', '<=');
+    setTableFilterValue('distance', '7');
     assertTableVisibleRowCount(2);
-    assertFirstVisibleRowValue('Distance', '5');
+    assertFirstVisibleRowValue('distance', '5');
 
-    setTableFilterType('Distance', '>');
-    setTableFilterValue('Distance', '7');
+    setTableFilterType('distance', '>');
+    setTableFilterValue('distance', '7');
     assertTableVisibleRowCount(2);
-    assertFirstVisibleRowValue('Distance', '9');
+    assertFirstVisibleRowValue('distance', '9');
 
-    setTableFilterType('Distance', '>=');
-    setTableFilterValue('Distance', '9');
+    setTableFilterType('distance', '>=');
+    setTableFilterValue('distance', '9');
     assertTableVisibleRowCount(2);
-    assertFirstVisibleRowValue('Distance', '9');
+    assertFirstVisibleRowValue('distance', '9');
   });
 
   it('filters the cluster table by numeric node-count values', () => {
@@ -83,15 +83,15 @@ describe('Journey Flow - Table filter operators on uploaded data', () => {
     selectTableDataset('Cluster');
     assertTableDatasetMatchesSession('Cluster');
 
-    setTableFilterType('Nodes', '>');
-    setTableFilterValue('Nodes', '2');
+    setTableFilterType('nodes', '>');
+    setTableFilterValue('nodes', '2');
     assertTableVisibleRowCount(2);
 
-    setTableFilterType('Nodes', '=');
-    setTableFilterValue('Nodes', '2');
-    assertSingleVisibleRowValue('Nodes', '2');
+    setTableFilterType('nodes', '=');
+    setTableFilterValue('nodes', '2');
+    assertSingleVisibleRowValue('nodes', '2');
 
-    clearTableFilterValue('Nodes');
+    clearTableFilterValue('nodes');
     assertTableVisibleRowCount(3);
   });
 });

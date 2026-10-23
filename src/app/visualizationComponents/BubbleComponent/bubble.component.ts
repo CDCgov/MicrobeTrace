@@ -223,15 +223,10 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
   }
 
   private rebuildSelectedFieldList() {
-    this.selectedFieldList = [{ label: "None", value: "None"}];
-
-    this.commonService.session.data['nodeFields'].forEach((field) => {
-      if (['seq', 'origin', '_diff', '_ambiguity', 'index', '_id'].includes(field)) return;
-      this.selectedFieldList.push({
-        label: this.commonService.capitalize(field.replace("_", "")),
-        value: field
-      });
-    });
+    this.selectedFieldList = this.commonService.createFieldSelectOptions(
+      this.commonService.session.data.nodeFields.filter(field =>
+        !['seq', 'origin', '_diff', '_ambiguity', 'index', '_id'].includes(field))
+    );
   }
 
   private refreshCollapsedData(sortData = false) {
@@ -408,7 +403,7 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
         })
       })
 
-      Axes.push({ group: 'nodes', data: {id: 'x_axis_Label', label: this.commonService.capitalize(this.xVariable)}, position: {x: (this.X_categories.length-1)*this.scaleFactor/2, y: this.Y_categories.length*this.scaleFactor}, classes: ['X_axis', 'axisLabel']})
+      Axes.push({ group: 'nodes', data: {id: 'x_axis_Label', label: this.getAxisLabel('X')}, position: {x: (this.X_categories.length-1)*this.scaleFactor/2, y: this.Y_categories.length*this.scaleFactor}, classes: ['X_axis', 'axisLabel']})
     }
 
     let longestYLabel: string = '';
@@ -434,7 +429,7 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
       });
       let yAxisLabelOffset = this.estimateSize(longestYLabel) + 20
 
-      Axes.push({ group: 'nodes', data: {id: 'y_axis_Label', label: this.commonService.capitalize(this.yVariable)}, position: {x: -(80+yAxisLabelOffset), y: (this.Y_categories.length-1)*this.scaleFactor/2}, classes: ['Y_axis', 'axisLabel']})
+      Axes.push({ group: 'nodes', data: {id: 'y_axis_Label', label: this.getAxisLabel('Y')}, position: {x: -(80+yAxisLabelOffset), y: (this.Y_categories.length-1)*this.scaleFactor/2}, classes: ['Y_axis', 'axisLabel']})
 
     }
 
@@ -642,7 +637,7 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
           background-color: #fff;
         } 
       </style>
-      <table id="bubbleToolTip"><thead><th>${this.commonService.capitalize(this.commonService.session.style.widgets['node-color-variable'])}</th><th> Count </th><th> % </th></thead><tbody>`;
+      <table id="bubbleToolTip"><thead><th>${this.commonService.getFieldOptionDisplayLabel(this.commonService.session.style.widgets['node-color-variable'])}</th><th> Count </th><th> % </th></thead><tbody>`;
       d.counts.forEach((x) => tooltipHTML += `<tr><td>${this.commonService.titleize(x.label)}</td><td> ${x.count}</td><td>${(x.count/d.totalCount*100).toFixed(1)}%</td></tr>`)
       tooltipHTML += `<tr><td>Total</td><td> ${d.totalCount}</td><td></td></tr></tbody></table>`;
     } else {
@@ -708,12 +703,12 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
         totalCount: 1
       }
       if (this.xVariable != undefined && this.xVariable != 'None') {
-        let nodeX = node[this.xVariable];
+        let nodeX = this.commonService.getFieldValue(node, this.xVariable);
         let locX = this.X_categories.indexOf(nodeX);
         nodeDR.Xgroup = locX;
       }
       if (this.yVariable != undefined && this.yVariable != 'None') {
-        let nodeY = node[this.yVariable];
+        let nodeY = this.commonService.getFieldValue(node, this.yVariable);
         let locY = this.Y_categories.indexOf(nodeY);
         nodeDR.Ygroup = locY;
       }
@@ -770,7 +765,7 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
         this.X_tickValues = [];
   
         nodes.forEach(node => {
-          let nodeX = node[this.xVariable];
+          let nodeX = this.commonService.getFieldValue(node, this.xVariable);
           if (this.X_categories.indexOf(nodeX) == -1) {
             this.X_tickValues.push(this.X_categories.length);
             this.X_categories.push(nodeX);
@@ -791,7 +786,7 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
         this.Y_tickValues = [];
 
         nodes.forEach(node => {
-          let nodeY = node[this.yVariable];
+          let nodeY = this.commonService.getFieldValue(node, this.yVariable);
           if (this.Y_categories.indexOf(nodeY) == -1) {
             this.Y_tickValues.push(this.Y_categories.length);
             this.Y_categories.push(nodeY);
@@ -949,7 +944,7 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
           ? [{ label: 'All Nodes', count: currentNodes.length }]
           : []
         : buildCanonicalNodeColorCounts(
-            currentNodes.map(cNode => cNode[colorCategory]),
+            currentNodes.map(cNode => this.commonService.getFieldValue(cNode, colorCategory)),
             this.commonService.session.style.nodeColorsTableKeys?.[colorCategory] || [],
             this.commonService.session.style.widgets['node-mixed-colors-enabled'] === true
           );
@@ -964,7 +959,7 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
 
   private getNodeFillStyleForColorValue(value: any): NodeFillStyle {
     const colorVariable = this.commonService.session.style.widgets['node-color-variable'];
-    const syntheticNode = colorVariable === 'None' ? undefined : { [colorVariable]: value };
+    const syntheticNode = colorVariable === 'None' ? undefined : { [this.commonService.getFieldOptionDisplayLabel(colorVariable)]: value };
     return this.commonService.getNodeFillStyle(syntheticNode);
   }
 
@@ -1223,7 +1218,7 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
       return Number.isNaN(time) ? Number.POSITIVE_INFINITY : time;
     };
 
-    allNodes.sort((a, b) => getSortTime(a[sortVariable]) - getSortTime(b[sortVariable]))
+    allNodes.sort((a, b) => getSortTime(this.commonService.getFieldValue(a, sortVariable)) - getSortTime(this.commonService.getFieldValue(b, sortVariable)))
     
     let allData = []
     allNodes.forEach(node => {
@@ -1352,11 +1347,11 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
   getAxisLabel(axis: string) {
     if (axis == 'X') {
       if (this.xVariable == 'None') return;
-      return this.commonService.capitalize(this.xVariable)
+      return this.commonService.getFieldOptionDisplayLabel(this.xVariable)
     }
     else {
       if (this.yVariable == 'None') return;
-      return this.commonService.capitalize(this.yVariable)
+      return this.commonService.getFieldOptionDisplayLabel(this.yVariable)
     }
   }
 

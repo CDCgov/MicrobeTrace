@@ -2,6 +2,18 @@
 /// <reference types="cypress" />
 
 import { byTestId, testIds } from '../../support/selectors';
+import {
+  goToMapView,
+  goToTableView,
+  openMapSettingsDialog,
+  saveSessionFromFileMenu,
+  selectMapField,
+  setMapNodeCollapsing,
+} from '../../support/journey-helpers';
+import {
+  assertVisibleTableHeaders,
+  setVisibleTableColumns,
+} from '../../support/table-helpers';
 
 describe('File Handling and Processing', () => {
   const nodeFile = 'AngularTesting_nodelist_withseqs_TN93_BS.csv';
@@ -9,6 +21,8 @@ describe('File Handling and Processing', () => {
   const linkFile = 'AngularTesting_Epi_linklist_BS.csv';
   const additionalNodeFile = compatibleNodeFile;
   const geoJSONLocationFile = 'map-node-locations.geojson';
+  const geoJSONCollisionNodeFile = 'FieldNameCollisionGeoJSONNodes.csv';
+  const collisionFormats = ['csv', 'json', 'xlsx'] as const;
   const loadNodeFile = () => cy.loadFiles([{ name: nodeFile, datatype: 'node' }]);
 
   beforeEach(() => {
@@ -303,6 +317,251 @@ describe('File Handling and Processing', () => {
     });
   });
 
+  collisionFormats.forEach((extension) => {
+    it(`protects canonical node and link fields when importing ${extension.toUpperCase()} tables`, () => {
+      const collisionNodeFile = `FieldNameCollisionNodes.${extension}`;
+      const collisionLinkFile = `FieldNameCollisionLinks.${extension}`;
+
+      cy.loadFiles([
+        { name: collisionNodeFile, datatype: 'node', field1: 'case_id', field2: 'seq' },
+        { name: collisionLinkFile, datatype: 'link', field1: 'source', field2: 'target', field3: 'distance' },
+      ]);
+
+      cy.get('#launch').click({ force: true });
+      cy.window({ timeout: 30000 })
+        .its('commonService.session.network.isFullyLoaded')
+        .should('be.true');
+
+      cy.window().then((win) => {
+        const { nodes, links, nodeFields, linkFields } = win.commonService.session.data;
+        const node = nodes.find((candidate: any) => candidate._id === 'NODE-A');
+        const link = links.find((candidate: any) =>
+          [candidate.source, candidate.target].sort().join('|') === 'NODE-A|NODE-B'
+        );
+
+        expect(node, 'NODE-A').to.exist;
+        expect(link, 'NODE-A to NODE-B link').to.exist;
+
+        expect(node._id, 'canonical node id').to.equal('NODE-A');
+        expect(node.id, 'canonical node id mirror').to.equal('NODE-A');
+        expect(node.seq, 'selected sequence').to.equal('ACGT');
+        expect(node.visible, 'canonical visibility').to.equal(true);
+        expect(node.origin, 'canonical node provenance').to.include.members([collisionNodeFile, collisionLinkFile]);
+        expect(String(node['_id (Imported)']), 'imported _id').to.equal('USER-_ID-A');
+        expect(String(node['_id (Imported) 2']), 'distinct header with the same alias gets a suffix').to.equal('PREALIASED-A');
+        expect(String(node['id (Imported)']), 'imported id').to.equal('USER-id-A');
+        expect(String(node['ID (Imported)']), 'case-insensitive imported ID collision').to.equal('USER-ID-A');
+        expect(String(node['origin (Imported)']), 'imported origin').to.equal('USER-ORIGIN-A');
+        expect(String(node['visible (Imported)']).toLowerCase(), 'imported visibility').to.equal('false');
+        expect(String(node['cluster (Imported)']), 'imported cluster').to.equal('101');
+        expect(String(node['x (Imported)']), 'imported x coordinate').to.equal('10');
+        expect(String(node['y (Imported)']), 'imported y coordinate').to.equal('20');
+        expect(String(node['_jlat (Imported)']), 'imported map latitude').to.equal('50.5');
+        expect(String(node._jlong), 'non-conflicting map longitude').to.equal('-100.5');
+        expect(node.safe_status, 'non-conflicting node field').to.equal('Safe-A');
+
+        expect([link.source, link.target].sort(), 'canonical endpoints').to.deep.equal(['NODE-A', 'NODE-B']);
+        expect(link.distance, 'canonical distance').to.equal(0.125);
+        expect(link.directed, 'canonical directionality').to.equal(false);
+        expect(link.origin, 'canonical link provenance').to.include(collisionLinkFile);
+        expect(link.origin, 'imported provenance cannot replace canonical provenance').not.to.include('USER-LINK-ORIGIN-A');
+        expect(String(link['Distance (Imported)']), 'case-insensitive imported distance collision').to.equal('101.01');
+        expect(String(link['id (Imported)']), 'imported link id').to.equal('USER-LINK-ID-A');
+        expect(String(link['origin (Imported)']), 'imported link origin').to.equal('USER-LINK-ORIGIN-A');
+        expect(String(link['visible (Imported)']).toLowerCase(), 'imported link visibility').to.equal('false');
+        expect(String(link['cluster (Imported)']), 'imported link cluster').to.equal('201');
+        expect(String(link['directed (Imported)']).toLowerCase(), 'imported directionality').to.equal('true');
+        expect(link.Contact, 'non-conflicting link field').to.equal('Contact-A');
+
+        expect(nodeFields, 'node collision aliases').to.include.members([
+          '_id (Imported)',
+          '_id (Imported) 2',
+          'id (Imported)',
+          'ID (Imported)',
+          'origin (Imported)',
+          'visible (Imported)',
+          'cluster (Imported)',
+          'x (Imported)',
+          'y (Imported)',
+          '_jlat (Imported)',
+          '_jlong',
+          'safe_status',
+        ]);
+        expect(nodeFields, 'selected node columns are not duplicated as metadata').not.to.include.members([
+          'case_id',
+          'seq (Imported)',
+        ]);
+        expect(linkFields, 'link collision aliases').to.include.members([
+          'Distance (Imported)',
+          'id (Imported)',
+          'origin (Imported)',
+          'visible (Imported)',
+          'cluster (Imported)',
+          'directed (Imported)',
+          'Contact',
+        ]);
+        expect(linkFields, 'selected link columns are not duplicated as metadata').not.to.include.members([
+          'source (Imported)',
+          'target (Imported)',
+          'distance (Imported)',
+        ]);
+      });
+    });
+  });
+
+  it('reuses collision aliases across files and exposes exact unique labels in Map, Table, and 2D', () => {
+    const collisionNodeFile = 'FieldNameCollisionNodes.csv';
+    const collisionNodeFileSecond = 'FieldNameCollisionNodesSecond.csv';
+    const collisionLinkFile = 'FieldNameCollisionLinks.csv';
+    const collisionLinkFileSecond = 'FieldNameCollisionLinksSecond.csv';
+
+    cy.loadFiles([
+      { name: collisionNodeFile, datatype: 'node', field1: 'case_id', field2: 'seq' },
+      { name: collisionNodeFileSecond, datatype: 'node', field1: 'case_id', field2: 'None' },
+      { name: collisionLinkFile, datatype: 'link', field1: 'source', field2: 'target', field3: 'distance' },
+      { name: collisionLinkFileSecond, datatype: 'link', field1: 'source', field2: 'target', field3: 'distance' },
+    ]);
+
+    cy.contains('#file-table .file-table-row', collisionNodeFile)
+      .find('select')
+      .first()
+      .find('option')
+      .then(($options) => {
+        const labels = Array.from($options).map((option) => option.textContent);
+        expect(labels, 'Files mapping labels').to.include.members(['id', 'ID', '_id', '_jlat', '_jlong']);
+      });
+
+    cy.get('#launch').click({ force: true });
+    cy.window({ timeout: 30000 })
+      .its('commonService.session.network.isFullyLoaded')
+      .should('be.true');
+
+    cy.window().then((win) => {
+      const { nodes, links, nodeFields, linkFields } = win.commonService.session.data;
+      const node = nodes.find((candidate: any) => candidate._id === 'NODE-C');
+      const link = links.find((candidate: any) =>
+        [candidate.source, candidate.target].sort().join('|') === 'NODE-A|NODE-C'
+      );
+      const labels = win.commonService.visuals.microbeTrace.FieldList
+        .filter((option: any) => ['_jlat (Imported)', '_jlong'].includes(option.value))
+        .map((option: any) => option.label);
+
+      expect(String(node['_id (Imported)']), 'same alias reused for the second file').to.equal('USER-_ID-C');
+      expect(String(node['origin (Imported)']), 'origin alias reused for the second file').to.equal('USER-ORIGIN-C');
+      expect(String(node['_jlat (Imported)']), 'map alias reused for the second file').to.equal('52.5');
+      expect(nodeFields.filter((field: string) => field === '_id (Imported)')).to.have.length(1);
+      expect(String(link['id (Imported)']), 'link alias reused for the second file').to.equal('USER-LINK-ID-C');
+      expect(String(link['origin (Imported)']), 'link origin alias reused for the second file').to.equal('USER-LINK-ORIGIN-C');
+      expect(String(link['Distance (Imported)']), 'link distance alias reused for the second file').to.equal('103.03');
+      expect(linkFields.filter((field: string) => field === 'id (Imported)')).to.have.length(1);
+      expect(linkFields.filter((field: string) => field === 'origin (Imported)')).to.have.length(1);
+      expect(linkFields.filter((field: string) => field === 'Distance (Imported)')).to.have.length(1);
+      expect(labels, '2D exact labels').to.deep.equal(['_jlat (Imported)', '_jlong']);
+    });
+
+    goToMapView();
+    cy.window().then((win) => {
+      const options = win.commonService.visuals.gisMap.FieldList;
+      const labelsByValue = new Map(options.map((option: any) => [option.value, option.label]));
+      expect(labelsByValue.get('_jlat (Imported)'), 'Map latitude label').to.equal('_jlat (Imported)');
+      expect(labelsByValue.get('_jlong'), 'Map longitude label').to.equal('_jlong');
+    });
+
+    openMapSettingsDialog();
+    selectMapField('map-field-lat', '_jlat (Imported)', 'map-field-lat', '_jlat (Imported)');
+    selectMapField('map-field-lon', '_jlong', 'map-field-lon', '_jlong');
+    setMapNodeCollapsing('Off');
+    cy.closeSettingsPane('Geospatial Settings');
+
+    cy.window().its('commonService.visuals.gisMap.layers.featureGroup').should((featureGroup: any) => {
+      const renderedById = new Map(featureGroup.getLayers().map((layer: any) => [layer.data._id, layer]));
+      const firstNodeLayer: any = renderedById.get('NODE-A');
+      const secondNodeLayer: any = renderedById.get('NODE-B');
+
+      expect(firstNodeLayer, 'NODE-A map layer').to.exist;
+      expect(secondNodeLayer, 'NODE-B map layer').to.exist;
+      expect(firstNodeLayer._latlng.lat).to.equal(50.5);
+      expect(firstNodeLayer._latlng.lng).to.equal(-100.5);
+      expect(secondNodeLayer._latlng.lat).to.equal(51.5);
+      expect(secondNodeLayer._latlng.lng).to.equal(-101.5);
+    });
+
+    goToTableView();
+    setVisibleTableColumns(['_jlat (Imported)', '_jlong']);
+    assertVisibleTableHeaders(['index', '_jlat (Imported)', '_jlong']);
+
+    cy.window().then((win) => {
+      const tableData = win.commonService.visuals.tableComp.SelectedTableData;
+      const node = tableData.data.find((candidate: any) => candidate._id === 'NODE-A');
+      expect(String(node['_jlat (Imported)']), 'Table imported latitude').to.equal('50.5');
+      expect(String(node._jlong), 'Table original longitude').to.equal('-100.5');
+    });
+  });
+
+  it('preserves imported aliases and exact field labels through a saved-session round trip', () => {
+    const collisionNodeFile = 'FieldNameCollisionNodes.csv';
+    const collisionLinkFile = 'FieldNameCollisionLinks.csv';
+    const sessionFileBase = `cypress_imported_field_aliases_${Date.now()}`;
+    const sessionFilePath = `${Cypress.config('downloadsFolder')}/${sessionFileBase}.microbetrace`;
+
+    cy.loadFiles([
+      { name: collisionNodeFile, datatype: 'node', field1: 'case_id', field2: 'seq' },
+      { name: collisionLinkFile, datatype: 'link', field1: 'source', field2: 'target', field3: 'distance' },
+    ]);
+
+    cy.get('#launch').click({ force: true });
+    cy.window({ timeout: 30000 })
+      .its('commonService.session.network.isFullyLoaded')
+      .should('be.true');
+
+    saveSessionFromFileMenu(sessionFileBase);
+
+    cy.readFile(sessionFilePath, 'utf8', { timeout: 30000 }).should((savedSession) => {
+      expect(savedSession, 'saved node alias').to.include('"_id (Imported)"');
+      expect(savedSession, 'saved link alias').to.include('"Distance (Imported)"');
+    });
+
+    cy.visit('/?skipEula=1&skipDemoSession=1');
+    cy.get('#fileDropRef', { timeout: 15000 }).selectFile(sessionFilePath, { force: true });
+    cy.window({ timeout: 30000 })
+      .its('commonService.session.data.nodeFields')
+      .should('include', '_id (Imported)');
+    cy.window({ timeout: 30000 })
+      .its('commonService.session.network.isFullyLoaded')
+      .should('be.true');
+    cy.window({ timeout: 90000 }).should((win: any) => {
+      expect(win.commonService.pendingDashboardRestore, 'pending dashboard restore').to.equal(null);
+      expect(
+        win.commonService.visuals.microbeTrace.applyingPendingDashboardRestore,
+        'dashboard restore in progress'
+      ).to.equal(false);
+    });
+
+    cy.window().then((win) => {
+      const { nodes, links, nodeFields, linkFields } = win.commonService.session.data;
+      const node = nodes.find((candidate: any) => candidate._id === 'NODE-A');
+      const link = links.find((candidate: any) =>
+        [candidate.source, candidate.target].sort().join('|') === 'NODE-A|NODE-B'
+      );
+      const labelsByValue = new Map(
+        win.commonService.visuals.microbeTrace.FieldList.map((option: any) => [option.value, option.label])
+      );
+
+      expect(nodeFields).to.include.members(['_id (Imported)', '_jlat (Imported)', '_jlong']);
+      expect(linkFields).to.include.members(['Distance (Imported)', 'origin (Imported)']);
+      expect(String(node['_id (Imported)']), 'restored node alias value').to.equal('USER-_ID-A');
+      expect(String(node['_jlat (Imported)']), 'restored map alias value').to.equal('50.5');
+      expect(String(link['Distance (Imported)']), 'restored link alias value').to.equal('101.01');
+      expect(labelsByValue.get('_id (Imported)'), 'restored exact 2D label').to.equal('_id (Imported)');
+      expect(labelsByValue.get('_jlat (Imported)'), 'restored exact map label').to.equal('_jlat (Imported)');
+    });
+
+    goToTableView();
+    cy.get('.lm_tab.lm_active', { timeout: 30000 }).should('contain.text', 'Table');
+    setVisibleTableColumns(['_id (Imported)', '_jlat (Imported)', '_jlong']);
+    assertVisibleTableHeaders(['index', '_id (Imported)', '_jlat (Imported)', '_jlong']);
+  });
+
   it('detects a GeoJSON location file, joins feature centers to nodes, and stores the layer', () => {
     cy.attach_files('#fileDropRef', [nodeFile, geoJSONLocationFile]);
 
@@ -341,6 +600,49 @@ describe('File Handling and Processing', () => {
       expect(secondNode['GeoJSON Longitude'], 'polygon center longitude').to.equal(22);
       expect(secondNode['GeoJSON Feature ID'], 'polygon feature id').to.equal('KF773426');
       expect(missingNode, 'unmatched feature is not converted into a node').to.not.exist;
+    });
+  });
+
+  it('preserves colliding tabular metadata when GeoJSON locations are joined', () => {
+    cy.loadFiles([
+      { name: geoJSONCollisionNodeFile, datatype: 'node', field1: 'case_id', field2: 'None' },
+      { name: geoJSONLocationFile, datatype: 'geojson' },
+    ]);
+
+    cy.get('#launch').should('not.be.disabled').click({ force: true });
+    cy.window({ timeout: 30000 })
+      .its('commonService.session.network.isFullyLoaded')
+      .should('be.true');
+
+    cy.window().then((win) => {
+      const { nodes, nodeFields } = win.commonService.session.data;
+      const pointNode = nodes.find((node: any) => node._id === 'KF773425');
+      const polygonNode = nodes.find((node: any) => node._id === 'KF773426');
+
+      expect(pointNode['GeoJSON Latitude'], 'generated point latitude').to.equal(8);
+      expect(pointNode['GeoJSON Longitude'], 'generated point longitude').to.equal(12);
+      expect(pointNode['GeoJSON Feature ID'], 'generated point feature id').to.equal('KF773425');
+      expect(String(pointNode['GeoJSON Latitude (Imported)']), 'imported latitude').to.equal('100.1');
+      expect(String(pointNode['GeoJSON Longitude (Imported)']), 'imported longitude').to.equal('-200.1');
+      expect(pointNode['GeoJSON Feature ID (Imported)'], 'imported feature id').to.equal('IMPORTED-FEATURE-A');
+
+      expect(polygonNode['GeoJSON Latitude'], 'generated polygon latitude').to.equal(8);
+      expect(polygonNode['GeoJSON Longitude'], 'generated polygon longitude').to.equal(22);
+      expect(String(polygonNode['GeoJSON Latitude (Imported)']), 'second imported latitude').to.equal('101.2');
+      expect(String(polygonNode['GeoJSON Longitude (Imported)']), 'second imported longitude').to.equal('-201.2');
+      expect(polygonNode['GeoJSON Feature ID (Imported)'], 'second imported feature id').to.equal('IMPORTED-FEATURE-B');
+
+      expect(nodeFields).to.include.members([
+        'GeoJSON Latitude',
+        'GeoJSON Longitude',
+        'GeoJSON Feature ID',
+        'GeoJSON Latitude (Imported)',
+        'GeoJSON Longitude (Imported)',
+        'GeoJSON Feature ID (Imported)',
+        'safe_status'
+      ]);
+      expect(win.commonService.session.style.widgets['map-field-lat']).to.equal('GeoJSON Latitude');
+      expect(win.commonService.session.style.widgets['map-field-lon']).to.equal('GeoJSON Longitude');
     });
   });
 

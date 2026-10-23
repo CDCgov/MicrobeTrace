@@ -66,11 +66,11 @@ describe('Aggregate View', () => {
 
   it('updates aggregate tables when settings change and supports add/delete table flows', () => {
     openAggregateSettingsDialog();
-    assertAggregateFieldOptionsVisible(0, ['Cluster', 'Degree', 'Distance']);
+    assertAggregateFieldOptionsVisible(0, ['cluster', 'degree', 'distance']);
 
-    selectAggregateField(0, 'Degree', 'Node-degree');
+    selectAggregateField(0, 'degree', 'Node-degree');
     addAggregateTable();
-    selectAggregateField(1, 'Distance', 'Link-distance');
+    selectAggregateField(1, 'distance', 'Link-distance');
     cy.closeSettingsPane('Aggregate Settings');
 
     assertAggregateTableCount(2);
@@ -111,7 +111,7 @@ describe('Aggregate View', () => {
     cy.closeGlobalSettings();
 
     openAggregateSettingsDialog();
-    selectAggregateField(0, 'Distance', 'Link-distance');
+    selectAggregateField(0, 'distance', 'Link-distance');
     cy.closeSettingsPane('Aggregate Settings');
 
     assertAggregateTableMatchesModel(0, 'Link-distance');
@@ -152,7 +152,7 @@ describe('Aggregate View', () => {
 
   it('sorts aggregate rows by group, count, and percent from the table headers', () => {
     openAggregateSettingsDialog();
-    selectAggregateField(0, 'Degree', 'Node-degree');
+    selectAggregateField(0, 'degree', 'Node-degree');
     cy.closeSettingsPane('Aggregate Settings');
 
     assertAggregateTableMatchesModel(0, 'Node-degree');
@@ -199,11 +199,11 @@ describe('Aggregate View', () => {
   it('reorders Aggregate tables from the settings control and keeps rendered order aligned', () => {
     openAggregateSettingsDialog();
     addAggregateTable();
-    selectAggregateField(1, 'Distance', 'Link-distance');
+    selectAggregateField(1, 'distance', 'Link-distance');
     addAggregateTable();
-    selectAggregateField(2, 'Degree', 'Node-degree');
+    selectAggregateField(2, 'degree', 'Node-degree');
 
-    assertAggregateSettingsFieldOrder(['Cluster', 'Distance', 'Degree']);
+    assertAggregateSettingsFieldOrder(['cluster', 'distance', 'degree']);
 
     selectAggregateSettingsTable(2);
     moveSelectedAggregateSettingsTable('top');
@@ -212,11 +212,11 @@ describe('Aggregate View', () => {
       .its('commonService.visuals.aggregate.SelectedDataFields')
       .should('deep.equal', ['Node-degree', 'Node-cluster', 'Link-distance']);
 
-    assertAggregateSettingsFieldOrder(['Degree', 'Cluster', 'Distance']);
+    assertAggregateSettingsFieldOrder(['degree', 'cluster', 'distance']);
     cy.closeSettingsPane('Aggregate Settings');
 
     assertAggregateTableCount(3);
-    assertAggregateTableTitles(['Degree', 'Cluster', 'Distance']);
+    assertAggregateTableTitles(['degree', 'cluster', 'distance']);
     assertAggregateTableMatchesModel(0, 'Node-degree');
     assertAggregateTableMatchesModel(1, 'Node-cluster');
     assertAggregateTableMatchesModel(2, 'Link-distance');

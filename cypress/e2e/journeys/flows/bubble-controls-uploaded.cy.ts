@@ -123,7 +123,7 @@ describe('Journey Flow - Bubble uploaded controls', () => {
 
     openBubbleSettingsDialog();
     setBubbleAxis('#bubble-axis-x', 'State', 'bubble-x', 'State');
-    setBubbleAxis('#bubble-axis-y', 'NodeClass', 'bubble-y', 'Node_Class');
+    setBubbleAxis('#bubble-axis-y', 'Node_Class', 'bubble-y', 'Node_Class');
     setBubbleRangeValue('#bubble-node-size', resizedNodes, 'commonService.session.style.widgets.bubble-size');
     setBubbleRangeValue('#bubble-label-size', resizedLabels, 'commonService.visuals.bubble.labelSize');
     cy.closeSettingsPane('Bubble Settings');
@@ -160,7 +160,7 @@ describe('Journey Flow - Bubble uploaded controls', () => {
 
     openBubbleSettingsDialog();
     setBubbleAxis('#bubble-axis-x', 'State', 'bubble-x', 'State');
-    setBubbleAxis('#bubble-axis-y', 'NodeClass', 'bubble-y', 'Node_Class');
+    setBubbleAxis('#bubble-axis-y', 'Node_Class', 'bubble-y', 'Node_Class');
     cy.closeSettingsPane('Bubble Settings');
 
     openGlobalStylingTab();
@@ -255,7 +255,7 @@ describe('Journey Flow - Bubble uploaded controls', () => {
 
     openBubbleSettingsDialog();
     setBubbleAxis('#bubble-axis-x', 'State', 'bubble-x', 'State');
-    setBubbleAxis('#bubble-axis-y', 'NodeClass', 'bubble-y', 'Node_Class');
+    setBubbleAxis('#bubble-axis-y', 'Node_Class', 'bubble-y', 'Node_Class');
 
     cy.window().then((win: unknown) => {
       const bubble = (win as WinWithBubble).commonService.visuals.bubble;
@@ -292,7 +292,7 @@ describe('Journey Flow - Bubble uploaded controls', () => {
 
     openBubbleSettingsDialog();
     setBubbleAxis('#bubble-axis-x', 'State', 'bubble-x', 'State');
-    setBubbleAxis('#bubble-axis-y', 'NodeClass', 'bubble-y', 'Node_Class');
+    setBubbleAxis('#bubble-axis-y', 'Node_Class', 'bubble-y', 'Node_Class');
     cy.get('@bubbleSettings').find('#bubble-node-collapsing').contains('On').click({ force: true });
     cy.window().its('commonService.visuals.bubble.SelectedNodeCollapsingTypeVariable').should('equal', true);
     setBubbleRangeValue('#bubble-node-size', resizedNodes, 'commonService.session.style.widgets.bubble-size');
@@ -331,7 +331,7 @@ describe('Journey Flow - Bubble uploaded controls', () => {
     goToBubbleView();
 
     openBubbleSettingsDialog();
-    setBubbleAxis('#bubble-axis-x', 'CollectionDate', 'bubble-x', 'Collection_Date');
+    setBubbleAxis('#bubble-axis-x', 'Collection_Date', 'bubble-x', 'Collection_Date');
     setBubbleAxis('#bubble-axis-y', 'None', 'bubble-y', 'None');
     cy.get('@bubbleSettings').find('#xVarDate').click({ force: true });
     cy.window().its('commonService.visuals.bubble.xVarDate').should('equal', true);
@@ -394,7 +394,7 @@ describe('Journey Flow - Bubble uploaded controls', () => {
 
     openBubbleSettingsDialog();
     setBubbleAxis('#bubble-axis-x', 'None', 'bubble-x', 'None');
-    setBubbleAxis('#bubble-axis-y', 'CollectionDate', 'bubble-y', 'Collection_Date');
+    setBubbleAxis('#bubble-axis-y', 'Collection_Date', 'bubble-y', 'Collection_Date');
     cy.get('@bubbleSettings').find('#yVarDate').click({ force: true });
     cy.window().its('commonService.visuals.bubble.yVarDate').should('equal', true);
     cy.closeSettingsPane('Bubble Settings');
@@ -462,7 +462,7 @@ describe('Journey Flow - Bubble uploaded controls', () => {
     goToBubbleView();
 
     openBubbleSettingsDialog();
-    setBubbleAxis('#bubble-axis-x', 'CollectionDate', 'bubble-x', 'Collection_Date');
+    setBubbleAxis('#bubble-axis-x', 'Collection_Date', 'bubble-x', 'Collection_Date');
     setBubbleAxis('#bubble-axis-y', 'None', 'bubble-y', 'None');
     cy.get('@bubbleSettings').find('#xVarDate').click({ force: true });
     cy.window().its('commonService.visuals.bubble.xVarDate').should('equal', true);

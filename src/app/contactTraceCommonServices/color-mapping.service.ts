@@ -1,5 +1,6 @@
 import { Injectable } from '@angular/core';
 import * as d3 from 'd3';
+import { getFieldOptionValue } from './internal-field-options';
 
 export interface NodeColorSegment {
   value: string;
@@ -393,7 +394,7 @@ export function getMixedNodeColorLegendEntries(
   const entries = new Map<string, MixedNodeColorLegendEntry>();
 
   (nodes || []).forEach(node => {
-    const parsed = canonicalizeWeightedMixedNodeColorComponents(node?.[variable], preferredOrder);
+    const parsed = canonicalizeWeightedMixedNodeColorComponents(getFieldOptionValue(node, variable), preferredOrder);
     if (parsed.components.length < 2) {
       return;
     }
@@ -632,11 +633,11 @@ export class ColorMappingService {
       }
 
       const parsedMixedValue = splitMixedValues
-        ? canonicalizeWeightedMixedNodeColorComponents(d[nodeColorVariable], storedKeysForVariable)
+        ? canonicalizeWeightedMixedNodeColorComponents(getFieldOptionValue(d, nodeColorVariable), storedKeysForVariable)
         : null;
       const categories = parsedMixedValue?.components.length
         ? parsedMixedValue.components.map(component => component.value)
-        : [this.normalizeStyleCategoryValue(d[nodeColorVariable])];
+        : [this.normalizeStyleCategoryValue(getFieldOptionValue(d, nodeColorVariable))];
       const isMixedValue = splitMixedValues && categories.length > 1;
       if (parsedMixedValue?.invalidWeights) {
         invalidMixedWeightCount += 1;
@@ -885,7 +886,7 @@ export class ColorMappingService {
         }
 
       } else {
-        const val = ensureAggregateKey(l[linkColorVariable], true);
+        const val = ensureAggregateKey(getFieldOptionValue(l, linkColorVariable), true);
         if (val !== null) {
           aggregates[val] += 1;
         }

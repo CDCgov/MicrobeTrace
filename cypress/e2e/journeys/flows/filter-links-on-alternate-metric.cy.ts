@@ -34,7 +34,7 @@ describe('Journey Flow - Filter Links on alternate uploaded numeric metric', () 
     cy.window().its('commonService.session.style.widgets.link-sort-variable').should('equal', 'distance');
 
     cy.get('#link-sort-variable').click({ force: true });
-    cy.contains('li[role="option"]', 'Score').click({ force: true });
+    cy.contains('li[role="option"]', /^score$/).click({ force: true });
 
     cy.window().its('commonService.session.style.widgets.link-sort-variable').should('equal', 'score');
     cy.window().its('commonService.GlobalSettingsModel.SelectedLinkSortVariable').should('equal', 'score');

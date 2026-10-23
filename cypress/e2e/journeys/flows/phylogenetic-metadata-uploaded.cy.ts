@@ -514,7 +514,7 @@ describe('Journey Flow - Phylogenetic Tree metadata-backed controls', () => {
     getLeafNodeById(EDUCATION_NODE_ID).invoke('attr', 'r').should('equal', '20');
 
     cy.get('@phyloSettings').find('#leaf-size-var').click({ force: true });
-    cy.contains('li[role="option"]', 'Degree').click({ force: true });
+    cy.contains('li[role="option"]', 'degree').click({ force: true });
 
     cy.window()
       .its('commonService.session.style.widgets')
@@ -645,7 +645,7 @@ describe('Journey Flow - Phylogenetic Tree metadata-backed controls', () => {
     let nodeSnapshotAfter: LeafSnapshot = {};
 
     openGlobalStylingTab();
-    selectPrimeOption('#node-color-variable', 'Cluster');
+    selectPrimeOption('#node-color-variable', 'cluster');
 
     cy.window()
       .its('commonService.session.style.widgets.node-color-variable')

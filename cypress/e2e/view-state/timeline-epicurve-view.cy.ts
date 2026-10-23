@@ -38,7 +38,7 @@ describe('Epi Curve / Timeline View', () => {
       });
 
       it("Tests Legend Positioning, Single", () => {
-        selectField('Color By', 'Cluster')
+        selectField('Color By', 'cluster')
 
         selectLegendPosition('Left')
         selectLegendPosition('Right')
@@ -122,7 +122,7 @@ describe('Epi Curve / Timeline View', () => {
       })
 
       it('Sets color by cluster and ensures view responds to split/merging of clusters', () => {
-        selectField('Color By', 'Cluster')
+        selectField('Color By', 'cluster')
         selectLegendPosition('Right')
         cy.closeSettingsPane('Epi Curve Settings');
         cy.openGlobalSettings();
@@ -193,7 +193,7 @@ describe('Epi Curve / Timeline View', () => {
 
         cy.openGlobalSettings();
         cy.get('#node-color-variable').click()
-        cy.get('li[role="option"]').contains('Cluster').click()
+        cy.get('li[role="option"]').contains('cluster').click()
         cy.get('#node-color-table-row', { timeout: 10000 }).should('be.visible');
         cy.get('#node-color-table-row').contains('.p-selectbutton .p-togglebutton-label', 'Show').click({ force: true });
 
@@ -264,7 +264,7 @@ describe('Epi Curve / Timeline View', () => {
       beforeEach(() => {
         selectField('Graph Type', 'Multi: Side by Side')
 
-        selectField('Date Field', 'CollectionDate')
+        selectField('Date Field', 'Collection_Date')
         selectField('Date Field 2', 'Date of symptom onset Date')
         selectField('Date Field 3', 'Date symptoms resolved')
       })

@@ -50,7 +50,7 @@ describe('Journey Flow - Map uploaded tooltip controls', () => {
     goToMapView();
 
     openMapSettingsDialog();
-    selectMapField('map-field-zipcode', 'Zipcode', 'map-field-zipcode', 'Zip_code');
+    selectMapField('map-field-zipcode', 'Zip_code', 'map-field-zipcode', 'Zip_code');
     setMapNodeCollapsing('Off');
 
     cy.get('@mapSettings').contains('.nav-link', 'Nodes').click({ force: true });
@@ -152,12 +152,12 @@ describe('Journey Flow - Map uploaded tooltip controls', () => {
     cy.closeGlobalSettings();
 
     openMapSettingsDialog();
-    selectMapField('map-field-lat', 'Lat', 'map-field-lat', 'lat');
-    selectMapField('map-field-lon', 'Long', 'map-field-lon', 'long');
+    selectMapField('map-field-lat', 'lat', 'map-field-lat', 'lat');
+    selectMapField('map-field-lon', 'long', 'map-field-lon', 'long');
     setMapNodeCollapsing('Off');
 
     cy.get('@mapSettings').contains('.nav-link', 'Links').click({ force: true });
-    selectPrimeOption('#map-link-tooltip-variable', 'Distance');
+    selectPrimeOption('#map-link-tooltip-variable', 'distance');
 
     cy.closeSettingsPane('Geospatial Settings');
 

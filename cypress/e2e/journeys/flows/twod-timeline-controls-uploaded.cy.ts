@@ -308,7 +308,7 @@ describe('Journey Flow - 2D uploaded timeline controls', () => {
     assertRenderedLogicalLinkCountMatchesMetric();
 
     openGlobalStylingTab();
-    selectPrimeOption('#node-color-variable', 'Cluster');
+    selectPrimeOption('#node-color-variable', 'cluster');
     cy.window().its('commonService.session.style.widgets.node-color-variable').should('equal', 'cluster');
 
     cy.window().then((win: unknown) => {
@@ -404,7 +404,7 @@ describe('Journey Flow - 2D uploaded timeline controls', () => {
     assertRenderedLogicalLinkCountMatchesMetric();
 
     openGlobalStylingTab();
-    selectPrimeOption('#link-tooltip-variable', 'Cluster');
+    selectPrimeOption('#link-tooltip-variable', 'cluster');
     cy.window().its('commonService.session.style.widgets.link-color-variable').should('equal', 'cluster');
 
     cy.get('#key-tables-link-table tr', { timeout: 15000 })

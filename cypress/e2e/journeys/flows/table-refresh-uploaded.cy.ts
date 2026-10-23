@@ -52,7 +52,7 @@ describe('Journey Flow - Table uploaded refresh and sync', () => {
     });
 
     goToTableView();
-    assertFirstVisibleRowValue('Id', selectedNodeId);
+    assertFirstVisibleRowValue('_id', selectedNodeId);
     cy.window()
       .its('commonService.visuals.tableComp.SelectedTableData.dataSelection')
       .should('have.length', 1);
@@ -74,13 +74,13 @@ describe('Journey Flow - Table uploaded refresh and sync', () => {
       });
 
     cy.get<string>('@tableAllFilterNodeId').then((nodeId) => {
-      setTableFilterValue('Id', nodeId);
+      setTableFilterValue('_id', nodeId);
       assertTableVisibleRowCount(1);
       cy.window()
         .its('commonService.visuals.tableComp.selectedRows')
         .should('equal', 1);
 
-      clearTableFilterValue('Id');
+      clearTableFilterValue('_id');
     });
 
     cy.window()
@@ -164,7 +164,7 @@ describe('Journey Flow - Table uploaded refresh and sync', () => {
 
     cy.get<{ nodeId: string; currentDegree: number; nextDegree: number }>('@tableThresholdRefreshCase')
       .then((refreshCase) => {
-        assertTableRowValueByMatch('Id', refreshCase.nodeId, 'Degree', String(refreshCase.currentDegree));
+        assertTableRowValueByMatch('_id', refreshCase.nodeId, 'degree', String(refreshCase.currentDegree));
 
         openGlobalFilteringTab();
         setGlobalLinkThreshold(0.0144);
@@ -176,7 +176,7 @@ describe('Journey Flow - Table uploaded refresh and sync', () => {
         assertMetricCount('#numberOfDisjointComponents', 2);
         assertMetricCount('#numberOfSingletonNodes', 2);
 
-        assertTableRowValueByMatch('Id', refreshCase.nodeId, 'Degree', String(refreshCase.nextDegree));
+        assertTableRowValueByMatch('_id', refreshCase.nodeId, 'degree', String(refreshCase.nextDegree));
       });
   });
 });

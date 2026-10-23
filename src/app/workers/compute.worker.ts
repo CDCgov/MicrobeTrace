@@ -5,6 +5,7 @@ import * as patristic from 'patristic';
 import * as tn93 from 'tn93';
 
 import { computeNetworkStatistics } from '../contactTraceCommonServices/network-statistics';
+import { getFieldOptionValue } from '../contactTraceCommonServices/internal-field-options';
 import type { ComputeWorkerRequest } from './compute-worker.types';
 import { clampNegativeBranchLengthsToZero } from './phylogenetic-tree-utils';
 
@@ -264,7 +265,7 @@ function handleMst(payload: any, jobId: number): void {
     const targets: number[] = [];
     for (let j = 0; j < n; j++) {
       const cell = row[labels[j]];
-      targets.push(cell ? cell[metric] : 0);
+      targets.push(cell ? getFieldOptionValue(cell, metric) : 0);
     }
     matrix.push(targets);
     map.push(nodeid);
@@ -416,7 +417,7 @@ function handleNn(payload: any, jobId: number): void {
       if (!cell) {
         continue;
       }
-      const value = cell[metric];
+      const value = getFieldOptionValue(cell, metric);
       if (typeof value !== 'number' || Number.isNaN(value)) {
         continue;
       }
@@ -431,7 +432,7 @@ function handleNn(payload: any, jobId: number): void {
       if (!cell) {
         continue;
       }
-      const value = cell[metric];
+      const value = getFieldOptionValue(cell, metric);
       if (typeof value !== 'number' || Number.isNaN(value)) {
         continue;
       }

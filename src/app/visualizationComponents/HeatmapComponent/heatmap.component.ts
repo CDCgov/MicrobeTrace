@@ -132,7 +132,7 @@ export class HeatmapComponent extends BaseComponentDirective implements OnInit, 
 
       this.visuals.heatmap.FieldList.push(
         {
-          label: this.visuals.heatmap.commonService.capitalize(d.replace('_', '')),
+          label: this.commonService.getFieldDisplayLabel(d),
           value: d
         });
     });

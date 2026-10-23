@@ -239,7 +239,7 @@ describe('Journey Flow - 2D mixed-origin link coloring', () => {
     waitForProcessingDialogToClear();
 
     openGlobalStylingTab();
-    selectPrimeOption('#link-tooltip-variable', 'Origin');
+    selectPrimeOption('#link-tooltip-variable', 'origin');
     cy.window().its('commonService.session.style.widgets.link-color-variable').should('equal', 'origin');
 
     cy.window().should((win: unknown) => {

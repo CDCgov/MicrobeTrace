@@ -50,9 +50,9 @@ const META_DATA_TO_SKIP = [
   'nodeSize',
 ] as const;
 
-const PREFERRED_CLUSTER_ROWS = ['Links Per Node', 'Mean Genetic Distance'];
-const PREFERRED_NODE_ROWS = ['Profession', 'Node Type', 'State', 'Lineage'];
-const PREFERRED_LINK_ROWS = ['Contact Type', 'Exposure', 'Case Status Confirmed?'];
+const PREFERRED_CLUSTER_ROWS = ['links_per_node', 'mean_genetic_distance'];
+const PREFERRED_NODE_ROWS = ['Profession', 'Node type', 'State', 'Lineage'];
+const PREFERRED_LINK_ROWS = ['Contact type', 'Exposure', 'Case Status Confirmed?'];
 
 function getNodeId(node: any): string {
   return String(node?._id ?? node?.id ?? '');
@@ -79,7 +79,7 @@ function buildExpansionRows(commonService: any, source: Record<string, any>): Ex
       }
 
       return {
-        key: String(commonService.titleize(key)),
+        key: String(commonService.getFieldDisplayLabel(key)),
         value: rawValue,
       };
     });
@@ -275,7 +275,7 @@ describe('Journey Flow - Waterfall uploaded detail expansions and selection rese
         .filter((row) => PREFERRED_CLUSTER_ROWS.includes(row.key))
         .forEach((row) => {
           expect(row.value, `${row.key} formatting`).to.match(
-            row.key === 'Mean Genetic Distance'
+            row.key === 'mean_genetic_distance'
               ? /^-?\d+(?:\.\d{3})?$/
               : /^-?\d+\.\d{3}$/,
           );

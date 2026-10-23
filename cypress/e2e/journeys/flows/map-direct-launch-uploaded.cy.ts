@@ -57,7 +57,7 @@ describe('Journey Flow - Map direct launch on uploaded data', () => {
       .should('exist');
 
     openMapSettingsDialog();
-    selectMapField('map-field-zipcode', 'Zipcode', 'map-field-zipcode', 'Zip_code');
+    selectMapField('map-field-zipcode', 'Zip_code', 'map-field-zipcode', 'Zip_code');
     setMapNodeCollapsing('Off');
     cy.closeSettingsPane('Geospatial Settings');
 

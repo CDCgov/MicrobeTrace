@@ -1,4 +1,5 @@
 import { aggregateNodeShapeCategories, getMixedNodeRingWidth, getMixedNodeShapeDataUri, resolveNodeShapeForNode } from './node-shapes';
+import { createFieldOptionValue } from './internal-field-options';
 
 function decodeSvgDataUri(dataUri: string): string {
   return decodeURIComponent(dataUri.split(',')[1]);
@@ -490,6 +491,17 @@ describe('mixed node shape SVG helpers', () => {
 });
 
 describe('node shape category normalization', () => {
+  it('uses a real None field for shape categories and shape lookup', () => {
+    const field = createFieldOptionValue('None', ['None']);
+    const nodes = [{ visible: true, None: 'A' }, { visible: true, None: 'B' }];
+    expect(Array.from(aggregateNodeShapeCategories(nodes, field).counts.entries()))
+      .toEqual([['A', 1], ['B', 1]]);
+    const shape = resolveNodeShapeForNode(nodes[1],
+      { 'node-symbol': 'ellipse', 'node-symbol-variable': field },
+      { nodeSymbolsTableKeys: { [field]: ['A', 'B'] }, nodeSymbolsTable: { [field]: ['ellipse', 'triangle'] } });
+    expect(shape).toBe('triangle');
+  });
+
   it('merges blank and N/A aliases into one empty table count', () => {
     const result = aggregateNodeShapeCategories([
       { visible: true, Genotype: undefined },

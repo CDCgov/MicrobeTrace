@@ -62,7 +62,7 @@ describe('Journey Flow - Uploaded style file reflected on Map', () => {
     // offline layer for rendering so this styling test does not require WebGL.
     goToMapView();
     openMapSettingsDialog();
-    selectMapField('map-field-zipcode', 'Zipcode', 'map-field-zipcode', 'Zip_code');
+    selectMapField('map-field-zipcode', 'Zip_code', 'map-field-zipcode', 'Zip_code');
     cy.closeSettingsPane('Geospatial Settings');
 
     assertMapRenderedCounts({

@@ -1,5 +1,7 @@
 /// <reference types="cypress" />
 
+import { INTERNAL_FIELD_OPTION_VALUES } from '../../../../src/app/contactTraceCommonServices/internal-field-options';
+
 import { getProfile } from '../datasets/profile';
 import {
   assertAfterLaunchCounts,
@@ -51,7 +53,7 @@ describe('Journey Flow - Uploaded link tooltip contents', () => {
 
     cy.window()
       .its('commonService.session.style.widgets.link-tooltip-variable')
-      .should('include.members', ['source_id', 'target_id']);
+      .should('include.members', [INTERNAL_FIELD_OPTION_VALUES.linkSourceId, INTERNAL_FIELD_OPTION_VALUES.linkTargetId]);
 
     cy.get('@twoDSettings')
       .find('button.p-dialog-close-button')
@@ -63,9 +65,9 @@ describe('Journey Flow - Uploaded link tooltip contents', () => {
 
       cy.window().invoke('Cypress.test.linkTooltip', 'show', edge.edgeId);
       cy.get('#tooltip #tooltip-table').should('be.visible').within(() => {
-        cy.contains('td', 'Source_id').should('be.visible');
+        cy.contains('td', 'Source ID').should('be.visible');
         cy.contains('td', edge.sourceId).should('be.visible');
-        cy.contains('td', 'Target_id').should('be.visible');
+        cy.contains('td', 'Target ID').should('be.visible');
         cy.contains('td', edge.targetId).should('be.visible');
       });
       cy.window().invoke('Cypress.test.linkTooltip', 'hide', edge.edgeId);

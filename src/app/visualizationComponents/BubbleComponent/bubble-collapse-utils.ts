@@ -1,3 +1,5 @@
+import { getFieldOptionValue } from '@app/contactTraceCommonServices/internal-field-options';
+
 export interface BubbleCollapseGroup {
   Xgroup: number;
   Ygroup: number;
@@ -17,7 +19,7 @@ function getBubbleAxisGroup(
     return 0;
   }
 
-  return categories.indexOf(node?.[variable]);
+  return categories.indexOf(getFieldOptionValue(node, variable));
 }
 
 /**

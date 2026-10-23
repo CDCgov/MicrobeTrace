@@ -125,7 +125,7 @@ describe('Phylogenetic Tree View', () => {
     it('should set node color variable to cluster, then update link threshold to update node color', () => {
       cy.openGlobalSettings();
       cy.get('#node-color-variable').click()
-      cy.get('li[role="option"]').contains('Cluster').click()
+      cy.get('li[role="option"]').contains('cluster').click()
 
       cy.get(selectors.treeSvg)
         .find('g.tidytree-node-leaf circle[title="MZ740979"]')
@@ -507,7 +507,7 @@ describe('Phylogenetic Tree View', () => {
       cy.get(selectors.treeSvg).find('g.tidytree-node-leaf circle').first().should('have.attr', 'r', 5);
       cy.window().its('commonService.visuals.phylogenetic.SelectedLeafNodeSizeVariable').should('equal', 'None');
       cy.get('@dialogContainer').find('#leaf-size-var').click();
-      cy.contains('li[role="option"]', 'Degree').click();
+      cy.contains('li[role="option"]', 'degree').click();
 
       cy.get(selectors.treeSvg).find('g.tidytree-node-leaf circle').first().invoke('attr', 'r').then(r => {expect(Number(r)).to.be.closeTo(8.33334, 0.001)});
 

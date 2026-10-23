@@ -75,7 +75,7 @@ describe('Journey Flow - Uploaded grouping settings and filtering', () => {
     cy.window().its('commonService.session.style.widgets.polygons-show').should('equal', true);
 
     cy.get('@groupingTab').find('#polygons-foci').should('be.visible').click({ force: true });
-    cy.contains('li[role="option"]', 'Subtype').click({ force: true });
+    cy.contains('li[role="option"]', /^subtype$/).click({ force: true });
     cy.window().its('commonService.session.style.widgets.polygons-foci').should('equal', 'subtype');
 
     expandAccordionTabByHeader('@groupingTab', 'Labels');

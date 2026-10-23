@@ -839,7 +839,7 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
     this.commonService.session.data['nodeFields'].map((d, i) => {
       if (['seq', 'origin', '_diff', '_ambiguity', 'index'].includes(d)) return;
       this.visuals.phylogenetic.LeafLabelFieldList.push({
-        label: this.visuals.phylogenetic.commonService.capitalize(d.replace('_', '')),
+        label: this.commonService.getFieldDisplayLabel(d),
         value: d
         });
     });

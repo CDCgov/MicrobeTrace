@@ -8,6 +8,7 @@
  */
 
 import { Core } from 'cytoscape';
+import { INTERNAL_FIELD_OPTION_VALUES } from '../../../src/app/contactTraceCommonServices/internal-field-options';
 import { ensureTwoDNetworkView, setTimelineRange, visitAppAndAcceptEula } from '../../support/journey-helpers';
 import { byTestId, testIds } from '../../support/selectors';
 
@@ -384,10 +385,11 @@ describe('2D Network - Settings Pane Interactions', () => {
 
     it('should update node label via dropdown', () => {
         cy.get('@dialogContainer').contains('p-accordion-panel', 'Labels and Tooltips').click();
-        cy.window().its('commonService.session.style.widgets.node-label-variable').should('equal', 'None');
+        cy.window().its('commonService.session.style.widgets.node-label-variable')
+          .should('equal', INTERNAL_FIELD_OPTION_VALUES.none);
         
         cy.get('@dialogContainer').find(selector.nodeLabelVar).click();
-        cy.contains('li[role="option"]', 'Id').click();
+        cy.contains('li[role="option"]', '_id').click();
         
         cy.window().its('commonService.session.style.widgets.node-label-variable').should('equal', '_id');
         getCy().then(cy => {
@@ -453,20 +455,21 @@ describe('2D Network - Settings Pane Interactions', () => {
         cy.window().invoke('Cypress.test.tooltip', 'show', nodeId);
         // Corrected Assertion: Check for the text inside the generated table within the tooltip
         cy.get('#tooltip #tooltip-table').should('be.visible').within(() => {
-          cy.contains('td', 'id').should('be.visible');
-          cy.contains('td', 'Cluster').should('be.visible');
+          cy.contains('td', '_id').should('be.visible');
+          cy.contains('td', 'cluster').should('be.visible');
       });
     });
 
     it('should change node sizing to be by variable and reflect in the network', () => {
         cy.get('@dialogContainer').contains('p-accordion-panel', 'Shapes and Sizes').click();
     
-        cy.window().its('commonService.session.style.widgets.node-radius-variable').should('equal', 'None');
+        cy.window().its('commonService.session.style.widgets.node-radius-variable')
+          .should('equal', INTERNAL_FIELD_OPTION_VALUES.none);
         cy.get('@dialogContainer').find('#node-radius-row').should('be.visible');
         cy.get('@dialogContainer').find('#node-max-radius-row').should('not.be.visible');
     
         cy.get('@dialogContainer').find(selector.nodeRadiusVar).click();
-        cy.contains('li[role="option"]', 'Degree').click();
+        cy.contains('li[role="option"]', 'degree').click();
     
         cy.window().its('commonService.session.style.widgets.node-radius-variable').should('equal', 'degree');
         cy.get('@dialogContainer').find('#node-radius-row').should('not.be.visible');
@@ -555,7 +558,7 @@ describe('2D Network - Settings Pane Interactions', () => {
       cy.window().its('commonService.session.style.widgets.link-tooltip-variable').should('be.empty');
       
       cy.get('@dialogContainer').find('.tab-pane.active').contains('.form-group', 'Tooltip').find('p-multi-select').click();
-      cy.contains('li[role="option"]', 'Distance').click();
+      cy.contains('li[role="option"]', 'distance').click();
       
       cy.window().its('commonService.session.style.widgets.link-tooltip-variable').should('include', 'distance');
   
@@ -751,7 +754,7 @@ describe('2D Network - Settings Pane Interactions', () => {
         cy.get('@dialogContainer').contains('.nav-link', 'Nodes').click();
         cy.get('@dialogContainer').contains('p-accordion-panel', 'Labels and Tooltips').click();
         cy.get('@dialogContainer').find(selector.nodeLabelVar).click();
-        cy.contains('li[role="option"]', 'Id').click();
+        cy.contains('li[role="option"]', '_id').click();
         cy.get('@dialogContainer').find(selector.nodeLabelOrientation).click();
         cy.contains('li[role="option"]', nodeOrientation).click();
 

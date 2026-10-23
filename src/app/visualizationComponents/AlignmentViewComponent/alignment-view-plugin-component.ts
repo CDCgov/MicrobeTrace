@@ -171,7 +171,7 @@ export class AlignmentViewComponent extends BaseComponentDirective implements On
     this.commonService.session.data['nodeFields'].map((d, i) => {
       if (d != 'seq' && d != 'sequence') {
         this.labelFieldList.push({
-          label: this.commonService.capitalize(d.replace("_", "")),
+          label: this.commonService.getFieldDisplayLabel(d),
           value: d
         });
       }

@@ -25,8 +25,8 @@ describe('Journey Flow - Table uploaded columns', () => {
     assertAfterLaunchCounts(profile);
     goToTableView();
 
-    setVisibleTableColumns(['Id', 'Degree']);
-    assertVisibleTableHeaders(['Index', 'Id', 'Degree']);
+    setVisibleTableColumns(['_id', 'degree']);
+    assertVisibleTableHeaders(['index', '_id', 'degree']);
 
     openTableExportDialog();
     cy.get('@tableExport')
@@ -42,9 +42,9 @@ describe('Journey Flow - Table uploaded columns', () => {
       const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, { defval: '' });
       const headers = Object.keys(rows[0] || {});
 
-      expect(headers, 'current-column csv headers').to.deep.equal(['Index', 'Id', 'Degree']);
+      expect(headers, 'current-column csv headers').to.deep.equal(['index', '_id', 'degree']);
       expect(headers, 'current-column csv omits non-selected columns').not.to.include.members([
-        'Cluster',
+        'cluster',
         'Profession',
       ]);
     });
@@ -55,17 +55,17 @@ describe('Journey Flow - Table uploaded columns', () => {
     assertAfterLaunchCounts(profile);
     goToTableView();
 
-    setVisibleTableColumns(['Id', 'Degree']);
-    assertVisibleTableHeaders(['Index', 'Id', 'Degree']);
+    setVisibleTableColumns(['_id', 'degree']);
+    assertVisibleTableHeaders(['index', '_id', 'degree']);
 
     selectTableDataset('Link');
-    setVisibleTableColumns(['Source', 'Target', 'Distance']);
-    assertVisibleTableHeaders(['Index', 'Source', 'Target', 'Distance']);
+    setVisibleTableColumns(['source', 'target', 'distance']);
+    assertVisibleTableHeaders(['index', 'source', 'target', 'distance']);
 
     selectTableDataset('Node');
-    assertVisibleTableHeaders(['Index', 'Id', 'Degree']);
+    assertVisibleTableHeaders(['index', '_id', 'degree']);
 
     selectTableDataset('Link');
-    assertVisibleTableHeaders(['Index', 'Source', 'Target', 'Distance']);
+    assertVisibleTableHeaders(['index', 'source', 'target', 'distance']);
   });
 });

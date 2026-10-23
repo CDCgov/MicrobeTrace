@@ -54,8 +54,8 @@ export function openTableExportDialog(): void {
 }
 
 export function openTableColumnPicker(): void {
-  cy.get(`${TABLE_ROOT} p-multi-select`, { timeout: 15000 })
-    .should('exist')
+  cy.get(`${TABLE_ROOT} p-multi-select:visible .p-multiselect-dropdown`, { timeout: 15000 })
+    .should('have.length', 1)
     .click({ force: true });
 
   cy.get('.p-multiselect-overlay:visible', { timeout: 15000 })
@@ -67,10 +67,16 @@ export function selectTableDataset(dataset: TableDataset): void {
   cy.get(`${TABLE_ROOT} #dataType .p-select`, { timeout: 15000 }).click({ force: true });
   cy.contains('li[role="option"]', tableOptionLabelByDataset[dataset], { timeout: 15000 })
     .click({ force: true });
+  cy.get('.p-select-overlay:visible').should('not.exist');
 
-  cy.window()
-    .its('commonService.visuals.tableComp.TableType')
-    .should('equal', dataset.toLowerCase());
+  cy.window().should((win: unknown) => {
+    const tableComp = (win as WinWithMT).commonService.visuals.tableComp;
+    const expectedTableType = dataset.toLowerCase();
+
+    expect(tableComp.TableType, 'selected table type').to.equal(expectedTableType);
+    expect(tableComp.SelectedTableData.tableType, 'rendered table type').to.equal(expectedTableType);
+    expect(tableComp.SelectedTableData.availableColumns, 'available table columns').not.to.be.empty;
+  });
 }
 
 export function assertTableDatasetMatchesSession(dataset: TableDataset): void {
@@ -288,7 +294,8 @@ export function setVisibleTableColumns(desiredHeaders: string[]): void {
     cy.wrap(expectedHeaders, { log: false }).as('expectedTableHeaders');
   });
 
-  cy.get('body').click(5, 5);
+  cy.get(`${TABLE_ROOT} p-multi-select:visible .p-multiselect-dropdown`).click({ force: true });
+  cy.get('.p-multiselect-overlay:visible').should('not.exist');
 
   cy.get<string[]>('@expectedTableHeaders').then((expectedHeaders) => {
     assertVisibleTableHeaders(expectedHeaders);

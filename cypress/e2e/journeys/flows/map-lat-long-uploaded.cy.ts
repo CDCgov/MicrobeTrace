@@ -20,8 +20,8 @@ describe('Journey Flow - Map uploaded latitude and longitude mapping', () => {
     goToMapView();
 
     openMapSettingsDialog();
-    selectMapField('map-field-lat', 'Lat', 'map-field-lat', 'lat');
-    selectMapField('map-field-lon', 'Long', 'map-field-lon', 'long');
+    selectMapField('map-field-lat', 'lat', 'map-field-lat', 'lat');
+    selectMapField('map-field-lon', 'long', 'map-field-lon', 'long');
     setMapNodeCollapsing('Off');
     cy.closeSettingsPane('Geospatial Settings');
 

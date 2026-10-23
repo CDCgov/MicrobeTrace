@@ -2834,8 +2834,8 @@ ${warnings.join('\n')}`,
             return 'None';
         }
 
-        const normalizedValue = String(value).trim();
-        if (!normalizedValue || normalizedValue.toLowerCase() === 'none') {
+        const normalizedValue = String(value);
+        if (!normalizedValue || normalizedValue === 'None') {
             return 'None';
         }
 
@@ -3087,7 +3087,7 @@ ${warnings.join('\n')}`,
     generateNodeLinkTable(tableId: string, isEditable: boolean = true) {
         this.linkColorTableEditable = isEditable;
         this.linkColorTableHeaders = {
-            value: this.getKeyTableColumnDisplayName('link-color', 'value', 'Link ' + this.commonService.titleize(this.SelectedColorLinksByVariable)),
+            value: this.getKeyTableColumnDisplayName('link-color', 'value', 'Link ' + this.commonService.getFieldOptionDisplayLabel(this.SelectedColorLinksByVariable)),
             count: this.getKeyTableColumnDisplayName('link-color', 'count', 'Count'),
             frequency: this.getKeyTableColumnDisplayName('link-color', 'frequency', 'Frequency')
         };
@@ -3484,7 +3484,7 @@ ${warnings.join('\n')}`,
         // }
 
         }
-        let globalTimelineField =  (this.commonService.session.style.overwrite && variable == this.commonService.session.style.overwrite['globalTimelineFieldVariable'] ? this.commonService.session.style.overwrite['globalTimelineField'] : this.commonService.titleize(variable));
+        let globalTimelineField =  (this.commonService.session.style.overwrite && variable == this.commonService.session.style.overwrite['globalTimelineFieldVariable'] ? this.commonService.session.style.overwrite['globalTimelineField'] : this.commonService.getFieldOptionDisplayLabel(variable));
         const encodedGlobalTimelineField = globalTimelineField.replace(/[\u00A0-\u9999<>\&]/g, function(i) {
             return '&#'+i.charCodeAt(0)+';';
         });
@@ -3500,7 +3500,7 @@ ${warnings.join('\n')}`,
         let times = [],
         vnodes = JSON.parse(JSON.stringify(this.commonService.session.data.nodes));
         vnodes.forEach(d => {
-            let time = moment(d[field]); 
+            let time = moment(this.commonService.getFieldValue(d, field));
             if (time.isValid()) {
                 console.log('time moment value: ', d[field]);
                 d[field] = time.toDate();
@@ -3972,7 +3972,7 @@ ${warnings.join('\n')}`,
     generateNodeColorTable(tableId: string, isEditable: boolean = true) {
         this.nodeColorTableEditable = isEditable;
         this.nodeColorTableHeaders = {
-            value: this.getKeyTableColumnDisplayName('node-color', 'value', 'Node ' + this.commonService.titleize(this.SelectedColorNodesByVariable)),
+            value: this.getKeyTableColumnDisplayName('node-color', 'value', 'Node ' + this.commonService.getFieldOptionDisplayLabel(this.SelectedColorNodesByVariable)),
             count: this.getKeyTableColumnDisplayName('node-color', 'count', 'Count'),
             frequency: this.getKeyTableColumnDisplayName('node-color', 'frequency', 'Frequency')
         };
@@ -4565,32 +4565,8 @@ ${warnings.join('\n')}`,
 
     getGlobalSettingsData() {
         console.log('--- getGlobalSettingsData called');
-        this.FieldList = [];
-
-        this.FieldList.push({ label: "None", value: "None" });
-        this.commonService.getStyleableNodeFields().forEach(d => {
-            
-            this.FieldList.push(
-                {
-                    label: this.commonService.capitalize(d.replace("_", "")),
-                    value: d
-                });
-
-        });
-
-
-        this.ToolTipFieldList = [];
-
-        this.ToolTipFieldList.push({ label: "None", value: "None" });
-        this.commonService.session.data['linkFields'].map((d, i) => {
-
-            this.ToolTipFieldList.push(
-                {
-                    label: this.commonService.capitalize(d.replace("_", "")),
-                    value: d
-                });
-
-        });
+        this.FieldList = this.commonService.createFieldSelectOptions(this.commonService.getStyleableNodeFields());
+        this.ToolTipFieldList = this.commonService.createFieldSelectOptions(this.commonService.session.data.linkFields);
 
         this.NetworkSubsetNodeFieldList = this.FieldList.filter(field =>
             this.commonService.isNetworkSubsetFilterFieldAllowed('node', field.value)
@@ -6867,7 +6843,7 @@ ${warnings.join('\n')}`,
         this.thresholdStabilityRegions = this.buildThresholdStabilityRegions(summary, threshold);
 
         if (summary.thresholds.length === 0) {
-            this.thresholdStabilityMessage = `No numeric ${this.commonService.titleize(metric)} values are available for this view.`;
+            this.thresholdStabilityMessage = `No numeric ${this.commonService.getFieldOptionDisplayLabel(metric)} values are available for this view.`;
         } else if (this.thresholdStabilityRegions.length === 0) {
             this.thresholdStabilityMessage = 'No stable cluster-count range was found. The count changes at each neighboring threshold.';
         } else {

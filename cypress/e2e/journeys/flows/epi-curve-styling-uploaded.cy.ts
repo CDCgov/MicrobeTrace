@@ -258,7 +258,7 @@ describe('Journey Flow - Epi Curve styling on uploaded data', () => {
     let initialFills: string[] = [];
 
     ensureEpiSettingsDialogOpen();
-    selectEpiCurveDropdown('Color By', 'Cluster');
+    selectEpiCurveDropdown('Color By', 'cluster');
     setEpiCurveLegendPosition('Right');
     closeDialogIfVisible('Epi Curve Settings');
 
@@ -321,7 +321,7 @@ describe('Journey Flow - Epi Curve styling on uploaded data', () => {
 
     cy.openGlobalSettings();
     switchGlobalSettingsTab('Styling');
-    selectVisiblePrimeOption('#node-color-variable', 'Cluster');
+    selectVisiblePrimeOption('#node-color-variable', 'cluster');
 
     cy.window()
       .its('commonService.session.style.widgets.node-color-variable')
@@ -435,7 +435,7 @@ describe('Journey Flow - Epi Curve color table isolation on uploaded style data'
     launchProfileToEpiCurve(styleProfile);
     assertAfterLaunchCounts(styleProfile);
     openEpiCurveSettingsDialog();
-    selectEpiCurveDropdown('Date Field', 'CollectionDate');
+    selectEpiCurveDropdown('Date Field', 'Collection_Date');
     assertEpiCurveHasBars();
     ensureEpiSettingsDialogOpen();
   });

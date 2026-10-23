@@ -371,7 +371,7 @@ describe('Journey Flow - Map custom floorplan GeoJSON and manual positions', () 
     goToMapView();
 
     openMapSettingsDialog();
-    selectMapField('map-field-zipcode', 'Zipcode', 'map-field-zipcode', 'Zip_code');
+    selectMapField('map-field-zipcode', 'Zip_code', 'map-field-zipcode', 'Zip_code');
     setMapNodeCollapsing('Off');
     cy.closeSettingsPane('Geospatial Settings');
 
@@ -585,7 +585,7 @@ describe('Journey Flow - Map custom floorplan GeoJSON and manual positions', () 
     });
 
     openMapSettingsDialog();
-    selectMapField('map-field-zipcode', 'Zipcode', 'map-field-zipcode', 'Zip_code');
+    selectMapField('map-field-zipcode', 'Zip_code', 'map-field-zipcode', 'Zip_code');
     setMapNodeCollapsing('Off');
     cy.closeSettingsPane('Geospatial Settings');
 

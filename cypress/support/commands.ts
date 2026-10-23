@@ -2,10 +2,11 @@
 /// <reference types="cypress" />
 
 import { byTestId, testIds } from './selectors';
+import { createFieldOptionValue, INTERNAL_FIELD_OPTION_VALUES } from '../../src/app/contactTraceCommonServices/internal-field-options';
 
 type FileLoadOptions = {
   name: string;
-  datatype: 'link' | 'node' | 'matrix' | 'fasta' | 'newick' | 'network' | 'MT/other';
+  datatype: 'link' | 'node' | 'matrix' | 'fasta' | 'newick' | 'network' | 'geojson' | 'MT/other';
   field1?: string;
   field2?: string;
   field3?: string;
@@ -115,8 +116,6 @@ Cypress.Commands.add('loadFiles', (opts: FileLoadOptions[]) => {
     cy.attach_files(targetSelector, fileNames, mimeTypes);
   });
 
-  cy.get('#launch', { timeout: 20000 }).should('not.be.disabled');
-
   opts.forEach((file) => {
     getFileRow(file.name).then(($fileRow) => {
       const activeType = $fileRow.find('label.active input').attr('data-type');
@@ -130,17 +129,20 @@ Cypress.Commands.add('loadFiles', (opts: FileLoadOptions[]) => {
       if (file.datatype === 'link' || file.datatype === 'node') {
         const setField = (expectedValue: string, fieldNumber: number) => {
           const selectId = `file-${file.name}-field-${fieldNumber}`;
+          const optionValue = expectedValue === 'None'
+            ? INTERNAL_FIELD_OPTION_VALUES.none
+            : createFieldOptionValue(expectedValue, ['None']);
 
           cy.get(`select[id="${selectId}"]`, { timeout: 20000 })
             .should('exist')
             .then(($select) => {
               const currentValue = String($select.val());
-              if (currentValue !== expectedValue) {
-                cy.wrap($select).select(expectedValue, { force: true });
+              if (currentValue !== optionValue) {
+                cy.wrap($select).select(optionValue, { force: true });
               }
             });
 
-          cy.get(`select[id="${selectId}"]`).should('have.value', expectedValue);
+          cy.get(`select[id="${selectId}"]`).should('have.value', optionValue);
         };
 
         if (file.field1) setField(file.field1, 1);
