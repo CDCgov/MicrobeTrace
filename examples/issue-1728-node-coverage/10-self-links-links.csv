@@ -1,0 +1,5 @@
+source,target,relationship
+A,A,self
+A,B,contact
+B,B,self
+C,C,self

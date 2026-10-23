@@ -681,9 +681,27 @@ export function applyPreLaunchFileSettings(profile: DatasetProfile): void {
   });
 }
 
+export function continuePastMissingNodeCoverageWarning(): void {
+  cy.get('body').then(($body) => {
+    const coverageDialog = $body
+      .find(byTestId(testIds.filesMissingNodeCoverageDialog))
+      .filter(':visible')
+      .closest('.p-dialog');
+
+    if (!coverageDialog.length) {
+      return;
+    }
+
+    cy.wrap(coverageDialog)
+      .find(byTestId(testIds.filesMissingNodeCoverageContinue))
+      .click({ force: true });
+  });
+}
+
 export function launchAndWaitForProcessing(timeout = 60000): void {
   cy.get('#launch', { timeout: 15000 }).should('not.be.disabled');
   cy.get('#launch').click({ force: true });
+  continuePastMissingNodeCoverageWarning();
   cy.get('#loading-information', { timeout }).should('not.exist');
   cy.window({ timeout })
     .its('commonService.session.network.isFullyLoaded')
@@ -785,9 +803,22 @@ export function assertCrosstabReady(timeout = 30000): void {
     .should('exist');
 }
 
+function focusOpenedView(viewName: string, timeout = 15000): void {
+  cy.window({ timeout })
+    .should((win: unknown) => {
+      const app = (win as WinWithMT).commonService?.visuals?.microbeTrace;
+      const openViews = (app?.homepageTabs || []).map((tab: { label: string }) => tab.label);
+      expect(openViews, 'open dashboard views').to.include(viewName);
+    })
+    .then((win: unknown) => {
+      const app = (win as WinWithMT).commonService.visuals.microbeTrace;
+      app.Viewclick(viewName);
+    });
+}
+
 export function assertEpiCurveReady(timeout = 30000): void {
-  cy.get('#epiCurve', { timeout }).should('be.visible');
-  cy.get('#epiCurveSVG', { timeout }).should('be.visible');
+  cy.get('#epiCurve:visible', { timeout }).should('be.visible');
+  cy.get('#epiCurve:visible #epiCurveSVG', { timeout }).should('be.visible');
   cy.window({ timeout })
     .its('commonService.visuals.epiCurve')
     .should('exist');
@@ -802,8 +833,8 @@ export function assertWaterfallReady(timeout = 30000): void {
 }
 
 export function assertHeatmapReady(timeout = 30000): void {
-  cy.get('#heatmap', { timeout }).should('be.visible');
-  cy.get('#heatmap svg.main-svg', { timeout }).should('exist');
+  cy.get('#heatmap:visible', { timeout }).should('be.visible');
+  cy.get('#heatmap:visible svg.main-svg', { timeout }).should('exist');
   cy.window({ timeout })
     .its('commonService.visuals.heatmap')
     .should('exist');
@@ -915,6 +946,7 @@ export function goToEpiCurveView(): void {
   cy.get(byTestId(testIds.appViewMenuButton), { timeout: 15000 }).click({ force: true });
   cy.contains('button[mat-menu-item]', 'Epi Curve', { timeout: 15000 }).click({ force: true });
 
+  focusOpenedView('Epi Curve');
   assertEpiCurveReady();
 }
 
@@ -929,6 +961,7 @@ export function goToHeatmapView(): void {
   cy.get(byTestId(testIds.appViewMenuButton), { timeout: 15000 }).click({ force: true });
   cy.contains('button[mat-menu-item]', 'Heatmap', { timeout: 15000 }).click({ force: true });
 
+  focusOpenedView('Heatmap');
   assertHeatmapReady();
 }
 

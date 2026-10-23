@@ -7,7 +7,6 @@ import * as fileto from 'fileto';
 import { generateCanvas } from '../visualizationComponents/AlignmentViewComponent/generateAlignmentViewCanvas';
 import * as tn93 from 'tn93';
 import * as patristic from 'patristic';
-import * as _ from 'lodash';
 import JSZip from 'jszip';
 import { EventEmitterService } from '@shared/utils/event-emitter.service';
 import { BaseComponentDirective } from '@app/base-component.directive';
@@ -31,6 +30,10 @@ import { WorkerComputeService } from '@app/contactTraceCommonServices/worker-com
 import { GraphMLService } from '@app/contactTraceCommonServices/graphml.service';
 import { clampNegativeBranchLengthsToZero } from '@app/workers/phylogenetic-tree-utils';
 import { findRecommendedThresholdIndex } from '@app/contactTraceCommonServices/threshold-analysis';
+import {
+  ImportNodeCoverageService,
+  ImportNodeCoverageSummary,
+} from '@app/contactTraceCommonServices/import-node-coverage.service';
 import { FEATURE_FLAGS } from '@app/feature-flags';
 
 interface FileTableOption {
@@ -52,6 +55,12 @@ interface FileTableRow {
 
 interface AddToTableOptions {
   predictFields?: boolean;
+}
+
+interface LaunchOptions {
+  resetSettings?: boolean;
+  smartThreshold?: boolean;
+  embedHandoff?: boolean;
 }
 
 
@@ -134,11 +143,17 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
   displayFileSettings: boolean = false;
   displaySequenceSettings: boolean = false;
   displayloadingInformationModal: boolean = false;
+  displayMissingNodeCoverageDialog: boolean = false;
+  missingNodeCoverageSummary: ImportNodeCoverageSummary | null = null;
   handoffError: string | null = null;
+  private isCheckingImportCoverage: boolean = false;
   private smartLaunchRequested: boolean = false;
+  private pendingCoverageLaunchOptions: LaunchOptions | null = null;
 
   get hasLaunchableFiles(): boolean {
-    return !this.isLoadingFiles && (this.commonService.session?.files?.length ?? 0) > 0;
+    return !this.isLoadingFiles &&
+      !this.isCheckingImportCoverage &&
+      (this.commonService.session?.files?.length ?? 0) > 0;
   }
 
   readonly fileTableFormatOptions: FileTableOption[] = [
@@ -154,12 +169,6 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
   readonly fileTableFieldNumbers = [1, 2, 3];
   fileTableRows: FileTableRow[] = [];
   private nextFileTableRowId = 0;
-
-  nodeIds: { fileName: string; ids: string[] }[] = [];
-  edgeIds: { fileName: string; ids: { source: string; target: string }[] }[] = [];
-
-  uniqueNodes: string[] = [];
-  uniqueEdgeNodes: string[] = [];
 
   public title: string;
   public id: string;
@@ -183,7 +192,8 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
     private embedHandoffService: EmbedHandoffService,
     private ngZone: NgZone,
     private workerComputeService: WorkerComputeService,
-    private graphMLService: GraphMLService
+    private graphMLService: GraphMLService,
+    private importNodeCoverageService: ImportNodeCoverageService,
     ) {
 
     super(elRef.nativeElement);
@@ -579,7 +589,6 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
       this.commonService.session.files.splice(fileIndex, 1);
     }
 
-    this.removeFile(row.fileName);
     this.fileTableRows = this.fileTableRows.filter(existingRow => existingRow !== row);
 
     if (this.commonService.session.files.length === 0) {
@@ -730,9 +739,6 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
           return;
         }
 
-        this.commonService.session.files.forEach(file => {
-          this.removeFile(file.name, false);
-        });
         this.store.setFP_removeFiles(false);
       });
 
@@ -1442,7 +1448,57 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
    * or resets all settings when requested by the Files tab reset update action.
    * Calls creatLaunchSequences to process the data files loaded.
    */
-  launchClick(options: { resetSettings?: boolean; smartThreshold?: boolean; embedHandoff?: boolean } = {}) {
+  async launchClick(options: LaunchOptions = {}): Promise<void> {
+    if (this.isCheckingImportCoverage || this.displayMissingNodeCoverageDialog) {
+      return;
+    }
+
+    this.isCheckingImportCoverage = true;
+    this.refreshTemplateState();
+
+    // Let the disabled launch state render before parsing large local files.
+    await new Promise<void>(resolve => setTimeout(resolve, 0));
+    const analysis = this.importNodeCoverageService.analyze(this.commonService.session.files);
+
+    this.isCheckingImportCoverage = false;
+    this.refreshTemplateState();
+
+    if (analysis.status === 'complete') {
+      const { missingNodeData, missingLinkInformation } = analysis.summary;
+      if (missingNodeData.total > 0 || missingLinkInformation.total > 0) {
+        this.missingNodeCoverageSummary = analysis.summary;
+        this.pendingCoverageLaunchOptions = { ...options };
+        this.displayMissingNodeCoverageDialog = true;
+        this.refreshTemplateState();
+        return;
+      }
+    }
+
+    this.executeLaunch(options);
+  }
+
+  cancelMissingNodeCoverageLaunch(): void {
+    this.pendingCoverageLaunchOptions = null;
+    this.missingNodeCoverageSummary = null;
+    this.displayMissingNodeCoverageDialog = false;
+    this.refreshTemplateState();
+  }
+
+  continueMissingNodeCoverageLaunch(): void {
+    const options = this.pendingCoverageLaunchOptions;
+    if (!options) {
+      this.cancelMissingNodeCoverageLaunch();
+      return;
+    }
+
+    this.pendingCoverageLaunchOptions = null;
+    this.missingNodeCoverageSummary = null;
+    this.displayMissingNodeCoverageDialog = false;
+    this.refreshTemplateState();
+    this.executeLaunch(options);
+  }
+
+  private executeLaunch(options: LaunchOptions = {}): void {
 
     this.smartLaunchRequested = this.smartLaunchEnabled && options.smartThreshold === true;
 
@@ -2426,19 +2482,6 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
       console.log(nodes);
     }
     this.commonService.session.data.nodeFilteredValues = nodes;
-    //Add links for nodes with no edges
-    // TODO: This was here before but not sure why we needed this
-    // this.uniqueNodes.forEach(x => {
-    //   console.log('link same 4: ', x);
-    //   this.commonService.addLink(Object.assign({
-    //     source: '' + x,
-    //     target: '' + x,
-    //     origin: origin,
-    //     visible: true,
-    //     distance: 0,
-    //   }, 'generated'));
-    // });
-
     this.processSequence(loadGeneration)
   }
 
@@ -2819,16 +2862,11 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
   }
 
   /**
-   * Removes all files from commonService.session.files, sets this.nodeIds and this.edgeIds to empty arrays [].
-   * Calls nodeEdgeCheck
+   * Removes all files from the current Files view.
    */
   removeAllFiles() {
     this.fileTableRows = [];
     this.commonService.session.files = [];
-    this.nodeIds = [];
-    this.edgeIds = [];
-
-    this.nodeEdgeCheck();
     this.refreshTemplateState();
   }
 
@@ -2975,27 +3013,12 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
       }
 
       addTableTile(headers, this);
-      this.nodeEdgeCheck();
     } else if (isNetworkDocument) {
       try {
         const networkDocument = this.graphMLService.importNetworkDocument(file.contents, { sourceName: file.name });
         file.format = 'network';
         const detectedFormat = addTableTile(['network_format', '_id', 'source', 'target', 'distance', 'origin'], this);
-        this.nodeIds = this.nodeIds.filter(x => x.fileName !== file.name);
-        this.edgeIds = this.edgeIds.filter(x => x.fileName !== file.name);
-        this.nodeIds.push({
-          fileName: file.name,
-          ids: networkDocument.nodes.map(node => '' + node._id)
-        });
-        this.edgeIds.push({
-          fileName: file.name,
-          ids: networkDocument.links.map(link => ({
-            source: '' + link.source,
-            target: '' + link.target
-          }))
-        });
         networkDocument.warnings.forEach(warning => console.warn(`Network ${file.name}: ${warning}`));
-        this.nodeEdgeCheck();
         if(this.commonService.debugMode) {
           console.log('addToTable Network detected format: ', detectedFormat, networkDocument);
         }
@@ -3013,39 +3036,19 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
           data = [file.contents];
         }
 
-        const detectedFormat = addTableTile(this.normalizeFileTableHeaders(Object.keys(data[0])), this);
-
-        if (detectedFormat === 'node') {
-          this.loadNodes(file.name, data, true);
-        }
-        if (detectedFormat === 'link') {
-          this.loadEdges(file.name, data, true);
-        }
-
-        this.nodeEdgeCheck();
+        addTableTile(this.normalizeFileTableHeaders(Object.keys(data[0])), this);
 
     } else if (isFasta) {
       //let that = this;
       this.commonService.parseFASTA(file.contents).then((output) => {
         addTableTile(["id", "seq"], this);
-
-        this.nodeEdgeCheck();
         })
     } else {
       Papa.parse(file.contents, {
         header: true,
         skipEmptyLines: true,
         complete: output => {
-          const detectedFormat = addTableTile(this.normalizeFileTableHeaders(output.meta.fields), this);
-
-          if (detectedFormat === 'node') {
-            this.loadNodes(file.name, output, false);
-          }
-          if (detectedFormat === 'link') {
-            this.loadEdges(file.name, output, false);
-          }
-
-          this.nodeEdgeCheck();
+          addTableTile(this.normalizeFileTableHeaders(output.meta.fields), this);
 
           if(this.commonService.debugMode) {
             console.log('addToTable parse end: ', file);
@@ -3095,117 +3098,6 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
   updateMetadata(file) {
     this.fileTableRows.forEach(row => this.applyFileTableRowMetadata(row));
 
-  }
-
-  /**
-   * Populates this.nodeIds
-   */
-  loadNodes(fileName: any, output: any, isJson: boolean) {
-    if (isJson) {
-      const data: any[] = output;
-      const firstField = Object.keys(data[0])[0];
-      if (this.nodeIds.find(x => x.fileName === fileName)) {
-        const currentNodeId = this.nodeIds.find(x => x.fileName === fileName)
-        currentNodeId.ids = output.map((x: any) => x[firstField])
-      } else {
-        this.nodeIds.push(
-          {
-            fileName: fileName, ids: output.map((x: any) => ('' + x[firstField]))
-          });
-      }
-
-    }
-    else {
-      if (this.nodeIds.find(x => x.fileName === fileName)) {
-        const currentNodeId = this.nodeIds.find(x => x.fileName === fileName)
-        currentNodeId.ids = output.data.map((x: any) => x[output.meta.fields[0]])
-      } else {
-        this.nodeIds.push(
-          {
-            fileName: fileName, ids: output.data.map((x: any) => ('' + x[output.meta.fields[0]]))
-          });
-      }
-    }
-  }
-
-  /**
-   * Populated this.edgeIds
-   */
-  loadEdges(fileName: any, output: any, isJson: boolean) {
-    if (isJson) {
-      const data: any[] = output;
-      const fields = Object.keys(data[0]);
-      if (this.edgeIds.find(x => x.fileName === fileName)) {
-        const currentEdgeId = this.edgeIds.find(x => x.fileName === fileName)
-        currentEdgeId.ids = output.map((x: any) => ({
-          source: '' + x[fields[0]],
-          target: '' + x[fields[1]]
-        }))
-      } else {
-        console.log(`Adding edges ${output}`);
-        this.edgeIds.push({
-          fileName: fileName,
-          ids: output.map((x: any) => ({
-            source: '' + x[fields[0]],
-            target: '' + x[fields[1]]
-          }))
-        })
-
-      }
-
-    }
-    else {
-      if (this.edgeIds.find(x => x.fileName === fileName)) {
-        const currentEdgeId = this.edgeIds.find(x => x.fileName === fileName)
-        currentEdgeId.ids = output.data.map((x: any) => ({
-          source: '' + x[output.meta.fields[0]],
-          target: '' + x[output.meta.fields[1]]
-        }))
-      } else {
-        this.edgeIds.push({
-          fileName: fileName,
-          ids: output.data.map((x: any) => ({
-            source: '' + x[output.meta.fields[0]],
-            target: '' + x[output.meta.fields[1]]
-          }))
-        })
-
-      }
-    }
-
-  }
-
-  /**
-   * Updates this.uniqueEdgeNodes and this.uniqueNodes
-   */
-  nodeEdgeCheck() {
-    // populated with a string[] of unique node ids
-    let allNodesListNodes: string[] = [];
-    this.nodeIds.forEach(x => {
-      x.ids.forEach(y => allNodesListNodes.push(y));
-    });
-    allNodesListNodes = _.uniq(allNodesListNodes);
-
-    // populated with a string[] of unique node ids that have a link/edge
-    let allEdgeListNodes: string[] = [];
-    this.edgeIds.forEach(x => x.ids.forEach(y => {
-      allEdgeListNodes.push(y.source);
-      allEdgeListNodes.push(y.target);
-    }));
-    allEdgeListNodes = _.uniq(allEdgeListNodes);
-
-    this.uniqueEdgeNodes = allEdgeListNodes.filter(x => x && !allNodesListNodes.some(y=>y==x));
-    this.uniqueNodes = allNodesListNodes.filter(x => x && !this.uniqueEdgeNodes.some(y=>y==x));
-  }
-
-  /**
-   * Removes elements of this.nodeIds and this.edgeIds where the fileName == fileName and then calls nodeEdgeCheck to update uniqueEdgeNodes and uniqueNodes
-   * @param fileName 
-   */
-  removeFile(fileName, runNodeEdgeCheck=true) {
-    this.nodeIds = this.nodeIds.filter(x => x.fileName != fileName);
-    this.edgeIds = this.edgeIds.filter(x => x.fileName != fileName);
-    if (runNodeEdgeCheck) this.nodeEdgeCheck();
   }
 
   /**

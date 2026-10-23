@@ -257,7 +257,16 @@ export const selectCrosstabField = (
       .should('be.visible')
       .click({ force: true });
 
-    cy.contains('li[role="option"]', label, { timeout: 15000 }).click({ force: true });
+    cy.contains('li[role="option"]:visible', label, { timeout: 15000 })
+      .should('be.visible')
+      .click({ force: true });
+
+    // PrimeNG keeps the listbox DOM measurable during its close transition,
+    // so jQuery's :visible is not a reliable completion signal. Wait for the
+    // owning control to report that it is no longer expanded instead.
+    cy.get(dialogAlias)
+      .find(`#${selectId} [role="combobox"]`)
+      .should('not.have.attr', 'aria-expanded', 'true');
 
     cy.window()
       .its(`commonService.session.style.widgets.${expectedWidgetKey}`)
