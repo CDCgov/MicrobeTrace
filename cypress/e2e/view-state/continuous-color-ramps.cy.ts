@@ -202,6 +202,7 @@ describe('Continuous numeric color ramps', () => {
 
     useNodeColorField('degree');
     useLinkColorField('distance');
+    installSaveAsCaptureHook();
 
     cy.get('#tool-btn-container a[title="Export Screen"]').click({ force: true });
     cy.contains('.p-dialog-title', 'Export Network Image')
@@ -224,6 +225,7 @@ describe('Continuous numeric color ramps', () => {
     cy.get('@exportDialog').find('#network-export').should('be.visible').click({ force: true });
     cy.contains('.p-dialog-title', 'Export Network Image', { timeout: 15000 }).should('not.exist');
 
+    writeCapturedDownloadToDisk(`${exportFileBase}.svg`, exportPath);
     cy.readFile(exportPath, 'utf8', { timeout: 30000 }).then((svgText: string) => {
       ['Node Color: Degree', 'Link Color: Distance'].forEach((label) => {
         const positionedLegend = new RegExp(

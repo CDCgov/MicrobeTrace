@@ -52,7 +52,8 @@ const openPhyloSettingsTab = (label: 'Tree' | 'Leaves' | 'Branches'): void => {
 };
 
 const openPhyloAccordion = (label: string): void => {
-  cy.get('@phyloSettings').contains('p-accordion-panel', label).click({ force: true });
+  cy.get('@phyloSettings').contains('p-accordion-header', label).scrollIntoView().click()
+    .should('have.attr', 'aria-expanded', 'true');
 };
 
 const setRangeValue = (selector: string, value: number): void => {
@@ -152,47 +153,40 @@ describe('Journey Flow - Phylogenetic Tree controls on uploaded data', () => {
     });
   });
 
-  it('shows Newick branch-node labels and updates their font size', () => {
+  it('opens the shared label controls from Branch Nodes and updates imported support labels', () => {
     openPhyloSettingsDialog();
     openPhyloSettingsTab('Branches');
     openPhyloAccordion('Branch Nodes');
 
-    cy.window()
-      .its('commonService.visuals.phylogenetic.SelectedBranchLabelShowVariable')
-      .should('equal', false);
+    cy.get('@phyloSettings')
+      .find('#branch-node-label-settings-link')
+      .should('have.class', 'p-button').and('contain.text', 'Open in Bootstrap')
+      .scrollIntoView().should('be.visible').click();
+    cy.get('@phyloSettings').find('#tree-bootstrap-tab-link').should('have.class', 'active');
+    cy.get('@phyloSettings').find('#internal-label-visibility').should('be.visible');
 
-    cy.get(SELECTORS.internalNodeLabels).should(($labels) => {
-      expect($labels.length, 'internal node labels').to.be.greaterThan(0);
-    });
-
-    cy.get(SELECTORS.internalNodeLabels).first().should('have.css', 'opacity', '0');
+    // The shortcut must also reopen the label section after the user collapses it.
+    cy.get('@phyloSettings').contains('p-accordion-header', 'Branch Node Labels/Support Values').click();
+    cy.get('@phyloSettings').find('#internal-label-visibility').should('not.be.visible');
+    openPhyloSettingsTab('Branches');
+    cy.get('@phyloSettings').find('#branch-node-label-settings-link').scrollIntoView().click();
+    cy.get('@phyloSettings').find('#tree-bootstrap-tab-link').should('have.class', 'active');
+    cy.get('@phyloSettings').find('#internal-label-visibility').should('be.visible');
 
     cy.get('@phyloSettings')
-      .find('#branch-node-visibility2')
-      .contains('Show')
-      .click({ force: true });
+      .find('#internal-label-visibility').contains('Hide').click();
+    cy.get(SELECTORS.internalNodeLabels).should('have.css', 'opacity', '0');
+    cy.get('@phyloSettings').find('#internal-label-visibility').contains('Show').click();
+    setRangeValue('#internal-label-size', 14);
 
-    cy.window()
-      .its('commonService.visuals.phylogenetic.SelectedBranchLabelShowVariable')
-      .should('equal', true);
-
-    cy.get(SELECTORS.internalNodeLabels).first().should('have.css', 'opacity', '1');
-
-    cy.get('@phyloSettings')
-      .contains('.form-group.row', 'Branch Node Label Size')
-      .find('input[type="range"]')
-      .then(($input) => {
-        const input = $input.get(0) as HTMLInputElement;
-        input.value = '14';
-        input.dispatchEvent(new Event('input', { bubbles: true }));
-        input.dispatchEvent(new Event('change', { bubbles: true }));
+    cy.get(SELECTORS.internalNodeLabels).should($labels => {
+      const labels = Array.from($labels).filter(label => label.textContent?.trim());
+      expect(labels.length, 'nonempty imported internal labels').to.be.greaterThan(0);
+      labels.forEach(label => {
+        expect(getComputedStyle(label).opacity).to.equal('1');
+        expect(getComputedStyle(label).fontSize).to.equal('14px');
       });
-
-    cy.window()
-      .its('commonService.visuals.phylogenetic.SelectedBranchLabelSizeVariable')
-      .should('equal', 14);
-
-    cy.get(SELECTORS.internalNodeLabels).first().should('have.css', 'font-size', '14px');
+    });
   });
 
   it('recenters the tree after the viewport has moved away from the baseline transform', () => {

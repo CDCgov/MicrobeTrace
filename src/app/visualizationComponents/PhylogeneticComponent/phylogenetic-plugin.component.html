@@ -26,7 +26,7 @@
       [positionLeft]="PhylogeneticTreeDialogSettings.left"
       [positionTop]="PhylogeneticTreeDialogSettings.top"
       [(visible)]="PhylogeneticTreeDialogSettings.isVisible"
-      [contentStyle]="{'overflow': 'visible', 'width': '450px'}"
+      [contentStyle]="{'width': '450px'}"
       header="Phylogenetic Tree Settings" appendTo="body"
       >
       <tabset class="tab-container tabbable-line">
@@ -225,29 +225,60 @@
           <div class="col-7"><input type="range" class="custom-range" id="branch-node-size" min="1" step="0.5" max="10" [(ngModel)]="SelectedBranchNodeSizeVariable" (ngModelChange)="onBranchNodeSizeChange($event)"></div>
         </div>
       }
-      @if (hasNewickFile || hasBootstrapSupportMetadata()) {
-      <div class="form-group row" title="Show branch Nodes labels?">
-        <div class="col-5"><label for="branch-node-visibility2">Branch Nodes Labels</label></div>
+      <div class="form-group row" title="Branch node label and support value settings are under Bootstrap">
+        <div class="col-5"><label for="branch-node-label-settings-link">Branch Node Labels</label></div>
         <div class="col-7">
-          <p-select-button id="branch-node-visibility2" [options]="hideShowOptions" [allowEmpty]="false" fluid [(ngModel)]="SelectedBranchLabelShowVariable" (ngModelChange)="onBranchLabelShowChange($event)"></p-select-button>
+          <button pButton type="button" id="branch-node-label-settings-link" class="ui-button-raised" aria-controls="tree-bootstrap-tab" (click)="openInternalLabelSettings(bootstrapSettingsTab)" [style]="{'background-color': '#2196f3', 'border': '1px solid #2196f3'}"><span class="p-button-label">Open in Bootstrap</span></button>
         </div>
       </div>
-      }
-      @if (SelectedBranchLabelShowVariable && (hasNewickFile || hasBootstrapSupportMetadata())) {
-        <div class="form-group row" title="How big should branch nodes labels be?">
-          <div class="col-5"><label for="branch-node-size">Branch Node Label Size</label></div>
-          <div class="col-7"><input type="range" class="custom-range" id="branch-node-size" min="1" step="0.5" max="16" [(ngModel)]="SelectedBranchLabelSizeVariable" (ngModelChange)="onBranchLabelSizeChange($event)"></div>
-        </div>
-      }
     </div>
   </p-accordion-content>
   </p-accordion-panel> 
 </p-accordion>
 </tab>
-<tab heading="{{'Bootstrap' | localize}}" customClass="m-tabs__item">
-  <p-accordion [value]="['tree-bootstrap']" [multiple]="true">
+<tab #bootstrapSettingsTab="tab" id="tree-bootstrap-tab" customClass="m-tabs__item">
+  <ng-template tabHeading>
+    <span id="tree-bootstrap-tab-heading">{{'Bootstrap' | localize}}</span>
+  </ng-template>
+  <p-accordion [value]="BootstrapAccordionValue" [multiple]="true" (valueChange)="BootstrapAccordionValue = $event">
+    <p-accordion-panel value="tree-node-labels" style="color:#495057">
+      <p-accordion-header>Branch Node Labels/Support Values</p-accordion-header>
+      <p-accordion-content><div #internalLabelControls>
+        <div class="form-group row" title="Show the branch node labels or support values detected in this tree">
+          <div class="col-5"><label for="internal-label-visibility">Labels/Support Values</label></div>
+          <div class="col-7">
+            <p-select-button id="internal-label-visibility" [options]="hideShowOptions" [allowEmpty]="false" [disabled]="!hasInternalLabelValues()" fluid [(ngModel)]="SelectedInternalLabelShowVariable" (ngModelChange)="onInternalLabelShowChange($event)"></p-select-button>
+          </div>
+        </div>
+        @if (!hasInternalLabelValues()) {
+          <div class="form-group row">
+            <div class="col-12"><small class="text-muted">Load a tree with labels or calculate bootstrap support to enable these settings.</small></div>
+          </div>
+        }
+        @if (SelectedInternalLabelShowVariable && hasInternalLabelValues()) {
+          @if (hasBootstrapSupportValues()) {
+            <div class="form-group row" title="Decimal places for support values">
+              <div class="col-5"><label for="bootstrap-decimal-length">Decimals</label></div>
+              <div class="col-7">
+                <p-select id="bootstrap-decimal-length" appendTo="body" [options]="BootstrapDecimalLengthOptions" class="width-percent-100" [(ngModel)]="SelectedBootstrapDecimalLength" (ngModelChange)="onBootstrapDecimalLengthChange($event)"></p-select>
+              </div>
+            </div>
+            <div class="form-group row" title="Only show support values at or above this percentage">
+              <div class="col-5"><label for="bootstrap-support-threshold">Minimum Support</label></div>
+              <div class="col-7">
+                <input type="number" id="bootstrap-support-threshold" class="form-control form-control-sm" min="0" max="100" step="1" [(ngModel)]="SelectedBootstrapSupportThreshold" (change)="onBootstrapSupportThresholdChange($event)" (blur)="onBootstrapSupportThresholdChange($event)">
+              </div>
+            </div>
+          }
+          <div class="form-group row" title="Size of branch node labels and support values">
+            <div class="col-5"><label for="internal-label-size">Label Size</label></div>
+            <div class="col-7"><input type="range" class="custom-range" id="internal-label-size" min="1" step="0.5" max="16" [(ngModel)]="SelectedInternalLabelSizeVariable" (ngModelChange)="onInternalLabelSizeChange($event)"></div>
+          </div>
+        }
+      </div></p-accordion-content>
+    </p-accordion-panel>
     <p-accordion-panel value="tree-bootstrap" style="color:#495057">
-      <p-accordion-header>Bootstrap</p-accordion-header>
+      <p-accordion-header>Calculate Bootstrap</p-accordion-header>
       <p-accordion-content><div #bootstrapcontrols>
         <div class="form-group row" title="Number of bootstrap replicates">
           <div class="col-5"><label for="bootstrap-replicates">Replicates</label></div>
@@ -259,18 +290,6 @@
           <div class="col-5"><label for="bootstrap-stop-stable">Stop When Stable</label></div>
           <div class="col-7">
             <p-select-button id="bootstrap-stop-stable" [options]="enableDisableOptions" [allowEmpty]="false" fluid [(ngModel)]="SelectedBootstrapStopWhenStable" (ngModelChange)="onBootstrapStopWhenStableChange($event)"></p-select-button>
-          </div>
-        </div>
-        <div class="form-group row" title="Decimal places for bootstrap support labels">
-          <div class="col-5"><label for="bootstrap-decimal-length">Decimals</label></div>
-          <div class="col-7">
-            <p-select id="bootstrap-decimal-length" appendTo="body" [options]="BootstrapDecimalLengthOptions" class="width-percent-100" [(ngModel)]="SelectedBootstrapDecimalLength" (ngModelChange)="onBootstrapDecimalLengthChange($event)"> </p-select>
-          </div>
-        </div>
-        <div class="form-group row" title="Only show bootstrap support labels at or above this percentage">
-          <div class="col-5"><label for="bootstrap-support-threshold">Minimum Support</label></div>
-          <div class="col-7">
-            <input type="number" id="bootstrap-support-threshold" class="form-control form-control-sm" min="0" max="100" step="1" [(ngModel)]="SelectedBootstrapSupportThreshold" (change)="onBootstrapSupportThresholdChange($event)" (blur)="onBootstrapSupportThresholdChange($event)">
           </div>
         </div>
         <div class="form-group row">

@@ -11,9 +11,11 @@
   <div class="key-tables-grid">
     <section class="key-table-card" [hidden]="!isTableDocked('node-color')" [class.key-table-card--collapsed]="nodeTableCollapsed">
       <div class="key-table-card__header">
-        <h5>{{ nodeColorContinuous ? 'Node Color Legend' : 'Node Colors' }}</h5>
+        <div class="key-table-card__identity">
+          <h5>{{ nodeColorContinuous ? 'Node Color Legend' : 'Node Colors' }}</h5>
+          <span class="key-table-card__scope">Global</span>
+        </div>
         <div class="key-table-card__controls">
-          <span>Global</span>
           <p-select
             class="key-table-card__select"
             [options]="nodeColorFieldOptions"
@@ -123,9 +125,11 @@
 
     <section class="key-table-card" [hidden]="!isTableDocked('link-color')" [class.key-table-card--collapsed]="linkTableCollapsed">
       <div class="key-table-card__header">
-        <h5>{{ linkColorContinuous ? 'Link Color Legend' : 'Link Colors' }}</h5>
+        <div class="key-table-card__identity">
+          <h5>{{ linkColorContinuous ? 'Link Color Legend' : 'Link Colors' }}</h5>
+          <span class="key-table-card__scope">Global</span>
+        </div>
         <div class="key-table-card__controls">
-          <span>Global</span>
           <p-select
             class="key-table-card__select"
             [options]="linkColorFieldOptions"
@@ -234,9 +238,11 @@
 
     <section class="key-table-card" [hidden]="!isTableDocked('node-shape')" [class.key-table-card--collapsed]="nodeShapeTableCollapsed">
       <div class="key-table-card__header">
-        <h5>Node Shapes</h5>
+        <div class="key-table-card__identity">
+          <h5>Node Shapes</h5>
+          <span class="key-table-card__scope">Global</span>
+        </div>
         <div class="key-table-card__controls">
-          <span>Global</span>
           <p-select
             class="key-table-card__select"
             [options]="nodeShapeFieldOptions"
@@ -342,9 +348,11 @@
 
     <section class="key-table-card" [hidden]="!showPolygonColorTableCard" [class.key-table-card--collapsed]="polygonTableCollapsed">
       <div class="key-table-card__header">
-        <h5>2D Group Colors</h5>
+        <div class="key-table-card__identity">
+          <h5>2D Group Colors</h5>
+          <span class="key-table-card__scope">2D Network</span>
+        </div>
         <div class="key-table-card__controls">
-          <span>2D Network</span>
           <div class="key-table-card__menu-anchor">
             <button
               type="button"

@@ -903,6 +903,16 @@ export class WorkerComputeService {
   private patristicTreeInitCount = 0;
   private patristicGuardrailFallbackThresholds = new Set<string>();
 
+  private normalizePatristicNewickCacheKey(newickString: string): string {
+    return typeof newickString === 'string' ? newickString.trim() : '';
+  }
+
+  private hasCachedPatristicTree(newickString: string): boolean {
+    return this.patristicLeafNames.length > 0
+      && this.normalizePatristicNewickCacheKey(newickString)
+        === this.normalizePatristicNewickCacheKey(this.patristicNewickString);
+  }
+
   private recordPatristicPerformance(session: any, patch: any): void {
     if (!session?.meta) return;
     if (!session.meta.performance) {
@@ -1477,7 +1487,7 @@ export class WorkerComputeService {
     this.setPatristicMetadata(options.origin, options.distanceOrigin);
 
     let treeReady: PatristicTreeReadyResponse | undefined;
-    if (newickString !== this.patristicNewickString || this.patristicLeafNames.length === 0) {
+    if (!this.hasCachedPatristicTree(newickString)) {
       treeReady = await this.initPatristicTree(newickString);
       this.recordPatristicPerformance(session, {
         treeReady: this.treeReadyTelemetry(treeReady),
@@ -1577,7 +1587,7 @@ export class WorkerComputeService {
       guardrails.hardLimit
     );
 
-    if (newickString !== this.patristicNewickString || this.patristicLeafNames.length === 0) {
+    if (!this.hasCachedPatristicTree(newickString)) {
       const treeReady = await this.initPatristicTree(newickString);
       this.recordPatristicPerformance(session, {
         treeReady: this.treeReadyTelemetry(treeReady),

@@ -43,6 +43,7 @@ export type PerformanceScenario = {
 };
 
 export type PerformanceCounts = {
+  activeRenderer: 'sigma' | 'cytoscape-canvas' | 'cytoscape-webgl' | 'unknown';
   nodes: number;
   visibleNodes: number;
   totalLinks: number;
@@ -52,6 +53,13 @@ export type PerformanceCounts = {
   singletonNodes: number;
   sequencesWithData: number;
   cytoscapeVisibleEdges: number | null;
+  sigmaResidentNodes: number | null;
+  sigmaResidentLinks: number | null;
+  sigmaDrawnLinks: number | null;
+};
+
+export type PerformanceLaunchOptions = {
+  renderer?: 'sigma' | 'cytoscape-canvas' | 'cytoscape-webgl';
 };
 
 export type HeapSnapshot = {
@@ -141,8 +149,14 @@ export function collectPerformanceCounts(win: PerfWindow): PerformanceCounts {
   const nodes = data.nodes || [];
   const links = data.links || [];
   const clusters = data.clusters || [];
+  const twoD = win.commonService?.visuals?.twoD;
+  const sigmaSummary = twoD?.sigmaSummary;
+  const activeRenderer = twoD?.sigmaActive
+    ? 'sigma'
+    : (twoD?.requestedRendererMode || (win.cytoscapeInstance ? 'cytoscape-canvas' : 'unknown'));
 
   return {
+    activeRenderer,
     nodes: nodes.length,
     visibleNodes: nodes.filter((node: any) => node.visible !== false).length,
     totalLinks: links.length,
@@ -153,6 +167,15 @@ export function collectPerformanceCounts(win: PerfWindow): PerformanceCounts {
     sequencesWithData: nodes.filter((node: any) => typeof node.seq === 'string' && node.seq.length > 0).length,
     cytoscapeVisibleEdges: win.cytoscapeInstance?.edges
       ? win.cytoscapeInstance.edges(':visible').length
+      : null,
+    sigmaResidentNodes: typeof sigmaSummary?.residentNodeCount === 'number'
+      ? sigmaSummary.residentNodeCount
+      : null,
+    sigmaResidentLinks: typeof sigmaSummary?.residentLinkCount === 'number'
+      ? sigmaSummary.residentLinkCount
+      : null,
+    sigmaDrawnLinks: typeof sigmaSummary?.drawnLinkCount === 'number'
+      ? sigmaSummary.drawnLinkCount
       : null,
   };
 }
@@ -264,12 +287,15 @@ export function assertScenarioExpectedCounts(
 export function launchPerformanceScenarioToTwoD(
   scenario: PerformanceScenario,
   timeout = 120000,
+  options: PerformanceLaunchOptions = {},
 ): Cypress.Chainable<PerformanceMeasurement> {
   const profile = asJourneyProfile(scenario);
   const marks = {} as TimingMarks;
   let initialHeap: number | null = null;
 
-  visitAppAndAcceptEula();
+  visitAppAndAcceptEula(options.renderer
+    ? { extraQuery: { renderer: options.renderer } }
+    : {});
   startPerformanceCapture();
 
   cy.window().then((win: unknown) => {
@@ -298,12 +324,16 @@ export function launchPerformanceScenarioToTwoD(
     marks.viewStart = marks.fullyLoaded;
   });
 
-  ensureTwoDNetworkView();
+  ensureTwoDNetworkView(timeout);
 
   return cy.window().then((win: unknown) => {
     marks.viewReady = (win as Window).performance.now();
     const measurement = buildMeasurement(scenario, marks, initialHeap, win as PerfWindow);
     assertScenarioExpectedCounts(scenario, measurement.counts);
+    if (options.renderer) {
+      expect(measurement.counts.activeRenderer, `${scenario.id} active renderer`)
+        .to.equal(options.renderer);
+    }
     return measurement;
   });
 }

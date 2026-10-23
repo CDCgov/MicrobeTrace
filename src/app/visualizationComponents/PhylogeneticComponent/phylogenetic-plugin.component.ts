@@ -7,6 +7,8 @@ import { EventManager } from '@angular/platform-browser';
 import { CommonService } from '@app/contactTraceCommonServices/common.service';
 import { saveAs } from 'file-saver';
 import { ConfirmationService, SelectItem } from 'primeng/api';
+import type { AccordionValue } from 'primeng/types/accordion';
+import type { TabDirective } from 'ngx-bootstrap/tabs';
 import { DialogSettings } from '@app/helperClasses/dialogSettings';
 import * as _ from 'lodash';
 import { MicrobeTraceNextVisuals } from '@app/microbe-trace-next-plugin-visuals';
@@ -32,6 +34,7 @@ import {
   collectLeafIds,
   collectTreeSplitKeys,
   formatBootstrapSupportLabel,
+  hasBootstrapSupportLabels,
   normalizeBootstrapDecimalLength,
   normalizeBootstrapReplicateCount,
   normalizeBootstrapSupportThreshold,
@@ -131,9 +134,7 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
   SelectedBranchNodeSizeVariable = 5;
   SelectedBranchNodeColorVariable = this.settings['node-color'];
   SelectedBranchSizeVariable = 3;
-  SelectedBranchLabelSizeVariable: 12 = 12;
   SelectedLinkColorVariable = this.settings['link-color'];
-  SelectedBranchLabelShowVariable: boolean = this.settings['tree-branch-label-show'] ?? false;
   SelectedBranchDistanceShowVariable = !(this.settings['tree-branch-distances-hide'] ?? true); // inverse of its widget; defaults to false
   SelectedBranchDistanceSizeVariable = this.settings['tree-branch-distance-size'] ?? 12;
   //SelectedBranchTooltipShowVariable = false;
@@ -145,10 +146,16 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
     { label: '2', value: 2 },
     { label: '3', value: 3 },
   ];
+  BootstrapAccordionValue: AccordionValue = ['tree-node-labels'];
   SelectedBootstrapCustomReplicates = normalizeBootstrapReplicateCount(this.settings['tree-bootstrap-custom-replicates'] ?? 100);
   SelectedBootstrapStopWhenStable = this.settings['tree-bootstrap-stop-when-stable'] ?? false;
   SelectedBootstrapDecimalLength = normalizeBootstrapDecimalLength(this.settings['tree-bootstrap-decimal-length'] ?? 1);
+  SelectedInternalLabelShowVariable = this.settings['tree-node-label-show'] ?? false;
+  SelectedInternalLabelSizeVariable = Math.min(16, Math.max(1, Number(this.settings['tree-node-label-size']) || 12));
   SelectedBootstrapSupportThreshold = normalizeBootstrapSupportThreshold(this.settings['tree-bootstrap-support-threshold'] ?? 0);
+  BootstrapSupportAvailable = false;
+  InternalLabelValuesAvailable = false;
+  ImportedBootstrapSupportAvailable = false;
   BootstrapRunning = false;
   BootstrapProgressValue = 0;
   BootstrapStatusMessage = '';
@@ -404,7 +411,7 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
     //       return g;
     //     }
     //   );
-    this.tree.setBranchLabels(this.SelectedBranchLabelShowVariable);
+    this.tree.setBranchLabels(this.SelectedInternalLabelShowVariable);
     this.tree.eachBranchLabel(this.styleBranchLabel);
     this.tree.setBranchNodes(this.SelectedBranchNodeShowVariable);
     this.tree.eachBranchNode(this.styleBranchNode);
@@ -431,6 +438,7 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
 
   private getBootstrapSupportForBranch(data: any): number | null {
     const branch = data?.data ?? data;
+    if (branch === this.tree?.data) return null;
     const metadata = this.commonService.session.data?.phylogeneticBootstrap;
     if (this.tree?.data && metadata?.supportBySplitKey) {
       const allLeafIds = Array.isArray(metadata.labels) && metadata.labels.length
@@ -448,15 +456,23 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
   }
 
   styleBranchLabel = (label, data) => {
+    const branch = data?.data ?? data;
+    const nodeLabel = String(branch?.id ?? '').trim();
     const supportValue = this.getBootstrapSupportForBranch(data);
+    const hasNodeName = nodeLabel.length > 0 && parseBootstrapSupportPercent(nodeLabel) === null;
+    const meetsSupportThreshold = supportValue === null || supportValue >= this.SelectedBootstrapSupportThreshold;
     const selection = d3.select(label).interrupt();
     if (supportValue !== null) {
-      selection.text(formatBootstrapSupportLabel(supportValue, this.SelectedBootstrapDecimalLength));
+      const supportLabel = formatBootstrapSupportLabel(supportValue, this.SelectedBootstrapDecimalLength);
+      selection.text(hasNodeName
+        ? (meetsSupportThreshold ? `${nodeLabel} (${supportLabel})` : nodeLabel)
+        : supportLabel);
+    } else {
+      selection.text(nodeLabel);
     }
-    const meetsSupportThreshold = supportValue === null || supportValue >= this.SelectedBootstrapSupportThreshold;
     selection
-      .style('font-size', `${this.SelectedBranchLabelSizeVariable}px`)
-      .style('opacity', this.SelectedBranchLabelShowVariable && meetsSupportThreshold ? 1 : 0);
+      .style('font-size', `${this.SelectedInternalLabelSizeVariable}px`)
+      .style('opacity', this.SelectedInternalLabelShowVariable && (hasNodeName || meetsSupportThreshold) ? 1 : 0);
   }
 
   styleBranchNode = (node, data) => {
@@ -813,7 +829,7 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
       leafNodes: this.SelectedLeafNodeShowVariable,
       branchNodes: this.SelectedBranchNodeSizeVariable,
       leafLabels: this.SelectedLeafLabelSizeVariable,
-      branchLabels: this.SelectedBranchLabelSizeVariable,
+      branchLabels: this.SelectedInternalLabelShowVariable,
       branchDistances: this.SelectedBranchDistanceSizeVariable,
       ruler: true,
       animation: parseFloat('0'),  // range 0-2000 in steps of 10
@@ -903,6 +919,17 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
   openSettings() {
     this.visuals.phylogenetic.PhylogeneticTreeDialogSettings.setVisibility(true);
     // this.context.twoD.ShowStatistics = !this.context.twoD.Show2DSettingsPane;
+  }
+
+  openInternalLabelSettings(bootstrapTab: TabDirective): void {
+    const openPanels = Array.isArray(this.BootstrapAccordionValue) ? this.BootstrapAccordionValue : [];
+    this.BootstrapAccordionValue = [...new Set([...openPanels, 'tree-node-labels'])];
+    bootstrapTab.active = true;
+    this.cdref.detectChanges();
+    window.requestAnimationFrame(() => {
+      document.getElementById('internal-label-visibility')
+        ?.querySelector<HTMLElement>('button, [role="button"]')?.focus();
+    });
   }
 
 
@@ -1023,18 +1050,6 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
     this.settings['tree-vertical-stretch'] = this.SelectedVerticalStretchVariable
   }
 
-  onBranchLabelShowChange(event) {
-    this.SelectedBranchLabelShowVariable = event;
-    this.tree.setBranchLabels(event);
-    this.styleTree();
-    this.settings['tree-branch-label-show'] = this.SelectedBranchLabelShowVariable;
-  }
-
-  onBranchLabelSizeChange(event) {
-    this.SelectedBranchLabelSizeVariable = event;
-    this.styleTree();
-  }
-
   onBranchDistanceShowChange(event) {
     this.SelectedBranchDistanceShowVariable = event;
     this.tree.setBranchDistances(event);
@@ -1058,10 +1073,6 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
   onBranchNodeSizeChange(event) {
     this.SelectedBranchNodeSizeVariable = event;
     this.styleTree();
-  }
-
-  onBranchNodeLabelChange(event) {
-    this.SelectedBranchLabelShowVariable
   }
 
   // onBranchTooltipShowChange(event) {
@@ -1150,6 +1161,52 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
     return !!(metadata && metadata.supportBySplitKey && Object.keys(metadata.supportBySplitKey).length > 0);
   }
 
+  hasBootstrapSupportValues(): boolean {
+    return this.BootstrapSupportAvailable;
+  }
+
+  hasInternalLabelValues(): boolean {
+    return this.InternalLabelValuesAvailable;
+  }
+
+  hasImportedBootstrapSupport(): boolean {
+    return this.ImportedBootstrapSupportAvailable;
+  }
+
+  private refreshBootstrapSupportAvailability(): void {
+    const hasStoredBootstrapMetadata = !!this.commonService.session.data?.phylogeneticBootstrap;
+    const hasStoredSupport = this.hasBootstrapSupportMetadata();
+    const hasImportedLabels = hasBootstrapSupportLabels(this.tree?.data);
+    this.BootstrapSupportAvailable = hasStoredSupport || hasImportedLabels;
+    this.ImportedBootstrapSupportAvailable = !hasStoredBootstrapMetadata && this.hasNewickBackedTree() && hasImportedLabels;
+    const hasInternalLabel = (node: any): boolean => {
+      const children = Array.isArray(node?.children) ? node.children : [];
+      return children.length > 0 && (String(node.id ?? '').trim().length > 0 || children.some(hasInternalLabel));
+    };
+    this.InternalLabelValuesAvailable = !!this.tree?.data && (this.BootstrapSupportAvailable || hasInternalLabel(this.tree.data));
+    this.restoreInternalLabelSettings();
+  }
+
+  private restoreInternalLabelSettings(): void {
+    // Older sessions stored separate settings for names and support values.
+    const visibilityKey = this.hasBootstrapSupportValues() ? 'tree-bootstrap-label-show' : 'tree-branch-label-show';
+    const sizeKey = this.hasBootstrapSupportValues() ? 'tree-bootstrap-label-size' : 'tree-branch-label-size';
+    this.SelectedInternalLabelShowVariable = this.settings['tree-node-label-show']
+      ?? this.settings[visibilityKey] ?? this.hasBootstrapSupportValues();
+    this.SelectedInternalLabelSizeVariable = Math.min(16, Math.max(1,
+      Number(this.settings['tree-node-label-size'] ?? this.settings[sizeKey]) || 12));
+  }
+
+  private persistInternalLabelSettings(): void {
+    this.settings['tree-node-label-show'] = this.SelectedInternalLabelShowVariable;
+    this.settings['tree-node-label-size'] = this.SelectedInternalLabelSizeVariable;
+    // Keep the previous keys synchronized for sessions opened in older versions.
+    this.settings['tree-branch-label-show'] = this.SelectedInternalLabelShowVariable;
+    this.settings['tree-bootstrap-label-show'] = this.SelectedInternalLabelShowVariable;
+    this.settings['tree-branch-label-size'] = this.SelectedInternalLabelSizeVariable;
+    this.settings['tree-bootstrap-label-size'] = this.SelectedInternalLabelSizeVariable;
+  }
+
   private hasNewickBackedTree(): boolean {
     return this.hasNewickFile || this.commonService.session.files?.some(file =>
       file?.format === 'newick' || file?.format === 'auspice' ||
@@ -1174,6 +1231,10 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
 
     if (this.hasTreeBeenModifiedFromOriginal) {
       return { available: false, reason: 'Restore the full tree before calculating bootstrap support.' };
+    }
+
+    if (this.hasImportedBootstrapSupport()) {
+      return { available: false, reason: 'This imported tree already contains support values.' };
     }
 
     if (this.hasNewickBackedTree()) {
@@ -1245,6 +1306,23 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
     this.settings['tree-bootstrap-stop-when-stable'] = this.SelectedBootstrapStopWhenStable;
   }
 
+  onInternalLabelShowChange(event) {
+    if (!this.hasInternalLabelValues()) return;
+    this.SelectedInternalLabelShowVariable = !!event;
+    this.persistInternalLabelSettings();
+    this.styleTree();
+  }
+
+  onInternalLabelSizeChange(event) {
+    if (!this.hasInternalLabelValues()) return;
+    const value = Number(event);
+    this.SelectedInternalLabelSizeVariable = Number.isFinite(value)
+      ? Math.min(16, Math.max(1, value))
+      : 12;
+    this.persistInternalLabelSettings();
+    this.styleTree();
+  }
+
   onBootstrapDecimalLengthChange(event) {
     this.SelectedBootstrapDecimalLength = normalizeBootstrapDecimalLength(event);
     this.settings['tree-bootstrap-decimal-length'] = this.SelectedBootstrapDecimalLength;
@@ -1302,9 +1380,11 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
     };
   }
 
-  private applyStoredBootstrapSupport(redraw: boolean = true): void {
+  private applyStoredBootstrapSupport(redraw: boolean = true, showLabels: boolean = false): void {
     const metadata = this.commonService.session.data?.phylogeneticBootstrap;
     if (!this.tree?.data || !metadata?.supportBySplitKey) {
+      this.refreshBootstrapSupportAvailability();
+      if (redraw) this.styleTree();
       return;
     }
 
@@ -1315,8 +1395,10 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
       leafIds
     );
     metadata.decimalLength = this.SelectedBootstrapDecimalLength;
-    this.SelectedBranchLabelShowVariable = true;
-    this.settings['tree-branch-label-show'] = true;
+    if (showLabels) {
+      this.SelectedInternalLabelShowVariable = true;
+      this.persistInternalLabelSettings();
+    }
 
     const cachedAnimation = this.tree.animation;
     this.tree.setAnimation(0);
@@ -1325,6 +1407,7 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
     this.commonService.session.data.newickString = this.tree.data.toNewick(false);
     this.originalTreeData = this.tree.data?.clone ? this.tree.data.clone() : this.tree.data;
     this.hasTreeBeenModifiedFromOriginal = false;
+    this.refreshBootstrapSupportAvailability();
 
     if (redraw) {
       this.styleTree();
@@ -1359,7 +1442,7 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
       });
 
       this.storeBootstrapResult(result, input.labels, input.baseSplitKeys);
-      this.applyStoredBootstrapSupport(true);
+      this.applyStoredBootstrapSupport(true, true);
       this.BootstrapProgressValue = 100;
       this.BootstrapStatusMessage = result.stoppedEarly
         ? `Bootstrap support stabilized after ${result.completedReplicates} replicates.`
@@ -1558,6 +1641,7 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
     d3.select('#reroot').on('click', c => {
       tree.setData(d[0].data.reroot());
       this.hasTreeBeenModifiedFromOriginal = true;
+      this.refreshBootstrapSupportAvailability();
       this.styleTree();
       this.hideContextMenu();
       this.cdref.detectChanges();
@@ -1565,6 +1649,7 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
     d3.select('#rotate').on('click', c => {
       tree.setData(d[0].data.rotate().getRoot());
       this.hasTreeBeenModifiedFromOriginal = true;
+      this.refreshBootstrapSupportAvailability();
       this.styleTree();
       this.hideContextMenu();
       this.cdref.detectChanges();
@@ -1572,6 +1657,7 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
     d3.select('#flip').on('click', c => {
       tree.setData(d[0].data.flip().getRoot());
       this.hasTreeBeenModifiedFromOriginal = true;
+      this.refreshBootstrapSupportAvailability();
       this.styleTree();
       this.hideContextMenu();
       this.cdref.detectChanges();
@@ -1602,6 +1688,7 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
     }
     this.tree.setData(subtreeData);
     this.hasTreeBeenModifiedFromOriginal = true;
+    this.refreshBootstrapSupportAvailability();
     this.styleTree();
     this.openCenter();
     this.cdref.detectChanges();
@@ -1613,6 +1700,7 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
     const fullTreeData = this.originalTreeData.clone ? this.originalTreeData.clone() : this.originalTreeData;
     this.tree.setData(fullTreeData);
     this.hasTreeBeenModifiedFromOriginal = false;
+    this.refreshBootstrapSupportAvailability();
     this.styleTree();
     this.openCenter();
     this.cdref.detectChanges();
@@ -1747,7 +1835,6 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
   if (this.settings['tree-branch-distances-hide'] == this.SelectedBranchDistanceShowVariable) this.SelectedBranchDistanceShowVariable = !this.settings['tree-branch-distances-hide']
   if (this.settings['tree-branch-distance-size'] != this.SelectedBranchDistanceSizeVariable) this.SelectedBranchDistanceSizeVariable = this.settings['tree-branch-distance-size']
   if (this.settings['tree-branch-nodes-show'] != this.SelectedBranchNodeShowVariable) this.SelectedBranchNodeShowVariable = this.settings['tree-branch-nodes-show']
-  if ((this.settings['tree-branch-label-show'] ?? false) != this.SelectedBranchLabelShowVariable) this.SelectedBranchLabelShowVariable = this.settings['tree-branch-label-show'] ?? false
 
   // Leaf Labels
   if (this.settings['tree-leaf-label-show'] != this.SelectedLeafLabelShowVariable) this.SelectedLeafLabelShowVariable = this.settings['tree-leaf-label-show']
@@ -1765,6 +1852,7 @@ export class PhylogeneticComponent extends BaseComponentDirective implements OnI
   this.SelectedBootstrapCustomReplicates = normalizeBootstrapReplicateCount(this.settings['tree-bootstrap-custom-replicates'] ?? this.SelectedBootstrapCustomReplicates)
   this.SelectedBootstrapStopWhenStable = this.settings['tree-bootstrap-stop-when-stable'] ?? this.SelectedBootstrapStopWhenStable
   this.SelectedBootstrapDecimalLength = normalizeBootstrapDecimalLength(this.settings['tree-bootstrap-decimal-length'] ?? this.SelectedBootstrapDecimalLength)
+  this.restoreInternalLabelSettings();
   this.SelectedBootstrapSupportThreshold = normalizeBootstrapSupportThreshold(this.settings['tree-bootstrap-support-threshold'] ?? this.SelectedBootstrapSupportThreshold)
 
   // Colors

@@ -151,6 +151,7 @@ describe('CommonService style-file color scales', () => {
 
   it('clears a cached continuous link scale when a style switches to a fixed link color', () => {
     const service = createService({
+      linkAlphas: [0.75],
       widgets: {
         'link-color-variable': 'None',
         'link-color': '#abcdef',
