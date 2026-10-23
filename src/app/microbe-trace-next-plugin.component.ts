@@ -2365,6 +2365,41 @@ ${warnings.join('\n')}`,
         this.openNetworkImportWarnings(warnings);
     }
 
+    openNewickImportError(message: string) {
+        this.clearLoadingInformationModal();
+        this.cdref.detectChanges();
+
+        this.confirmationService.confirm({
+            header: 'Unable to Process NWK',
+            message,
+            closable: false,
+            closeOnEscape: false,
+            icon: 'pi pi-times-circle',
+            rejectVisible: false,
+            acceptButtonProps: {
+                label: 'OK',
+            },
+        });
+    }
+
+    openNewickImportWarnings(warnings: string[]) {
+        if (!warnings.length) {
+            return;
+        }
+
+        this.confirmationService.confirm({
+            header: 'NWK Branch Length Warning',
+            message: warnings.join('\n'),
+            closable: false,
+            closeOnEscape: false,
+            icon: 'pi pi-exclamation-triangle',
+            rejectVisible: false,
+            acceptButtonProps: {
+                label: 'OK',
+            },
+        });
+    }
+
     onPruneWithTypesChanged(newValue: string) {
         if (this.userConfirmedNN == false && this.SelectedPruneWithTypesVariable == "Nearest Neighbor") {
             if (this.commonService.session.data.links.filter(l => l.origin.length > 1 && Array.isArray(l.origin)).length>0) {

@@ -54,6 +54,9 @@ interface AddToTableOptions {
   predictFields?: boolean;
 }
 
+const DUPLICATE_NEWICK_ERROR_MESSAGE =
+  'Unable to process NWK due to duplication in leaf names. Please re-try after fixing the naming issue.';
+
 
 @Component({
     selector: 'FilesComponent',
@@ -165,6 +168,7 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
   public id: string;
 
   private pendingNetworkImportWarnings: string[] = [];
+  private pendingNewickImportWarnings: string[] = [];
   private destroy$ = new Subject<void>();
   private loadViewSubscription?: Subscription;
   private pendingEmbedLaunchOptions: {
@@ -1435,6 +1439,75 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
   flushGraphMLWarnings() {
     this.flushNetworkImportWarnings();
   }
+
+  private addNewickImportWarning(fileName: string, normalizedBranchCount: number): void {
+    if (normalizedBranchCount <= 0) {
+      return;
+    }
+
+    const branchLabel = normalizedBranchCount === 1 ? 'branch length' : 'branch lengths';
+    const pronoun = normalizedBranchCount === 1 ? 'it' : 'them';
+    this.pendingNewickImportWarnings.push(
+      `MicrobeTrace found ${normalizedBranchCount} negative ${branchLabel} in ${fileName} and set ${pronoun} to zero before processing.`,
+    );
+  }
+
+  private flushNewickImportWarnings(): void {
+    if (!this.pendingNewickImportWarnings.length) {
+      return;
+    }
+
+    const warnings = [...this.pendingNewickImportWarnings];
+    this.pendingNewickImportWarnings = [];
+
+    const microbeTrace = this.commonService.visuals.microbeTrace;
+    if (microbeTrace?.openNewickImportWarnings) {
+      microbeTrace.openNewickImportWarnings(warnings);
+      return;
+    }
+
+    warnings.forEach(warning => this.showMessage(warning));
+  }
+
+  private getNewickImportErrorMessage(error: unknown): string {
+    const detail = error instanceof Error ? error.message : String(error || 'Unknown Newick processing error.');
+    if (/duplicate leaf name/i.test(detail)) {
+      return DUPLICATE_NEWICK_ERROR_MESSAGE;
+    }
+
+    return `Unable to process NWK: ${detail}`;
+  }
+
+  private stopNewickLoad(loadGeneration: number, error: unknown): void {
+    if (!this.commonService.isCurrentDataLoad(loadGeneration)) {
+      return;
+    }
+
+    console.error('Newick patristic worker error:', error);
+
+    // Invalidate every callback belonging to this launch before clearing any
+    // partial graph state. A corrected file can then be launched cleanly.
+    this.commonService.beginDataLoad();
+    clearTimeout(this.commonService.temp.messageTimeout);
+    this.commonService.temp.messageTimeout = null;
+    this.workerComputeService.terminatePatristicWorker();
+    this.commonService.resetData();
+    this.commonService.session.network.isFullyLoaded = false;
+    this.smartLaunchRequested = false;
+    this.pendingNetworkImportWarnings = [];
+    this.pendingNewickImportWarnings = [];
+    this.store.setLoadingMessageUpdated('');
+    this.setLaunchButtonsDisabled(false, true);
+
+    const message = this.getNewickImportErrorMessage(error);
+    const microbeTrace = this.commonService.visuals.microbeTrace;
+    if (microbeTrace?.openNewickImportError) {
+      microbeTrace.openNewickImportError(message);
+      return;
+    }
+
+    this.showMessage(message);
+  }
   
 
   /**
@@ -1516,6 +1589,7 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
     this.commonService.session.messages = [];
     this.messages = [];
     this.pendingNetworkImportWarnings = [];
+    this.pendingNewickImportWarnings = [];
 
     if (this.commonService.debugMode) {
       console.log('session files', this.commonService.session.files);
@@ -2279,12 +2353,13 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
       } else { // if(file.format === 'newick'){
 
         let normalizedNewick = file.contents;
-        let normalizedTerminalBranchCount = 0;
+        let normalizedBranchCount = 0;
         try {
-          const parsedNewick = patristic.parseNewick(file.contents);
-          normalizedTerminalBranchCount = clampNegativeBranchLengthsToZero(parsedNewick, { terminalOnly: true });
-          if (normalizedTerminalBranchCount > 0) {
+          const parsedNewick = patristic.parseNewick(normalizedNewick);
+          normalizedBranchCount = clampNegativeBranchLengthsToZero(parsedNewick);
+          if (normalizedBranchCount > 0) {
             normalizedNewick = parsedNewick.toNewick(false);
+            this.addNewickImportWarning(file.name, normalizedBranchCount);
           }
         } catch {
           // Let the patristic worker report parse errors with the existing UI path.
@@ -2385,9 +2460,9 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
             activeThreshold
           });
           this.showMessage(` - Parsed ${newNodes} New, ${leafNames.length} Total Nodes from Newick Tree.`);
-          if (normalizedTerminalBranchCount > 0) {
-            const branchLabel = normalizedTerminalBranchCount === 1 ? 'branch length' : 'branch lengths';
-            this.showMessage(` - Set ${normalizedTerminalBranchCount} negative terminal ${branchLabel} to zero.`);
+          if (normalizedBranchCount > 0) {
+            const branchLabel = normalizedBranchCount === 1 ? 'branch length' : 'branch lengths';
+            this.showMessage(` - Set ${normalizedBranchCount} negative ${branchLabel} to zero.`);
           }
           if (guardrail?.message) {
             this.showMessage(` - ${guardrail.message}`);
@@ -2395,11 +2470,7 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
           this.showMessage(` - Parsed ${newLinks} New, ${links} Total Links from Newick Tree.`);
           if (fileNum === nFiles) this.processData(loadGeneration);
         }).catch((error: any) => {
-          if (!isCurrentLoad()) return;
-
-          console.error('Newick patristic worker error:', error);
-          this.showMessage(` - Error processing Newick tree: ${error?.message || error}`);
-          this.commonService.session.network.isFullyLoaded = false;
+          this.stopNewickLoad(loadGeneration, error);
         });
       }
     });
@@ -2420,6 +2491,7 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
     this.applyPendingEmbedLaunchOptions(true);
 
     this.flushNetworkImportWarnings();
+    this.flushNewickImportWarnings();
 
     let nodes = this.commonService.session.data.nodes;
     if(this.commonService.debugMode) {
