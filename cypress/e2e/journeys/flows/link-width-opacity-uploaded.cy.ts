@@ -1,5 +1,7 @@
 /// <reference types="cypress" />
 
+import { INTERNAL_FIELD_OPTION_VALUES } from '../../../../src/app/contactTraceCommonServices/internal-field-options';
+
 import { getProfile } from '../datasets/profile';
 import {
   assertAfterLaunchCounts,
@@ -75,7 +77,7 @@ describe('Journey Flow - Uploaded link fixed width and transparency controls', (
 
     openLinkShapesPanel();
 
-    cy.window().its('commonService.session.style.widgets.link-width-variable').should('equal', 'None');
+    cy.window().its('commonService.session.style.widgets.link-width-variable').should('equal', INTERNAL_FIELD_OPTION_VALUES.none);
     cy.get('@linksTab').find('#link-width-row').should('be.visible');
     cy.get('@linksTab').find('#link-max-width-row').should('not.be.visible');
     cy.get('@linksTab').find('#link-min-width-row').should('not.be.visible');
@@ -153,7 +155,7 @@ describe('Journey Flow - Uploaded link fixed width and transparency controls', (
     openLinkShapesPanel();
 
     cy.get('@linksTab').find('#link-width-variable').click({ force: true });
-    cy.contains('li[role="option"]', 'Distance').click({ force: true });
+    cy.contains('li[role="option"]', /^distance$/).click({ force: true });
 
     cy.window().its('commonService.session.style.widgets.link-width-variable').should('equal', 'distance');
     cy.get('@linksTab').find('#link-width-row').should('not.be.visible');

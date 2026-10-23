@@ -48,16 +48,16 @@ describe('Journey Flow - Table uploaded selection', () => {
       .should('equal', 'p-datatable-lg');
     cy.closeSettingsPane('Table Settings');
 
-    setTableFilterValue('Id', 'D');
+    setTableFilterValue('_id', 'D');
     assertTableVisibleRowCount(1);
-    assertFirstVisibleRowValue('Id', 'D');
+    assertFirstVisibleRowValue('_id', 'D');
 
     clickFirstVisibleTableRow();
     assertSelectedNodeIds(['D']);
 
     selectTableDataset('Link');
     assertTableDatasetMatchesSession('Link');
-    setTableFilterValue('Source', 'A');
+    setTableFilterValue('source', 'A');
     assertTableVisibleRowCount(2);
     clickFirstVisibleTableRow();
     assertSelectedNodeIds(['D']);
@@ -81,12 +81,12 @@ describe('Journey Flow - Table uploaded selection', () => {
         expect(rows?.[0]?.id ?? rows?.[0]?._id ?? rows?.[0]?.ID).to.equal('D');
       });
     assertTableVisibleRowCount(1);
-    assertFirstVisibleRowValue('Id', 'D');
-    clearTableFilterValue('Id');
+    assertFirstVisibleRowValue('_id', 'D');
+    clearTableFilterValue('_id');
     assertTableVisibleRowCount(4);
-    assertFirstVisibleRowValue('Id', 'D');
+    assertFirstVisibleRowValue('_id', 'D');
     clickFirstVisibleTableRow();
     assertSelectedNodeIds([]);
-    assertFirstVisibleRowValue('Id', 'A');
+    assertFirstVisibleRowValue('_id', 'A');
   });
 });

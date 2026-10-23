@@ -181,7 +181,7 @@ describe('Map View', () => {
       cy.wait(2000)
 
       cy.get('#map-field-zipcode').click();
-      cy.contains('li[role="option"]', 'Zipcode').click();
+      cy.contains('li[role="option"]', 'Zip_code').click();
 
       cy.get('#tool-btn-container-map a[title="Center Screen"]').click();
       cy.wait(250);
@@ -674,7 +674,7 @@ describe('Map View', () => {
     it('test node tooltip', ()=> {
       cy.contains('.p-dialog-title', 'Geospatial Settings').parents('.p-dialog').contains('Nodes').click()
       cy.get('#map-node-tooltip-variable').click()
-      cy.contains('li[role="option"]', 'Id').click();
+      cy.contains('li[role="option"]', '_id').click();
       cy.wait(200)
 
       cy.closeSettingsPane('Geospatial Settings');
@@ -916,7 +916,7 @@ describe('Map View', () => {
       cy.contains('.p-dialog-title', 'Geospatial Settings').should('be.visible');
 
       cy.get('#map-field-zipcode').click();
-      cy.contains('li[role="option"]', 'Zipcode').click();
+      cy.contains('li[role="option"]', 'Zip_code').click();
       cy.get('#tool-btn-container-map a[title="Center Screen"]').click();
       cy.wait(1000)
 
@@ -1034,7 +1034,7 @@ describe('Map View', () => {
 
     it('should update link colors variable to Cluster and then change one of the colors', () => {
       cy.get('#link-tooltip-variable').click()
-      cy.get('li[role="option"]').contains('Cluster').click()
+      cy.get('li[role="option"]').contains('cluster').click()
       cy.window().its('commonService.session.style.widgets.link-color-variable').should('equal', 'cluster');
 
       cy.wait(250);
@@ -1087,17 +1087,17 @@ describe('Map View', () => {
       cy.closeSettingsPane('Geospatial Settings')
 
       cy.get('#node-color-variable').click();
-      cy.contains('[role="listbox"]:visible [role="option"]', /^Cluster$/).click();
+      cy.contains('[role="listbox"]:visible [role="option"]', /^cluster$/).click();
       cy.window().its('commonService.session.style.widgets.node-color-variable').should('equal', 'cluster');
-      cy.get('#node-color-variable .p-select-label').should('contain', 'Cluster');
+      cy.get('#node-color-variable .p-select-label').should('contain', 'cluster');
       cy.get('#key-tables-node-table').should('contain', 'Node cluster');
 
       cy.get('#link-tooltip-variable .p-select-label').click();
       cy.get('[role="listbox"]:visible').should('be.visible');
       cy.wait(300);
-      cy.contains('[role="listbox"]:visible [role="option"]', /^Cluster$/).click();
+      cy.contains('[role="listbox"]:visible [role="option"]', /^cluster$/).click();
       cy.window().its('commonService.session.style.widgets.link-color-variable').should('equal', 'cluster');
-      cy.get('#link-tooltip-variable .p-select-label').should('contain', 'Cluster');
+      cy.get('#link-tooltip-variable .p-select-label').should('contain', 'cluster');
 
       cy.contains('#global-settings-modal .nav-link', 'Filtering').click();
       for (let i = 0; i < 6; i++) {
@@ -1164,7 +1164,7 @@ describe('Map View', () => {
       cy.get(selectors.settingsBtn).click();
       cy.contains('.p-dialog-title', 'Geospatial Settings').should('be.visible');
       cy.get('#map-field-zipcode').click();
-      cy.contains('li[role="option"]', 'Zipcode').click();
+      cy.contains('li[role="option"]', 'Zip_code').click();
       cy.closeSettingsPane('Geospatial Settings');
 
       cy.window().its('commonService.visuals.gisMap').should(mapView => {
@@ -1223,7 +1223,7 @@ describe('Map View', () => {
       cy.wait(2000)
 
       cy.get('#map-field-zipcode').click();
-      cy.contains('li[role="option"]', 'Zipcode').click();
+      cy.contains('li[role="option"]', 'Zip_code').click();
       cy.get('#tool-btn-container-map a[title="Center Screen"]').click();
       cy.wait(250);
       cy.closeSettingsPane('Geospatial Settings')      

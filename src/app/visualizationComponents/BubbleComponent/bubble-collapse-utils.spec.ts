@@ -1,6 +1,14 @@
 import { getBubbleCollapseGroupKey, groupVisibleNodesByBubbleAxes } from './bubble-collapse-utils';
+import { createFieldOptionValue } from '@app/contactTraceCommonServices/internal-field-options';
 
 describe('Bubble collapse grouping', () => {
+  it('retains nodes grouped by a real field named None', () => {
+    const groups = groupVisibleNodesByBubbleAxes(
+      [{ None: 'A' }, { None: 'B' }], createFieldOptionValue('None', ['None']), 'None', ['A', 'B'], [undefined]
+    );
+    expect(groups.map(group => [group.Xgroup, group.nodes.length])).toEqual([[0, 1], [1, 1]]);
+  });
+
   it('keeps every visible cluster category when collapsed', () => {
     const nodes = [
       { id: 'sample-1', cluster: 0 },

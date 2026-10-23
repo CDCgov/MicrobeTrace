@@ -1,0 +1,3 @@
+case_id,_id,_id (Imported),id,ID,origin,visible,cluster,x,y,seq,_jlat,_jlong,safe_status
+NODE-A,USER-_ID-A,PREALIASED-A,USER-id-A,USER-ID-A,USER-ORIGIN-A,false,101,10,20,ACGT,50.5,-100.5,Safe-A
+NODE-B,USER-_ID-B,PREALIASED-B,USER-id-B,USER-ID-B,USER-ORIGIN-B,true,102,30,40,ACGA,51.5,-101.5,Safe-B

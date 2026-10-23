@@ -1,5 +1,7 @@
 /// <reference types="cypress" />
 
+import { INTERNAL_FIELD_OPTION_VALUES } from '../../../../src/app/contactTraceCommonServices/internal-field-options';
+
 import { getNodeShapePreviewDataUri } from '../../../../src/app/contactTraceCommonServices/node-shapes';
 import { getProfile } from '../datasets/profile';
 import {
@@ -309,10 +311,10 @@ describe('Journey Flow - Uploaded node shapes and sizes without style', () => {
 
     openNodeShapesPanel();
 
-    cy.window().its('commonService.session.style.widgets.node-radius-variable').should('equal', 'None');
+    cy.window().its('commonService.session.style.widgets.node-radius-variable').should('equal', INTERNAL_FIELD_OPTION_VALUES.none);
 
     cy.get('@nodesTab').find('#node-radius-variable').click({ force: true });
-    cy.contains('li[role="option"]', 'Degree').click({ force: true });
+    cy.contains('li[role="option"]', /^degree$/).click({ force: true });
     cy.get('body').type('{esc}');
 
     cy.window().its('commonService.session.style.widgets.node-radius-variable').should('equal', 'degree');
@@ -341,7 +343,7 @@ describe('Journey Flow - Uploaded node shapes and sizes without style', () => {
     });
 
     cy.get('@nodesTab').find('#node-radius-variable').click({ force: true });
-    cy.contains('li[role="option"]', 'Zipcode').click({ force: true });
+    cy.contains('li[role="option"]', /^Zip_code$/).click({ force: true });
     cy.get('body').type('{esc}');
 
     cy.window().its('commonService.session.style.widgets.node-radius-variable').should('equal', 'Zip_code');
@@ -389,7 +391,7 @@ describe('Journey Flow - Uploaded node shapes and sizes without style', () => {
 
     openNodeShapesPanel();
 
-    cy.window().its('commonService.session.style.widgets.node-radius-variable').should('equal', 'None');
+    cy.window().its('commonService.session.style.widgets.node-radius-variable').should('equal', INTERNAL_FIELD_OPTION_VALUES.none);
     cy.get('@nodesTab').find('#node-radius-row').should('be.visible');
     cy.get('@nodesTab').find('#node-max-radius-row').should('not.be.visible');
     cy.get('@nodesTab').find('#node-min-radius-row').should('not.be.visible');

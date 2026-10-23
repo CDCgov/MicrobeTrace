@@ -1,5 +1,7 @@
 /// <reference types="cypress" />
 
+import { createFieldOptionValue, INTERNAL_FIELD_OPTION_VALUES } from '../../src/app/contactTraceCommonServices/internal-field-options';
+
 export type EpiCurveGraphType =
   | 'Single Date Field'
   | 'Multi: Side by Side'
@@ -114,6 +116,13 @@ const normalizeValue = (value: string): string => String(value || '')
   .trim()
   .toLowerCase();
 
+const getExpectedWidgetValue = (value: string): string => {
+  if (value === 'None') return INTERNAL_FIELD_OPTION_VALUES.none;
+  if (value === 'Node Color') return INTERNAL_FIELD_OPTION_VALUES.timelineNodeColor;
+
+  return createFieldOptionValue(value);
+};
+
 const widgetPathByField: Record<EpiCurveFieldLabel, string> = {
   'Graph Type': 'commonService.session.style.widgets.epiCurve-graphType',
   'Date Field': 'commonService.session.style.widgets.epiCurve-date-fields.0',
@@ -124,7 +133,7 @@ const widgetPathByField: Record<EpiCurveFieldLabel, string> = {
   'Bin Size': 'commonService.session.style.widgets.epiCurve-binSize',
 };
 
-export function selectEpiCurveDropdown(field: EpiCurveFieldLabel, value: string): void {
+export function selectEpiCurveDropdown(field: EpiCurveFieldLabel, value: string, expectedValue?: string): void {
   const visibleOverlaySelector = '.p-select-overlay:visible';
 
   selectEpiCurveFieldTab(field);
@@ -154,7 +163,7 @@ export function selectEpiCurveDropdown(field: EpiCurveFieldLabel, value: string)
     if (widgetValue === undefined) return;
 
     expect(normalizeValue(String(widgetValue)), `${field} widget value`)
-      .to.equal(normalizeValue(value));
+      .to.equal(normalizeValue(expectedValue ?? getExpectedWidgetValue(value)));
   });
 
   getEpiCurveRowByLabel(field)

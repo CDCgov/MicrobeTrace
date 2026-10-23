@@ -36,8 +36,8 @@ describe('Journey Flow - Table export', () => {
     cy.contains('.p-dialog-title', 'Export Table').should('not.exist');
 
     cy.readFile(csvPath, 'utf8', { timeout: 20000 }).should((csvText) => {
-      expect(csvText, 'exported CSV content').to.include('Index');
-      expect(csvText, 'exported CSV content').to.include('Id');
+      expect(csvText, 'exported CSV content').to.include('index');
+      expect(csvText, 'exported CSV content').to.include('_id');
       expect(csvText, 'exported CSV content').to.include('A');
       expect(csvText, 'current-column export omits non-visible node columns').not.to.include('Profession');
     });
@@ -71,12 +71,12 @@ describe('Journey Flow - Table export', () => {
 
       expect(rows, 'xlsx rows').to.have.length(4);
       expect(Object.keys(rows[0] || {}), 'xlsx all-column headers').to.include.members([
-        'Source',
-        'Target',
-        'Distance',
+        'source',
+        'target',
+        'distance',
         'Contact type',
       ]);
-      expect(rows[0]?.Source, 'first xlsx source').to.equal('A');
+      expect(rows[0]?.source, 'first xlsx source').to.equal('A');
     });
   });
 
@@ -88,7 +88,7 @@ describe('Journey Flow - Table export', () => {
     assertAfterLaunchCounts(profile);
     goToTableView();
 
-    setTableFilterValue('Id', 'D');
+    setTableFilterValue('_id', 'D');
     assertTableVisibleRowCount(1);
 
     openTableExportDialog();
@@ -105,8 +105,8 @@ describe('Journey Flow - Table export', () => {
       const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, { defval: '' });
 
       expect(rows, 'filtered csv row count').to.have.length(1);
-      expect(rows[0]?.Id, 'filtered csv data row').to.equal('D');
-      expect(rows[0]?.Id, 'filtered csv omits non-matching rows').not.to.equal('A');
+      expect(rows[0]?._id, 'filtered csv data row').to.equal('D');
+      expect(rows[0]?._id, 'filtered csv omits non-matching rows').not.to.equal('A');
     });
   });
 
@@ -165,7 +165,7 @@ describe('Journey Flow - Table export', () => {
       const headers = Object.keys(rows[0] || {});
 
       expect(rows, 'current-column xlsx rows').to.have.length(4);
-      expect(headers, 'current-column xlsx headers').to.include.members(['Index', 'Id']);
+      expect(headers, 'current-column xlsx headers').to.include.members(['index', '_id']);
       expect(headers, 'current-column xlsx omits non-visible node headers').not.to.include('Profession');
     });
   });

@@ -85,7 +85,7 @@ describe('Journey Flow - Map uploaded timeline color persistence', () => {
     goToMapView();
 
     openMapSettingsDialog();
-    selectMapField('map-field-zipcode', 'Zipcode', 'map-field-zipcode', 'Zip_code');
+    selectMapField('map-field-zipcode', 'Zip_code', 'map-field-zipcode', 'Zip_code');
     setMapNodeCollapsing('Off');
     cy.closeSettingsPane('Geospatial Settings');
 

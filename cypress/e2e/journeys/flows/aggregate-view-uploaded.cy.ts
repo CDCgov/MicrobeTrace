@@ -64,17 +64,17 @@ type AggregateUploadedCase = {
 const AGGREGATE_CASES: AggregateUploadedCase[] = [
   {
     profileId: 'nn-snps16-edgelist',
-    aggregateFieldOption: 'Distance',
+    aggregateFieldOption: 'distance',
     aggregateFieldValue: 'Link-distance',
   },
   {
     profileId: 'nn-snps16-matrix',
-    aggregateFieldOption: 'Distance',
+    aggregateFieldOption: 'distance',
     aggregateFieldValue: 'Link-distance',
   },
   {
     profileId: 'nn-snps16-fasta',
-    aggregateFieldOption: 'Distance',
+    aggregateFieldOption: 'distance',
     aggregateFieldValue: 'Link-distance',
   },
   {
@@ -84,12 +84,12 @@ const AGGREGATE_CASES: AggregateUploadedCase[] = [
   },
   {
     profileId: 'grouping-tn93-sequences-subtype-colors-threshold',
-    aggregateFieldOption: 'Subtype',
+    aggregateFieldOption: 'subtype',
     aggregateFieldValue: 'Node-subtype',
   },
   {
     profileId: 'load-twod-newick-tn93-angular-testing',
-    aggregateFieldOption: 'Distance',
+    aggregateFieldOption: 'distance',
     aggregateFieldValue: 'Link-distance',
   },
 ];

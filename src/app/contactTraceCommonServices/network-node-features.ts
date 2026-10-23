@@ -2,6 +2,7 @@ import {
   buildCategoricalComposition,
   type CategoricalCompositionSegment,
 } from './network-grouping.model';
+import { getFieldNameFromOptionValue } from './internal-field-options';
 
 export interface NetworkNodeFeatureFields {
   compositionField?: string | null;
@@ -46,8 +47,7 @@ function stableHash(value: string): number {
 }
 
 function configuredField(field: string | null | undefined): string | null {
-  const normalized = String(field ?? '').trim();
-  return !normalized || normalized.toLowerCase() === 'none' ? null : normalized;
+  return field === 'None' ? null : getFieldNameFromOptionValue(field);
 }
 
 /**
@@ -145,7 +145,11 @@ export function buildNetworkNodeVisualFeatures(
   const compositionField = configuredField(fields.compositionField);
 
   const donutSegments = compositionField
-    ? buildCategoricalComposition(parseNetworkCategoricalValues(values[compositionField]))
+    ? buildCategoricalComposition(parseNetworkCategoricalValues(
+        Object.prototype.hasOwnProperty.call(values, compositionField)
+          ? values[compositionField]
+          : undefined,
+      ))
       .map(segment => ({ ...segment, color: colorForNetworkCategory(segment.value) }))
     : [];
 

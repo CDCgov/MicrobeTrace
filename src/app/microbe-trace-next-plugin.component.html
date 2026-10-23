@@ -274,7 +274,7 @@
             tableKey="node-shape"
             controlType="shape"
             controlHeader="Shape"
-            [valueHeader]="getKeyTableColumnDisplayName('node-shape', 'value', 'Node ' + commonService.titleize(SelectedNodeSymbolVariable))"
+            [valueHeader]="getKeyTableColumnDisplayName('node-shape', 'value', 'Node ' + commonService.getFieldOptionDisplayLabel(SelectedNodeSymbolVariable))"
             [countHeader]="getKeyTableColumnDisplayName('node-shape', 'count', 'Count')"
             [frequencyHeader]="getKeyTableColumnDisplayName('node-shape', 'frequency', 'Frequency')"
             [showCounts]="this.widgets['node-symbol-table-counts']"

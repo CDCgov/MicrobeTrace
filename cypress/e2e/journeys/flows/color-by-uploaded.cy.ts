@@ -268,17 +268,17 @@ describe('Journey Flow - Uploaded color-by controls', () => {
     assertAfterLaunchCounts(profile);
 
     openGlobalStylingTab();
-    selectPrimeOption('#node-color-variable', 'Origin');
+    selectPrimeOption('#node-color-variable', 'origin');
     cy.window().its('commonService.session.style.widgets.node-color-variable').should('equal', 'origin');
     cy.get(`#key-tables-node-table td[data-value="${nodeOriginName}"]`, { timeout: 15000 })
       .should('have.text', nodeOriginName);
 
-    selectPrimeOption('#node-symbol-variable', 'Origin');
+    selectPrimeOption('#node-symbol-variable', 'origin');
     cy.window().its('commonService.session.style.widgets.node-symbol-variable').should('equal', 'origin');
     cy.get(`#key-tables-node-shape-table td[data-value="${nodeOriginName}"]`, { timeout: 15000 })
       .should('have.text', nodeOriginName);
 
-    selectPrimeOption('#link-tooltip-variable', 'Origin');
+    selectPrimeOption('#link-tooltip-variable', 'origin');
     cy.window().its('commonService.session.style.widgets.link-color-variable').should('equal', 'origin');
 
     const originCellSelector = `#key-tables-link-table td[data-value="${linkOriginName}"]`;

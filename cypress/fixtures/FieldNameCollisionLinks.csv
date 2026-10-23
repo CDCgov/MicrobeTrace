@@ -1,0 +1,3 @@
+source,target,distance,Distance,id,origin,visible,cluster,directed,Contact
+NODE-A,NODE-B,0.125,101.01,USER-LINK-ID-A,USER-LINK-ORIGIN-A,false,201,true,Contact-A
+NODE-B,NODE-C,0.25,102.02,USER-LINK-ID-B,USER-LINK-ORIGIN-B,true,202,false,Contact-B

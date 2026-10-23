@@ -1,5 +1,6 @@
 /// <reference types="cypress" />
 
+import { INTERNAL_FIELD_OPTION_VALUES } from '../../../../src/app/contactTraceCommonServices/internal-field-options';
 import { getProfile } from '../datasets/profile';
 import {
   assertAfterLaunchCounts,
@@ -342,7 +343,7 @@ describe('Journey Flow - Epi Curve controls on uploaded data', () => {
     });
 
     ensureEpiSettingsDialogOpen();
-    selectEpiCurveDropdown('Color By', 'Cluster');
+    selectEpiCurveDropdown('Color By', 'cluster');
     getEpiSettingsDialog().find('#epi-color-select').should('not.exist');
 
     readUniqueEpiCurveFills().then((fills) => {
@@ -369,7 +370,7 @@ describe('Journey Flow - Epi Curve controls on uploaded data', () => {
     const movedOpacity = 0.4;
 
     ensureEpiSettingsDialogOpen();
-    selectEpiCurveDropdown('Color By', 'Cluster');
+    selectEpiCurveDropdown('Color By', 'cluster');
     selectEpiCurveDropdown('Stack Order', 'Custom');
     setEpiCurveLegendPosition('Right');
 
@@ -447,7 +448,7 @@ describe('Journey Flow - Epi Curve controls on uploaded data', () => {
 
     cy.window()
       .its('commonService.session.style.widgets.epiCurve-date-fields.0')
-      .should('equal', 'None');
+      .should('equal', INTERNAL_FIELD_OPTION_VALUES.none);
 
     cy.get('#epiCurveSVG .epiCurve-epi-curve rect').should('have.length', 0);
     cy.get('#epiCurveSVG .axis--x').should('have.length', 0);
@@ -456,7 +457,7 @@ describe('Journey Flow - Epi Curve controls on uploaded data', () => {
     ensureEpiSettingsDialogOpen();
     selectEpiCurveDropdown('Graph Type', 'Multi: Side by Side');
     ensureEpiSettingsDialogOpen();
-    selectEpiCurveDropdown('Date Field', 'CollectionDate');
+    selectEpiCurveDropdown('Date Field', 'Collection_Date');
     ensureEpiSettingsDialogOpen();
     selectEpiCurveDropdown('Date Field 2', 'Date of symptom onset Date');
     ensureEpiSettingsDialogOpen();
@@ -473,7 +474,11 @@ describe('Journey Flow - Epi Curve controls on uploaded data', () => {
 
     cy.window().should((win) => {
       const fields = Cypress._.get(win, 'commonService.session.style.widgets.epiCurve-date-fields');
-      expect(fields, 'all epi date fields after clearing').to.deep.equal(['None', 'None', 'None']);
+      expect(fields, 'all epi date fields after clearing').to.deep.equal([
+        INTERNAL_FIELD_OPTION_VALUES.none,
+        INTERNAL_FIELD_OPTION_VALUES.none,
+        INTERNAL_FIELD_OPTION_VALUES.none,
+      ]);
     });
 
     cy.get('#epiCurveSVG .epiCurve-epi-curve rect').should('have.length', 0);
@@ -493,7 +498,7 @@ describe('Journey Flow - Epi Curve controls on uploaded data', () => {
     getEpiSettingsDialog().contains('label', 'Date Field 3').should('be.visible');
 
     ensureEpiSettingsDialogOpen();
-    selectEpiCurveDropdown('Date Field', 'CollectionDate');
+    selectEpiCurveDropdown('Date Field', 'Collection_Date');
     ensureEpiSettingsDialogOpen();
     selectEpiCurveDropdown('Date Field 2', 'Date of symptom onset Date');
     ensureEpiSettingsDialogOpen();

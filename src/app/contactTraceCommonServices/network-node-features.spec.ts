@@ -4,8 +4,46 @@ import {
   colorForNetworkCategory,
   parseNetworkCategoricalValues,
 } from './network-node-features';
+import { createFieldOptionValue, INTERNAL_FIELD_OPTION_VALUES } from './internal-field-options';
 
 describe('renderer-neutral network node features', () => {
+  ['None', 'constructor', '__proto__', ' exposure '].forEach(field => {
+    it(`reads the exact composition field ${JSON.stringify(field)}`, () => {
+      const values = { [field]: 'Food | Travel' };
+      const optionValue = createFieldOptionValue(field, ['None']);
+      const features = buildNetworkNodeVisualFeatures(values, { compositionField: optionValue });
+
+      expect(features.compositionField).toBe(field);
+      expect(features.donutSegments.map(segment => segment.value)).toEqual(['Food', 'Travel']);
+      expect(features.accessibleLabel).toContain(`${field}: Food 50%, Travel 50%`);
+
+      const styledFeatures = applyNetworkNodeCompositionSegments(features, optionValue, [
+        { value: 'Food', color: '#00aa00' },
+        { value: 'Travel', color: '#663399' },
+      ]);
+      expect(styledFeatures.compositionField).toBe(field);
+      expect(styledFeatures.accessibleLabel).toContain(`${field}:`);
+    });
+  });
+
+  ['None', INTERNAL_FIELD_OPTION_VALUES.none].forEach(optionValue => {
+    it(`does not use the real None field for the no-field option ${optionValue}`, () => {
+      const features = buildNetworkNodeVisualFeatures(
+        { None: 'Food | Travel' },
+        { compositionField: optionValue },
+      );
+      expect(features.compositionField).toBeNull();
+      expect(features.donutSegments).toEqual([]);
+    });
+  });
+
+  it('does not read inherited properties as composition metadata', () => {
+    const features = buildNetworkNodeVisualFeatures({}, {
+      compositionField: createFieldOptionValue('constructor'),
+    });
+    expect(features.donutSegments).toEqual([]);
+  });
+
   it('normalizes native, serialized, and delimited mixed values', () => {
     expect(parseNetworkCategoricalValues(['A', 'B'])).toEqual(['A', 'B']);
     expect(parseNetworkCategoricalValues('["A","B","A"]')).toEqual(['A', 'B', 'A']);

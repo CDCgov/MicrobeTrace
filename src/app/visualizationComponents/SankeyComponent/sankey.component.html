@@ -16,7 +16,7 @@
               <rect [attr.width]="svgWidth" [attr.height]="svgHeight" fill="#ffffff"></rect>
               @for (field of SankeyFieldNames; track field; let i = $index) {
                 <g>
-                  <text class="sankey-axis-label" [attr.data-field]="field" [attr.x]="layerPositions[i]" [attr.y]="svgHeight-50" [attr.text-anchor]="getAxisTextAnchor(i)" [style.font-size.px]="axisFontSize">{{ commonService.capitalize(field) }}</text>
+                  <text class="sankey-axis-label" [attr.data-field]="field" [attr.x]="layerPositions[i]" [attr.y]="svgHeight-50" [attr.text-anchor]="getAxisTextAnchor(i)" [style.font-size.px]="axisFontSize">{{ commonService.getFieldDisplayLabel(field) }}</text>
                 </g>
               }
               <g>

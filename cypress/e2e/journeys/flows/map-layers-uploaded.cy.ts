@@ -109,7 +109,7 @@ describe('Journey Flow - Map uploaded layer controls', () => {
     replaceBasemapWithWebGlFreeLayer();
 
     openMapSettingsDialog();
-    selectMapField('map-field-zipcode', 'Zipcode', 'map-field-zipcode', 'Zip_code');
+    selectMapField('map-field-zipcode', 'Zip_code', 'map-field-zipcode', 'Zip_code');
     setMapNodeCollapsing('Off');
     openMapSettingsTab('Components');
 
@@ -137,7 +137,7 @@ describe('Journey Flow - Map uploaded layer controls', () => {
     goToMapView();
 
     openMapSettingsDialog();
-    selectMapField('map-field-zipcode', 'Zipcode', 'map-field-zipcode', 'Zip_code');
+    selectMapField('map-field-zipcode', 'Zip_code', 'map-field-zipcode', 'Zip_code');
     setMapNodeCollapsing('Off');
     openMapSettingsTab('Components');
 

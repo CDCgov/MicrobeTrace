@@ -1,5 +1,7 @@
 /// <reference types="cypress" />
 
+import { INTERNAL_FIELD_OPTION_VALUES } from '../../../../src/app/contactTraceCommonServices/internal-field-options';
+
 import { getProfile } from '../datasets/profile';
 import {
   assertAfterLaunchCounts,
@@ -31,7 +33,7 @@ describe('Journey Flow - Uploaded node label visibility', () => {
 
     expandAccordionTabByHeader('@nodesTab', 'Labels and Tooltips');
 
-    cy.window().its('commonService.session.style.widgets.node-label-variable').should('equal', 'None');
+    cy.window().its('commonService.session.style.widgets.node-label-variable').should('equal', INTERNAL_FIELD_OPTION_VALUES.none);
 
     cy.get('@nodesTab').find('#node-label-variable').click({ force: true });
     cy.contains('li[role="option"]', labelVariable).click({ force: true });
@@ -50,7 +52,7 @@ describe('Journey Flow - Uploaded node label visibility', () => {
     cy.get('@nodesTab').find('#node-label-variable').click({ force: true });
     cy.contains('li[role="option"]', 'None').click({ force: true });
 
-    cy.window().its('commonService.session.style.widgets.node-label-variable').should('equal', 'None');
+    cy.window().its('commonService.session.style.widgets.node-label-variable').should('equal', INTERNAL_FIELD_OPTION_VALUES.none);
 
     cy.window().should((win: unknown) => {
       const typedWindow = win as WinWithCy;

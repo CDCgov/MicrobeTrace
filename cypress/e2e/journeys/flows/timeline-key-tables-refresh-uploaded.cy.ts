@@ -132,7 +132,7 @@ describe('Journey Flow - Timeline key table refresh', () => {
 
     openGlobalStylingTab();
     selectPrimeOption('#node-color-variable', nodeColorField);
-    selectPrimeOption('#link-tooltip-variable', 'Cluster');
+    selectPrimeOption('#link-tooltip-variable', 'cluster');
     cy.window().its('commonService.session.style.widgets.node-color-variable').should('equal', nodeColorField);
     cy.window().its('commonService.session.style.widgets.link-color-variable').should('equal', linkColorField);
     cy.get('#key-tables-node-table', { timeout: 15000 }).should('be.visible');

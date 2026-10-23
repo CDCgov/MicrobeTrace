@@ -143,7 +143,7 @@ describe('Journey Flow - Network subset filtering', () => {
     applyNodeSubset('Profession', 'equals', 'Healthcare', 'Florida');
     goToMapView();
     openMapSettingsDialog();
-    selectMapField('map-field-zipcode', 'Zipcode', 'map-field-zipcode', 'Zip_code');
+    selectMapField('map-field-zipcode', 'Zip_code', 'map-field-zipcode', 'Zip_code');
     setMapNodeCollapsing('Off');
     cy.closeSettingsPane('Geospatial Settings');
     assertMapRenderedCounts({ nodes: 2, links: 1 });

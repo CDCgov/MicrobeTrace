@@ -14,6 +14,12 @@ import { ExportService } from '@app/contactTraceCommonServices/export.service';
 import { Subject, takeUntil } from 'rxjs';
 import { CommonStoreService } from '@app/contactTraceCommonServices/common-store.services';
 import { showColorTransparencyPicker } from '../KeyTablesComponent/color-transparency-picker';
+import {
+  createFieldOptionValue,
+  getFieldNameFromOptionValue,
+  INTERNAL_FIELD_OPTION_VALUES,
+  normalizeFieldOptionValue
+} from '@app/contactTraceCommonServices/internal-field-options';
 
 @Component({
     selector: 'app-timeline-component',
@@ -36,6 +42,12 @@ export class TimelineComponent extends BaseComponentDirective implements OnInit,
 
   FieldList: SelectItem[] = [];
   FieldListStack: SelectItem[] = [];
+  readonly noFieldOptionValue = INTERNAL_FIELD_OPTION_VALUES.none;
+  readonly timelineNodeColorOptionValue = INTERNAL_FIELD_OPTION_VALUES.timelineNodeColor;
+  private readonly legacyTimelineFieldOptions = Object.freeze({
+    None: INTERNAL_FIELD_OPTION_VALUES.none,
+    'Node Color': INTERNAL_FIELD_OPTION_VALUES.timelineNodeColor
+  });
   SelectedDateFieldVariable;
   SelectedDateFieldVariable2;
   SelectedDateFieldVariable3;
@@ -109,24 +121,45 @@ export class TimelineComponent extends BaseComponentDirective implements OnInit,
   private updateFieldLists(): void {
     this.FieldList = [];
     this.FieldListStack = [];
-    this.FieldList.push({ label: "None", value: "None" });
-    this.FieldListStack.push({ label: "None", value: 'None'}, { label: "Node Color", value: "Node Color"});
-
     const nodeFields = this.commonService.session.data['nodeFields'] || [];
+    const noneLabel = nodeFields.includes('None') ? 'None (No field)' : 'None';
+    this.FieldList.push({ label: noneLabel, value: this.noFieldOptionValue });
+    this.FieldListStack.push(
+      { label: noneLabel, value: this.noFieldOptionValue },
+      { label: "Node Color", value: this.timelineNodeColorOptionValue }
+    );
+
     nodeFields.forEach((d) => {
         if (d != 'seq' && d != 'sequence') {
             this.FieldList.push(
                 {
-                    label: this.commonService.capitalize(d.replace("_", "")),
-                    value: d
+                    label: this.commonService.getFieldDisplayLabel(d),
+                    value: createFieldOptionValue(d, Object.keys(this.legacyTimelineFieldOptions))
                 });
             this.FieldListStack.push(
                 {
-                    label: this.commonService.capitalize(d.replace("_", "")),
-                    value: d
+                    label: this.commonService.getFieldDisplayLabel(d),
+                    value: createFieldOptionValue(d, Object.keys(this.legacyTimelineFieldOptions))
                 });
         }
     });
+  }
+
+  private normalizeTimelineFieldOption(value: any): string {
+    return normalizeFieldOptionValue(value, this.legacyTimelineFieldOptions);
+  }
+
+  private getTimelineFieldName(value: any): string | null {
+    return getFieldNameFromOptionValue(value);
+  }
+
+  private isNoTimelineField(value: any): boolean {
+    return value === 'None' || value === this.noFieldOptionValue;
+  }
+
+  private usesNodeColorOption(): boolean {
+    const value = this.widgets['epiCurve-stackColorBy'];
+    return value === 'Node Color' || value === this.timelineNodeColorOptionValue;
   }
 
   ngOnInit() {
@@ -138,7 +171,9 @@ export class TimelineComponent extends BaseComponentDirective implements OnInit,
     this.updateSettingsRows();    
 
     this.store.clusterUpdate$.pipe(takeUntil(this.destroy$)).subscribe(() => {
-      if (this.selectedGraphType == "Single Date Field" && (this.widgets['epiCurve-stackColorBy'] == 'cluster' || (this.widgets['epiCurve-stackColorBy'] == 'Node Color' && this.widgets['node-color-variable'] == 'cluster'))) {
+      if (this.selectedGraphType == "Single Date Field" &&
+        (this.getTimelineFieldName(this.widgets['epiCurve-stackColorBy']) == 'cluster' ||
+          (this.usesNodeColorOption() && this.widgets['node-color-variable'] == 'cluster'))) {
         this.refresh();
       }
     })
@@ -160,15 +195,17 @@ export class TimelineComponent extends BaseComponentDirective implements OnInit,
     // date fields
     if (this.widgets['epiCurve-date-fields'] == undefined) {
       if (this.widgets['epi-timeline-date-field'] != undefined) {
-        this.widgets['epiCurve-date-fields'] = [this.widgets['epi-timeline-date-field'], 'None', 'None']
+        this.widgets['epiCurve-date-fields'] = [this.widgets['epi-timeline-date-field'], this.noFieldOptionValue, this.noFieldOptionValue]
       } else {
-        this.widgets['epiCurve-date-fields'] = ['None', 'None', 'None']
+        this.widgets['epiCurve-date-fields'] = [this.noFieldOptionValue, this.noFieldOptionValue, this.noFieldOptionValue]
       }
     } else if (this.widgets['epiCurve-date-fields'].length < 3) {
-      while (this.widgets['epiCurve-date-fields']< 3) {
-        this.widgets['epiCurve-date-fields'].push('None')
+      while (this.widgets['epiCurve-date-fields'].length < 3) {
+        this.widgets['epiCurve-date-fields'].push(this.noFieldOptionValue)
       }
     }
+    this.widgets['epiCurve-date-fields'] = this.widgets['epiCurve-date-fields']
+      .map(value => this.normalizeTimelineFieldOption(value));
     this.SelectedDateFieldVariable = this.widgets['epiCurve-date-fields'][0];
     this.SelectedDateFieldVariable2 = this.widgets['epiCurve-date-fields'][1];
     this.SelectedDateFieldVariable3 = this.widgets['epiCurve-date-fields'][2];
@@ -180,7 +217,9 @@ export class TimelineComponent extends BaseComponentDirective implements OnInit,
 
     // stackColorBy field
     if (this.widgets['epiCurve-stackColorBy'] == undefined) {
-      this.widgets['epiCurve-stackColorBy'] = 'None';
+      this.widgets['epiCurve-stackColorBy'] = this.noFieldOptionValue;
+    } else {
+      this.widgets['epiCurve-stackColorBy'] = this.normalizeTimelineFieldOption(this.widgets['epiCurve-stackColorBy']);
     }
 
     // stack order
@@ -232,7 +271,7 @@ public refresh(): void {
 
   $('#epiCurveSVG').empty()
 
-  if (this.SelectedDateFieldVariable == 'None') {
+  if (this.isNoTimelineField(this.SelectedDateFieldVariable)) {
     return;
   }
 
@@ -241,7 +280,10 @@ public refresh(): void {
     return;
   }
 
-  const field = this.SelectedDateFieldVariable;
+  const field = this.getTimelineFieldName(this.SelectedDateFieldVariable);
+  if (!field) {
+    return;
+  }
   let times = this.getTimes([field]);
 
   // updates this.timeDomainStart and this.timeDomainInterval and returns the bin interval
@@ -269,24 +311,25 @@ public refresh(): void {
   let bins = this.histogram(this.vnodes);
   
   let colorVariable = this.commonService.session.style.widgets['node-color-variable'];
+  const stackColorField = this.getTimelineFieldName(this.widgets['epiCurve-stackColorBy']);
   let nodeColorKeys;
-  if (colorVariable != 'None' && this.widgets['epiCurve-stackColorBy'] == 'Node Color') {
+  if (colorVariable != 'None' && this.usesNodeColorOption()) {
     nodeColorKeys = this.commonService.session.style.nodeColorsTableKeys[colorVariable].map(value => value=='null' ? null: value);
     this.localColorMap = this.commonService.temp.style.nodeColorMap;
-  } else if (this.widgets['epiCurve-stackColorBy'] != 'None') {
+  } else if (stackColorField) {
     nodeColorKeys = this.updateLocalColorMap();
   }
   if (nodeColorKeys) {
-    nodeColorKeys = this.getOrderedStackKeys(nodeColorKeys, this.widgets['epiCurve-stackColorBy'] == 'Node Color' ? colorVariable : this.widgets['epiCurve-stackColorBy']);
+    nodeColorKeys = this.getOrderedStackKeys(nodeColorKeys, this.getCurrentStackColorVariable());
   }
 
   let maxCount = 0;
-  [maxCount, bins] = this.updateBins(bins, this.widgets['epiCurve-stackColorBy'] == 'Node Color' ? colorVariable : this.widgets['epiCurve-stackColorBy'], nodeColorKeys);
+  [maxCount, bins] = this.updateBins(bins, this.getCurrentStackColorVariable(), nodeColorKeys);
   
 
   this.y.domain([0, maxCount]).nice()//d3.max(bins, d => d.length)]);
 
-  if ((colorVariable != 'None' && this.widgets['epiCurve-stackColorBy'] == 'Node Color') || (this.widgets['epiCurve-stackColorBy'] != 'None' && this.widgets['epiCurve-stackColorBy'] != 'Node Color')) {
+  if ((colorVariable != 'None' && this.usesNodeColorOption()) || !!stackColorField) {
     let nodeColors = [];
     let nodeOpacities = [];
 
@@ -312,7 +355,7 @@ public refresh(): void {
     })
     this.generateLegend(epiCurve, nodeColors, nodeColorKeys, nodeOpacities)
   } else {
-    let color = this.widgets['epiCurve-stackColorBy'] == 'None' ? this.widgets['epiCurve-colors'][0] : this.widgets["node-color"];
+    let color = this.isNoTimelineField(this.widgets['epiCurve-stackColorBy']) ? this.widgets['epiCurve-colors'][0] : this.widgets["node-color"];
     const rects = epiCurve.selectAll("rect")
       .data(bins)
       .enter()
@@ -326,7 +369,7 @@ public refresh(): void {
     rects.append("title")
       .text(d => this.getSingleBinTooltip(d, field));
 
-    this.generateLegend(epiCurve, [color] ,[this.SelectedDateFieldVariable])
+    this.generateLegend(epiCurve, [color] ,[field])
   }
 
   this.updateAxes();
@@ -344,7 +387,9 @@ private refreshMulti(): void {
 
   $('#epiCurveSVG').empty()
 
-  if (this.SelectedDateFieldVariable == 'None' && this.SelectedDateFieldVariable2 == 'None' && this.SelectedDateFieldVariable3 == 'None') {
+  if (this.isNoTimelineField(this.SelectedDateFieldVariable) &&
+    this.isNoTimelineField(this.SelectedDateFieldVariable2) &&
+    this.isNoTimelineField(this.SelectedDateFieldVariable3)) {
     return;
   }
 
@@ -356,8 +401,9 @@ private refreshMulti(): void {
   let fields = [];
   let colors = [];
   [this.SelectedDateFieldVariable, this.SelectedDateFieldVariable2, this.SelectedDateFieldVariable3].forEach((dateField, ind) => {
-    if (dateField != 'None') {
-      fields.push(dateField);
+    const fieldName = this.getTimelineFieldName(dateField);
+    if (fieldName) {
+      fields.push(fieldName);
       colors.push(this.widgets["epiCurve-colors"][ind])
     }
   })
@@ -470,10 +516,14 @@ private refreshMulti(): void {
  */
 updateLocalColorMap() {
   let nodeColorTableKeys = [];
+  const stackColorField = this.getTimelineFieldName(this.widgets['epiCurve-stackColorBy']);
+  if (!stackColorField) {
+    return nodeColorTableKeys;
+  }
   this.commonService.session.data.nodes.forEach((node) => {
     if (!node.visible) return;
-    if (!nodeColorTableKeys.some(value => value == node[this.widgets['epiCurve-stackColorBy']])) {
-      nodeColorTableKeys.push(node[this.widgets['epiCurve-stackColorBy']])
+    if (!nodeColorTableKeys.some(value => value == node[stackColorField])) {
+      nodeColorTableKeys.push(node[stackColorField])
     }
   })
   this.localColorMap = d3.scaleOrdinal(this.commonService.thirtyColorPalette).domain(nodeColorTableKeys);
@@ -501,7 +551,7 @@ private getDefaultOrderedStackKeys(keys, colorVariable, smallestAtBottom = false
   this.vnodes.forEach((node) => {
     if (!this.hasValidStackDate(node)) return;
 
-    const key = keys.find((value) => value == node[colorVariable]);
+    const key = keys.find((value) => value == this.commonService.getFieldValue(node, colorVariable));
     if (key === undefined) return;
 
     counts.set(key, (counts.get(key) || 0) + 1);
@@ -553,14 +603,14 @@ private setStackOrderItemsFromInternalOrder(internalOrder) {
   this.customStackOrderItems = [...internalOrder].reverse().map((key) => ({
     label: this.getTooltipLabel(key),
     value: key,
-    color: this.widgets['epiCurve-stackColorBy'] == 'Node Color' ? this.localColorMap(key) : this.getStackGroupColor(key),
+    color: this.usesNodeColorOption() ? this.localColorMap(key) : this.getStackGroupColor(key),
     transparency: this.getStackGroupTransparency(key),
   }));
 }
 
 private initializeCustomStackOrder(reset = false) {
   const colorVariable = this.getCurrentStackColorVariable();
-  if (colorVariable == 'None') {
+  if (!colorVariable || colorVariable == 'None') {
     this.customStackOrderItems = [];
     this.widgets['epiCurve-customStackOrder'] = [];
     return;
@@ -613,7 +663,7 @@ private setStackGroupTransparency(value, transparency): void {
 }
 
 private getStackFill(value): string {
-  if (this.widgets['epiCurve-stackColorBy'] == 'Node Color') {
+  if (this.usesNodeColorOption()) {
     return this.localColorMap(value);
   }
 
@@ -621,7 +671,7 @@ private getStackFill(value): string {
 }
 
 private getStackOpacity(value): number {
-  if (this.widgets['epiCurve-stackColorBy'] == 'Node Color') {
+  if (this.usesNodeColorOption()) {
     return 1;
   }
 
@@ -634,11 +684,12 @@ private clampStackAlpha(value): number {
 
 private getCurrentStackColorVariable() {
   const colorVariable = this.commonService.session.style.widgets['node-color-variable'];
-  if (this.widgets['epiCurve-stackColorBy'] == 'Node Color') {
+  if (this.usesNodeColorOption()) {
     return colorVariable != 'None' ? colorVariable : 'None';
   }
 
-  return this.widgets['epiCurve-stackColorBy'];
+  const option = this.widgets['epiCurve-stackColorBy'];
+  return this.isNoTimelineField(option) ? 'None' : option;
 }
 
 private getCurrentStackKeys(colorVariable) {
@@ -646,7 +697,7 @@ private getCurrentStackKeys(colorVariable) {
     return [];
   }
 
-  if (this.widgets['epiCurve-stackColorBy'] == 'Node Color') {
+  if (this.usesNodeColorOption()) {
     const nodeColorKeys = this.commonService.session.style.nodeColorsTableKeys[colorVariable] || [];
     return nodeColorKeys.map(value => value=='null' ? null: value);
   }
@@ -654,8 +705,8 @@ private getCurrentStackKeys(colorVariable) {
   let keys = [];
   this.commonService.session.data.nodes.forEach((node) => {
     if (!node.visible) return;
-    if (!keys.some(value => value == node[colorVariable])) {
-      keys.push(node[colorVariable])
+    if (!keys.some(value => value == this.commonService.getFieldValue(node, colorVariable))) {
+      keys.push(this.commonService.getFieldValue(node, colorVariable))
     }
   })
 
@@ -663,7 +714,8 @@ private getCurrentStackKeys(colorVariable) {
 }
 
 private hasValidStackDate(node) {
-  const value = node?.[this.SelectedDateFieldVariable];
+  const dateField = this.getTimelineFieldName(this.SelectedDateFieldVariable);
+  const value = dateField ? node?.[dateField] : undefined;
   if (value == null || String(value).trim() == '') {
     return false;
   }
@@ -771,7 +823,7 @@ private getTooltipLabel(value): string {
 }
 
 private getSingleBinTooltip(bin, field, segmentLabel = undefined, segmentCount = undefined): string {
-  const fieldLabel = this.getTooltipLabel(field);
+  const fieldLabel = this.commonService.getFieldDisplayLabel(field);
   const lines = [
     this.getBinDateRange(bin)
   ];
@@ -793,7 +845,7 @@ private getMultiBinTooltip(fields, bins, binIndex): string {
   ];
 
   fields.forEach((field, fieldIndex) => {
-    lines.push(`${this.getTooltipLabel(field)}: ${this.getBinCount(bins[fieldIndex]?.[binIndex])}`);
+    lines.push(`${this.commonService.getFieldDisplayLabel(field)}: ${this.getBinCount(bins[fieldIndex]?.[binIndex])}`);
   });
 
   return lines.join("\n");
@@ -896,13 +948,14 @@ generateLegend(epiCurve, colors, fieldNames, opacities = []) {
     let prevLength = 0;
     let rowCount = 0;
     let y = this.height + this.margin.bottom - (Math.max(legendRowHeight, Math.round(this.labelSize * 1.5)) + 14);
-    if (this.selectedGraphType=='Single Date Field' && this.widgets['epiCurve-stackColorBy'] == 'Node Color' && this.commonService.session.style.widgets['node-color-variable'] != 'None') {
-      let field = this.commonService.capitalize(this.commonService.session.style.widgets['node-color-variable']);
+    if (this.selectedGraphType=='Single Date Field' && this.usesNodeColorOption() && this.commonService.session.style.widgets['node-color-variable'] != 'None') {
+      let field = this.commonService.getFieldOptionDisplayLabel(this.commonService.session.style.widgets['node-color-variable']);
       epiCurve.append("text").attr("x", 70).attr("y", y).text(field + ': ').style("font-size", legendFontSizePx).attr("alignment-baseline","middle")
       prevLength += field.length + 3;
-    } else if (this.selectedGraphType=='Single Date Field' && this.widgets['epiCurve-stackColorBy'] != 'Node Color' && this.widgets['epiCurve-stackColorBy'] != 'None') {
-      epiCurve.append("text").attr("x", 70).attr("y", y).text(this.widgets['epiCurve-stackColorBy'] + ': ').style("font-size", legendFontSizePx).attr("alignment-baseline","middle")
-      prevLength += this.widgets['epiCurve-stackColorBy'].length + 3;
+    } else if (this.selectedGraphType=='Single Date Field' && !this.usesNodeColorOption() && !this.isNoTimelineField(this.widgets['epiCurve-stackColorBy'])) {
+      const field = this.commonService.getFieldDisplayLabel(this.getTimelineFieldName(this.widgets['epiCurve-stackColorBy']));
+      epiCurve.append("text").attr("x", 70).attr("y", y).text(field + ': ').style("font-size", legendFontSizePx).attr("alignment-baseline","middle")
+      prevLength += field.length + 3;
     }
     fieldNames.forEach((name, i) => {
       // this first section calculates the location for each item/name in the legend
@@ -926,12 +979,13 @@ generateLegend(epiCurve, colors, fieldNames, opacities = []) {
     xOffset = this.width - Math.max(120, Math.round(legendFontSize * 8));
   }
   let count = 0;
-  if (this.selectedGraphType=='Single Date Field' && this.widgets['epiCurve-stackColorBy'] == 'Node Color' && this.commonService.session.style.widgets['node-color-variable'] != 'None') {
-    let field = this.commonService.capitalize(this.commonService.session.style.widgets['node-color-variable']);
+  if (this.selectedGraphType=='Single Date Field' && this.usesNodeColorOption() && this.commonService.session.style.widgets['node-color-variable'] != 'None') {
+    let field = this.commonService.getFieldOptionDisplayLabel(this.commonService.session.style.widgets['node-color-variable']);
     epiCurve.append("text").attr("x", xOffset).attr("y", legendRowHeight).text(field + ': ').style("font-size", legendFontSizePx).attr("alignment-baseline","middle")
     count += 1;
-  } else if (this.selectedGraphType=='Single Date Field' && this.widgets['epiCurve-stackColorBy'] != 'Node Color' && this.widgets['epiCurve-stackColorBy'] != 'None') {
-    epiCurve.append("text").attr("x", xOffset).attr("y", legendRowHeight).text(this.widgets['epiCurve-stackColorBy'] + ': ').style("font-size", legendFontSizePx).attr("alignment-baseline","middle")
+  } else if (this.selectedGraphType=='Single Date Field' && !this.usesNodeColorOption() && !this.isNoTimelineField(this.widgets['epiCurve-stackColorBy'])) {
+    const field = this.commonService.getFieldDisplayLabel(this.getTimelineFieldName(this.widgets['epiCurve-stackColorBy']));
+    epiCurve.append("text").attr("x", xOffset).attr("y", legendRowHeight).text(field + ': ').style("font-size", legendFontSizePx).attr("alignment-baseline","middle")
     count += 1;
   }
   fieldNames.forEach((name, i) => {
@@ -1037,7 +1091,7 @@ updateBins(bins, colorVariable='None', nodeColorKeys=undefined) {
     bin.binCount = bin.length;
   });
   // cumulative with multiple colors per column
-  if (this.widgets['epiCurve-stackColorBy'] != 'None' && this.widgets['epiCurve-cumulative'] && colorVariable != 'None') { //useNodeColors
+  if (!this.isNoTimelineField(this.widgets['epiCurve-stackColorBy']) && this.widgets['epiCurve-cumulative'] && colorVariable != 'None') { //useNodeColors
     //heights represents the size of each rect, offset represent the offset of each rect
     let heights = new Array(nodeColorKeys.length).fill(0);
     let offsets = new Array(nodeColorKeys.length).fill(0);
@@ -1047,7 +1101,7 @@ updateBins(bins, colorVariable='None', nodeColorKeys=undefined) {
       bin.segmentCounts = [];
       bin.cumulativeSegmentCounts = [];
       nodeColorKeys.forEach((value, ind) => {
-        let currentCount = bin.filter((obj)=> obj[colorVariable]==value).length
+        let currentCount = bin.filter((obj)=> this.commonService.getFieldValue(obj, colorVariable)==value).length
         bin.segmentCounts.push(currentCount);
         heights[ind] += currentCount;
         bin.cumulativeSegmentCounts.push(heights[ind]);
@@ -1060,13 +1114,13 @@ updateBins(bins, colorVariable='None', nodeColorKeys=undefined) {
       bin.cumulativeCount = maxCount;
     })
     // noncumulative with multiple colors per column
-  } else if (this.widgets['epiCurve-stackColorBy'] != 'None' && colorVariable != 'None') {
+  } else if (!this.isNoTimelineField(this.widgets['epiCurve-stackColorBy']) && colorVariable != 'None') {
     bins.forEach(bin => {
       bin.length2 = [];
       bin.height = [];
       bin.segmentCounts = [];
       nodeColorKeys.forEach(value => {
-        let currentCount = bin.filter((obj)=> obj[colorVariable]==value).length
+        let currentCount = bin.filter((obj)=> this.commonService.getFieldValue(obj, colorVariable)==value).length
         bin.segmentCounts.push(currentCount);
         bin.length2.push(currentCount);
         bin.height.push(bin.length2.reduce((paritalSum, a)=> paritalSum+a,0));
@@ -1156,7 +1210,7 @@ updateSettingsRows() {
     } else {
       $('.additionalDateField').slideUp();
       $('#useNodeColorRow').slideDown();
-      if (this.widgets['epiCurve-stackColorBy'] == 'None') {
+      if (this.isNoTimelineField(this.widgets['epiCurve-stackColorBy'])) {
         $('#epi-color-select').slideDown();
       }
     }
@@ -1172,7 +1226,7 @@ onGraphTypeChange(refresh=true) {
 }
 
 onUseNodeColorChange() {
-  if (this.widgets['epiCurve-stackColorBy'] == 'None') {
+  if (this.isNoTimelineField(this.widgets['epiCurve-stackColorBy'])) {
     $('#epi-color-select').slideDown();
     this.customStackOrderItems = [];
   } else {
@@ -1456,7 +1510,7 @@ private propagate(): void {
 // }
 
 updateNodeColors() {
-  if(this.selectedGraphType == "Single Date Field" && this.widgets['epiCurve-stackColorBy'] == 'Node Color') {
+  if(this.selectedGraphType == "Single Date Field" && this.usesNodeColorOption()) {
     this.refresh();
   }
 }

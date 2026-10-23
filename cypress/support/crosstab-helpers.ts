@@ -143,7 +143,7 @@ export const buildExpectedCrosstabModel = (
 
   const formatField = (field: string): string => {
     if (field === 'None') return '';
-    return win.commonService.capitalize(String(field).replace('_', ''));
+    return win.commonService.getFieldDisplayLabel(field);
   };
 
   let title = '';

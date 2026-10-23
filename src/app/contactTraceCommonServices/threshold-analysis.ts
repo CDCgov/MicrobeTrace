@@ -1,3 +1,4 @@
+import { getFieldOptionValue } from './internal-field-options';
 import {
   type ComponentStructureMetrics,
   type ComponentStructureScoreBreakdown,
@@ -195,7 +196,7 @@ function getEndpointId(endpoint: any): string {
 }
 
 function getNumericMetricValue(link: ThresholdAnalysisLinkLike, metric: string): number | null {
-  const raw = link?.[metric];
+  const raw = getFieldOptionValue(link, metric);
   if (typeof raw === 'number') {
     return Number.isFinite(raw) ? raw : null;
   }

@@ -164,9 +164,9 @@ export class CrosstabComponent extends BaseComponentDirective implements OnInit,
 
     // get values for X and Y axis
     rawdata.forEach(row => {
-      var val = row[this.xVariable];
+      var val = this.commonService.getFieldValue(row, this.xVariable);
       if (!xValues.includes(val)) xValues.push(val);
-      val = row[this.yVariable];
+      val = this.commonService.getFieldValue(row, this.yVariable);
       if (!yValues.includes(val)) yValues.push(val);
     });
     xValues.push('Total');
@@ -178,18 +178,18 @@ export class CrosstabComponent extends BaseComponentDirective implements OnInit,
     this.totalRow = { col: 'Total'}
     xValues.forEach(col => this.totalRow[col] = 0)
     rawdata.forEach(row => {
-      var match = data.find(arow => arow.col == row[this.widgets['crosstab-yVariable']]);
+      var match = data.find(arow => arow.col == this.commonService.getFieldValue(row, this.widgets['crosstab-yVariable']));
       if (match) {
-        match[row[this.xVariable]]++;
+        match[this.commonService.getFieldValue(row, this.xVariable)]++;
         match['Total']++;
       } else {
-        var newRow = { col: row[this.widgets['crosstab-yVariable']] };
+        var newRow = { col: this.commonService.getFieldValue(row, this.widgets['crosstab-yVariable']) };
         xValues.forEach(col => newRow[col] = 0);
-        newRow[row[this.xVariable]]++;
+        newRow[this.commonService.getFieldValue(row, this.xVariable)]++;
         newRow['Total'] = 1;
         data.push(newRow);
       }
-      this.totalRow[row[this.xVariable]]++;
+      this.totalRow[this.commonService.getFieldValue(row, this.xVariable)]++;
     });
     this.totalRow['Total'] = Object.keys(this.totalRow).filter(key => key!= 'col').reduce((acc, key) => acc + this.totalRow[key], 0);
     data.forEach(row => {
@@ -312,11 +312,11 @@ export class CrosstabComponent extends BaseComponentDirective implements OnInit,
     const yVariable = typeof this.yVariable === 'string' ? this.yVariable : 'None';
 
     if (xVariable != 'None' && yVariable != 'None') {
-      return `${this.commonService.capitalize(xVariable.replace("_", ""))} vs ${this.commonService.capitalize(yVariable.replace("_",""))}`
+      return `${this.commonService.getFieldOptionDisplayLabel(xVariable)} vs ${this.commonService.getFieldOptionDisplayLabel(yVariable)}`
     } else if (xVariable != 'None') {
-      return `${this.commonService.capitalize(xVariable.replace("_", ""))}`
+      return `${this.commonService.getFieldOptionDisplayLabel(xVariable)}`
     } else if (yVariable != 'None') {
-      return `${this.commonService.capitalize(yVariable.replace("_",""))}`
+      return `${this.commonService.getFieldOptionDisplayLabel(yVariable)}`
     } else {
       return ''
     }
@@ -338,16 +338,10 @@ export class CrosstabComponent extends BaseComponentDirective implements OnInit,
    * Updates the values for the fieldListDictionary then updates the fieldList
    */
   updateFieldLists() {
-    this.fieldList = []
-
-    this.fieldList.push({ label: "None", value: "None"})
-    this.commonService.session.data['nodeFields'].map((d) => {
-      if (['seq', 'origin', '_diff', '_ambiguity', 'index', '_id'].includes(d)) return;
-      this.fieldList.push({
-        label: this.commonService.capitalize(d.replace("_", "")),
-        value: d
-      });
-    })
+    this.fieldList = this.commonService.createFieldSelectOptions(
+      this.commonService.session.data.nodeFields.filter(field =>
+        !['seq', 'origin', '_diff', '_ambiguity', 'index', '_id'].includes(field))
+    );
   }
 
   updateNodeColors() {  }
@@ -471,8 +465,10 @@ export class CrosstabComponent extends BaseComponentDirective implements OnInit,
           }
         })
 
+        const yVariableLabel = this.commonService.getFieldOptionDisplayLabel(this.yVariable);
+        const xVariableLabel = this.commonService.getFieldOptionDisplayLabel(this.xVariable);
         let dataBody = [this.SelectedTableData.tableColumns.map(col => {
-          if (col.header == '') return this.commonService.capitalize(this.yVariable)      
+          if (col.header == '') return yVariableLabel
           return this.commonService.capitalize(col.header);
         })].concat(this.SelectedTableData.data.map(formatData)).concat([formatData(this.totalRow)]);
         
@@ -492,7 +488,7 @@ export class CrosstabComponent extends BaseComponentDirective implements OnInit,
             alignment: "center"
           },
           {
-            text: `${this.commonService.capitalize(this.xVariable)} vs ${this.commonService.capitalize(this.yVariable)}`,
+            text: `${xVariableLabel} vs ${yVariableLabel}`,
             style: "fontSize: 18",
             alignment: "center"
           },

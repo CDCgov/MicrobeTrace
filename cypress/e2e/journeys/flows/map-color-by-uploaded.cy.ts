@@ -170,7 +170,7 @@ describe('Journey Flow - Map uploaded color-by controls', () => {
     goToMapView();
 
     openMapSettingsDialog();
-    selectMapField('map-field-zipcode', 'Zipcode', 'map-field-zipcode', 'Zip_code');
+    selectMapField('map-field-zipcode', 'Zip_code', 'map-field-zipcode', 'Zip_code');
     setMapNodeCollapsing('Off');
     cy.closeSettingsPane('Geospatial Settings');
 
@@ -285,7 +285,7 @@ describe('Journey Flow - Map uploaded color-by controls', () => {
     goToMapView();
 
     openMapSettingsDialog();
-    selectMapField('map-field-zipcode', 'Zipcode', 'map-field-zipcode', 'Zip_code');
+    selectMapField('map-field-zipcode', 'Zip_code', 'map-field-zipcode', 'Zip_code');
     setMapNodeCollapsing('Off');
     cy.closeSettingsPane('Geospatial Settings');
 
