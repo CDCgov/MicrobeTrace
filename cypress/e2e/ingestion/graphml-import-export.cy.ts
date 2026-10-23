@@ -15,7 +15,7 @@ describe('GraphML import/export', () => {
   const staticGML = 'GML_Static_Network.gml';
 
   beforeEach(() => {
-    cy.visit('/?skipEula=1&skipDemoSession=1');
+    cy.visit('/?renderer=cytoscape-canvas&skipEula=1&skipDemoSession=1');
     cy.get('#fileDropRef', { timeout: 15000 }).should('exist');
   });
 

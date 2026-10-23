@@ -45,6 +45,13 @@ function buildJourneyUrl(options: JourneyVisitOptions = {}): string {
   const skipDemoSession = options.skipDemoSession ?? true;
   const skipEula = options.skipEula ?? true;
 
+  // The established journey suite contains renderer-specific Cytoscape
+  // assertions. Keep those compatibility contracts explicit while dedicated
+  // Sigma/default-renderer contracts exercise the production path.
+  if (!Object.prototype.hasOwnProperty.call(options.extraQuery || {}, 'renderer')) {
+    params.set('renderer', 'cytoscape-canvas');
+  }
+
   if (skipDemoSession) {
     params.set('skipDemoSession', '1');
   }
@@ -185,7 +192,7 @@ export function installSaveAsCaptureHook(): void {
         reader.readAsDataURL(blob);
       };
 
-      if (content instanceof Blob) {
+      if (content instanceof w.Blob || Object.prototype.toString.call(content) === '[object Blob]') {
         persistBlob(content);
         return;
       }
@@ -516,13 +523,19 @@ export function expandAccordionTabByHeader(containerAlias: string, headerText: s
   
   
   function assertGroupsRendered(minParents = 1): void {
-    cy.window()
-      .its('cytoscapeInstance')
-      .should((cyInst: any) => {
-        expect(cyInst, 'cytoscapeInstance').to.exist;
-        const parents = cyInst.nodes('.parent').length;
-        expect(parents, 'parent groups rendered').to.be.greaterThan(minParents - 1);
-      });
+    cy.window().should((win: any) => {
+      const twoD = win.commonService?.visuals?.twoD;
+      if (twoD?.sigmaActive) {
+        const hulls = (twoD.sigmaRenderer as any)?.groupHulls || [];
+        expect(hulls.length, 'Sigma group hulls rendered').to.be.greaterThan(minParents - 1);
+        return;
+      }
+
+      const cyInst = win.cytoscapeInstance;
+      expect(cyInst, 'cytoscapeInstance').to.exist;
+      const parents = cyInst.nodes('.parent').length;
+      expect(parents, 'parent groups rendered').to.be.greaterThan(minParents - 1);
+    });
   }
   
 
@@ -703,8 +716,15 @@ export function goTo2DNetworkView(timeout = 30000): void {
 }
 
 export function assertTwoDNetworkReady(timeout = 30000): void {
-  cy.get('#cy', { timeout }).should('be.visible');
-  cy.window({ timeout }).should('have.property', 'cytoscapeInstance');
+  cy.get('#cy, [data-testid="sigma-network"]', { timeout }).should('be.visible');
+  cy.window({ timeout }).should((win: any) => {
+    const twoD = win.commonService?.visuals?.twoD;
+    expect(twoD, '2D component instance').to.exist;
+    expect(
+      twoD?.sigmaRenderer || twoD?.cy || win.cytoscapeInstance,
+      'active 2D renderer handle',
+    ).to.exist;
+  });
 }
 
 export function assertPhyloTreeReady(timeout = 30000): void {
@@ -1032,7 +1052,7 @@ export function ensureCrosstabView(): void {
 
 export function ensureTwoDNetworkView(timeout = 30000): void {
   cy.get('body', { timeout: 15000 }).then(($body) => {
-    if ($body.find('#cy:visible').length) {
+    if ($body.find('#cy:visible, [data-testid="sigma-network"]:visible').length) {
       assertTwoDNetworkReady(timeout);
       return;
     }

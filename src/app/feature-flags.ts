@@ -1,8 +1,7 @@
 /**
- * Temporary release gates for features that remain in the codebase but are not
- * currently available in the UI.
+ * Release gates for composite-score threshold features.
  */
 export const FEATURE_FLAGS = {
-  smartLaunch: false,
-  componentStructureThresholdRecommendation: false,
+  smartLaunch: true,
+  componentStructureThresholdRecommendation: true,
 } as const;

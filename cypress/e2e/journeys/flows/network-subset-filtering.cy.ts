@@ -101,6 +101,14 @@ describe('Journey Flow - Network subset filtering', () => {
         .to.deep.equal(['A', 'C']);
     });
 
+    openGlobalFilteringTab();
+    cy.get('#network-subset-node-value').should('have.value', 'Healthcare');
+    cy.get('#network-subset-node-field').select('Node type');
+    cy.get('#network-subset-node-value').should('have.value', '');
+    assertDatalistIncludes('#network-subset-node-value-options', 'Person');
+    assertDatalistIncludes('#network-subset-node-value-options', 'Place');
+    closeGlobalSettings();
+
     goToTableView();
     assertTableDatasetMatchesSession('Node');
     selectTableDataset('Link');

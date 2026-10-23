@@ -12,34 +12,7 @@ import {
   waitForProcessingDialogToClear,
 } from '../../../support/journey-helpers';
 
-describe('Composite threshold features disabled', () => {
-  const profile = getProfile('threshold-score-genetic-policy');
-
-  it('uses the standard launch and keeps manual threshold filtering available', () => {
-    visitAppAndAcceptEula();
-    cy.loadFiles(profile.files);
-    applyPreLaunchFileSettings(profile);
-    ensurePreLaunchProfileSynced(profile);
-
-    cy.get('[data-testid="files-smart-launch-button"]').should('not.exist');
-    cy.get('#launch').should('be.visible').and('not.be.disabled').click();
-    waitForProcessingDialogToClear();
-    ensureTwoDNetworkView();
-
-    cy.window().then((win: any) => {
-      expect(Number(win.commonService.session.style.widgets['link-threshold']))
-        .to.equal(profile.preLaunch?.threshold);
-      expect(win.commonService.session.meta.smartLaunchRecommendation).to.equal(null);
-    });
-
-    openGlobalFilteringTab();
-    cy.get('#link-threshold').scrollIntoView().should('be.visible');
-    cy.get('[data-testid="threshold-stability-toggle"]').should('not.exist');
-    cy.get('[data-testid="threshold-score-recommendation"]').should('not.exist');
-  });
-});
-
-describe('Journey Flow - Threshold Stability Panel (feature disabled)', () => {
+describe('Journey Flow - Threshold Stability Panel', () => {
   const profile = getProfile('nn-angulartesting-tn93-edgelist');
   const mixedOriginProfile = getProfile('threshold-score-genetic-policy');
   const newickProfile = {
@@ -63,7 +36,7 @@ describe('Journey Flow - Threshold Stability Panel (feature disabled)', () => {
     });
   };
 
-  it.skip('smart launches with the highest composite-score threshold', () => {
+  it('smart launches with the highest composite-score threshold', () => {
     visitAppAndAcceptEula();
     cy.loadFiles(mixedOriginProfile.files);
     applyPreLaunchFileSettings(mixedOriginProfile);
@@ -119,7 +92,7 @@ describe('Journey Flow - Threshold Stability Panel (feature disabled)', () => {
     });
   });
 
-  it.skip('uses the composite recommendation for the first Newick edge query during Smart Launch', () => {
+  it('uses the composite recommendation for the first Newick edge query during Smart Launch', () => {
     visitAppAndAcceptEula();
     cy.loadFiles(newickProfile.files);
     applyPreLaunchFileSettings(newickProfile);
@@ -160,7 +133,7 @@ describe('Journey Flow - Threshold Stability Panel (feature disabled)', () => {
     });
   });
 
-  it.skip('shows the composite recommendation and applies its genetic threshold', () => {
+  it('shows the composite recommendation and applies its genetic threshold', () => {
     launchProfileToTwoD(profile);
 
     openGlobalFilteringTab();
@@ -384,7 +357,7 @@ describe('Journey Flow - Threshold Stability Panel (feature disabled)', () => {
     });
   });
 
-  it.skip('preserves a fractional generic-distance recommendation when the default metric is SNPs', () => {
+  it('preserves a fractional generic-distance recommendation when the default metric is SNPs', () => {
     launchProfileToTwoD(mixedOriginProfile);
 
     cy.window().then((win: any) => {
@@ -433,7 +406,7 @@ describe('Journey Flow - Threshold Stability Panel (feature disabled)', () => {
     });
   });
 
-  it.skip('applies the composite Newick recommendation from Global Settings after a guardrailed load', () => {
+  it('applies the composite Newick recommendation from Global Settings after a guardrailed load', () => {
     visitAppAndAcceptEula();
     cy.loadFiles(newickProfile.files);
     applyPreLaunchFileSettings(newickProfile);
