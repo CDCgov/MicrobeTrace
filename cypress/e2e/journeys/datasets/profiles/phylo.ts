@@ -160,4 +160,21 @@ export const PHYLO_PROFILES: DatasetProfile[] = [
       },
     },
   }),
+  P({
+    id: 'phylo-newick-without-bootstrap',
+    title: 'Load to Phylogenetic Tree: Newick without bootstrap support keeps calculation guidance available',
+    tags: ['phylo', 'newick', 'bootstrap'],
+    files: [
+      {
+        name: 'PatristicSynthetic_snp_gt1.nwk',
+        datatype: 'newick',
+      },
+    ],
+    preLaunch: {
+      metric: 'snps',
+      threshold: 16,
+      defaultView: '2D Network',
+    },
+    expectations: {},
+  }),
 ];

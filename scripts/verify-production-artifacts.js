@@ -20,7 +20,8 @@ const expectedEmbedAssets = [
   'assets/embed/vendor/localforage.min.js',
 ];
 const expectedBasemapAssets = [
-  'assets/maplibre/maplibre-gl-csp-worker.js',
+  'assets/maplibre/maplibre-gl-worker.mjs',
+  'assets/maplibre/maplibre-gl-shared.mjs',
 ];
 
 if (fs.statSync(distRoot).isFile() && /\.war$/i.test(distRoot)) {

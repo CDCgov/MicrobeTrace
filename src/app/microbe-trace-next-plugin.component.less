@@ -354,16 +354,104 @@ label[for="search"] {
   --p-treeselect-padding-x: 10px;
 }
 
+.network-detail-control__title {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.network-detail-control__info {
+  display: inline-grid;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  place-items: center;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: #64748b;
+  cursor: help;
+}
+
+.network-detail-control__info:hover,
+.network-detail-control__info:focus-visible {
+  background: #e8f1fa;
+  color: #1769aa;
+  outline: none;
+}
+
+.network-detail-control__info:focus-visible {
+  box-shadow: 0 0 0 2px #93c5fd;
+}
+
+.network-detail-control__info .pi {
+  font-size: 13px;
+}
+
+.network-detail-control__tooltip {
+  position: absolute;
+  top: calc(100% + 7px);
+  right: 0;
+  z-index: 20;
+  visibility: hidden;
+  width: 340px;
+  max-width: calc(100vw - 40px);
+  padding: 10px 11px;
+  border: 1px solid #cad6e2;
+  border-radius: 8px;
+  opacity: 0;
+  background: #ffffff;
+  box-shadow: 0 7px 22px rgba(15, 23, 42, 0.18);
+  color: #475569;
+  font-size: 11px;
+  line-height: 1.4;
+  pointer-events: none;
+}
+
+.network-detail-control__tooltip p {
+  margin: 0 0 7px;
+}
+
+.network-detail-control__tooltip p:last-child {
+  margin-bottom: 0;
+}
+
+.network-detail-control__tooltip strong {
+  color: #1e3a5f;
+}
+
+.network-detail-control__tooltip-intro {
+  padding-bottom: 7px;
+  border-bottom: 1px solid #e2e8f0;
+  color: #334155;
+  font-weight: 600;
+}
+
+.network-detail-control__tooltip-note {
+  padding-top: 7px;
+  border-top: 1px solid #e2e8f0;
+}
+
+.network-detail-control__info:hover + .network-detail-control__tooltip,
+.network-detail-control__info:focus + .network-detail-control__tooltip {
+  visibility: visible;
+  opacity: 1;
+}
+
 #network-statistics-wrapper {
     display: none;
     position: absolute;
-    bottom: 10px;
-    right: 20px;
+    bottom: 14px;
+    right: 14px;
     z-index: 1;
-    color: #303030;
-    background-color: #f8f9fa !important;
-    border: 1px solid #c0c0c0;
-    border-radius: 0.25rem;
+    padding: 6px 8px;
+    color: #334155;
+    background-color: rgba(255, 255, 255, 0.97) !important;
+    border: 1px solid #d6e0ea;
+    border-radius: 8px;
+    box-shadow: 0 4px 14px rgba(30, 41, 59, 0.12);
+    font-size: 12px;
   }
   #network-statistics-draghandle {
     display: none;
@@ -372,7 +460,13 @@ label[for="search"] {
   }
   #network-statistics-table td {
     border: none;
-    padding: 0.125rem 0.25rem;
+    padding: 0.1rem 0.25rem;
+    line-height: 1.35;
+  }
+  #network-statistics-table .text-right {
+    color: #0f172a;
+    font-variant-numeric: tabular-nums;
+    font-weight: 600;
   }
 
   mat-slider {
@@ -1150,6 +1244,103 @@ label.disabled {
   background: #d1ecf1;
   border: 1px solid #bee5eb;
 }
+.export-progress-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 12000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(15, 23, 42, 0.42);
+  backdrop-filter: blur(1px);
+}
+
+.export-progress-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  width: min(440px, 100%);
+  padding: 22px 24px;
+  border: 1px solid rgba(15, 23, 42, 0.15);
+  border-radius: 8px;
+  background: #ffffff;
+  box-shadow: 0 18px 48px rgba(15, 23, 42, 0.28);
+}
+
+.export-progress-spinner {
+  flex: 0 0 34px;
+  width: 34px;
+  height: 34px;
+  margin-top: 2px;
+  border: 4px solid #dbeafe;
+  border-top-color: #0878d1;
+  border-radius: 50%;
+  animation: export-progress-spin 0.8s linear infinite;
+}
+
+.export-progress-content {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.export-progress-content h2 {
+  margin: 0 0 4px;
+  color: #172b4d;
+  font-size: 18px;
+  font-weight: 650;
+}
+
+.export-progress-content p {
+  min-height: 20px;
+  margin: 0 0 12px;
+  color: #40526d;
+  font-size: 14px;
+}
+
+.export-progress-track {
+  height: 9px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #e5eaf0;
+}
+
+.export-progress-value {
+  height: 100%;
+  border-radius: inherit;
+  background: #0878d1;
+  transition: width 180ms ease-out;
+}
+
+.export-progress-percent {
+  display: block;
+  margin-top: 5px;
+  color: #334e68;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.export-progress-content small {
+  display: block;
+  margin-top: 10px;
+  color: #62748a;
+}
+
+@keyframes export-progress-spin {
+  to { transform: rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .export-progress-spinner {
+    animation-duration: 1.8s;
+  }
+
+  .export-progress-value {
+    transition: none;
+  }
+}
+
 #session-stash-modal,
 #local-session-unavailable-dialog {
   z-index: 1400;

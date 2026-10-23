@@ -20,6 +20,7 @@ type WinWithMicrobeTrace = Window & {
 
 const weightedMixedValue = '2a:0.75/3a:0.25';
 const legacyMixedValue = '6:0.5/7a:0.5';
+const sigmaVisitOptions = { extraQuery: { renderer: 'sigma' } } as const;
 
 const profile: DatasetProfile = {
   id: 'mixed-genotype-node-coloring',
@@ -100,7 +101,7 @@ const assertMixedStyleSegments = (expectedFirstColor?: string): void => {
 
 describe('Journey Flow - mixed node coloring', () => {
   it('renders mixed genotype nodes with component color segments across node views', () => {
-    launchProfileToTwoD(profile);
+    launchProfileToTwoD(profile, sigmaVisitOptions);
 
     openGlobalStylingTab();
     cy.get('#node-mixed-colors-row').should('not.exist');
@@ -177,6 +178,26 @@ describe('Journey Flow - mixed node coloring', () => {
 
     cy.window().then((win: unknown) => {
       const typedWindow = win as WinWithMicrobeTrace;
+      const twoD = typedWindow.commonService.visuals.twoD;
+      if (twoD.sigmaActive) {
+        const graph = twoD.sigmaRenderer.getGraph();
+        const mixedNode = graph.getNodeAttributes('sample-4');
+        const singleNode = graph.getNodeAttributes('sample-2');
+
+        expect(String(mixedNode.imageDataUri || '')).to.contain('data:image/svg+xml');
+        const mixedNodeSvg = decodeURIComponent(String(mixedNode.imageDataUri).split(',')[1]);
+        expect(mixedNodeSvg).to.contain('fill="#ffffff"');
+        expect(mixedNodeSvg).to.contain('stroke-opacity="0.35"');
+        expect(mixedNodeSvg).to.contain('data-mt-mixed-ring-center="basic-shape"');
+        expect(mixedNodeSvg).not.to.contain('<rect x="0" y="0" width="300" height="300" fill="#ffffff" fill-opacity="1"');
+        expect(mixedNodeSvg).to.contain('stroke-dasharray="0.75 0.25"');
+        expect(mixedNodeSvg).to.contain('stroke-dasharray="0.25 0.75"');
+        expect(mixedNode.features.donutSegments.map((segment: any) => [segment.value, segment.fraction]))
+          .to.deep.equal([['2a', 0.75], ['3a', 0.25]]);
+        expect(singleNode.imageDataUri).to.equal(null);
+        return;
+      }
+
       const cyInstance = typedWindow.cytoscapeInstance;
       const mixedNode = cyInstance.getElementById('sample-4');
       const singleNode = cyInstance.getElementById('sample-2');
@@ -232,17 +253,25 @@ describe('Journey Flow - mixed node coloring', () => {
 
     cy.window().should((win: unknown) => {
       const twoD = (win as WinWithMicrobeTrace).commonService.visuals.twoD;
-      const renderedNodes = twoD.cy.nodes(':visible');
-      const aggregates = renderedNodes
-        .filter((node: any) => node.data('isCollapsedAggregate') === true)
-        .toArray()
-        .sort((a: any, b: any) => a.data('totalCount') - b.data('totalCount'));
+      const sigmaGraph = twoD.sigmaActive ? twoD.sigmaRenderer.getGraph() : null;
+      const renderedNodeCount = sigmaGraph ? sigmaGraph.order : twoD.cy.nodes(':visible').length;
+      const aggregates = sigmaGraph
+        ? sigmaGraph.nodes()
+          .map((nodeId: string) => sigmaGraph.getNodeAttributes(nodeId))
+          .filter((attributes: any) => attributes.raw?.raw?.isCollapsedAggregate === true)
+          .sort((a: any, b: any) => a.raw.raw.totalCount - b.raw.raw.totalCount)
+        : twoD.cy.nodes(':visible')
+          .filter((node: any) => node.data('isCollapsedAggregate') === true)
+          .toArray()
+          .sort((a: any, b: any) => a.data('totalCount') - b.data('totalCount'));
 
-      expect(renderedNodes.length, '2D rendered collapsed node count').to.equal(2);
-      expect(aggregates.map((node: any) => node.data('totalCount'))).to.deep.equal([2, 7]);
+      expect(renderedNodeCount, '2D rendered collapsed node count').to.equal(2);
+      expect(aggregates.map((node: any) => sigmaGraph ? node.raw.raw.totalCount : node.data('totalCount')))
+        .to.deep.equal([2, 7]);
 
       const mixedAggregate = aggregates[1];
-      const pieSlices = twoD.getCollapsedPieSlices(mixedAggregate.data('counts'));
+      const mixedAggregateData = sigmaGraph ? mixedAggregate.raw.raw : mixedAggregate.data();
+      const pieSlices = twoD.getCollapsedPieSlices(mixedAggregateData.counts);
       expect(pieSlices.map((slice: any) => [slice.label, slice.count])).to.deep.equal([
         ['1a', 1],
         ['2a', 1],
@@ -257,14 +286,15 @@ describe('Journey Flow - mixed node coloring', () => {
       expect(pieSlices.find((slice: any) => slice.label === legacyMixedValue).segments
         .map((segment: any) => [segment.value, segment.weight]))
         .to.deep.equal([['6', 0.5], ['7a', 0.5]]);
-      expect(String(mixedAggregate.style('background-image'))).to.contain('data:image');
+      expect(String(sigmaGraph ? mixedAggregate.imageDataUri : mixedAggregate.style('background-image')))
+        .to.contain('data:image');
       const normalBorderWidth = Number(twoD.widgets['node-border-width']);
-      const aggregateBorderWidth = Number(mixedAggregate.data('borderWidth'));
+      const aggregateBorderWidth = Number(sigmaGraph ? mixedAggregate.borderWidth : mixedAggregate.data('borderWidth'));
       expect(aggregateBorderWidth, '2D aggregate border width')
         .to.equal(Math.max(4, normalBorderWidth + 2));
-      expect(Number(mixedAggregate.data('aggregateRenderedSize')), '2D aggregate minimum rendered size')
+      expect(Number(mixedAggregateData.aggregateRenderedSize), '2D aggregate minimum rendered size')
         .to.be.at.least((aggregateBorderWidth * 2) + 8);
-      const aggregateSvg = atob(String(mixedAggregate.data('pieBackgroundImage')).split(',')[1]);
+      const aggregateSvg = atob(String(mixedAggregateData.pieBackgroundImage).split(',')[1]);
       expect(aggregateSvg).not.to.contain("data-mt-aggregate-outline='outer'");
       expect(aggregateSvg).not.to.contain("data-mt-aggregate-outline='inner'");
       expect(aggregateSvg).to.match(/<path[^>]*fill='none' fill-opacity='0'[^>]*data-mt-mixed-hollow-slice='true'/);
@@ -273,6 +303,11 @@ describe('Journey Flow - mixed node coloring', () => {
       expect(aggregateSvg).to.contain("data-mt-segment-start-fraction=");
       expect(aggregateSvg.match(/data-mt-aggregate-slice-separator=/g)).to.have.length(6);
       expect(aggregateSvg).not.to.contain('data-mt-aggregate-mixed-indicator');
+      if (sigmaGraph) {
+        const featureLayer = win.document.querySelector('[data-testid="network-node-feature-overlay"]');
+        expect(featureLayer?.getAttribute('data-pending-image-count')).to.equal('0');
+        expect(Number(featureLayer?.getAttribute('data-loaded-image-count'))).to.be.at.least(2);
+      }
     });
 
     cy.window().then((win: unknown) => {
@@ -280,9 +315,18 @@ describe('Journey Flow - mixed node coloring', () => {
     });
 
     cy.window().should((win: unknown) => {
-      const renderedNodes = (win as WinWithMicrobeTrace).commonService.visuals.twoD.cy.nodes(':visible');
-      expect(renderedNodes.length, '2D restored node count').to.equal(9);
-      expect(renderedNodes.filter((node: any) => node.data('isCollapsedAggregate') === true).length).to.equal(0);
+      const twoD = (win as WinWithMicrobeTrace).commonService.visuals.twoD;
+      if (twoD.sigmaActive) {
+        const graph = twoD.sigmaRenderer.getGraph();
+        expect(graph.order, '2D restored node count').to.equal(9);
+        expect(graph.nodes().filter((nodeId: string) => (
+          graph.getNodeAttribute(nodeId, 'raw')?.raw?.isCollapsedAggregate === true
+        )).length).to.equal(0);
+      } else {
+        const renderedNodes = twoD.cy.nodes(':visible');
+        expect(renderedNodes.length, '2D restored node count').to.equal(9);
+        expect(renderedNodes.filter((node: any) => node.data('isCollapsedAggregate') === true).length).to.equal(0);
+      }
     });
 
     // Preserve the reported handoff state: related-node collapse remains on
@@ -481,7 +525,7 @@ describe('Journey Flow - mixed node coloring', () => {
   });
 
   it('keeps expanded Bubble colors tied to node IDs after related-node collapse renumbers indexes', () => {
-    launchProfileToTwoD(linkOnlyProfile);
+    launchProfileToTwoD(linkOnlyProfile, sigmaVisitOptions);
 
     openGlobalStylingTab();
     selectPrimeOption('#node-color-variable', 'Genotype');
@@ -497,16 +541,20 @@ describe('Journey Flow - mixed node coloring', () => {
 
     cy.window().should((win: unknown) => {
       const { commonService } = win as WinWithMicrobeTrace;
-      const renderedNodes = commonService.visuals.twoD.cy.nodes(':visible').filter(
-        (node: any) => !node.data('isParent') && node.children().length === 0,
-      );
-      const aggregate = renderedNodes.filter(
-        (node: any) => node.data('isCollapsedAggregate') === true,
-      );
+      const twoD = commonService.visuals.twoD;
+      const sigmaGraph = twoD.sigmaActive ? twoD.sigmaRenderer.getGraph() : null;
+      const renderedNodes = sigmaGraph
+        ? sigmaGraph.nodes().map((nodeId: string) => sigmaGraph.getNodeAttributes(nodeId))
+        : twoD.cy.nodes(':visible').filter(
+          (node: any) => !node.data('isParent') && node.children().length === 0,
+        ).toArray();
+      const aggregate = renderedNodes.filter((node: any) => sigmaGraph
+        ? node.raw?.raw?.isCollapsedAggregate === true
+        : node.data('isCollapsedAggregate') === true);
 
       expect(renderedNodes.length, '2D related-node collapsed count').to.equal(6);
       expect(aggregate.length, '2D related-node aggregate count').to.equal(1);
-      expect(aggregate[0].data('collapsedMemberIds')).to.deep.equal([
+      expect(sigmaGraph ? aggregate[0].raw.raw.collapsedMemberIds : aggregate[0].data('collapsedMemberIds')).to.deep.equal([
         'sample-1',
         'sample-2',
         'sample-3',

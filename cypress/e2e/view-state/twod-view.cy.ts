@@ -525,7 +525,7 @@ describe('2D Network - Settings Pane Interactions', () => {
     
         cy.get('@dialogContainer').find('.tab-pane.active').contains('p-accordion-panel', 'Shapes and Sizes').click();
     
-        cy.window().its('commonService.session.style.widgets.link-opacity').should('equal', 0);
+        cy.window().its('commonService.session.style.widgets.link-opacity').should('equal', 1);
     
         cy.get('@dialogContainer').find(selector.linkOpacity).invoke('val', newOpacity).trigger('change', { force: true });
     
@@ -646,13 +646,14 @@ describe('2D Network - Settings Pane Interactions', () => {
     it('should toggle neighbor highlighting', () => {
         cy.get('@dialogContainer').find('.tab-pane.active').contains('p-accordion-panel', 'Display').click();
       
-        cy.window().its('commonService.session.style.widgets.node-highlight').should('be.false');
-      
-        cy.get('@dialogContainer').find(selector.neighborHighlightToggle).contains('Highlighted').click();
+        // The maintained sample session persists neighbor highlighting as enabled.
         cy.window().its('commonService.session.style.widgets.node-highlight').should('be.true');
-      
+
         cy.get('@dialogContainer').find(selector.neighborHighlightToggle).contains('Normal').click();
         cy.window().its('commonService.session.style.widgets.node-highlight').should('be.false');
+
+        cy.get('@dialogContainer').find(selector.neighborHighlightToggle).contains('Highlighted').click();
+        cy.window().its('commonService.session.style.widgets.node-highlight').should('be.true');
     });
   });
 

@@ -25,7 +25,7 @@ const missingGroupTokens = new Set([
 ]);
 
 const launchPersonPlaceDataset = (linkFile: string): void => {
-  cy.visit('/?skipEula=1&skipDemoSession=1');
+  cy.visit('/?renderer=cytoscape-canvas&skipEula=1&skipDemoSession=1');
   cy.get('#fileDropRef', { timeout: 15000 }).should('exist');
 
   cy.loadFiles([

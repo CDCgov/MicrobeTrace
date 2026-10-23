@@ -26,7 +26,9 @@ describe('Field-name collision edge cases', () => {
       .should('have.value', createFieldOptionValue('constructor'));
     cy.get('#launch').click();
     cy.window({ timeout: 30000 }).its('commonService.session.network.isFullyLoaded').should('be.true');
-    cy.window({ timeout: 30000 }).its('commonService.visuals.twoD.cy').should('exist');
+    cy.window({ timeout: 30000 }).should(win => {
+      expect(win.commonService.visuals.twoD.isRendererReady(), 'active 2D renderer ready').to.be.true;
+    });
     cy.window().then(win => {
       const { nodeFields, nodes: records, links: edges } = win.commonService.session.data;
       const node = records.find(record => record._id === 'NODE-A');
@@ -46,8 +48,19 @@ describe('Field-name collision edge cases', () => {
       expect(edges[0]['__proto__']).to.equal('link-proto');
       const twoD = win.commonService.visuals.twoD;
       twoD.onNodeLabelVaribleChange('_id');
-      expect(twoD.cy.getElementById('NODE-A').data('label')).to.equal('NODE-A');
-      expect(twoD.cy.getElementById('NODE-A').data('isCollapsedAggregate')).not.to.be.ok;
+    });
+    cy.window().should(win => {
+      const twoD = win.commonService.visuals.twoD;
+      expect(twoD.isRendererReady(), 'active 2D renderer ready').to.be.true;
+      if (twoD.sigmaActive) {
+        const node = twoD.sigmaRenderer.getGraph().getNodeAttributes('NODE-A');
+        expect(node.label).to.equal('NODE-A');
+        expect(node.raw.raw.isCollapsedAggregate).not.to.be.ok;
+      } else {
+        const node = twoD.cy.getElementById('NODE-A');
+        expect(node.data('label')).to.equal('NODE-A');
+        expect(node.data('isCollapsedAggregate')).not.to.be.ok;
+      }
     });
   });
 

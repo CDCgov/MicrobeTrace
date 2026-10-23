@@ -31,7 +31,7 @@ const launchSmallTree = (analysisLimit?: number): void => {
   cy.window().its('commonService.session.network.isFullyLoaded').should('eq', true);
 };
 
-describe.skip('Smart Launch Newick analysis above the pair limit (feature disabled)', () => {
+describe('Smart Launch Newick analysis above the pair limit', () => {
   it('uses spanning edges for the same composite recommendation as all pairs', () => {
     let expectedThreshold = 0;
     let expectedScore = 0;

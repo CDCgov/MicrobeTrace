@@ -1,5 +1,6 @@
 /// <reference types="cypress" />
 
+import * as patristic from 'patristic';
 import type { DatasetProfile } from '../datasets/profile';
 import { getProfilesByTag, resolveExpected } from '../datasets/profile';
 import {
@@ -16,18 +17,41 @@ const BRANCH_PATH_SELECTOR = '#phylocanvas svg g.tidytree-link path';
 function assertRenderedPhyloTree(profile: DatasetProfile): void {
   const expectedAfterLaunch = resolveExpected(profile.expectations.afterLaunch);
   const expectedLeafCount = expectedAfterLaunch?.nodes;
+  const newickInput = profile.files.find((file) => file.datatype === 'newick');
 
   cy.window().then((win: any) => {
     const sessionNodeCount = win.commonService.session.data.nodes.length;
     const tree = win.commonService.visuals.phylogenetic.tree;
+    const storedNewick = String(win.commonService.session.data.newickString || '').trim();
+    const renderedNewick = String(tree.data.toNewick(false) || '').trim();
 
     expect(tree, 'phylogenetic tree instance').to.exist;
-    expect(String(win.commonService.session.data.newickString || '').trim(), 'stored Newick string').to.not.equal('');
-    expect(String(tree.data.toNewick(false) || '').trim(), 'rendered tree Newick string').to.not.equal('');
+    expect(storedNewick, 'stored Newick string').to.not.equal('');
+    expect(renderedNewick, 'rendered tree Newick string').to.not.equal('');
+
+    if (newickInput) {
+      const canonicalStoredNewick = patristic.parseNewick(storedNewick).toNewick(false).trim();
+      expect(renderedNewick, 'rendered tree matches the stored Newick tree')
+        .to.equal(canonicalStoredNewick);
+    }
 
     const leafCount = tree.data.getLeaves().length;
     expect(leafCount, 'tree leaf count').to.equal(expectedLeafCount ?? sessionNodeCount);
   });
+
+  if (newickInput) {
+    cy.fixture(newickInput.name).then((inputNewick: string) => {
+      const canonicalInputNewick = patristic.parseNewick(String(inputNewick).trim()).toNewick(false).trim();
+
+      cy.window().then((win: any) => {
+        const storedNewick = String(win.commonService.session.data.newickString || '').trim();
+        const canonicalStoredNewick = patristic.parseNewick(storedNewick).toNewick(false).trim();
+
+        expect(canonicalStoredNewick, 'stored Newick tree matches the uploaded Newick tree')
+          .to.equal(canonicalInputNewick);
+      });
+    });
+  }
 
   cy.window()
     .its('commonService.session.data.nodes.length')

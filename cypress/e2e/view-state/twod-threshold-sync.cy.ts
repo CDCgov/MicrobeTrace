@@ -31,7 +31,8 @@ const assertHistogramHoverReadout = (): void => {
     expect($bars.length, 'threshold histogram bars').to.be.greaterThan(0);
   });
   cy.get('#link-threshold-sparkline')
-    .should('exist')
+    .scrollIntoView()
+    .should('be.visible')
     .then(($svg) => {
       const svg = $svg.get(0) as SVGElement;
       const rect = svg.getBoundingClientRect();

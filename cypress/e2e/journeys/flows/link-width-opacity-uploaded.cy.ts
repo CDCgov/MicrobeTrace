@@ -120,7 +120,7 @@ describe('Journey Flow - Uploaded link fixed width and transparency controls', (
     cy.window()
       .its('commonService.session.style.widgets.link-opacity')
       .should((value) => {
-        expect(Number(value)).to.equal(0);
+        expect(Number(value)).to.equal(1);
       });
 
     cy.get('@linksTab')
