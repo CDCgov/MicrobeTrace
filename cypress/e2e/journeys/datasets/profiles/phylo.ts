@@ -175,5 +175,6 @@ export const PHYLO_PROFILES: DatasetProfile[] = [
       threshold: 16,
       defaultView: '2D Network',
     },
+    expectations: {},
   }),
 ];
