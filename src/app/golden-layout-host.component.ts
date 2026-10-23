@@ -151,7 +151,15 @@ export class GoldenLayoutHostComponent implements OnDestroy {
   
     if (container) {
       const componentItem = container.parent;
-      this._goldenLayout.focusComponent(componentItem);
+      const stack = componentItem?.parent as any;
+      if (stack && typeof stack.setActiveComponentItem === 'function') {
+        // Golden Layout's focusComponent() only assigns keyboard focus; it does
+        // not reveal an inactive component in a stack. Activate the stack item
+        // first so views selected from MicrobeTrace's View menu become visible.
+        stack.setActiveComponentItem(componentItem, true);
+      } else {
+        this._goldenLayout.focusComponent(componentItem);
+      }
     }
 
     return container;

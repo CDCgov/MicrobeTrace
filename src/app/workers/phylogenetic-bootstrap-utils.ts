@@ -240,6 +240,19 @@ export function looksLikeBootstrapLabel(value: unknown): boolean {
   return parseBootstrapSupportPercent(value) !== null;
 }
 
+export function hasBootstrapSupportLabels(root: BootstrapTreeNode | null | undefined): boolean {
+  if (!root) return false;
+
+  const visit = (node: BootstrapTreeNode, isRoot: boolean): boolean => {
+    const children = Array.isArray(node.children) ? node.children : [];
+    if (!children.length) return false;
+    if (!isRoot && looksLikeBootstrapLabel(node.id)) return true;
+    return children.some(child => visit(child, false));
+  };
+
+  return visit(root, true);
+}
+
 export function clearBootstrapInternalLabels(root: BootstrapTreeNode | null | undefined): void {
   if (!root) return;
   const children = Array.isArray(root.children) ? root.children : [];

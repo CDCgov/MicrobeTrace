@@ -64,6 +64,7 @@ export const testIds = {
   transmissionChainCenterButton: 'transmission-chain-center-button',
   transmissionChainExcludedNodesButton: 'transmission-chain-excluded-nodes-button',
   transmissionChainExcludedNodesDialog: 'transmission-chain-excluded-nodes-dialog',
+  twodNetworkLayout: 'twod-network-layout',
   bubbleCanvas: 'bubble-canvas',
   bubbleSettingsButton: 'bubble-settings-button',
   bubbleSettingsDialog: 'bubble-settings-dialog',

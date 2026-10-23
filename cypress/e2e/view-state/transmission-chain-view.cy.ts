@@ -1010,3 +1010,4 @@ describe('Transmission Chain legacy migration', () => {
     });
   });
 });
+

@@ -39,13 +39,14 @@ const ensureMapToggleState = (
   selector: string,
   expectedPath: string,
   expectedValue: boolean,
+  enabledLabel = 'Show',
 ): void => {
   cy.window().its(expectedPath).then((currentValue) => {
     if (Boolean(currentValue) === expectedValue) return;
 
     cy.get('@mapSettings')
       .find(selector)
-      .contains(expectedValue ? 'Show' : 'Hide')
+      .contains(expectedValue ? enabledLabel : 'Hide')
       .click({ force: true });
   });
 
@@ -66,6 +67,38 @@ const assertLayerVisible = (layerKey: LayerKey, visible: boolean): void => {
   });
 };
 
+/**
+ * This spec verifies Leaflet layer-control synchronization. The dedicated
+ * OpenFreeMap spec covers the real MapLibre provider, which requires WebGL.
+ */
+const replaceBasemapWithWebGlFreeLayer = (): void => {
+  cy.window().then((win: unknown) => {
+    const typedWindow = win as WinWithMap;
+    const mapView = typedWindow.commonService.visuals.gisMap;
+    const basemap = mapView.layers.basemap;
+    const container = typedWindow.document.createElement('div');
+    const maplibreMap = {
+      getStyle: () => ({ version: 8, sources: {}, layers: [] }),
+      isStyleLoaded: () => true,
+      once: () => undefined,
+      setLayoutProperty: () => undefined,
+    };
+
+    container.className = 'microbetrace-test-basemap';
+    container.dataset.basemapProvider = 'WebGL-free test layer';
+
+    basemap.getEvents = () => ({});
+    basemap.getContainer = () => container;
+    basemap.getMaplibreMap = () => maplibreMap;
+    basemap.onAdd = (map: any) => {
+      map.getPane('tilePane')?.appendChild(container);
+    };
+    basemap.onRemove = () => {
+      container.remove();
+    };
+  });
+};
+
 describe('Journey Flow - Map uploaded layer controls', () => {
   const profile = getProfile('map-covid-zipcode-threshold');
 
@@ -73,6 +106,7 @@ describe('Journey Flow - Map uploaded layer controls', () => {
     launchProfileToTwoD(profile);
     assertAfterLaunchCounts(profile);
     goToMapView();
+    replaceBasemapWithWebGlFreeLayer();
 
     openMapSettingsDialog();
     selectMapField('map-field-zipcode', 'Zipcode', 'map-field-zipcode', 'Zip_code');
@@ -85,7 +119,7 @@ describe('Journey Flow - Map uploaded layer controls', () => {
     assertLayerVisible('basemap', true);
     assertLayerVisible('satellite', false);
     assertLayerVisible('countries', false);
-    assertLayerVisible('states', true);
+    assertLayerVisible('states', false);
     assertLayerVisible('counties', false);
 
     cy.closeSettingsPane('Geospatial Settings');
@@ -114,7 +148,12 @@ describe('Journey Flow - Map uploaded layer controls', () => {
 
     expandMapAccordion('Offline');
 
-    ensureMapToggleState('#map-countries-show-hide', 'commonService.session.style.widgets.map-countries-show', true);
+    ensureMapToggleState(
+      '#map-countries-show-hide',
+      'commonService.session.style.widgets.map-countries-show',
+      true,
+      'Borders Only',
+    );
     assertLayerVisible('countries', true);
 
     ensureMapToggleState('#map-countries-show-hide', 'commonService.session.style.widgets.map-countries-show', false);

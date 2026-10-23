@@ -19,6 +19,10 @@ const expectedEmbedAssets = [
   'assets/embed/partner-allowlist.json',
   'assets/embed/vendor/localforage.min.js',
 ];
+const expectedBasemapAssets = [
+  'assets/maplibre/maplibre-gl-worker.mjs',
+  'assets/maplibre/maplibre-gl-shared.mjs',
+];
 
 if (fs.statSync(distRoot).isFile() && /\.war$/i.test(distRoot)) {
   verifyWarArtifact(distRoot, violations);
@@ -40,6 +44,12 @@ function verifyDistDirectory(root, violations) {
   for (const relativePath of expectedEmbedAssets) {
     if (!fs.existsSync(path.join(root, relativePath))) {
       violations.push(`Expected partner embed asset missing: ${relativePath}`);
+    }
+  }
+
+  for (const relativePath of expectedBasemapAssets) {
+    if (!fs.existsSync(path.join(root, relativePath))) {
+      violations.push(`Required basemap asset missing: ${relativePath}`);
     }
   }
 
@@ -118,6 +128,12 @@ function verifyWarArtifact(warPath, violations) {
   expectedEmbedAssets.forEach((relativePath) => {
     if (!entries.includes(relativePath)) {
       violations.push(`Expected partner embed asset missing from WAR: ${relativePath}`);
+    }
+  });
+
+  expectedBasemapAssets.forEach((relativePath) => {
+    if (!entries.includes(relativePath)) {
+      violations.push(`Required basemap asset missing from WAR: ${relativePath}`);
     }
   });
 

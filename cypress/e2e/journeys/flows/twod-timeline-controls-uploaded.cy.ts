@@ -362,6 +362,13 @@ describe('Journey Flow - 2D uploaded timeline controls', () => {
     });
 
     setTimelineField('None');
+
+    cy.window()
+      .its('commonService.session.style.widgets')
+      .should((widgets) => {
+        expect(widgets['node-timeline-variable']).to.equal('None');
+        expect(widgets['timeline-date-field']).to.equal('None');
+      });
     waitForTwoDRenderIdle();
     assertNoRuntimeErrorBanner();
 
@@ -444,6 +451,13 @@ describe('Journey Flow - 2D uploaded timeline controls', () => {
     });
 
     setTimelineField('None');
+
+    cy.window()
+      .its('commonService.session.style.widgets')
+      .should((widgets) => {
+        expect(widgets['node-timeline-variable']).to.equal('None');
+        expect(widgets['timeline-date-field']).to.equal('None');
+      });
     waitForTwoDRenderIdle();
     assertNoRuntimeErrorBanner();
     assertProcessingModalClosed();
