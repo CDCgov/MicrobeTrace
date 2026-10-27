@@ -2382,8 +2382,7 @@ ${warnings.join('\n')}`,
             $('#filtering-epsilon-row').slideUp();
             this.commonService.session.style.widgets["link-show-nn"] = false;
             this.commonService.setLinkVisibility(true);
-            this.commonService.updateNetworkVisuals(true);
-            this.store.setLinkThreshold(this.SelectedLinkThresholdVariable-0.000001);
+            this.commonService.updateNetworkVisuals(false, true);
             this.commonService.onStatisticsChanged("Show");
         }
         else {
@@ -2405,8 +2404,7 @@ ${warnings.join('\n')}`,
                 //console log link that source is MZ798055 and target is MZ375596
                 console.log('link after computeMST: ', this.commonService.session.data.links.filter(link => link.source === "MZ798055" && link.target === "MZ375596"));
                 this.commonService.setLinkVisibility(true);
-                this.commonService.updateNetworkVisuals(true);
-                this.store.setLinkThreshold(this.SelectedLinkThresholdVariable + 0.000001);
+                this.commonService.updateNetworkVisuals(false, true);
 
                 console.log('onlink compute mst')
                 this.onLinkColorTableChanged();
@@ -3523,6 +3521,8 @@ ${warnings.join('\n')}`,
     }
 
     private applyTimelineVisibility(): void {
+        // Timeline-only changes notify the views that subscribe to visibility
+        // events. Explorer and other static views keep their current graph.
         this.commonService.setNodeVisibility(false);
         this.commonService.setLinkVisibility(false);
         this.commonService.updateStatistics();
@@ -3598,11 +3598,10 @@ ${warnings.join('\n')}`,
         let variable = e;  
         let loadingJsonFile = this.commonService.session.style.widgets["node-timeline-variable"] == variable;
         if (this.commonService.session.style.widgets["node-timeline-variable"] != 'None' && !loadingJsonFile) {
-            // change timeline variable when end time not reaching target time - redraw netwrok to start fresh
+            // Restore the selected range before changing timeline fields.
             if (moment(this.commonService.session.state.timeEnd).toDate() < moment(this.commonService.session.state.timeTarget).toDate()) {
                 this.commonService.session.state.timeEnd = this.commonService.session.state.timeTarget;
                 this.applyTimelineVisibility();
-                this.store.setNetworkUpdated(true);
             }
         }
         this.commonService.session.style.widgets["node-timeline-variable"] = variable;
@@ -3620,7 +3619,6 @@ ${warnings.join('\n')}`,
             // }
             this.commonService.session.network.timelineNodes = [];
             this.applyTimelineVisibility();
-            this.store.setNetworkUpdated(true);
             return;
         }
 
@@ -5803,7 +5801,7 @@ ${warnings.join('\n')}`,
             const instance = this._goldenLayoutHostComponent.getComponentRef(container).instance as any;
             console.log('--- viewClick exisitng view - load settings');
 
-            if ((viewName === '2D Network' || viewName === 'Transmission Chain View') && !instance.cy) {
+            if ((viewName === '2D Network' || viewName === 'Transmission Chain Explorer') && !instance.cy) {
                 if (instance.onLoadNewData) {
                     instance.onLoadNewData();
                 }
@@ -6143,7 +6141,7 @@ ${warnings.join('\n')}`,
                 break;
             }
             case "2D Network":
-            case "Transmission Chain View": {
+            case "Transmission Chain Explorer": {
 
                 this.showSettings = true;
                 this.showExport = true;
@@ -6760,6 +6758,11 @@ ${warnings.join('\n')}`,
 
     private scheduleDockContextViewCenter(viewName?: string): void {
         if (!viewName || viewName === KeyTablesComponent.componentTypeName) {
+            return;
+        }
+        // Explorer handles pane resizing itself. Re-centering it for a docked
+        // color table would change chain positions during a styling change.
+        if (viewName === 'Transmission Chain Explorer') {
             return;
         }
 

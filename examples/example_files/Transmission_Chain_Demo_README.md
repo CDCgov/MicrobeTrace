@@ -1,6 +1,6 @@
-# Transmission Chain View demo dataset
+# Transmission Chain Explorer demo dataset
 
-This wholly synthetic outbreak dataset demonstrates how Transmission Chain View combines epidemiologic and genetic evidence. It contains 30 nodes, two epidemiologic link files, and an 80-base simulated sequence for every node. At a SNP distance threshold of `1`, the sequences produce 14 genetic links: 8 overlap shared-household links, 4 overlap known shared-location links, and 2 have neither epidemiologic link.
+This wholly synthetic outbreak dataset demonstrates how Transmission Chain Explorer combines epidemiologic and genetic evidence. It contains 30 nodes, two epidemiologic link files, and an 80-base simulated sequence for every node. At a SNP distance threshold of `1`, the sequences produce 14 genetic links: 8 overlap shared-household links, 4 overlap known shared-location links, and 2 have neither epidemiologic link.
 
 The simulated sequences are intentionally simple and deterministic. They are for product demonstration only and are not intended to represent a real organism or support biological inference.
 
@@ -11,7 +11,7 @@ The simulated sequences are intentionally simple and deterministic. They are for
 3. Add `Transmission_Chain_Demo_Shared_Household_Links.csv` and `Transmission_Chain_Demo_Known_Shared_Location_Links.csv` as link lists.
 4. For each link list, use `source` as Field 1 and `target` as Field 2. Leave the distance field set to `None`.
 5. In **File Settings**, select **SNPs** as the Distance Metric and use a Link Threshold of `1`.
-6. Process the files and open **Transmission Chain View**.
+6. Process the files and open **Transmission Chain Explorer**.
 
 ## Recommended demonstration
 

@@ -50,6 +50,7 @@ import { FilesComponent } from './filesComponent/files-plugin.component';
 import { PhylogeneticComponent } from './visualizationComponents/PhylogeneticComponent/phylogenetic-plugin.component';
 import { TimelineComponent } from './visualizationComponents/TimelineComponent/timeline-component.component';
 import { TwoDComponent } from './visualizationComponents/TwoDComponent/twoD-plugin.component';
+import { TransmissionChainExplorerComponent } from './visualizationComponents/TransmissionChainExplorerComponent/transmission-chain-explorer.component';
 import { TableComponent } from './visualizationComponents/TableComponent/table-plugin-component';
 import { NetworkStatisticsComponent } from './visualizationComponents/NetworkStatisticsComponent/network-statistics-plugin.component';
 import { MapComponent } from './visualizationComponents/MapComponent/map-plugin.component';
@@ -113,6 +114,7 @@ export class TestedComponent {
         MicrobeTraceNextHomeComponent,
         FilesComponent,
         TwoDComponent,
+        TransmissionChainExplorerComponent,
         TableComponent,
         NetworkStatisticsComponent,
         GoldenLayoutHostComponent,

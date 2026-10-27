@@ -78,7 +78,7 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
   SelectedDefaultViewVariable: string = "2D Network";
   readonly DefaultViewOptions: string[] = [
     '2D Network',
-    'Transmission Chain View',
+    'Transmission Chain Explorer',
     'Epi Curve',
     'Sankey',
     'Table',

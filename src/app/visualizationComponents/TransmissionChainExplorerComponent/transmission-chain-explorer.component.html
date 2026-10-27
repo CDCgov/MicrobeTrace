@@ -1,0 +1,488 @@
+<span #tooltipElement id="transmission-chain-tooltip" style="background-color: white;"></span>
+
+<div #toolBtnContainer id="transmission-chain-tool-btn-container" class="m-portlet tool-btn-container">
+  <span style="overflow: visible; position: relative; width: 110px;">
+    <a title="Settings" data-testid="transmission-chain-settings-button" class="btn btn-sm btn-clean btn-icon btn-icon-md" style="float:left" (click)="openSettings()"><i class="flaticon-settings primary"></i></a>
+  </span>
+
+    <span style="overflow: visible; position: relative; width: 110px;">
+      <a title="Export Screen" data-testid="transmission-chain-export-button" class="btn btn-sm btn-clean btn-icon btn-icon-md" style="float:left" (click)="openExport()"><i class="flaticon-download primary"></i></a>
+    </span>
+    <span style="overflow: visible; position: relative; width: 110px;">
+      <a title="Center Screen" data-testid="transmission-chain-center-button" class="btn btn-sm btn-clean btn-icon btn-icon-md" style="float:left" (click)="openCenter()"><i class="flaticon-eye primary"></i></a>
+    </span>
+    <span style="overflow: visible; position: relative; width: 110px;">
+      <a title="Pin All Nodes" data-testid="transmission-chain-pin-all-button" class="btn btn-sm btn-clean btn-icon btn-icon-md" style="float:left" (click)="pinNodes()"
+        [style.background]="widgets.pinned ? 'lightblue': null"
+        ><i class="flaticon-pin primary"></i></a>
+    </span>
+
+      <span style="overflow: visible; position: relative; width: 110px;">
+        <a data-testid="transmission-chain-excluded-nodes-button" title="Nodes without Timeline Date Data" aria-label="Nodes excluded from Transmission Chain Explorer because they lack timeline date data" class="btn btn-sm btn-clean btn-icon btn-icon-md" style="float:left" [ngStyle]="{ color: nodesWithoutTimelineDate.length === 0 ? '#005DAA' : 'red' }" (click)="showExcludedTimelineNodes()">{{ nodesWithoutTimelineDate.length }}</a>
+      </span>
+
+</div>
+
+    <div #exportContainer class="cytoscape-container transmission-chain-container"
+      [style.background-color]="widgets['background-color'] || '#ffffff'" style="position: relative;">
+      <svg #timelineGridOverlay class="timeline-grid-overlay hidden" aria-hidden="true"></svg>
+
+        <div #cy [id]="cyElementId" class="cytoscape-viewport" tabindex="0" role="application" aria-label="Network visualization"
+          aria-describedby="transmission-chain-network-renderer-keyboard-instructions transmission-chain-network-renderer-live-status"
+          style="width: 100%; height: 100%; position: relative;"
+          (pointerdown)="onRendererPointerInteraction()" (click)="onRendererPointerInteraction()"
+          (focus)="onRendererKeyboardFocus($event)" (keydown)="onRendererKeydown($event)"></div>
+
+      <svg #timelineAxisOverlay class="timeline-axis-overlay hidden" aria-hidden="true"></svg>
+
+      <div id="transmission-chain-watermark" class="watermark"></div>
+    </div>
+    <div id="transmission-chain-network-renderer-keyboard-instructions" class="sr-only">
+      Use arrow keys, Home, or End to move through nodes. Press Enter or Space to toggle selection. Press Escape to clear selection.
+    </div>
+    <p id="transmission-chain-network-renderer-live-status" class="sr-only" aria-live="polite" aria-atomic="true"
+      data-testid="network-renderer-live-status">{{ rendererKeyboardLiveStatus }}</p>
+    <section class="sr-only" data-testid="renderer-accessible-feature-summary"
+      aria-label="Network feature summary">
+      <p aria-live="polite">{{ rendererAccessibleFeatureSummary }}</p>
+      <ul>
+        @for (item of rendererAccessibleFeatureItems; track item.id) {
+          <li [attr.data-node-id]="item.id">
+            {{ item.id }}: {{ item.description }}{{ item.selected ? '; selected' : '' }}
+          </li>
+        }
+      </ul>
+    </section>
+
+      @if (IsDataAvailable == false) {
+        <div class="m-content">
+          <div id="transmission-chain-file-panel" class="container-fluid" style="height:500px;">
+            <div id="transmission-chain-file-prompt" class="d-flex justify-content-center">
+              <h1><b>Please add data files to load...</b></h1>
+              <br />
+            </div>
+          </div>
+        </div>
+      }
+
+      <div class="view-controls">
+        @if (viewActive) {
+          <p-dialog id="transmission-chain-settings-pane" data-testid="transmission-chain-settings-dialog"
+            [(visible)]="settingsDialog.isVisible"
+            [header]="settingsDialogHeader" [style]="settingsDialogStyle" [contentStyle]="settingsDialogContentStyle" appendTo="body"
+            >
+            <tabset class="tab-container tabbable-line">
+
+                <tab heading="{{'Layout' | localize}}" [tabOrder]="0" [active]="true" customClass="m-tabs__item">
+                  <div class="form-group row" title="Choose the node date field used to place nodes along the timeline layout.">
+                    <div class="col-3"><label for="transmission-chain-date-field">Date Field</label></div>
+                    <div class="col-9">
+                      <p-select id="transmission-chain-date-field" [options]="FieldList" appendTo="body" class="width-percent-100" [(ngModel)]="SelectedNetworkTimelineDateFieldVariable" (ngModelChange)="onNetworkTimelineDateFieldChange($event)"></p-select>
+                    </div>
+                  </div>
+                  <div class="form-group row" title="Choose a node field, such as Facility, to create labeled vertical bands. Select None to retain automatic cluster and connected-component grouping.">
+                    <div class="col-3"><label for="transmission-chain-y-axis-field">Y-Axis Field</label></div>
+                    <div class="col-9">
+                      <p-select id="transmission-chain-y-axis-field" [options]="FieldList" appendTo="body" class="width-percent-100" [(ngModel)]="SelectedTransmissionChainYAxisFieldVariable" (ngModelChange)="onTransmissionChainYAxisFieldChange($event)"></p-select>
+                    </div>
+                  </div>
+                  <div class="form-group row" title="Choose which link lists are used to render and arrange the transmission chain.">
+                    <div class="col-3"><label for="transmission-chain-link-origins">Link Lists</label></div>
+                    <div class="col-9" id="transmission-chain-link-origins">
+                      <div class="transmission-chain-link-origin-actions">
+                        <button type="button" class="btn btn-sm btn-outline-primary" (click)="selectAllTransmissionChainLinkOrigins()">Select All</button>
+                        <button type="button" class="btn btn-sm btn-outline-secondary" (click)="clearTransmissionChainLinkOrigins()">Clear</button>
+                        <span class="transmission-chain-link-origin-summary">{{ getTransmissionChainLinkOriginSelectionSummary() }}</span>
+                      </div>
+                      <div class="transmission-chain-link-origin-list" role="group" aria-label="Link Lists">
+                        @for (option of TransmissionChainLinkOriginOptions; track option.value) {
+                          <label class="transmission-chain-link-origin-option" [title]="option.label">
+                            <input
+                              type="checkbox"
+                              [checked]="isTransmissionChainLinkOriginSelected(option.value)"
+                              (change)="onTransmissionChainLinkOriginCheckboxChange(option.value, $event)">
+                            <span>{{ option.label }}</span>
+                          </label>
+                        } @empty {
+                          <div class="transmission-chain-link-origin-empty">No link lists available</div>
+                        }
+                      </div>
+                    </div>
+                  </div>
+                  <div class="form-group row" title="Set the font size for both axis titles, date labels, and Y-axis category labels.">
+                    <div class="col-3"><label for="transmission-chain-axis-label-size">Axis Label Size</label></div>
+                    <div class="col-7">
+                      <input type="range" class="custom-range" id="transmission-chain-axis-label-size" min="10" max="32" step="2" [(ngModel)]="widgets['transmission-chain-axis-label-size']" (ngModelChange)="onTransmissionChainAxisLabelSizeChange($event)">
+                    </div>
+                    <div class="col-2">{{ widgets['transmission-chain-axis-label-size'] }}px</div>
+                  </div>
+                </tab>
+
+              <tab heading="{{'Nodes' | localize}}" [tabOrder]="1" customClass="m-tabs__item">
+                <p-accordion [value]="null" [multiple]="true">
+                  <p-accordion-panel value="node-labels" style="color:#495057">
+                    <p-accordion-header>Labels and Tooltips</p-accordion-header>
+                    <p-accordion-content>
+                      <div #nodecontrolslabels>
+                        <div class="form-group row" title="What field should be displayed as a label for the node?">
+                          <div class="col-4"><label for="transmission-chain-node-label-variable">Label</label></div>
+                          <div class="col-8">
+                            <p-select id="transmission-chain-node-label-variable" [options]="FieldList" appendTo="body" class="width-percent-100" [(ngModel)]="SelectedNodeLabelVariable" (ngModelChange)="onNodeLabelVaribleChange($event)"></p-select>
+                          </div>
+                        </div>
+                        <div class="form-group row node-label-row" [style.display]="widgets['node-label-variable'] === 'None' ? 'none' : 'flex'" title="How big should node labels be?">
+                          <div class="col-4"><label for="transmission-chain-node-label-size">Label Size</label></div>
+                          <div class="col-8"><input type="range" class="custom-range" id="transmission-chain-node-label-size" min="6" value="16" max="72" [(ngModel)]="SelectedNodeLabelSizeVariable" (change)="onNodeLabelSizeChange($event)"></div>
+                        </div>
+                        <div class="form-group row node-label-row" [style.display]="widgets['node-label-variable'] === 'None' ? 'none' : 'flex'" title="Where should the label appear relative to the node?">
+                          <div class="col-4"><label for="transmission-chain-node-label-orientation">Orientation</label></div>
+                          <div class="col-8">
+                            <p-select id="transmission-chain-node-label-orientation" [options]="OrientationOptions" appendTo="body" class="width-percent-100" [(ngModel)]="SelectedNodeLabelOrientationVariable" (ngModelChange)="onNodeLabelOrientationChange($event)"></p-select>
+                          </div>
+                        </div>
+                        <div class="form-group row" title="What node data should be displayed as a tooltip for the node?">
+                          <div class="col-4">
+                            <label for="node-tooltip-variable">Tooltip</label>
+                          </div>
+                          <div class="col-8">
+                            <p-multi-select [options]="commonService.session.data['nodeFields']" appendTo="body" [showToggleAll]=false [showHeader]=false class="width-percent-100"
+                              [(ngModel)]="widgets['node-tooltip-variable']" (onChange)="onNodeTooltipVariableChange($event.value)"
+                            ></p-multi-select>
+                          </div>
+                        </div>
+                      </div>
+                    </p-accordion-content>
+                  </p-accordion-panel>
+                    <p-accordion-panel value="node-shapes" style="color:#495057">
+                      <p-accordion-header>Shapes and Sizes</p-accordion-header>
+                      <p-accordion-content><div #nodecontrolsshapes>
+                      <div class="form-group row" title="Open the global styling settings to configure node shapes.">
+                        <div class="col-4"><label for="transmission-chain-open-global-shape-settings">Shape</label></div>
+                        <div class="col-8">
+                          <button
+                            pButton
+                            type="button"
+                            id="transmission-chain-open-global-shape-settings"
+                            class="ui-button-raised width-percent-100"
+                            (click)="showGlobalSettings($event)"
+                            [style]="{'background-color': '#2196f3', 'border': '1px solid #2196f3'}">
+                            <span class="p-button-label">Show Shapes</span>
+                          </button>
+                        </div>
+                      </div>
+                      <div class="form-group row" title="Which variable should determine the size of the node?">
+                        <div class="col-4"><label for="transmission-chain-node-radius-variable">Size By</label></div>
+                        <div class="col-8">
+                          <p-select id="transmission-chain-node-radius-variable" [options]="FieldList" appendTo="body" class="width-percent-100" [(ngModel)]="SelectedNodeRadiusVariable" (ngModelChange)="onNodeRadiusVariableChange($event)"></p-select>
+                        </div>
+                      </div>
+                      <div id="transmission-chain-node-max-radius-row" [style.display]="widgets['node-radius-variable'] === 'None' ? 'none' : 'flex'" class="form-group row" title="Should node max radius to this variable?">
+                        <div class="col-4"><label for="transmission-chain-node-radius-max">Max Size</label></div>
+                        <div class="col-8">
+                          <input type="range" class="custom-range" id="transmission-chain-node-radius-max" min="20" value="85" step="1" max="100" [(ngModel)]="widgets['node-radius-max']" (ngModelChange)="onNodeRadiusMaxChange($event)">
+                        </div>
+                      </div>
+                      <div id="transmission-chain-node-min-radius-row" [style.display]="widgets['node-radius-variable'] === 'None' ? 'none' : 'flex'" class="form-group row" title="Should node min radius to this variable?">
+                        <div class="col-4"><label for="transmission-chain-node-radius-min">Min Size</label></div>
+                        <div class="col-8">
+                          <input type="range" class="custom-range" id="transmission-chain-node-radius-min" min="5" value="15" step="1" max="55" [(ngModel)]="widgets['node-radius-min']" (ngModelChange)="onNodeRadiusMinChange($event)">
+                        </div>
+                      </div>
+                      <div id="transmission-chain-node-radius-row" [style.display]="widgets['node-radius-variable'] === 'None' ? 'flex' : 'none'" class="form-group row" title="How big should the nodes be?">
+                        <div class="col-4"><label for="transmission-chain-node-radius">Size</label></div>
+                        <div class="col-8">
+                          <input type="range" class="custom-range" id="transmission-chain-node-radius" min="5" value="50" step="1" max="100" [(ngModel)]="SelectedNodeRadiusSizeVariable" (ngModelChange)="onNodeRadiusChange($event)">
+                        </div>
+                      </div>
+                      <div class="form-group row" title="What should the width of the node border be?">
+                        <div class="col-4"><label for="transmission-chain-node-radius-variable">Border Width</label></div>
+                        <div class="col-8">
+                          <input type="number" class="form-control form-control-sm" id="transmission-chain-node-border-width" min="0" step="0.1" value="2" [(ngModel)]="nodeBorderWidth" (ngModelChange)="onNodeBorderWidthChange($event)">
+                        </div>
+                      </div>
+                  </div>
+                </p-accordion-content>
+              </p-accordion-panel>
+
+              <p-accordion-panel value="node-colors" style="color:#495057">
+                <p-accordion-header>Colors</p-accordion-header>
+                <p-accordion-content><button pButton type="button" class="ui-button-raised" (click)="showGlobalSettings($event)" [style]="{'background-color': '#2196f3', 'border': '1px solid #2196f3'}"><span class="p-button-label">Show Colors</span></button>
+                </p-accordion-content>
+              </p-accordion-panel>
+            </p-accordion>
+          </tab>
+          <tab heading="{{'Links' | localize}}" [tabOrder]="2" customClass="m-tabs__item">
+            <p-accordion [value]="null" [multiple]="true">
+              <p-accordion-panel value="link-labels" style="color:#495057">
+                <p-accordion-header>Labels and Tooltips</p-accordion-header>
+                <p-accordion-content><div #linkcontrolslabels>
+                  <div class="form-group row" title="What data should be displayed when you hover over a link?">
+                    <div class="col-4"><label for="link-tooltip-variable">Tooltip</label></div>
+                    <div class="col-8">
+                      <p-multi-select [options]="LinkToolTipList" appendTo="body" [showToggleAll]=false [showHeader]=false class="width-percent-100" placeholder="None"
+                        [(ngModel)]="widgets['link-tooltip-variable']" (onChange)="onLinkTooltipVariableChange($event.value)"
+                      ></p-multi-select>
+
+                  </div>
+                </div>
+                <div class="form-group row" title="What data should be displayed when you hover over a link?">
+                  <div class="col-4"><label for="transmission-chain-link-label-variable">Label</label></div>
+                  <div class="col-8">
+                    <p-select id="transmission-chain-link-label-variable" [options]="ToolTipFieldList" appendTo="body" class="width-percent-100" [(ngModel)]="SelectedLinkLabelVariable" (ngModelChange)="onLinkLabelVariableChange($event)"></p-select>
+                  </div>
+                </div>
+                <div class="form-group row" title="How large should link labels be?">
+                  <div class="col-4"><label for="transmission-chain-link-label-size">Label Size</label></div>
+                  <div class="col-8"><input type="range" class="custom-range" id="transmission-chain-link-label-size" min="6" max="72" [(ngModel)]="widgets['link-label-size']" (change)="onLinkLabelSizeChange($event)"></div>
+                </div>
+                <div class="form-group row" title="How many decimals should the number labels have?">
+                  <div class="col-4"><label for="transmission-chain-link-label-decimal-length">Decimal Length</label></div>
+                  <div class="col-8"><input type="number" class="form-control form-control-sm" id="transmission-chain-link-label-decimal-length" min="0" step="1" max="6" value="3"  [(ngModel)]="SelectedLinkDecimalVariable"  (ngModelChange)="onLinkDecimalVariableChange($event)">
+                  </div>
+                </div>
+              </div>
+            </p-accordion-content>
+          </p-accordion-panel>
+          <p-accordion-panel value="link-shapes" style="color:#495057">
+            <p-accordion-header>Shapes and Sizes</p-accordion-header>
+            <p-accordion-content><div #linkcontrolsshapes>
+              <div id="transmission-chain-link-transparency-row" class="form-group row" title="How transparent should the links be?">
+                <div class="col-4"><label for="transmission-chain-link-opacity">Transparency</label></div>
+                <div class="col-8"><input type="range" class="custom-range" id="transmission-chain-link-opacity" min="0" max="1" value="1" step="0.01" [(ngModel)]="SelectedLinkTransparencyVariable" (ngModelChange)="onLinkOpacityChange($event)"></div>
+              </div>
+              <div class="form-group row" title="Which variable should determine the width of a link?">
+                <div class="col-4"><label for="transmission-chain-link-width-variable">Width By</label></div>
+                <div class="col-8">
+                  <p-select id="transmission-chain-link-width-variable" [options]="ToolTipFieldList" appendTo="body" class="width-percent-100" [(ngModel)]="SelectedLinkWidthByVariable" (ngModelChange)="onLinkWidthVariableChange($event)"></p-select>
+                </div>
+              </div>
+              <div id="transmission-chain-link-max-width-row" class="form-group row" [style.display]="widgets['link-width-variable'] === 'None' ? 'none' : 'flex'" title="Should link max widths to this variable?">
+                <div class="col-4"><label for="transmission-chain-link-width-max">Max Width</label></div>
+                <div class="col-8"><input type="range" class="custom-range" id="transmission-chain-link-width-max" min="0.3" max="30" step=".3" [(ngModel)]="SelectedLinkWidthMax" (ngModelChange)="onLinkWidthMaxChange($event)"></div>
+              </div>
+              <div id="transmission-chain-link-min-width-row" class="form-group row" [style.display]="widgets['link-width-variable'] === 'None' ? 'none' : 'flex'" title="Should link min widths to this variable?">
+                <div class="col-4"><label for="transmission-chain-link-width-min">Min Width</label></div>
+                <div class="col-8"><input type="range" class="custom-range" id="transmission-chain-link-width-min" min="0.3" max="20" step=".3" [(ngModel)]="SelectedLinkWidthMin" (ngModelChange)="onLinkWidthMinChange($event)"></div>
+              </div>
+              <div id="transmission-chain-link-reciprocalthickness-row" class="form-group row" [style.display]="widgets['link-width-variable'] === 'None' ? 'none' : 'flex'" title="Should link widths be proportioned to the reciprocal of this variable?">
+                <div class="col-4">Reciprocal</div>
+                <div class="col-8">
+                  <p-select-button id="transmission-chain-link-width-reciprocal-non-reciprocal" appendTo="body" [options]="ReciprocalTypes" [allowEmpty]="false" fluid [(ngModel)]="SelectedLinkReciprocalTypeVariable" (ngModelChange)="onLinkWidthReciprocalNonReciprocalChange($event)"></p-select-button>
+                </div>
+              </div>
+              <div class="form-group row" id="transmission-chain-link-width-row" [style.display]="widgets['link-width-variable'] === 'None' ? 'flex' : 'none'" title="How thick should the links be?">
+                <div class="col-4"><label for="transmission-chain-link-width">Width</label></div>
+                <div class="col-8"><input type="range" class="custom-range" id="transmission-chain-link-width" min="0.3" max="30" step=".3" [(ngModel)]="SelectedLinkWidthVariable" (ngModelChange)="onLinkWidthChange($event)"></div>
+              </div>
+              <div class="form-group row hideForHIVTrace" title="Shoul arrowheads pointing to the">
+                <div class="col-4">Arrows</div>
+                <div class="col-8">
+                  <p-select-button id="transmission-chain-link-directed-undirected" [options]="ArrowTypes" [allowEmpty]="false" fluid [(ngModel)]="SelectedLinkArrowTypeVariable" (ngModelChange)="onLinkDirectedUndirectedChange($event)"></p-select-button>
+                </div>
+              </div>
+              <div id="transmission-chain-link-bidirectional-row" class="form-group row" [class.display-none]="SelectedLinkArrowTypeVariable !== 'Show'" title="Should links be bidirectional?">
+                <div class="col-4">Bidirectional</div>
+                <div class="col-8">
+                  <p-select-button id="transmission-chain-link-bidirectional" [options]="hideShowOptionsString" [allowEmpty]="false" fluid [(ngModel)]="SelectedLinkBidirectionalTypeVariable" (ngModelChange)="onLinkBidirectionalChange($event)"></p-select-button>
+                </div>
+              </div>
+            </div>
+          </p-accordion-content>
+        </p-accordion-panel>
+        <p-accordion-panel value="link-colors" style="color:#495057">
+          <p-accordion-header>Colors</p-accordion-header>
+          <p-accordion-content><button pButton type="button" class="ui-button-raised" (click)="showGlobalSettings($event)" [style]="{'background-color': '#2196f3', 'border': '1px solid #2196f3'}"><span class="p-button-label">Show Colors</span></button>
+        </p-accordion-content>
+      </p-accordion-panel>
+    </p-accordion>
+  </tab>
+  <tab heading="{{'Network' | localize}}" [tabOrder]="3" customClass="m-tabs__item">
+    <p-accordion [value]="['network-display']" [multiple]="true">
+      <p-accordion-panel value="network-display" style="color:#495057">
+        <p-accordion-header>Display</p-accordion-header>
+        <p-accordion-content><div #networkcontrolslabels>
+          <div class="form-group row" title="Should MicrobeTrace Highlight a node's neighbors when you hover on it?">
+            <div class="col-3">Neighbors</div>
+            <div class="col-9">
+              <p-select-button id="transmission-chain-dont-highlight-neighbors-highlight-neighbors" [options]="NeighborTypes" [allowEmpty]="false" fluid [(ngModel)]="SelectedNetworkNeighborTypeVariable" (ngModelChange)="onDontHighlightNeighborsHighlightNeighborsChange($event)"></p-select-button>
+            </div>
+          </div>
+
+            <div class="form-group row" title="Choose how transmission chain links are routed.">
+              <div class="col-3"><label for="transmission-chain-line-style">Line Style</label></div>
+              <div class="col-9">
+                <p-select id="transmission-chain-line-style" [options]="TransmissionChainLineStyleOptions" appendTo="body" class="width-percent-100" [(ngModel)]="SelectedTransmissionChainLineStyleVariable" (ngModelChange)="onTransmissionChainLineStyleChange($event)"></p-select>
+              </div>
+            </div>
+
+        </div>
+      </p-accordion-content>
+    </p-accordion-panel>
+  </p-accordion>
+</tab>
+
+</tabset>
+</p-dialog>
+}
+
+@if (viewActive) {
+  <p-dialog
+    data-testid="transmission-chain-excluded-nodes-dialog"
+    header="Excluded Nodes"
+    styleClass="transmission-chain-excluded-nodes-dialog"
+    appendTo="body"
+    [baseZIndex]="2000"
+    [(visible)]="showExcludedTimelineNodesDialog"
+    [style]="{ 'width': '35rem', 'max-height': '40rem' }">
+    @if (SelectedNetworkTimelineDateFieldVariable === 'None') {
+      <span class="text-surface-500 dark:text-surface-400 block mb-8">Select a Date Field to identify nodes that cannot be placed on the timeline.</span>
+    } @else if (nodesWithoutTimelineDate.length === 0) {
+      <span class="text-surface-500 dark:text-surface-400 block mb-8">All visible nodes contain valid {{ SelectedNetworkTimelineDateFieldVariable }} data.</span>
+    } @else {
+      <span class="text-surface-500 dark:text-surface-400 block mb-8">The following nodes don't contain valid {{ SelectedNetworkTimelineDateFieldVariable }} data and were omitted from Transmission Chain Explorer:
+        <ol>
+          @for (node of nodesWithoutTimelineDate; track node.ID) {
+            <li><span>Index: {{ node.index }}, ID: {{ node.ID }}</span></li>
+          }
+        </ol>
+      </span>
+    }
+  </p-dialog>
+}
+
+</div>
+
+<div id="transmission-chain-context-menu" class="dropdown-menu" style="display: none; opacity: 0; z-index: -1;">
+  <button type="button" id="transmission-chain-copyID" class="dropdown-item" (click)="copyID()">Copy ID</button>
+  <button type="button" id="transmission-chain-copySeq" class="dropdown-item" (click)="copySeq()" disabled>Copy Sequence</button>
+  <button type="button" id="transmission-chain-viewAttributes" class="dropdown-item" (click)="viewSelectedNodeAttributes()">View Attributes</button>
+</div>
+
+<p-dialog id="transmission-chain-network-attribute-table-wrapper" [(visible)]="ShowNetworkAttributes" header="Node Attributes" [style]="{'width': '40vw', 'max-height': '60vw'}" >
+  <div class="col-12" style="width:100%;">
+    <table id="transmission-chain-network-attribute-table" style="width:100%">
+      @for (item of ContextSelectedNodeAttributes; track item) {
+        <tr>
+          <td>
+            <strong>
+              {{item.attribute}}
+            </strong>
+          </td>
+          <td>{{item.value}}</td>
+        </tr>
+      }
+    </table>
+  </div>
+</p-dialog>
+
+@if (viewActive) {
+  <p-dialog
+    id="transmission-chain-network-export-modal"
+    [(visible)]="showExportDialog"
+    header="Export Network Image"
+    class="dialogSize"
+    appendTo="body"
+    >
+    <div class="modal-dialog" role="document">
+      <div class="modal-content">
+        <div class="modal-body" style="min-width: 400px; height: 100%;">
+          <div class="export-scope-label">
+            {{ commonService.isNetworkSubsetFilterActive() ? 'Export scope: filtered visible network (' + commonService.getNetworkSubsetFilterLabel() + ')' : 'Export scope: full visible network' }}
+          </div>
+          <div class="form-group row">
+            <div class="col-8">
+              <input
+                type="text"
+                id="transmission-chain-network-export-filename"
+                class="form-control form-control-sm"
+                placeholder="Filename"
+                [(ngModel)]="SelectedNetworkExportFilenameVariable"
+                (ngModelChange)="onDataChange($event)"
+                />
+              </div>
+              <div class="col-4">
+                <p-select
+                  id="transmission-chain-network-export-filetype"
+                  [options]="NetworkExportFileTypeList"
+                  [(ngModel)]="SelectedNetworkExportFileTypeListVariable"
+                  (ngModelChange)="onNetworkExportFiletypeChange($event)"
+                ></p-select>
+              </div>
+            </div>
+            <div>
+
+              <div [hidden]="SelectedNetworkExportFileTypeListVariable=='svg'">
+                <p-accordion [value]="null" [multiple]="true">
+                  <p-accordion-panel value="export-advanced" style="color:#495057">
+                    <p-accordion-header>Advanced</p-accordion-header>
+                    <p-accordion-content><div id="transmission-chain-network-export-advanced">
+                      <div class="form-group row">
+                        <div class="col-3">
+                          <label for="transmission-chain-network-export-scale">Scale</label>
+                        </div>
+                        <div class="col-9">
+                          <input
+                            type="number"
+                            id="transmission-chain-network-export-scale"
+                            class="form-control form-control-sm"
+                            min="0"
+                            max="2"
+                            step="0.1"
+                            [(ngModel)]="SelectedNetworkExportScaleVariable"
+                            (ngModelChange)="updateCalculatedResolution()"
+                            />
+                          </div>
+                        </div>
+                        <div class="form-group row">
+                          <div class="col-3">Resolution</div>
+                          <div id="transmission-chain-network-export-dimensions" class="col-9 text-right">
+                            {{ CalculatedResolution }}
+                          </div>
+                        </div>
+                        <div class="row">
+                          <div class="col-3">
+                            <label for="transmission-chain-network-export-quality">Quality</label>
+                          </div>
+                          <div class="col-9">
+                            <input
+                              type="range"
+                              class="custom-range"
+                              id="transmission-chain-network-export-quality"
+                              min="0"
+                              max="1.0"
+                              step="0.01"
+                              [(ngModel)]="SelectedNetworkExportQualityVariable"
+                              />
+                              <span>{{ SelectedNetworkExportQualityVariable }}</span>
+                            </div>
+                          </div>
+                        </div>
+                      </p-accordion-content>
+                    </p-accordion-panel>
+                  </p-accordion>
+                </div>
+              </div>
+            </div>
+            <div class="modal-footer">
+              <button
+                type="button"
+                class="btn btn-error"
+                (click)="showExportDialog = false"
+                >
+                Cancel
+              </button>
+              <button
+                type="button"
+                id="transmission-chain-network-export"
+                class="btn btn-primary"
+                (click)="exportVisualization($event)"
+                >
+                Export
+              </button>
+            </div>
+          </div>
+
+        </div>
+
+      </p-dialog>
+    }

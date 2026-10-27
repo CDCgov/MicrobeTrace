@@ -2076,9 +2076,9 @@ export class SigmaNetworkRendererAdapter {
           pendingImageCount += 1;
         }
 
-        // Custom shapes carry their regular outline in the SVG. Add only the
-        // interactive selection/focus outline here so it follows live state.
-        if (attributes.iconVectorData && emphasized) {
+        // Draw custom silhouettes separately from their fills, just as native
+        // nodes draw their border separately. Neighbor dimming must not fade it.
+        if (attributes.iconVectorData) {
           const icon = attributes.iconVectorData;
           const outlinePath = this.getIconPath(icon.path);
           const iconScale = Math.min(
@@ -2086,11 +2086,14 @@ export class SigmaNetworkRendererAdapter {
             (baseRadius * 2) / Math.max(1, icon.height),
           );
           context.save();
-          context.globalAlpha = inActiveNeighborhood ? 1 : 0.12;
+          context.globalAlpha = 1;
           applySigmaIconCanvasTransform(context, point, iconScale, icon);
-          context.strokeStyle = selected ? this.selectedColor : '#0ea5e9';
-          context.lineWidth = Math.max(1, 3 / Math.max(iconScale, 0.01));
-          context.stroke(outlinePath);
+          const outlineWidth = emphasized
+            ? Math.max(3, Number(attributes.borderWidth) || 0)
+            : Number(attributes.borderWidth) || 0;
+          context.strokeStyle = selected ? this.selectedColor : emphasized ? '#0ea5e9' : String(attributes.borderColor);
+          context.lineWidth = outlineWidth / Math.max(iconScale, 0.001);
+          if (outlineWidth > 0) context.stroke(outlinePath);
           context.restore();
         }
       } else if (attributes.iconVectorData) {
@@ -2110,8 +2113,9 @@ export class SigmaNetworkRendererAdapter {
         context.fillStyle = String(attributes.color);
         context.fill(fillPath);
         if (outlineWidth > 0) {
+          context.globalAlpha = 1;
           context.strokeStyle = selected ? this.selectedColor : String(attributes.borderColor);
-          context.lineWidth = Math.max(1, outlineWidth / Math.max(iconScale, 0.01));
+          context.lineWidth = outlineWidth / Math.max(iconScale, 0.001);
           context.stroke(outlinePath);
         }
         context.restore();

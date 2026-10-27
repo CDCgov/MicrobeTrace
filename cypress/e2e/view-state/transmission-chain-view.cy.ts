@@ -82,12 +82,12 @@ const expectSeparatedClusterBands = (cyInstance: Core, minimumGap = 0): void => 
 
 const openSettings = (): void => {
   cy.get('body').then(($body) => {
-    const isAlreadyOpen = $body.find('.p-dialog-title:contains("Transmission Chain View Settings"):visible').length > 0;
+    const isAlreadyOpen = $body.find('.p-dialog-title:contains("Transmission Chain Explorer Settings"):visible').length > 0;
     if (!isAlreadyOpen) {
       cy.get(byTestId(testIds.transmissionChainSettingsButton), { timeout: 15000 }).click({ force: true });
     }
 
-    cy.contains('.p-dialog-title', 'Transmission Chain View Settings', { timeout: 15000 })
+    cy.contains('.p-dialog-title', 'Transmission Chain Explorer Settings', { timeout: 15000 })
       .should('be.visible')
       .parents('.p-dialog')
       .as('dialogContainer');
@@ -104,7 +104,7 @@ const selectDateField = (): void => {
     .should('have.length', 1)
     .click({ force: true });
   cy.get('.p-select-overlay:visible').should('not.exist');
-  cy.window().its('commonService.session.style.widgets.transmission-chain-date-field').should('equal', dateField);
+  cy.window().its('commonService.visuals.transmissionChain.widgets.transmission-chain-date-field').should('equal', dateField);
   cy.get('.timeline-axis-overlay:not(.hidden)', { timeout: 20000 }).should('exist');
 };
 
@@ -133,7 +133,7 @@ const selectYAxisField = (): void => {
     .filter((_index, option) => String(option.textContent || '').trim() === yAxisField)
     .should('have.length', 1)
     .click({ force: true });
-  cy.window().its('commonService.session.style.widgets.transmission-chain-y-axis-field').should('equal', yAxisField);
+  cy.window().its('commonService.visuals.transmissionChain.widgets.transmission-chain-y-axis-field').should('equal', yAxisField);
   cy.get('.timeline-y-axis', { timeout: 20000 }).should('exist');
 };
 
@@ -151,7 +151,7 @@ const selectLineStyle = (label: string, value: string): void => {
   openDisplayPanel();
   cy.get('@dialogContainer').find('#transmission-chain-line-style').click({ force: true });
   cy.contains('li[role="option"]', label, { timeout: 10000 }).click({ force: true });
-  cy.window().its('commonService.session.style.widgets.transmission-chain-line-style').should('equal', value);
+  cy.window().its('commonService.visuals.transmissionChain.widgets.transmission-chain-line-style').should('equal', value);
 };
 
 const openNodeSizePanel = (): void => {
@@ -159,9 +159,9 @@ const openNodeSizePanel = (): void => {
   cy.get('@dialogContainer').find('.tab-pane.active')
     .contains('p-accordion-header', 'Shapes and Sizes')
     .click({ force: true });
-  cy.get('@dialogContainer').find('.tab-pane.active #node-radius').then(($input) => {
+  cy.get('@dialogContainer').find('.tab-pane.active #transmission-chain-node-radius').then(($input) => {
     if ($input.css('visibility') === 'hidden' || !$input.is(':visible')) {
-      cy.get('@dialogContainer').find('.tab-pane.active #node-radius-variable').click({ force: true });
+      cy.get('@dialogContainer').find('.tab-pane.active #transmission-chain-node-radius-variable').click({ force: true });
       cy.get('.p-select-overlay:visible', { timeout: 10000 })
         .last()
         .find('.p-select-option')
@@ -171,7 +171,7 @@ const openNodeSizePanel = (): void => {
     }
   });
   cy.get('.p-select-overlay:visible').should('not.exist');
-  cy.get('@dialogContainer').find('.tab-pane.active #node-radius', { timeout: 10000 }).should('be.visible');
+  cy.get('@dialogContainer').find('.tab-pane.active #transmission-chain-node-radius', { timeout: 10000 }).should('be.visible');
 };
 
 const openLinkSizePanel = (): void => {
@@ -179,9 +179,9 @@ const openLinkSizePanel = (): void => {
   cy.get('@dialogContainer').find('.tab-pane.active')
     .contains('p-accordion-header', 'Shapes and Sizes')
     .click({ force: true });
-  cy.get('@dialogContainer').find('.tab-pane.active #link-width').then(($input) => {
+  cy.get('@dialogContainer').find('.tab-pane.active #transmission-chain-link-width').then(($input) => {
     if ($input.css('visibility') === 'hidden' || !$input.is(':visible')) {
-      cy.get('@dialogContainer').find('.tab-pane.active #link-width-variable').click({ force: true });
+      cy.get('@dialogContainer').find('.tab-pane.active #transmission-chain-link-width-variable').click({ force: true });
       cy.get('.p-select-overlay:visible', { timeout: 10000 })
         .last()
         .find('.p-select-option')
@@ -191,7 +191,7 @@ const openLinkSizePanel = (): void => {
     }
   });
   cy.get('.p-select-overlay:visible').should('not.exist');
-  cy.get('@dialogContainer').find('.tab-pane.active #link-width', { timeout: 10000 }).should('be.visible');
+  cy.get('@dialogContainer').find('.tab-pane.active #transmission-chain-link-width', { timeout: 10000 }).should('be.visible');
 };
 
 const expectTransmissionChainSizing = (
@@ -209,55 +209,60 @@ const expectTransmissionChainSizing = (
   expect(parseFloat(edge.style('width')), 'rendered link width').to.be.closeTo(expectedLinkWidth, 0.5);
 };
 
-const expectVisibleNodesWithinTimelineAxes = (cyInstance: Core): void => {
+const getTimelinePlotArea = (cyInstance: Core) => {
   const timelineOverlay = cyInstance.container()?.parentElement
     ?.querySelector('.timeline-axis-overlay:not(.hidden)');
   const baseline = timelineOverlay?.querySelector('.timeline-axis-baseline');
   const axisY = Number(baseline?.getAttribute('y1'));
-  const plotBottom = axisY - 8;
-  const width = cyInstance.width();
-
   expect(baseline, 'timeline axis baseline').to.exist;
   expect(Number.isFinite(axisY), 'timeline axis y coordinate').to.equal(true);
+  const insets = (cyInstance.container()?.style.clipPath.match(/[\d.]+(?=px)/g) ?? []).map(Number);
+  expect(insets, 'network is clipped to its drawing area').to.have.length(4);
+  const [top, right, bottom, left] = insets;
+  const container = cyInstance.container()!;
+  const toolbar = container.ownerDocument.getElementById('transmission-chain-tool-btn-container')!;
+  const drawingTop = container.getBoundingClientRect().top + top;
+  for (const element of [toolbar, ...Array.from(toolbar.querySelectorAll('.btn-icon'))]) {
+    expect(drawingTop, 'drawing area stays below the whole toolbar row')
+      .to.be.greaterThan(element.getBoundingClientRect().bottom);
+  }
+  const x2 = cyInstance.width() - right;
+  const y2 = cyInstance.height() - bottom;
+  expect(y2, 'drawing area stays above the date axis').to.be.lessThan(axisY);
+  return { x1: left, y1: top, x2, y2, width: x2 - left, height: y2 - top };
+};
+
+const expectVisibleNodesWithinTimelineAxes = (cyInstance: Core): void => {
+  const area = getTimelinePlotArea(cyInstance);
 
   leafNodes(cyInstance).forEach((node) => {
     const bounds = node.renderedBoundingBox({ includeLabels: false, includeOverlays: false });
 
-    expect(bounds.x1, `${node.id()} left edge`).to.be.at.least(0);
-    expect(bounds.x2, `${node.id()} right edge`).to.be.at.most(width);
-    expect(bounds.y1, `${node.id()} top edge`).to.be.at.least(0);
-    expect(bounds.y2, `${node.id()} bottom edge`).to.be.at.most(plotBottom);
+    expect(bounds.x1, `${node.id()} left edge`).to.be.at.least(area.x1 - 0.5);
+    expect(bounds.x2, `${node.id()} right edge`).to.be.at.most(area.x2 + 0.5);
+    expect(bounds.y1, `${node.id()} top edge`).to.be.at.least(area.y1 - 0.5);
+    expect(bounds.y2, `${node.id()} bottom edge`).to.be.at.most(area.y2 + 0.5);
   });
 };
 
 const expectVisiblePlotWithinTimelineAxes = (cyInstance: Core): void => {
-  const timelineOverlay = cyInstance.container()?.parentElement
-    ?.querySelector('.timeline-axis-overlay:not(.hidden)');
-  const baseline = timelineOverlay?.querySelector('.timeline-axis-baseline');
-  const axisY = Number(baseline?.getAttribute('y1'));
-  const plotBottom = axisY - 8;
+  const area = getTimelinePlotArea(cyInstance);
   const plotElements = cyInstance.elements(':visible').filter((element) => !element.hasClass('hidden'));
   const bounds = plotElements.renderedBoundingBox({ includeLabels: true, includeOverlays: false });
 
-  expect(baseline, 'timeline axis baseline').to.exist;
-  expect(Number.isFinite(axisY), 'timeline axis y coordinate').to.equal(true);
-  expect(bounds.x1, 'plot left edge').to.be.at.least(0);
-  expect(bounds.x2, 'plot right edge').to.be.at.most(cyInstance.width());
-  expect(bounds.y1, 'plot top edge').to.be.at.least(0);
-  expect(bounds.y2, 'plot bottom edge').to.be.at.most(plotBottom);
+  expect(bounds.x1, 'plot left edge').to.be.at.least(area.x1 - 0.5);
+  expect(bounds.x2, 'plot right edge').to.be.at.most(area.x2 + 0.5);
+  expect(bounds.y1, 'plot top edge').to.be.at.least(area.y1 - 0.5);
+  expect(bounds.y2, 'plot bottom edge').to.be.at.most(area.y2 + 0.5);
 };
 
 const expectVisiblePlotFillsTimelineAxes = (cyInstance: Core): void => {
-  const timelineOverlay = cyInstance.container()?.parentElement
-    ?.querySelector('.timeline-axis-overlay:not(.hidden)');
-  const baseline = timelineOverlay?.querySelector('.timeline-axis-baseline');
-  const axisY = Number(baseline?.getAttribute('y1'));
-  const plotBottom = axisY - 8;
+  const area = getTimelinePlotArea(cyInstance);
   const plotElements = cyInstance.elements(':visible').filter((element) => !element.hasClass('hidden'));
   const bounds = plotElements.renderedBoundingBox({ includeLabels: true, includeOverlays: false });
 
-  expect(bounds.w / cyInstance.width(), 'horizontal plot occupancy').to.be.at.least(0.75);
-  expect(bounds.h / plotBottom, 'vertical plot occupancy').to.be.at.least(0.75);
+  expect(bounds.w / area.width, 'plot uses about 90% of the width between the axes')
+    .to.be.closeTo(0.9, 0.02);
 };
 
 const getFirstVisibleOrigin = (): Cypress.Chainable<string> =>
@@ -271,7 +276,7 @@ const getFirstVisibleOrigin = (): Cypress.Chainable<string> =>
     return origins[0];
   });
 
-describe('Transmission Chain View', () => {
+describe('Transmission Chain Explorer', () => {
   beforeEach(() => {
     visitAppAndAcceptEula({ skipDemoSession: false, dismissWelcomeOverlay: true });
     goToTransmissionChainView();
@@ -279,15 +284,33 @@ describe('Transmission Chain View', () => {
   });
 
   it('opens as a dedicated view with transmission chain settings', () => {
-    cy.get('.lm_tab.lm_active', { timeout: 20000 }).should('contain.text', 'Transmission Chain View');
+    cy.get('.lm_tab.lm_active', { timeout: 20000 }).should('contain.text', 'Transmission Chain Explorer');
+    cy.get('#transmission-chain-network-statistics-wrapper').should('not.exist');
+    cy.get('#transmission-chain-tool-btn-container')
+      .should('have.css', 'top', '15px')
+      .and('have.css', 'left', '15px');
+    cy.get('@dialogContainer').should($dialog => expect($dialog[0].getBoundingClientRect().width, 'compact settings width').to.be.at.most(450));
+    cy.get('@dialogContainer').find('#transmission-chain-link-length').should('not.exist');
+    cy.get('@dialogContainer').find('[role="tablist"] > .nav-item > .nav-link').should(($tabs) => {
+      expect($tabs.toArray().map((tab) => String(tab.textContent || '').trim()), 'settings tab order')
+        .to.deep.equal(['Layout', 'Nodes', 'Links', 'Network']);
+    });
     cy.get('@dialogContainer').contains('.nav-link', 'Layout').should('exist');
     cy.get('@dialogContainer').contains('.nav-link', 'Grouping').should('not.exist');
     cy.get(`${byTestId(testIds.twodRecalculateLayoutButton)}:visible`).should('not.exist');
     cy.get('@dialogContainer').find('#transmission-chain-date-field').should('exist');
     cy.get('@dialogContainer').find('#transmission-chain-y-axis-field').should('exist');
+    cy.get('@dialogContainer').find('#transmission-chain-axis-label-size')
+      .should('have.attr', 'min', '10')
+      .and('have.attr', 'max', '32');
+    cy.get('@dialogContainer').find('#transmission-chain-axis-label-size').then($slider => {
+      const linkLists = $slider.closest('.tab-pane').find('#transmission-chain-link-origins')[0];
+      expect(linkLists.compareDocumentPosition($slider[0]) & Node.DOCUMENT_POSITION_FOLLOWING,
+        'axis label slider follows Link Lists').not.to.equal(0);
+    });
     cy.get('@dialogContainer').find('#transmission-chain-link-origins').should('exist');
     cy.get('@dialogContainer').find('#transmission-chain-link-origins input[type="checkbox"]').should('have.length.greaterThan', 0);
-    cy.get('@dialogContainer').find('#transmission-chain-vertical-spacing').should('exist');
+    cy.get('@dialogContainer').find('#transmission-chain-vertical-spacing').should('not.exist');
     openDisplayPanel();
     cy.get('@dialogContainer').find('#transmission-chain-line-style').should('contain.text', 'Stepped');
     cy.get('@dialogContainer').find('#transmission-chain-line-style').click({ force: true });
@@ -296,9 +319,8 @@ describe('Transmission Chain View', () => {
     cy.contains('li[role="option"]', 'Curved').should('be.visible');
     cy.contains('li[role="option"]', 'Fan-out Curves').should('be.visible');
     cy.get('body').type('{esc}');
-    cy.window().its('commonService.session.style.widgets.transmission-chain-line-style').should('equal', 'Stepped');
-    cy.get('@dialogContainer').find('#network-layout-mode').should('not.exist');
-    cy.get('@dialogContainer').find('#network-node-collapse-enabled').should('not.exist');
+    cy.window().its('commonService.visuals.transmissionChain.widgets.transmission-chain-line-style').should('equal', 'Stepped');
+    cy.get('@dialogContainer').find('#transmission-chain-network-node-collapse-enabled').should('not.exist');
     getTransmissionCy().should((cyInstance) => {
       expect(cyInstance.nodes(':visible').length, 'blank startup nodes').to.equal(0);
       expect(cyInstance.edges(':visible').length, 'blank startup edges').to.equal(0);
@@ -306,7 +328,9 @@ describe('Transmission Chain View', () => {
     cy.window().its('commonService.visuals.twoD').should('exist');
     cy.window().its('commonService.visuals.transmissionChain').should('exist');
     cy.get('#transmission-chain-cy').should('have.class', 'cytoscape-viewport');
-    cy.get('#cy').should('have.class', 'cytoscape-viewport');
+    cy.get('#cy, #sigma-network').should('exist');
+    cy.get('@dialogContainer').contains('.nav-link', 'Layout').click({ force: true });
+    cy.screenshot('explorer-compact-settings-toolbar', { capture: 'runner', disableTimersAndAnimations: false });
   });
 
   it('arranges dated nodes from left to right and renders the timeline axis', () => {
@@ -337,9 +361,11 @@ describe('Transmission Chain View', () => {
 
     cy.window().then((win: any) => {
       const widgets = win.commonService.session.style.widgets;
+      const chainWidgets = win.commonService.visuals.transmissionChain.widgets;
 
-      expect(widgets['transmission-chain-node-radius'], 'transmission chain node size').to.equal(50);
-      expect(widgets['transmission-chain-link-width'], 'transmission chain link width').to.equal(12);
+      expect(chainWidgets['transmission-chain-node-radius'], 'transmission chain node size').to.equal(50);
+      expect(chainWidgets['transmission-chain-link-width'], 'transmission chain link width').to.equal(12);
+      expect(chainWidgets['link-tooltip-variable'], 'link tooltips default to None').to.deep.equal([]);
       expect(widgets['node-radius'], '2D Network node size').to.equal(20);
       expect(widgets['link-width'], '2D Network link width').to.equal(3);
     });
@@ -350,50 +376,48 @@ describe('Transmission Chain View', () => {
     });
   });
 
-  it('starts at a readable Auto zoom while Center Screen compacts and fits the complete plot', () => {
+  it('centers the first date layout and keeps its separated chains stable on Center Screen', () => {
     cy.viewport(1000, 500);
     selectDateField();
 
     getTransmissionCy().then((cyInstance) => {
-      const node = leafNodes(cyInstance).first();
-      const renderedNodeWidth = parseFloat(node.style('width')) * cyInstance.zoom();
-
-      expect(renderedNodeWidth, 'initial rendered node width').to.be.at.least(13.9);
+      expectSeparatedClusterBands(cyInstance);
+      expectVisiblePlotWithinTimelineAxes(cyInstance);
+      expectVisiblePlotFillsTimelineAxes(cyInstance);
       const positions = leafNodes(cyInstance).map((currentNode) => ({
         id: currentNode.id(),
         x: currentNode.position('x'),
         y: currentNode.position('y'),
       }));
-      const yValues = positions.map((position) => position.y);
-      cy.wrap(positions, { log: false }).as('initialAutoPositions');
-      cy.wrap(Math.max(...yValues) - Math.min(...yValues), { log: false }).as('initialAutoYSpan');
+      cy.wrap(positions, { log: false }).as('initialCenteredPositions');
+      cy.wrap(cyInstance.zoom(), { log: false }).as('initialCenteredZoom');
     });
 
     cy.window().then((win: any) => {
-      win.commonService.visuals.transmissionChain.cy.viewport({
+      win.commonService.visuals.transmissionChain.cy.viewport(win.JSON.parse(JSON.stringify({
         zoom: 1.5,
         pan: { x: 0, y: 0 },
-      });
+      })));
     });
 
     cy.get(byTestId(testIds.transmissionChainCenterButton)).click({ force: true });
 
-    cy.get<Array<{ id: string; x: number; y: number }>>('@initialAutoPositions').then((initialPositions) => {
-      cy.get<number>('@initialAutoYSpan').then((initialYSpan) => {
+    cy.get<Array<{ id: string; x: number; y: number }>>('@initialCenteredPositions').then((initialPositions) => {
+      cy.get<number>('@initialCenteredZoom').then((initialZoom) => {
         getTransmissionCy().then((cyInstance) => {
-          const initialXById = new Map(initialPositions.map((position) => [position.id, position.x]));
+          const initialPositionById = new Map(initialPositions.map((position) => [position.id, position]));
           const centeredPositions = leafNodes(cyInstance).map((node) => ({
             id: node.id(),
             x: node.position('x'),
             y: node.position('y'),
           }));
-          const centeredYValues = centeredPositions.map((position) => position.y);
-          const centeredYSpan = Math.max(...centeredYValues) - Math.min(...centeredYValues);
-
           centeredPositions.forEach((position) => {
-            expect(position.x, `${position.id} timeline x`).to.be.closeTo(initialXById.get(position.id)!, 0.01);
+            const initial = initialPositionById.get(position.id)!;
+            expect(position.x, `${position.id} timeline x`).to.be.closeTo(initial.x, 0.01);
+            expect(position.y, `${position.id} initial centered y`).to.be.closeTo(initial.y, 0.01);
           });
-          expect(centeredYSpan, 'compacted vertical layout span').to.be.lessThan(initialYSpan);
+          expect(cyInstance.zoom(), 'initial date selection already fits the plot').to.be.closeTo(initialZoom, 0.0001);
+          expectSeparatedClusterBands(cyInstance);
           expectVisiblePlotWithinTimelineAxes(cyInstance);
           expectVisiblePlotFillsTimelineAxes(cyInstance);
 
@@ -424,12 +448,65 @@ describe('Transmission Chain View', () => {
     });
   });
 
+  it('refits chains when the viewport or only the drawing container changes size', () => {
+    cy.viewport(1200, 700);
+    selectDateField();
+    selectYAxisField();
+    cy.closeSettingsPane('Transmission Chain Explorer Settings');
+    let graph: Core;
+    let originalWidth = 0;
+    let originalHeight = 0;
+    let originalCount = 0;
+    getTransmissionCy().then(cyInstance => {
+      graph = cyInstance;
+      originalWidth = cyInstance.width();
+      originalHeight = cyInstance.height();
+      originalCount = leafNodes(cyInstance).length;
+    });
+
+    cy.viewport(850, 500);
+    getTransmissionCy().should(cyInstance => {
+      expect(cyInstance, 'resize retains the renderer').to.equal(graph);
+      expect(cyInstance.width(), 'narrower viewport').to.be.lessThan(originalWidth - 100);
+      expect(cyInstance.height(), 'shorter viewport').to.be.lessThan(originalHeight - 100);
+      expect(leafNodes(cyInstance).length, 'all dated nodes remain visible').to.equal(originalCount);
+      expectVisiblePlotWithinTimelineAxes(cyInstance);
+      expectVisiblePlotFillsTimelineAxes(cyInstance);
+    });
+
+    cy.viewport(1200, 900);
+    getTransmissionCy().should(cyInstance => {
+      expect(cyInstance.height(), 'taller viewport').to.be.greaterThan(originalHeight + 100);
+      expectVisiblePlotWithinTimelineAxes(cyInstance);
+      expectVisiblePlotFillsTimelineAxes(cyInstance);
+    });
+
+    // Dashboard panes can change the available drawing width independently of
+    // the browser window. Exercise that ResizeObserver path without a reload.
+    cy.get('#transmission-chain-cy').parent().invoke('css', 'width', '70%');
+    getTransmissionCy().should(cyInstance => {
+      expect(cyInstance.width(), 'container-only width change').to.be.lessThan(originalWidth * 0.8);
+      expect(leafNodes(cyInstance).length).to.equal(originalCount);
+      expectVisiblePlotWithinTimelineAxes(cyInstance);
+      expectVisiblePlotFillsTimelineAxes(cyInstance);
+    });
+
+    cy.get('#transmission-chain-cy').parent().invoke('css', 'width', '100%');
+    cy.viewport(1200, 700);
+    getTransmissionCy().should(cyInstance => {
+      expect(cyInstance.width(), 'original pane width restored').to.be.closeTo(originalWidth, 1);
+      expect(cyInstance.height(), 'original pane height restored').to.be.closeTo(originalHeight, 1);
+      expectVisiblePlotWithinTimelineAxes(cyInstance);
+      expectVisiblePlotFillsTimelineAxes(cyInstance);
+    });
+  });
+
   it('keeps every node within the timeline axes after changing node size', () => {
     cy.viewport(1000, 500);
     selectDateField();
 
     openNodeSizePanel();
-    cy.get('@dialogContainer').find('.tab-pane.active #node-radius')
+    cy.get('@dialogContainer').find('.tab-pane.active #transmission-chain-node-radius')
       .invoke('val', 100)
       .trigger('change', { force: true });
     cy.get(byTestId(testIds.transmissionChainCenterButton)).click({ force: true });
@@ -437,6 +514,48 @@ describe('Transmission Chain View', () => {
     getTransmissionCy().should((cyInstance) => {
       expectVisiblePlotWithinTimelineAxes(cyInstance);
     });
+  });
+
+  it('preserves a zoomed camera and node positions when changing sizes and borders', () => {
+    selectDateField();
+    openNodeSizePanel();
+    let before: any;
+    cy.window().then((win: any) => {
+      const component = win.commonService.visuals.transmissionChain;
+      const camera = component.getRendererViewState();
+      component.setRendererViewState({
+        ...camera, centerX: camera.centerX + 100, graphUnitsPerPixel: camera.graphUnitsPerPixel / 3,
+      });
+      before = {
+        camera: component.getRendererViewState(),
+        positions: leafNodes(component.cy).map(node => ({ id: node.id(), ...node.position() })),
+      };
+    });
+    const expectUnchangedViewport = (): void => {
+      cy.window().should((win: any) => {
+        const component = win.commonService.visuals.transmissionChain;
+        expect(component.getRendererViewState(), 'zoom and pan are preserved').to.deep.equal(before.camera);
+        expect(leafNodes(component.cy).map(node => ({ id: node.id(), ...node.position() })), 'nodes retain their positions')
+          .to.deep.equal(before.positions);
+      });
+    };
+    cy.get('#transmission-chain-node-radius').invoke('val', 100)
+      .trigger('input', { force: true }).trigger('change', { force: true });
+    getTransmissionCy().should(graph => expect(leafNodes(graph).first().width(), 'node size changes').to.equal(50));
+    expectUnchangedViewport();
+    cy.get('#transmission-chain-node-border-width').clear().type('5');
+    getTransmissionCy().should(graph => expect(parseFloat(leafNodes(graph).first().style('border-width'))).to.equal(5));
+    expectUnchangedViewport();
+    cy.get('#transmission-chain-node-radius-variable').click({ force: true });
+    cy.get('.p-select-overlay:visible').last().find('.p-select-option')
+      .filter((_index, option) => String(option.textContent || '').trim() === 'Degree').click({ force: true });
+    cy.get('.p-select-overlay:visible').should('not.exist');
+    cy.window().its('commonService.visuals.transmissionChain.widgets.node-radius-variable').should('equal', 'degree');
+    expectUnchangedViewport();
+    for (const [selector, value] of [['#transmission-chain-node-radius-min', 25], ['#transmission-chain-node-radius-max', 95]] as const) {
+      cy.get(selector).invoke('val', value).trigger('input', { force: true }).trigger('change', { force: true });
+      expectUnchangedViewport();
+    }
   });
 
   it('omits nodes without timeline dates and explains why they were excluded', () => {
@@ -478,7 +597,7 @@ describe('Transmission Chain View', () => {
         .should('be.visible')
         .and('contain.text', dateField)
         .and('contain.text', undatedNodeId)
-        .and('contain.text', 'omitted from Transmission Chain View')
+        .and('contain.text', 'omitted from Transmission Chain Explorer')
         .then(($dialog) => {
           const mask = $dialog.parent('.p-dialog-mask');
           expect(mask, 'excluded-node dialog mask').to.have.length(1);
@@ -498,16 +617,6 @@ describe('Transmission Chain View', () => {
 
   it('uses a selected node field for labeled Y-axis bands', () => {
     selectDateField();
-
-    cy.window().then((win: any) => {
-      const component = win.commonService.visuals.transmissionChain;
-      component.timelineCompleteFitBoundingBox = leafNodes(component.cy).boundingBox({
-        includeLabels: false,
-        includeOverlays: false,
-      });
-      win.commonService.session.style.widgets['timeline-date-field'] = dateField;
-    });
-
     selectYAxisField();
 
     getTransmissionCy().should((cyInstance) => {
@@ -540,15 +649,33 @@ describe('Transmission Chain View', () => {
       expect(
         [...$labels].map((label) => Number(label.getAttribute('x'))),
         'Y-axis labels remain left-aligned',
-      ).to.satisfy((positions: number[]) => positions.every((position) => position === 30));
+      ).to.satisfy((positions: number[]) => positions.every((position) => position > 0 && position === positions[0]));
 
       const firstLabel = $labels.get(0).getBoundingClientRect();
       const toolbar = Cypress.$(byTestId(testIds.transmissionChainSettingsButton))
-        .closest('#tool-btn-container')
+        .closest('#transmission-chain-tool-btn-container')
         .get(0)
         .getBoundingClientRect();
       expect(firstLabel.top, 'first Y-axis label starts below the toolbar')
         .to.be.greaterThan(toolbar.bottom);
+    });
+    cy.get('.timeline-x-axis-title').should('have.text', dateField);
+
+    cy.get('@dialogContainer').find('#transmission-chain-axis-label-size')
+      .invoke('val', 24)
+      .trigger('input', { force: true });
+    cy.get('.timeline-axis-label').first().should('have.css', 'font-size', '24px');
+    cy.get('.timeline-y-axis-label').first().should('have.css', 'font-size', '24px');
+    cy.get('.timeline-x-axis-title').should('have.css', 'font-size', '28px');
+    cy.get('.timeline-y-axis-title').should('have.css', 'font-size', '28px');
+    getTransmissionCy().should(cyInstance => {
+      expectVisiblePlotWithinTimelineAxes(cyInstance);
+      const area = getTimelinePlotArea(cyInstance);
+      const labels = cyInstance.container()?.parentElement?.querySelectorAll<SVGTextElement>('.timeline-y-axis-label');
+      labels?.forEach(label => {
+        const bounds = label.getBBox();
+        expect(bounds.x + bounds.width, 'category labels stay left of the chains').to.be.lessThan(area.x1);
+      });
     });
   });
 
@@ -569,26 +696,27 @@ describe('Transmission Chain View', () => {
 
       expect(group, 'Texas Y-axis band').to.exist;
       expect(node.empty(), 'Texas node').to.equal(false);
-      node.position({ x: timelineX + 500, y: groups[0].centerY });
+      node.position('x', timelineX + 500);
+      node.position('y', groups[0].centerY);
 
       expect(node.position('x'), 'node remains locked to its timeline date').to.equal(timelineX);
       expect(node.position('y'), 'node remains inside its categorical band')
         .to.be.within(group.boundaryMinY + nodeHalfHeight, group.boundaryMaxY - nodeHalfHeight);
+      expect(node.position('y'), 'drag reaches the categorical boundary')
+        .to.be.closeTo(group.boundaryMinY + nodeHalfHeight, 0.5);
       expect(node.position('y'), 'node does not enter the first category band')
         .to.not.equal(groups[0].centerY);
 
       const zoom = component.cy.zoom();
       const panY = component.cy.pan().y;
-      const band = Cypress.$(`.timeline-y-axis-group[data-y-axis-value="${group.label}"]`);
-      const startLineY = Number(band.find('.timeline-y-axis-boundary-start').attr('y1'));
       const expectedStartLineY = (group.boundaryMinY * zoom) + panY;
-
-      expect(startLineY, 'category indicator matches the movement boundary')
-        .to.be.closeTo(expectedStartLineY, 0.5);
+      cy.get(`.timeline-grid-overlay .timeline-y-axis-boundary-start[data-y-axis-value="${group.label}"]`)
+        .should($line => expect(Number($line.attr('y1')), 'category indicator matches the movement boundary')
+          .to.be.closeTo(expectedStartLineY, 0.5));
     });
   });
 
-  it('renders node and link tooltips in the Transmission Chain View instance', () => {
+  it('renders node and link tooltips in the Transmission Chain Explorer instance', () => {
     selectDateField();
 
     cy.window().then((win: any) => {
@@ -629,29 +757,29 @@ describe('Transmission Chain View', () => {
     });
   });
 
-  it('uses the Length slider to change categorical timeline spacing', () => {
-    let initialSpan = 0;
-
+  it('keeps the toolbar row free of the network and axes during panning and zooming without a Y-axis field', () => {
     selectDateField();
-    selectYAxisField();
-    getTransmissionCy().then((cyInstance) => {
-      const positions = leafNodes(cyInstance).map((node) => node.position('y'));
-      initialSpan = Math.max(...positions) - Math.min(...positions);
-    });
-
-    openLinkSizePanel();
-    cy.get('@dialogContainer').find('#link-length')
-      .invoke('val', 95)
-      .trigger('input', { force: true })
-      .trigger('change', { force: true });
-    cy.window().its('commonService.session.style.widgets.link-length').should('equal', 95);
-
-    getTransmissionCy().should((cyInstance) => {
-      const positions = leafNodes(cyInstance).map((node) => node.position('y'));
-      const updatedSpan = Math.max(...positions) - Math.min(...positions);
-
-      expect(updatedSpan, 'timeline vertical span after increasing link length')
-        .to.be.greaterThan(initialSpan);
+    cy.closeSettingsPane('Transmission Chain Explorer Settings');
+    cy.window().its('commonService.visuals.transmissionChain.widgets.transmission-chain-y-axis-field').should('equal', 'None');
+    getTransmissionCy().then(graph => {
+      const area = getTimelinePlotArea(graph);
+      const container = graph.container()!;
+      const document = container.ownerDocument;
+      const button = document.querySelector('[data-testid="transmission-chain-settings-button"]')!;
+      const buttonRect = button.getBoundingClientRect();
+      const containerRect = container.getBoundingClientRect();
+      const node = leafNodes(graph).first();
+      const position = node.renderedPosition();
+      graph.panBy('x', buttonRect.left + (buttonRect.width / 2) - containerRect.left - position.x);
+      graph.panBy('y', buttonRect.top + (buttonRect.height / 2) - containerRect.top - position.y);
+      expect(node.renderedPosition().y, 'node panned into the reserved toolbar row').to.be.lessThan(area.y1);
+      graph.zoom(graph.zoom() * 1.2);
+      getTimelinePlotArea(graph);
+      for (const selector of ['.timeline-grid-overlay', '.timeline-axis-overlay']) {
+        const overlay = container.parentElement!.querySelector<SVGSVGElement>(selector)!;
+        const clipTop = Number(overlay.style.clipPath.match(/[\d.]+(?=px)/)?.[0]);
+        expect(clipTop, `${selector} stays out of the toolbar row`).to.equal(area.y1);
+      }
     });
   });
 
@@ -659,12 +787,12 @@ describe('Transmission Chain View', () => {
     selectDateField();
     openLinkSizePanel();
 
-    cy.get('@dialogContainer').find('#link-bidirectional-row').should('not.be.visible');
-    cy.get('@dialogContainer').find('#link-directed-undirected').contains('Show').click({ force: true });
-    cy.get('@dialogContainer').find('#link-bidirectional-row').should('be.visible');
-    cy.get('@dialogContainer').find('#link-bidirectional').contains('Show').click({ force: true });
-    cy.window().its('commonService.session.style.widgets.link-directed').should('equal', true);
-    cy.window().its('commonService.session.style.widgets.link-bidirectional').should('equal', true);
+    cy.get('@dialogContainer').find('#transmission-chain-link-bidirectional-row').should('not.be.visible');
+    cy.get('@dialogContainer').find('#transmission-chain-link-directed-undirected').contains('Show').click({ force: true });
+    cy.get('@dialogContainer').find('#transmission-chain-link-bidirectional-row').should('be.visible');
+    cy.get('@dialogContainer').find('#transmission-chain-link-bidirectional').contains('Show').click({ force: true });
+    cy.window().its('commonService.visuals.transmissionChain.widgets.link-directed').should('equal', true);
+    cy.window().its('commonService.visuals.transmissionChain.widgets.link-bidirectional').should('equal', true);
 
     getTransmissionCy().should((cyInstance) => {
       const bidirectionalEdges = cyInstance.edges(':visible')
@@ -678,38 +806,86 @@ describe('Transmission Chain View', () => {
     });
   });
 
-  it('centers the current Y-axis layout instead of a stale timeline fit', () => {
+  it('centers the current Y-axis layout after panning and zooming', () => {
     selectDateField();
     selectYAxisField();
 
     cy.window().then((win: any) => {
       const component = win.commonService.visuals.transmissionChain;
-      const bounds = leafNodes(component.cy).boundingBox({
-        includeLabels: false,
-        includeOverlays: false,
-      });
-      const centerY = (bounds.y1 + bounds.y2) / 2;
-
-      component.timelineCompleteFitBoundingBox = {
-        x1: bounds.x1,
-        x2: bounds.x2,
-        y1: centerY - (bounds.h / 4),
-        y2: centerY + (bounds.h / 4),
-      };
-      component.cy.viewport({ zoom: 0.75, pan: { x: 0, y: 0 } });
+      component.cy.viewport(win.JSON.parse(JSON.stringify({ zoom: 0.75, pan: { x: 10000, y: -10000 } })));
     });
 
     cy.get(byTestId(testIds.transmissionChainCenterButton)).click({ force: true });
 
-    cy.window().should((win: any) => {
-      expect(
-        win.commonService.visuals.transmissionChain.timelineCompleteFitBoundingBox,
-        'stale timeline fit bounds',
-      ).to.equal(null);
-    });
     getTransmissionCy().should((cyInstance) => {
       expectVisiblePlotWithinTimelineAxes(cyInstance);
     });
+  });
+
+  it('stays static during global timeline playback and refreshes without the playback date filter', () => {
+    selectDateField();
+    selectYAxisField();
+    cy.closeSettingsPane('Transmission Chain Explorer Settings');
+    cy.enableTimelineMode(dateField);
+    cy.closeGlobalSettings();
+    cy.window().should((win: any) => {
+      expect(win.$('#global-timeline-wrapper').is(':animated'), 'timeline toolbar finished opening').to.equal(false);
+    });
+    getTransmissionCy().should(graph => {
+      expect(graph.height(), 'renderer resized for the timeline toolbar')
+        .to.be.closeTo(graph.container()!.clientHeight, 1);
+      expectVisiblePlotWithinTimelineAxes(graph);
+    });
+
+    let baseline: any;
+    let startTime = 0;
+    const snapshot = (component: any) => ({
+      nodes: leafNodes(component.cy).map(node => ({ id: node.id(), ...node.position() })),
+      links: component.cy.edges().map(edge => edge.id()),
+      camera: component.getRendererViewState(),
+      dateField: component.widgets['transmission-chain-date-field'],
+      yAxisField: component.widgets['transmission-chain-y-axis-field'],
+      excluded: component.nodesWithoutTimelineDate.map(node => node.ID),
+    });
+    cy.window().then((win: any) => {
+      const service = win.commonService;
+      const component = service.visuals.transmissionChain;
+      baseline = snapshot(component);
+      startTime = new Date(service.session.state.timeEnd).getTime();
+      expect(service.getVisibleNodes().length, 'playback filters its target views')
+        .to.be.lessThan(service.getVisibleNodesIgnoringTimeline().length);
+      cy.spy(component, '_rerender').as('explorerTimelineRender');
+    });
+
+    cy.get('#timeline-play-button').click().should('contain', 'Pause');
+    cy.window().should((win: any) => {
+      expect(new Date(win.commonService.session.state.timeEnd).getTime(), 'timeline advances')
+        .to.be.greaterThan(startTime);
+    });
+    cy.get('#timeline-play-button').click().should('contain', 'Play');
+    cy.window().then((win: any) => {
+      expect(snapshot(win.commonService.visuals.transmissionChain), 'Explorer ignores timeline ticks')
+        .to.deep.equal(baseline);
+    });
+    cy.get('@explorerTimelineRender').should('not.have.been.called');
+
+    cy.window().then((win: any) => {
+      const service = win.commonService;
+      service.visuals.microbeTrace.update(new win.Date(service.session.state.timeStart));
+      return service.visuals.transmissionChain.updateLayout();
+    });
+    cy.window().should((win: any) => {
+      const component = win.commonService.visuals.transmissionChain;
+      expect(leafNodes(component.cy).map(node => node.id()).sort(), 'refresh retains every Explorer node')
+        .to.deep.equal(baseline.nodes.map(node => node.id).sort());
+      expect(component.cy.edges().map(edge => edge.id()).sort(), 'refresh retains every Explorer link')
+        .to.deep.equal([...baseline.links].sort());
+    });
+
+    cy.get('@explorerTimelineRender').invoke('resetHistory');
+    cy.enableTimelineMode('None');
+    cy.closeGlobalSettings();
+    cy.get('@explorerTimelineRender').should('not.have.been.called');
   });
 
   it('routes stepped links as source-stem paths', () => {
@@ -748,16 +924,16 @@ describe('Transmission Chain View', () => {
 
     selectDateField();
     openNodeSizePanel();
-    cy.get('@dialogContainer').find('.tab-pane.active #node-radius')
+    cy.get('@dialogContainer').find('.tab-pane.active #transmission-chain-node-radius')
       .invoke('val', nodeSize)
       .trigger('change', { force: true });
-    cy.window().its('commonService.session.style.widgets.transmission-chain-node-radius').should('equal', nodeSize);
+    cy.window().its('commonService.visuals.transmissionChain.widgets.transmission-chain-node-radius').should('equal', nodeSize);
 
     openLinkSizePanel();
-    cy.get('@dialogContainer').find('.tab-pane.active #link-width')
+    cy.get('@dialogContainer').find('.tab-pane.active #transmission-chain-link-width')
       .invoke('val', linkWidth)
       .trigger('change', { force: true });
-    cy.window().its('commonService.session.style.widgets.transmission-chain-link-width').should('equal', linkWidth);
+    cy.window().its('commonService.visuals.transmissionChain.widgets.transmission-chain-link-width').should('equal', linkWidth);
 
     getTransmissionCy().should((cyInstance) => {
       expect(cyInstance.edges(':visible').length, 'visible chain links').to.be.greaterThan(0);
@@ -983,31 +1159,3 @@ describe('Transmission Chain example fixture layout', () => {
     });
   });
 });
-
-describe('Transmission Chain legacy migration', () => {
-  it('migrates legacy 2D timeline sessions to Transmission Chain View', () => {
-    visitAppAndAcceptEula({ skipDemoSession: false, dismissWelcomeOverlay: true });
-
-    cy.window().then((win: any) => {
-      const legacySession = JSON.parse(JSON.stringify(win.commonService.session));
-      legacySession.style.widgets['default-view'] = '2D Network';
-      legacySession.style.widgets['network-layout-mode'] = 'Timeline';
-      legacySession.style.widgets['network-timeline-date-field'] = dateField;
-      legacySession.style.widgets['network-timeline-vertical-spacing'] = 180;
-      legacySession.layout = {
-        type: 'stack',
-        content: [{ type: '2D Network' }],
-      };
-
-      win.commonService['migrateLegacyTimelineLayoutSession'](legacySession);
-
-      expect(legacySession.style.widgets['default-view']).to.equal('Transmission Chain View');
-      expect(legacySession.style.widgets['network-layout-mode']).to.equal('Force Directed');
-      expect(legacySession.style.widgets['transmission-chain-date-field']).to.equal(dateField);
-      expect(legacySession.style.widgets['transmission-chain-y-axis-field']).to.equal('None');
-      expect(legacySession.style.widgets['transmission-chain-vertical-spacing']).to.equal(180);
-      expect(legacySession.layout.content[0].type).to.equal('Transmission Chain View');
-    });
-  });
-});
-
