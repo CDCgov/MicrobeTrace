@@ -199,6 +199,22 @@ describe('Sigma network renderer adapter', () => {
     });
   });
 
+  it('repaints the WebGL drawing buffer synchronously after resizing', () => {
+    const adapter = new SigmaNetworkRendererAdapter(document.createElement('div'), '#ff2d55');
+    const resize = jasmine.createSpy('resize');
+    const refresh = jasmine.createSpy('refresh');
+    (adapter as any).renderer = { resize, refresh };
+
+    adapter.resize();
+
+    expect(resize).toHaveBeenCalledTimes(1);
+    expect(refresh).toHaveBeenCalledOnceWith({
+      partialGraph: { nodes: [], edges: [] },
+      skipIndexation: true,
+      schedule: false,
+    });
+  });
+
   it('only projects a hovered neighborhood when neighbor highlighting is enabled', () => {
     const adapter = new SigmaNetworkRendererAdapter(document.createElement('div'), '#ff2d55');
     const graph = adapter.getGraph() as any;

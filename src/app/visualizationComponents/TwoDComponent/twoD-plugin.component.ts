@@ -20,6 +20,7 @@ import { getCustomNodeShapeData, getCustomNodeShapeVectorData, getMixedNodeShape
 import type cytoscape from 'cytoscape';
 import type { Core, Style } from 'cytoscape';
 import { layoutClustersBySize } from './cluster-size-layout';
+import { layoutSparseDisconnectedComponents } from './sparse-component-layout';
 import { Subject, Subscription, takeUntil } from 'rxjs';
 //import fcose from 'cytoscape-fcose';
 import * as d3f from 'd3-force';
@@ -282,6 +283,43 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                 : this.mapNodeSize(fallbackNodeSize);
 
         return (renderedDiameter / 2) + 6;
+    }
+
+    private applySparseDisconnectedComponentLayout(nodes: any[], links: any[]): void {
+        const container = this.sigmaActive
+            ? this.sigmaContainer?.nativeElement
+            : this.cyContainer?.nativeElement;
+        const bounds = container?.getBoundingClientRect?.();
+        const result = layoutSparseDisconnectedComponents(
+            nodes.map(node => {
+                const radius = this.getNodeCollisionRadius(node);
+                const x = Number(node.x);
+                const y = Number(node.y);
+                return {
+                    id: this.getNodeId(node),
+                    x,
+                    y,
+                    minX: x - radius,
+                    minY: y - radius,
+                    maxX: x + radius,
+                    maxY: y + radius,
+                };
+            }),
+            links.map(link => ({
+                source: this.getLinkEndpointId(link.source),
+                target: this.getLinkEndpointId(link.target),
+            })),
+            this.getNodeLayoutSpacing(),
+            Number(bounds?.width) || 1280,
+            Number(bounds?.height) || 720,
+        );
+        if (!result.applied) return;
+
+        nodes.forEach(node => {
+            const position = result.positions.get(this.getNodeId(node));
+            if (!position) return;
+            Object.assign(node, position, { vx: 0, vy: 0 });
+        });
     }
 
     private assignNoLinkGridPositions(nodes: any[], force: boolean = false): void {
@@ -2749,7 +2787,13 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         .pipe(takeUntil(this.destroy$))
         .subscribe(newPruned => {
             console.log('--- TwoD DATA network updated', newPruned);
-            if (this.data && this.store.settingsLoadedValue && newPruned) {
+            // Sigma renders directly from visible session data and does not populate
+            // the legacy Cytoscape `data` cache. Treat either renderer as initialized
+            // so visibility-only changes (such as Minimum Cluster Size) are rendered.
+            const rendererInitialized = this.sigmaActive
+                ? Boolean(this.sigmaRenderer)
+                : Boolean(this.data);
+            if (rendererInitialized && this.store.settingsLoadedValue && newPruned) {
                 console.log(`TwoD view to be rerendered.  ${this.viewActive ? 'Updating Now' : 'Updating when view is active'}`);
                 if (this.viewActive){
                     this._rerender(false);
@@ -3384,6 +3428,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         } 
         const ticksPerYield = this.getD3TicksPerYield(nodes, links);
         const tickBatches = await this.runStoppedD3Ticks(simulation, ticks, ticksPerYield);
+        if (initial) this.applySparseDisconnectedComponentLayout(nodes, links);
         return { nodes, links, tickBatches, ticksPerYield };
       }
 
