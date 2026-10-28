@@ -857,7 +857,18 @@ export class SigmaNetworkRendererAdapter {
   }
 
   resize(): void {
-    this.renderer?.resize();
+    if (!this.renderer) return;
+
+    this.renderer.resize();
+    // Sigma clears its WebGL drawing buffer while resizing. Golden Layout can
+    // finish a dock removal without another camera or graph event, leaving the
+    // WebGL stage blank while Canvas overlays remain visible. Repaint in the
+    // same task so the node and primary-edge layers survive that resize.
+    this.renderer.refresh({
+      partialGraph: { nodes: [], edges: [] },
+      skipIndexation: true,
+      schedule: false,
+    });
     this.drawGeographicOverlay();
     this.drawGroupHulls();
     this.drawEdgeOverlays();
