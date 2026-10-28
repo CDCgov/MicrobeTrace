@@ -1,5 +1,7 @@
 /// <reference types="cypress" />
 
+import { INTERNAL_FIELD_OPTION_VALUES } from '../../../src/app/contactTraceCommonServices/internal-field-options';
+
 describe('File Type Detection', () => {
   const metadataFile = 'CaseMetadata.csv';
 
@@ -16,7 +18,7 @@ describe('File Type Detection', () => {
     cy.get('@metadataRow').find('label').contains('ID').should('be.visible');
     cy.get('@metadataRow').find('label').contains('Sequence').should('be.visible');
     cy.get(`[id="file-${metadataFile}-field-1"]`).should('have.value', 'Case ID');
-    cy.get(`[id="file-${metadataFile}-field-2"]`).should('have.value', 'None');
+    cy.get(`[id="file-${metadataFile}-field-2"]`).should('have.value', INTERNAL_FIELD_OPTION_VALUES.none);
 
     cy.get('#launch').click({ force: true });
 

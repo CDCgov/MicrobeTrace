@@ -58,7 +58,7 @@ describe('Crosstab View', () => {
 
       const expected = buildExpectedCrosstabModel(win, 'cluster', 'None', false);
       assertRenderedCrosstabMatches(expected);
-      expect(expected.title, 'default single-axis title').to.equal('Cluster');
+      expect(expected.title, 'default single-axis title').to.equal('cluster');
     });
   });
 

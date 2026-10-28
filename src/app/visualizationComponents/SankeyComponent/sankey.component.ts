@@ -110,7 +110,7 @@ export class SankeyComponent extends BaseComponentDirective implements OnInit, O
     this.commonService.session.data['nodeFields'].map((d, i) => {
       this.FieldList.push(
         {
-          label: this.commonService.capitalize(d.replace('_', '')),
+          label: this.commonService.getFieldDisplayLabel(d),
           value: d
         });
     });

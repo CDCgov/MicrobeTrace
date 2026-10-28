@@ -1,5 +1,7 @@
 /// <reference types="cypress" />
 
+import { INTERNAL_FIELD_OPTION_VALUES } from '../../../../src/app/contactTraceCommonServices/internal-field-options';
+
 import { getProfile } from '../datasets/profile';
 import {
   applyStyleFromProfile,
@@ -40,7 +42,7 @@ describe('Journey Flow - Uploaded node labels and tooltips coexist with style', 
 
     expandAccordionTabByHeader('@nodesTab', 'Labels and Tooltips');
 
-    cy.window().its('commonService.session.style.widgets.node-label-variable').should('equal', 'None');
+    cy.window().its('commonService.session.style.widgets.node-label-variable').should('equal', INTERNAL_FIELD_OPTION_VALUES.none);
     cy.get('@nodesTab').find('#node-label-variable').click({ force: true });
     cy.contains('li[role="option"]', labelVariable).click({ force: true });
     cy.window().its('commonService.session.style.widgets.node-label-variable').should('equal', labelVariable);
@@ -88,7 +90,7 @@ describe('Journey Flow - Uploaded node labels and tooltips coexist with style', 
     cy.get('#tooltip #tooltip-table').should('be.visible').within(() => {
       cy.contains('td', 'Profession').should('be.visible');
       cy.contains('td', expectedNodeLabel).should('be.visible');
-      cy.contains('td', 'Node Type').should('be.visible');
+      cy.contains('td', 'Node type').should('be.visible');
       cy.contains('td', 'Person').should('be.visible');
     });
     cy.window().invoke('Cypress.test.tooltip', 'hide', targetNodeId);

@@ -4,8 +4,17 @@ import {
   buildVisibleClusterSummary,
   isThresholdControlledGeneticLink,
 } from './threshold-analysis';
+import { createFieldOptionValue } from './internal-field-options';
 
 describe('threshold analysis endpoint normalization', () => {
+  it('reads an escaped real None column as the selected metric', () => {
+    const cache = buildStoredDistanceEdgeCache(
+      [{ _id: 'A' }, { _id: 'B' }], [{ source: 'A', target: 'B', None: 2 }],
+      createFieldOptionValue('None', ['None']), 1
+    );
+    expect(cache.sortedEdges.map(edge => edge.value)).toEqual([2]);
+  });
+
   const nodes = [
     { _id: 'A' },
     { _id: 'B' },

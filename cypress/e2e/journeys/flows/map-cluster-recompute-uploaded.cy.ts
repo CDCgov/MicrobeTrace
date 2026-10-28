@@ -146,7 +146,7 @@ describe('Journey Flow - Map uploaded cluster-color recompute', () => {
     goToMapView();
 
     openMapSettingsDialog();
-    selectMapField('map-field-zipcode', 'Zipcode', 'map-field-zipcode', 'Zip_code');
+    selectMapField('map-field-zipcode', 'Zip_code', 'map-field-zipcode', 'Zip_code');
     setMapNodeCollapsing('Off');
     cy.closeSettingsPane('Geospatial Settings');
 
@@ -157,8 +157,8 @@ describe('Journey Flow - Map uploaded cluster-color recompute', () => {
     });
 
     openGlobalStylingTab();
-    selectPrimeOption('#node-color-variable', 'Cluster');
-    selectPrimeOption('#link-tooltip-variable', 'Cluster');
+    selectPrimeOption('#node-color-variable', 'cluster');
+    selectPrimeOption('#link-tooltip-variable', 'cluster');
 
     cy.window().its('commonService.session.style.widgets.node-color-variable').should('equal', 'cluster');
     cy.window().its('commonService.session.style.widgets.link-color-variable').should('equal', 'cluster');

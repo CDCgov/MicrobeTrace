@@ -19,30 +19,30 @@ import {
 describe('Journey Flow - Table uploaded controls', () => {
   const profile = getProfile('map-color-by-uploaded');
 
-  it('sorts node-table rows ascending and descending by Id', () => {
+  it('sorts node-table rows ascending and descending by _id', () => {
     launchProfileToTwoD(profile);
     assertAfterLaunchCounts(profile);
     goToTableView();
 
-    assertFirstVisibleRowValue('Id', 'A');
+    assertFirstVisibleRowValue('_id', 'A');
 
     cy.get('.table-wrapper .p-datatable-thead tr')
       .first()
-      .contains('th', 'Id')
+      .contains('th', '_id')
       .click({ force: true });
-    assertFirstVisibleRowValue('Id', 'A');
+    assertFirstVisibleRowValue('_id', 'A');
 
     cy.get('.table-wrapper .p-datatable-thead tr')
       .first()
-      .contains('th', 'Id')
+      .contains('th', '_id')
       .click({ force: true });
-    assertFirstVisibleRowValue('Id', 'D');
+    assertFirstVisibleRowValue('_id', 'D');
 
     cy.get('.table-wrapper .p-datatable-thead tr')
       .first()
-      .contains('th', 'Id')
+      .contains('th', '_id')
       .click({ force: true });
-    assertFirstVisibleRowValue('Id', 'A');
+    assertFirstVisibleRowValue('_id', 'A');
   });
 
   it('reapplies per-dataset filters after switching away and back', () => {
@@ -50,23 +50,23 @@ describe('Journey Flow - Table uploaded controls', () => {
     assertAfterLaunchCounts(profile);
     goToTableView();
 
-    setTableFilterType('Id', '=');
-    setTableFilterValue('Id', 'D');
+    setTableFilterType('_id', '=');
+    setTableFilterValue('_id', 'D');
     assertTableVisibleRowCount(1);
 
     selectTableDataset('Link');
-    setTableFilterType('Source', '=');
-    setTableFilterValue('Source', 'A');
+    setTableFilterType('source', '=');
+    setTableFilterValue('source', 'A');
     assertTableVisibleRowCount(2);
 
     selectTableDataset('Node');
-    assertTableFilterType('Id', '=');
-    assertTableFilterValue('Id', 'D');
+    assertTableFilterType('_id', '=');
+    assertTableFilterValue('_id', 'D');
     assertTableVisibleRowCount(1);
 
     selectTableDataset('Link');
-    assertTableFilterType('Source', '=');
-    assertTableFilterValue('Source', 'A');
+    assertTableFilterType('source', '=');
+    assertTableFilterValue('source', 'A');
     assertTableVisibleRowCount(2);
   });
 });

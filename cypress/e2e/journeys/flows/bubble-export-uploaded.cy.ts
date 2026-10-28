@@ -167,7 +167,7 @@ describe('Journey Flow - Bubble export on uploaded data', () => {
 
     openBubbleSettingsDialog();
     setBubbleAxis('#bubble-axis-x', 'State', 'bubble-x', 'State');
-    setBubbleAxis('#bubble-axis-y', 'NodeClass', 'bubble-y', 'Node_Class');
+    setBubbleAxis('#bubble-axis-y', 'Node_Class', 'bubble-y', 'Node_Class');
     cy.closeSettingsPane('Bubble Settings');
 
     openGlobalStylingTab();

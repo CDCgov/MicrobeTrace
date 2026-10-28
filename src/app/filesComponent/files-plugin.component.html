@@ -40,7 +40,7 @@
                   class="form-control form-control-sm"
                   [ngModel]="getFileTableFieldValue(row, fieldNumber)"
                   (ngModelChange)="onFileTableFieldChange(row, fieldNumber, $event)">
-                  <option value="None">None</option>
+                  <option [value]="noFieldOptionValue">{{ row.headers.includes('None') ? 'None (No field)' : 'None' }}</option>
                   @for (option of row.headerOptions; track option.value) {
                     <option [value]="option.value">{{ option.label }}</option>
                   }

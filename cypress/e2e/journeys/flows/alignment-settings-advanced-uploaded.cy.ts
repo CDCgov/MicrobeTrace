@@ -275,7 +275,7 @@ describe('Journey Flow - Alignment uploaded advanced settings', () => {
     assertAlignmentReady();
 
     openAlignmentSettingsSection('Labels and Order');
-    selectAlignmentOption('#alignment-label-field', 'Gender', false);
+    selectAlignmentOption('#alignment-label-field', 'gender', false);
 
     cy.window().then((win: unknown) => {
       const alignment = (win as AlignmentWindow).commonService.visuals.alignment;
@@ -318,7 +318,7 @@ describe('Journey Flow - Alignment uploaded advanced settings', () => {
 
     openAlignmentSettingsSection('Labels and Order');
 
-    selectAlignmentOption('#alignment-sort-field', 'Age', false);
+    selectAlignmentOption('#alignment-sort-field', 'age', false);
     cy.window().then((win: unknown) => {
       const alignment = (win as AlignmentWindow).commonService.visuals.alignment;
       expect(alignment.widgets['alignView-sortField']).to.equal('age');
@@ -327,7 +327,7 @@ describe('Journey Flow - Alignment uploaded advanced settings', () => {
       expect(visibleLabels).to.deep.equal(expectedAgeOrder);
     });
 
-    selectAlignmentOption('#alignment-sort-field', 'Subtype', false);
+    selectAlignmentOption('#alignment-sort-field', 'subtype', false);
     cy.window().then((win: unknown) => {
       const alignment = (win as AlignmentWindow).commonService.visuals.alignment;
       expect(alignment.widgets['alignView-sortField']).to.equal('subtype');

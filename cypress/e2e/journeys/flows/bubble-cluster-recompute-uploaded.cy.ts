@@ -179,12 +179,12 @@ describe('Journey Flow - Bubble uploaded cluster recompute', () => {
     goToBubbleView();
 
     openBubbleSettingsDialog();
-    setBubbleAxis('#bubble-axis-x', 'Cluster', 'bubble-x', 'cluster');
+    setBubbleAxis('#bubble-axis-x', 'cluster', 'bubble-x', 'cluster');
     setBubbleAxis('#bubble-axis-y', 'State', 'bubble-y', 'State');
     cy.closeSettingsPane('Bubble Settings');
 
     openGlobalStylingTab();
-    selectPrimeOption('#node-color-variable', 'Cluster');
+    selectPrimeOption('#node-color-variable', 'cluster');
     cy.window().its('commonService.session.style.widgets.node-color-variable').should('equal', 'cluster');
     cy.get('#key-tables-node-table', { timeout: 15000 }).then(($table) => {
       clusterColorsBefore = extractColorTable($table);
@@ -260,7 +260,7 @@ describe('Journey Flow - Bubble uploaded cluster recompute', () => {
     cy.closeSettingsPane('Bubble Settings');
 
     openGlobalStylingTab();
-    selectPrimeOption('#node-color-variable', 'Cluster');
+    selectPrimeOption('#node-color-variable', 'cluster');
     cy.window().its('commonService.session.style.widgets.node-color-variable').should('equal', 'cluster');
     cy.closeGlobalSettings();
 

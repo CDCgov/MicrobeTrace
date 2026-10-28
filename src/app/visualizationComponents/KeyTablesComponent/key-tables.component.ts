@@ -442,6 +442,10 @@ export class KeyTablesComponent extends BaseComponentDirective implements OnInit
         return this.visuals.microbeTrace?.commonService?.titleize(key) ?? key;
     }
 
+    formatNodeShapeField(value: string): string {
+        return this.visuals.microbeTrace?.commonService?.getFieldOptionDisplayLabel?.(value) ?? value;
+    }
+
     getKeyTableColumnDisplayName(table: string, column: string, fallback: string): string {
         return this.visuals.microbeTrace?.getKeyTableColumnDisplayName(table, column, fallback)
             ?? fallback;

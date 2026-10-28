@@ -34,7 +34,7 @@ describe('Bubble View', () => {
 
     it('updates X to Lineage and Y to Cluster and refreshes the bubble layout', () => {
       updateVariable('X', 'Lineage')
-      updateVariable('Y', 'Cluster')
+      updateVariable('Y', 'cluster')
       cy.closeSettingsPane('Bubble Settings');
 
       cy.window().then((win: any) => {
@@ -50,7 +50,7 @@ describe('Bubble View', () => {
     });
 
     it('toggles collapse on and off and tests the tooltip', () => {
-      updateVariable('X', 'Cluster')
+      updateVariable('X', 'cluster')
 
       updateCollapsed(true, false)
       cy.window().then((win: any) => {
@@ -90,7 +90,7 @@ describe('Bubble View', () => {
     });
 
     it('updates node size and spacing with individual nodes (collapse == false)', () => {
-      updateVariable('X', 'Cluster')
+      updateVariable('X', 'cluster')
 
       cy.window().its('commonService.visuals.bubble.nodeSize').should('equal', 15);
       cy.get('div[title="How big should the nodes be?"').find('input.custom-range').invoke('val', 25).trigger('input').trigger('change');
@@ -107,7 +107,7 @@ describe('Bubble View', () => {
     })
 
     it('updates node size and spacing with nodes collaped', () => {
-      updateVariable('X', 'Cluster')
+      updateVariable('X', 'cluster')
 
       cy.contains('.p-selectbutton .p-togglebutton-label', 'On').click();
       cy.window().then((win: any) => {
@@ -133,14 +133,14 @@ describe('Bubble View', () => {
     })
 
     it('updates label size', () => {
-      updateVariable('X', 'Cluster')
+      updateVariable('X', 'cluster')
       updateVariable('Y', 'Lineage')
       updateLabelSize(32, false)
       cy.closeSettingsPane('Bubble Settings')
     })
 
     it('updates X variable to CollectionDate and set it as a date variable', () => {
-      updateVariable('X', 'CollectionDate', true)
+      updateVariable('X', 'Collection_Date', true)
       getCy().then(cytoscapeInstance => {
         const testNode1 = cytoscapeInstance.nodes('[id = "MZ787305"]')[0]
         let { x: x1, y: y1 } = testNode1.position()
@@ -227,7 +227,7 @@ describe('Bubble View', () => {
     it('should apply color table transparency to only matching collapsed pie slices', () => {
       const alpha = 0.35;
 
-      updateVariable('X', 'Cluster')
+      updateVariable('X', 'cluster')
       updateCollapsed(true, false)
       cy.closeSettingsPane('Bubble Settings')
       cy.openGlobalSettings();
@@ -256,13 +256,13 @@ describe('Bubble View', () => {
     })
 
     it('should update link threhold to split/merge clusters, node positions and color should be updated', () => {
-      updateVariable('X', 'Cluster')
-      updateVariable('Y', 'Cluster')
+      updateVariable('X', 'cluster')
+      updateVariable('Y', 'cluster')
       cy.closeSettingsPane('Bubble Settings')
       
       cy.openGlobalSettings();
       cy.get('#node-color-variable').click()
-      cy.get('li[role="option"]').contains('Cluster').click()
+      cy.get('li[role="option"]').contains('cluster').click()
       cy.contains('#global-settings-modal .nav-link', 'Filtering').click();
       for (let i = 0; i < 6; i++) {
         cy.get('#link-threshold').type('{uparrow}');
@@ -318,7 +318,7 @@ describe('Bubble View', () => {
       
       cy.openGlobalSettings();
       cy.get('#node-color-variable').click()
-      cy.get('li[role="option"]').contains('Cluster').click()
+      cy.get('li[role="option"]').contains('cluster').click()
       cy.wait(500)
       let initialDef;
       let initialBGImage;
@@ -344,7 +344,7 @@ describe('Bubble View', () => {
         expect(updatedBGImage).to.not.eq(initialBGImage)
 
         cy.get(selectors.settingsBtn).click();
-        updateVariable('X', 'Cluster')
+        updateVariable('X', 'cluster')
         cy.wait(500).then(() => size1 = parseFloat(cytoscapeInstance.nodes()[1].style().height))
       })
 

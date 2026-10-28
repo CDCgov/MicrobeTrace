@@ -215,7 +215,7 @@
                             <label for="node-tooltip-variable">Tooltip</label>
                           </div>
                           <div class="col-8">
-                            <p-multi-select [options]="commonService.session.data['nodeFields']" appendTo="body" [showToggleAll]=false [showHeader]=false class="width-percent-100"
+                            <p-multi-select [options]="NodeToolTipFieldList" appendTo="body" [showToggleAll]=false [showHeader]=false class="width-percent-100"
                               [(ngModel)]="commonService.session.style.widgets['node-tooltip-variable']" (onChange)="onNodeTooltipVariableChange($event.value)"
                             ></p-multi-select>
                           </div>

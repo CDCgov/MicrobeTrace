@@ -1,6 +1,18 @@
 import { buildCanonicalNodeColorCounts, canonicalizeMixedNodeColorComponents, ColorMappingService, formatMixedNodeColorDisplayName, getMixedNodeColorLegendEntries, getMixedNodeColorSegments, normalizeNodeStyleCategoryValue, parseMixedNodeColorValue, parseWeightedMixedNodeColorValue } from './color-mapping.service';
+import { createFieldOptionValue } from './internal-field-options';
 
 describe('mixed node color helpers', () => {
+  it('builds color categories from a real field named None', () => {
+    const field = createFieldOptionValue('None', ['None']);
+    const service = new ColorMappingService();
+    const result = service.createNodeColorMap(
+      [{ visible: true, None: 'A' }, { visible: true, None: 'B' }],
+      field, ['#112233', '#445566'], [1, 1], {}, {}, {}, {}, false, false
+    );
+    expect(result.updatedColorsTableKeys[field]).toEqual(['A', 'B']);
+    expect(result.colorMap('A')).not.toBe(result.colorMap('B'));
+  });
+
   it('normalizes null-like aliases to the shared empty category', () => {
     expect([
       undefined,

@@ -206,7 +206,7 @@ describe('Journey Flow - Aggregate uploaded controls and reactivity', () => {
     openGlobalFilteringTab();
     cy.window().its('commonService.session.style.widgets.link-sort-variable').should('equal', 'distance');
     cy.get('#link-sort-variable').click({ force: true });
-    cy.contains('li[role="option"]', 'Score').click({ force: true });
+    cy.contains('li[role="option"]', 'score').click({ force: true });
     setGlobalLinkThreshold(0.1);
     cy.closeGlobalSettings();
     waitForProcessingDialogToClear();

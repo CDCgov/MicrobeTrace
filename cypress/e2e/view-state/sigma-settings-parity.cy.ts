@@ -247,7 +247,7 @@ describe('Sigma settings parity', () => {
         clientY: 120,
       }));
     });
-    cy.get('#tooltip #tooltip-table').should('be.visible').and('contain.text', 'Cluster');
+    cy.get('#tooltip #tooltip-table').should('be.visible').and('contain.text', 'cluster');
 
     cy.window().then(win => {
       const twoD = (win as any).commonService.visuals.twoD;

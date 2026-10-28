@@ -45,7 +45,7 @@ describe('Journey Flow - Node color history is scoped by field', () => {
     ensureTwoDNetworkView();
     openGlobalStylingTab();
 
-    selectPrimeOption('#node-color-variable', 'Seedgroups');
+    selectPrimeOption('#node-color-variable', 'seed_groups');
 
     cy.window().should((win: any) => {
       const style = win.commonService.session.style as NodeColorStyle;
@@ -58,7 +58,7 @@ describe('Journey Flow - Node color history is scoped by field', () => {
       expect(style.nodeColorsTableHistory.seed_groups['6']).to.equal('#96341c');
     });
 
-    selectPrimeOption('#node-color-variable', 'Raremutations');
+    selectPrimeOption('#node-color-variable', 'rare_mutations');
 
     cy.window().should((win: any) => {
       const style = win.commonService.session.style as NodeColorStyle;

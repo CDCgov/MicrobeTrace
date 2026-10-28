@@ -19,6 +19,12 @@ import { REFERENCE, HBX2, WATERMARK } from '@app/constants/longStrings.constants
 import { ColorMappingService, NodeFillStyle, getMixedNodeColorSegments, normalizeNodeStyleCategoryValue } from './color-mapping.service';
 import { WorkerComputeService } from './worker-compute.service';
 import {
+    assignEnumerableOwnProperties,
+    assignPrototypeSensitiveOwnProperties,
+    withoutPrototypeSensitiveOwnProperties
+} from './safe-object-properties';
+import { createFieldSelectOptions, getFieldNameFromOptionValue, getFieldOptionValue } from './internal-field-options';
+import {
     buildStoredDistanceEdgeCache,
     buildThresholdSweepSummary,
     buildVisibleClusterSummary,
@@ -857,7 +863,7 @@ export class CommonService extends AppComponentBase implements OnInit {
             };
         }
 
-        const value = node[variable];
+        const value = this.getFieldValue(node, variable);
         const normalizedValue = this.normalizeNodeStyleCategoryValue(value);
         const colorHistory = this.session.style.nodeColorsTableHistory?.[variable];
         const historicalColor = colorHistory?.[normalizedValue];
@@ -1293,13 +1299,12 @@ export class CommonService extends AppComponentBase implements OnInit {
         const fields = this.session?.data?.nodeFields || [];
         const styleableFields = fields.filter(field => {
             const normalizedField = `${field ?? ''}`;
-            const normalizedKey = normalizedField.toLowerCase();
 
-            if (!this.isStyleableNodeField(normalizedField) || seenFields.has(normalizedKey)) {
+            if (!this.isStyleableNodeField(normalizedField) || seenFields.has(normalizedField)) {
                 return false;
             }
 
-            seenFields.add(normalizedKey);
+            seenFields.add(normalizedField);
             return true;
         });
 
@@ -1827,7 +1832,7 @@ export class CommonService extends AppComponentBase implements OnInit {
                 const node = nodes[i];
                 if (node._id == newNode._id) {
                     newNode.origin = this.uniq(newNode.origin.concat(node.origin));
-                    Object.assign(node, newNode);
+                    assignEnumerableOwnProperties(node, newNode);
                     return 0;
                 }
             }
@@ -1835,7 +1840,7 @@ export class CommonService extends AppComponentBase implements OnInit {
 
 
 
-        let newElement = Object.assign(this.defaultNode(), newNode);
+        let newElement = assignEnumerableOwnProperties(this.defaultNode(), newNode);
 
         if (Object.prototype.hasOwnProperty.call(newNode, 'data') && Object.prototype.hasOwnProperty.call(newNode.data, 'data')) {
           newElement.data = newNode.data.data;
@@ -1962,7 +1967,8 @@ export class CommonService extends AppComponentBase implements OnInit {
             }
             
 
-            _.merge(oldLink, newLink);
+            _.merge(oldLink, withoutPrototypeSensitiveOwnProperties(newLink));
+            assignPrototypeSensitiveOwnProperties(oldLink, newLink);
 
             oldLink.origin = myorigin;
             this.setLinkAllOrigins(oldLink, myorigin);
@@ -1984,7 +1990,7 @@ export class CommonService extends AppComponentBase implements OnInit {
             if(origin.length > 1) {
                 newLink.hasDistance = true;
             }
-            Object.assign(oldLink, newLink, { origin: origin });
+            assignEnumerableOwnProperties(oldLink, newLink, { origin: origin });
             this.setLinkAllOrigins(oldLink, origin);
             linkIsNew = 0;
 
@@ -1994,7 +2000,7 @@ export class CommonService extends AppComponentBase implements OnInit {
              newLink.id =  id; 
 
              if (newLink.hasDistance || newLink.origin.length > 1) {
-                newLink = Object.assign({
+                newLink = assignEnumerableOwnProperties({
                 index: sdlinks.length,
                 source: "",
                 target: "",
@@ -2004,7 +2010,7 @@ export class CommonService extends AppComponentBase implements OnInit {
                 hasDistance: true
                 }, newLink);
             } else {
-                newLink = Object.assign({
+                newLink = assignEnumerableOwnProperties({
                 index: sdlinks.length,
                 source: "",
                 target: "",
@@ -2386,7 +2392,7 @@ export class CommonService extends AppComponentBase implements OnInit {
             return this.getLinkAllOrigins(record);
         }
 
-        return record?.[field];
+        return this.getFieldValue(record, field);
     }
 
     private objectMatchesNetworkSubsetRule(
@@ -2588,7 +2594,7 @@ export class CommonService extends AppComponentBase implements OnInit {
 
         } else {
 
-            return this.temp.style.nodeColorMap( this.session.data.nodes[index][variable]);
+            return this.temp.style.nodeColorMap(this.getFieldValue(this.session.data.nodes[index], variable));
 
         }
     }
@@ -3719,7 +3725,7 @@ align(params): Promise<any> {
                         for (let j = 0; j < i; j++) {
                             const link = row[labels[j]];
                             if (link) {
-                                dm[i][j] = dm[j][i] = link[metric];
+                                dm[i][j] = dm[j][i] = this.getFieldValue(link, metric);
                             } else {
                                 dm[i][j] = dm[j][i] = null;
                             }
@@ -4041,12 +4047,11 @@ align(params): Promise<any> {
     private replaceSelectOptions(selector: string, fields: string[], includeNone = false) {
         const select = $(selector).empty();
 
-        if (includeNone) {
-            select.append($("<option>").text("None"));
-        }
-
-        fields.forEach(field => {
-            select.append($("<option>").val(field).text(this.titleize(field)));
+        const options = includeNone
+            ? this.createFieldSelectOptions(fields)
+            : fields.map(field => ({ value: field, label: this.getFieldDisplayLabel(field) }));
+        options.forEach(option => {
+            select.append($("<option>").val(option.value).text(option.label));
         });
 
         return select;
@@ -4984,6 +4989,27 @@ align(params): Promise<any> {
             .join(' ');
     };
 
+    /**
+     * Field names are identifiers as well as labels. Returning the exact name
+     * prevents distinct keys such as `id`, `_id`, and `l_at` from collapsing
+     * into the same visible option.
+     */
+    getFieldDisplayLabel(field: any): string {
+        return String(field ?? '');
+    }
+
+    getFieldOptionDisplayLabel(value: any): string {
+        return this.getFieldDisplayLabel(getFieldNameFromOptionValue(value));
+    }
+
+    getFieldValue(record: any, value: any): any {
+        return getFieldOptionValue(record, value);
+    }
+
+    createFieldSelectOptions(fields: readonly string[], noneValue: string = 'None') {
+        return createFieldSelectOptions(fields, noneValue);
+    }
+
     /** 
      * Set up the clusters; new clusters are created as needed; node.cluster is set to cluster id.
      * When a node is found that isn't in tempnodes, a cluster is created and a depth-first search is preformed.
@@ -5075,7 +5101,7 @@ align(params): Promise<any> {
                 node.visible = node.visible && cluster.visible;
             }
             if (node.visible && dateField != "None") {
-                const rawDateValue = node[dateField];
+                const rawDateValue = this.getFieldValue(node, dateField);
                 if (this.hasValidTimelineDateValue(rawDateValue) && timelineEnd) {
                     const nodeDate = moment(rawDateValue).toDate();
                     node.visible =
@@ -5158,7 +5184,7 @@ align(params): Promise<any> {
     
     
             // Visibility Logic based on metric/threshold/hasDistance
-            if (link[metric] == null) { // No distance value for the current metric
+            if (this.getFieldValue(link, metric) == null) { // No distance value for the current metric
                  // Check for non-distance origins using the *copy*
                 if (finalOrigins.filter(fileName => !this.isDistanceBackedOrigin(fileName, distanceOrigins)).length > 0) {
                     // Filter the *copy* for visibility check
@@ -5170,7 +5196,7 @@ align(params): Promise<any> {
                 }
             } else { // Has a distance value for the current metric
                 if (link.hasDistance) {
-                    visible = link[metric] <= threshold;
+                    visible = this.getFieldValue(link, metric) <= threshold;
                     if (!visible) {
                          // Distance is above threshold. Check for other origins using the *copy*.
                         if (finalOrigins.filter(fileName => {

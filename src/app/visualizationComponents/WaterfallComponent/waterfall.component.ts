@@ -393,7 +393,7 @@ export class WaterfallComponent extends BaseComponentDirective implements OnInit
     return Object.keys(source)
       .filter(k => !(this.metaDataToSkip.includes(k) || k.charAt(0) == '_' || typeof source[k] == 'object'))
       .map(k => {
-        const prop = this.commonService.titleize(k);
+        const prop = this.commonService.getFieldDisplayLabel(k);
         const isNumericValue = typeof source[k] == 'number';
         const shouldFormatClusterDistance = formatClusterSummary && k == 'mean_genetic_distance' && isNumericValue;
         const shouldFormatLinksPerNode = formatClusterSummary && k == 'links_per_node' && isNumericValue;

@@ -50,6 +50,14 @@ import {
 } from '@app/contactTraceCommonServices/network-geography.model';
 import { createGlobalSettingsDialogRequest, GlobalSettingsDialogRequest } from '@app/helperClasses/globalSettingsDialogRequest';
 import {
+    createFieldOptionValue,
+    getFieldNameFromOptionValue,
+    getInternalFieldOptionLabel,
+    INTERNAL_FIELD_OPTION_VALUES,
+    normalizeFieldOptionValue
+} from '@app/contactTraceCommonServices/internal-field-options';
+import { defineEnumerableOwnProperty } from '@app/contactTraceCommonServices/safe-object-properties';
+import {
     canCreateWebGL2Context,
     resolveNetworkRendererMode,
     shouldUseTableOnlyCanvasFallback,
@@ -406,8 +414,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             return null;
         }
 
-        const groupingField = String(this.widgets?.['polygons-foci'] || '').trim();
-        return groupingField && groupingField !== 'None' ? groupingField : null;
+        return this.getNodeFieldName(this.widgets?.['polygons-foci']);
     }
 
     private syncSigmaPolygonGroups(nodes: any[], groupingField: string | null): void {
@@ -583,7 +590,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         this.commonService.getStyleableNodeFields().forEach(field => {
             const value = node?.[field];
             if (this.isCytoscapeNodeMetadataValue(value)) {
-                metadata[field] = value;
+                defineEnumerableOwnProperty(metadata, field, value);
             }
         });
 
@@ -815,8 +822,20 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
     selected: any = null;
     zoom: any = null;
     FieldList: SelectItem[] = [];
+    NodeToolTipFieldList: SelectItem[] = [];
     ToolTipFieldList: SelectItem[] = [];
     LinkToolTipList: SelectItem[] = [];
+    readonly noFieldOptionValue = INTERNAL_FIELD_OPTION_VALUES.none;
+    private readonly legacyNodeFieldOptions = Object.freeze({
+        None: INTERNAL_FIELD_OPTION_VALUES.none
+    });
+    private readonly legacyLinkFieldOptions = Object.freeze({
+        None: INTERNAL_FIELD_OPTION_VALUES.none,
+        source_id: INTERNAL_FIELD_OPTION_VALUES.linkSourceId,
+        source_index: INTERNAL_FIELD_OPTION_VALUES.linkSourceIndex,
+        target_id: INTERNAL_FIELD_OPTION_VALUES.linkTargetId,
+        target_index: INTERNAL_FIELD_OPTION_VALUES.linkTargetIndex
+    });
 
     ctrlPressed: boolean = false;
     dragging: boolean = false;
@@ -844,9 +863,9 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
     ]
     // Node Tab    
     SelectedNodeLabelOrientationVariable: 'Right' | 'Left' | 'Top' | 'Bottom' | 'Middle' = 'Middle';
-    SelectedNodeLabelVariable: string = "None";
-    SelectedNodeTooltipVariable: any = "None";
-    SelectedNodeRadiusVariable: string = "None";
+    SelectedNodeLabelVariable: string = INTERNAL_FIELD_OPTION_VALUES.none;
+    SelectedNodeTooltipVariable: any = [];
+    SelectedNodeRadiusVariable: string = INTERNAL_FIELD_OPTION_VALUES.none;
     SelectedNodeRadiusSizeVariable: number = 50;
     SelectedNodeCollapseTypeVariable: boolean = false;
     SelectedNodeCollapseThresholdDisplayedVariable: number = 0;
@@ -860,11 +879,11 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
     polygonColorTableHeaders = { value: '', count: 'Count', frequency: 'Frequency' };
 
     // Link Tab
-    SelectedLinkTooltipVariable: any = "None";
-    SelectedLinkLabelVariable: string = "None";
+    SelectedLinkTooltipVariable: any = [];
+    SelectedLinkLabelVariable: string = INTERNAL_FIELD_OPTION_VALUES.none;
     SelectedLinkDecimalVariable: number = 3;
     SelectedLinkTransparencyVariable: any = 1;
-    SelectedLinkWidthByVariable: string = "None";
+    SelectedLinkWidthByVariable: string = INTERNAL_FIELD_OPTION_VALUES.none;
     SelectedLinkWidthMax: number = 27;
     SelectedLinkWidthMin: number = 3;
 
@@ -2525,7 +2544,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         }
 
         return buildCanonicalNodeColorCounts(
-            memberNodes.map(node => node?.[colorVariable]),
+            memberNodes.map(node => this.commonService.getFieldValue(node, colorVariable)),
             this.commonService.session.style.nodeColorsTableKeys?.[colorVariable] || [],
             this.widgets['node-mixed-colors-enabled'] === true
         );
@@ -2543,7 +2562,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                 };
             }
 
-            const syntheticNode = { [colorVariable]: label };
+            const syntheticNode = { [getFieldNameFromOptionValue(colorVariable)]: label };
             return this.commonService.getNodeFillStyle(syntheticNode);
         });
     }
@@ -2556,7 +2575,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         }
 
         const label = counts[0]?.label ?? '';
-        const nodeStyle = this.commonService.getNodeFillStyle({ [colorVariable]: label });
+        const nodeStyle = this.commonService.getNodeFillStyle({ [getFieldNameFromOptionValue(colorVariable)]: label });
         return [nodeStyle.color, nodeStyle.alpha];
     }
 
@@ -3426,7 +3445,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         })
 
         // moves parent (parent and indepent) nodes
-        if (this.widgets['polygons-foci'] != 'None') {
+        if (this.getActiveNodeGroupingField()) {
             pNodes2.forEach(node => {
                 let cyNode = cyNodeById.get(node.id);
                 if (cyNode) {
@@ -3749,6 +3768,55 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         }
         this.commonService.updateNodePosition(nodeId, newPosition);
     }
+
+    private normalizeLinkFieldOption(value: any): string {
+        return normalizeFieldOptionValue(value, this.legacyLinkFieldOptions);
+    }
+
+    private normalizeNodeFieldOption(value: any): string {
+        return normalizeFieldOptionValue(value, this.legacyNodeFieldOptions);
+    }
+
+    private normalizeNodeTooltipOptions(value: any): string[] {
+        return this.ensureArray(value)
+            .map(option => this.normalizeNodeFieldOption(option))
+            .filter(option => option !== this.noFieldOptionValue);
+    }
+
+    private getNodeFieldName(value: any): string | null {
+        return getFieldNameFromOptionValue(value);
+    }
+
+    private normalizeLinkTooltipOptions(value: any): string[] {
+        const values = this.ensureArray(value);
+        return values
+            .map(option => this.normalizeLinkFieldOption(option))
+            .filter(option => option !== this.noFieldOptionValue);
+    }
+
+    private getLinkFieldName(value: any): string | null {
+        return getFieldNameFromOptionValue(value);
+    }
+
+    private getLinkFieldOptionLabel(value: any): string {
+        return getInternalFieldOptionLabel(value) ||
+            this.commonService.getFieldDisplayLabel(this.getLinkFieldName(value));
+    }
+
+    private getLinkOptionDataValue(data: any, value: any): any {
+        if (value === INTERNAL_FIELD_OPTION_VALUES.linkSourceId ||
+            value === INTERNAL_FIELD_OPTION_VALUES.linkSourceIndex) {
+            return data?.source;
+        }
+        if (value === INTERNAL_FIELD_OPTION_VALUES.linkTargetId ||
+            value === INTERNAL_FIELD_OPTION_VALUES.linkTargetIndex) {
+            return data?.target;
+        }
+
+        const fieldName = this.getLinkFieldName(value);
+        return fieldName ? data?.[fieldName] : undefined;
+    }
+
     /** Initializes the view.
      * 
      * Defines the structure of the svg of twoD network and adds functionalities such as click, zoom, forces, etc...
@@ -3780,34 +3848,63 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
 
 
         // Use this method to prepare your variables before they're used in the template
-        this.commonService.session.style.widgets['node-tooltip-variable'] = this.ensureArray(this.commonService.session.style.widgets['node-tooltip-variable']);
-        this.commonService.session.style.widgets['link-tooltip-variable'] = this.ensureArray(this.commonService.session.style.widgets['link-tooltip-variable']);
+        this.commonService.session.style.widgets['node-tooltip-variable'] = this.normalizeNodeTooltipOptions(
+            this.commonService.session.style.widgets['node-tooltip-variable']
+        );
+        this.commonService.session.style.widgets['node-label-variable'] = this.normalizeNodeFieldOption(
+            this.commonService.session.style.widgets['node-label-variable']
+        );
+        this.commonService.session.style.widgets['node-radius-variable'] = this.normalizeNodeFieldOption(
+            this.commonService.session.style.widgets['node-radius-variable']
+        );
+        this.commonService.session.style.widgets['polygons-foci'] = this.normalizeNodeFieldOption(
+            this.commonService.session.style.widgets['polygons-foci']
+        );
+        this.commonService.session.style.widgets['link-tooltip-variable'] = this.normalizeLinkTooltipOptions(
+            this.commonService.session.style.widgets['link-tooltip-variable']
+        );
+        this.commonService.session.style.widgets['link-label-variable'] = this.normalizeLinkFieldOption(
+            this.commonService.session.style.widgets['link-label-variable']
+        );
+        this.commonService.session.style.widgets['link-width-variable'] = this.normalizeLinkFieldOption(
+            this.commonService.session.style.widgets['link-width-variable']
+        );
+        this.SelectedLinkTooltipVariable = this.commonService.session.style.widgets['link-tooltip-variable'];
+        this.SelectedLinkLabelVariable = this.commonService.session.style.widgets['link-label-variable'];
+        this.SelectedLinkWidthByVariable = this.commonService.session.style.widgets['link-width-variable'];
+        this.SelectedNodeLabelVariable = this.commonService.session.style.widgets['node-label-variable'];
+        this.SelectedNodeTooltipVariable = this.commonService.session.style.widgets['node-tooltip-variable'];
+        this.SelectedNodeRadiusVariable = this.commonService.session.style.widgets['node-radius-variable'];
         let that = this;
 
         if (this.IsDataAvailable === true && this.zoom === null) {
 
             console.log('--- TwoD InitView IsDataAvailable true');
             // populate this.twoD.FieldList with [None, ...nodeFields]
-            this.FieldList = [];
-            this.FieldList.push({ label: "None", value: "None" });
-            this.commonService.getStyleableNodeFields().forEach(d => {
-                this.FieldList.push(
-                    {
-                        label: this.commonService.capitalize(d.replace("_", "")),
-                        value: d
-                    });
+            this.FieldList = this.commonService.createFieldSelectOptions(
+                this.commonService.getStyleableNodeFields(), this.noFieldOptionValue
+            );
+            this.NodeToolTipFieldList = [];
+            this.commonService.session.data['nodeFields'].forEach(d => {
+                this.NodeToolTipFieldList.push({
+                    label: this.commonService.getFieldDisplayLabel(d),
+                    value: createFieldOptionValue(d, Object.keys(this.legacyNodeFieldOptions))
+                });
             });
 
             // populate this.ToolTipFieldList and this.LinkToolTipList
             this.ToolTipFieldList = [];
             this.LinkToolTipList = [];
-            this.ToolTipFieldList.push({ label: "None", value: "None" });
+            this.ToolTipFieldList.push({
+                label: this.commonService.session.data.linkFields.includes('None') ? 'None (No field)' : 'None',
+                value: this.noFieldOptionValue
+            });
             this.commonService.session.data['linkFields'].map((d, i) => {
                 if (d == 'source') {
                     let data = [
                         {
                             label: 'Source ID',
-                            value: 'source_id'
+                            value: INTERNAL_FIELD_OPTION_VALUES.linkSourceId
                         },
                         // {
                         //     label: 'Source Index',
@@ -3820,7 +3917,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                     let data = [
                         {
                             label: 'Target ID',
-                            value: 'target_id'
+                            value: INTERNAL_FIELD_OPTION_VALUES.linkTargetId
                         },
                         // {
                         //     label: 'Target Index',
@@ -3832,13 +3929,13 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                 } else {
                     this.LinkToolTipList.push(
                         {
-                            label: this.commonService.capitalize(d.replace("_", "")),
-                            value: d
+                            label: this.commonService.getFieldDisplayLabel(d),
+                            value: createFieldOptionValue(d, Object.keys(this.legacyLinkFieldOptions))
                         });
                     this.ToolTipFieldList.push(
                         {
-                            label: this.commonService.capitalize(d.replace("_", "")),
-                            value: d
+                            label: this.commonService.getFieldDisplayLabel(d),
+                            value: createFieldOptionValue(d, Object.keys(this.legacyLinkFieldOptions))
                         });
                 }
             });
@@ -4534,14 +4631,16 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
      */
     updatePolygonColors(tableSelector: string = this.getActivePolygonColorTableSelector()) {
         const microbeTrace = this.commonService.visuals.microbeTrace;
-        const legacyPolygonHeader = this.commonService.session.style.overwrite?.['polygonColorHeaderVariable'] === this.widgets['polygons-foci']
+        const polygonField = this.getNodeFieldName(this.widgets['polygons-foci']);
+        const legacyPolygonHeader = this.commonService.session.style.overwrite?.['polygonColorHeaderVariable'] === polygonField
             ? this.commonService.session.style.overwrite?.['polygonColorHeaderTitle']
             : undefined;
+        const polygonFieldLabel = this.commonService.getFieldDisplayLabel(polygonField);
         const valueColumnName = microbeTrace?.getKeyTableColumnDisplayName(
             'polygon-color',
             'value',
-            legacyPolygonHeader ?? 'Group ' + this.commonService.titleize(this.widgets['polygons-foci'])
-        ) ?? (legacyPolygonHeader ?? 'Group ' + this.commonService.titleize(this.widgets['polygons-foci']));
+            legacyPolygonHeader ?? 'Group ' + polygonFieldLabel
+        ) ?? (legacyPolygonHeader ?? 'Group ' + polygonFieldLabel);
         const countColumnName = microbeTrace?.getKeyTableColumnDisplayName('polygon-color', 'count', 'Count') ?? 'Count';
         const frequencyColumnName = microbeTrace?.getKeyTableColumnDisplayName('polygon-color', 'frequency', 'Frequency') ?? 'Frequency';
 
@@ -4940,7 +5039,11 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         this.removeParentNodesAndUngroupChildren(cy);
 
         const groupMap: Map<string, cytoscape.NodeSingular[]> = new Map();
-        let foci = this.commonService.session.style.widgets['polygons-foci'];
+        const foci = this.getActiveNodeGroupingField();
+        if (!foci) {
+            this.commonService.temp.polygonGroups = [];
+            return;
+        }
         const includeHiddenNodes = !this.isNodeCollapseEnabled();
         cy.nodes().forEach(node => {
             if (node.hasClass('parent') || (!includeHiddenNodes && node.hasClass('hidden'))) {
@@ -5430,7 +5533,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
 
         if (d.isCollapsedAggregate) {
           const totalCount = Number(d.totalCount || 0);
-          const colorVariable = this.commonService.capitalize(this.widgets['node-color-variable']);
+          const colorVariable = this.commonService.getFieldOptionDisplayLabel(this.widgets['node-color-variable']);
           const collapseMetric = this.getNodeCollapseMetric();
           const meanDistanceLabel = `Mean Distance (${this.getNodeCollapseMetricLabel(collapseMetric)})`;
           const meanDistanceValue = this.formatNodeCollapseDistanceForDisplay(d.meanInternalDistance, collapseMetric);
@@ -5451,9 +5554,13 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
           if (tt_var_len == 0) {
             return null;
           } else if (tt_var_len == 1) {
-           tooltipHtml =  `${d[this.widgets['node-tooltip-variable'][0]]}`
+           const fieldName = this.getNodeFieldName(this.widgets['node-tooltip-variable'][0]);
+           tooltipHtml = fieldName ? `${d[fieldName]}` : '';
           } else {
-            tooltipHtml =  this.tabulate(this.widgets['node-tooltip-variable'].map(variable => [this.titleize(variable), d[variable]]))
+            tooltipHtml = this.tabulate(this.widgets['node-tooltip-variable'].map(variable => {
+              const fieldName = this.getNodeFieldName(variable);
+              return [this.commonService.getFieldDisplayLabel(fieldName), fieldName ? d[fieldName] : undefined];
+            }))
           }
         }
 
@@ -5475,7 +5582,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
     showLinkTooltip(d, event) {
         let v: any = this.SelectedLinkTooltipVariable;
 
-        if (v == 'None') return;
+        if (v == 'None' || v == this.noFieldOptionValue) return;
 
 
         // Tooltip variables can be a single string or an array
@@ -5486,7 +5593,8 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         }
 
         // If no tooltip variable is selected, we shouldn't show a tooltip
-        if (tooltipVariables.length > 0 && tooltipVariables[0] == 'None')
+        if (tooltipVariables.length === 0 ||
+            tooltipVariables[0] == 'None' || tooltipVariables[0] == this.noFieldOptionValue)
             return;
 
         /**
@@ -5495,29 +5603,32 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
          * @returns the value of the link for the variable
          */
         let getData = (data, varName) => {
-            if (varName == 'source_id') {
+            if (varName == INTERNAL_FIELD_OPTION_VALUES.linkSourceId || varName == 'source_id') {
                 return data['source']//._id
-            // } else if (varName == 'source_index') {
+            // } else if (varName == INTERNAL_FIELD_OPTION_VALUES.linkSourceIndex || varName == 'source_index') {
             //     return data['source'].index
-            } else if (varName == 'target_id') {
+            } else if (varName == INTERNAL_FIELD_OPTION_VALUES.linkTargetId || varName == 'target_id') {
                 return data['target']//._id
-            // } else if (varName == 'target_index') {
+            // } else if (varName == INTERNAL_FIELD_OPTION_VALUES.linkTargetIndex || varName == 'target_index') {
             //     return data['target'].index
-            } else if (varName == 'distance') {
+            }
+
+            const fieldName = this.getLinkFieldName(varName);
+            if (fieldName == 'distance') {
                 if (data.hasDistance && data.distanceOrigin.includes(data.origin)) {
                     return this.formatLinkDistanceForDisplay(data['distance']);
                 } else {
                     return 'N/A';
                 }
             } else {
-                return data[varName];
+                return fieldName ? data[fieldName] : undefined;
             }
         }
 
         // Generate the HTML for the tooltip
         let tooltipHtml = '';
         if (tooltipVariables.length > 1) {
-            tooltipHtml = this.tabulate(tooltipVariables.map(variable => [this.titleize(variable), getData(d, variable)]));
+            tooltipHtml = this.tabulate(tooltipVariables.map(variable => [this.getLinkFieldOptionLabel(variable), getData(d, variable)]));
         } else {
             tooltipHtml = getData(d, tooltipVariables[0])
         }
@@ -5562,7 +5673,9 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
      */
     async centerPolygons(e, updateLayout: boolean = true, refreshCollapse: boolean = true) {
 
-        this.widgets['polygons-foci'] = e;
+        const optionValue = this.normalizeNodeFieldOption(e);
+        const groupingField = this.getNodeFieldName(optionValue);
+        this.widgets['polygons-foci'] = optionValue;
         if (this.sigmaActive) {
             this.refreshSigmaForStyleChange(updateLayout);
             return;
@@ -5573,7 +5686,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         }
 
         if (this.shouldChunkLargeNoLinkLayout()) {
-            this.updateGroupAssignmentsNoLinkFast(e);
+            this.updateGroupAssignmentsNoLinkFast(groupingField);
             if (this.widgets['polygons-color-show'] == true) {
                 console.log('centerPolygons: show ');
                 this.updatePolygonColors();
@@ -5584,12 +5697,12 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
 
         if (this.widgets['polygons-color-show'] == true) {
             console.log('centerPolygons: show ');
-            this.updateGroupAssignments(e);
+            this.updateGroupAssignments(groupingField);
             this.updatePolygonColors();
             this.updateGroupNodeColors();
         // Just update group assignments since not showing different colors
         } else {
-            this.updateGroupAssignments(e);
+            this.updateGroupAssignments(groupingField);
         }
         if (updateLayout) await this.updateLayout();
     }
@@ -5786,10 +5899,11 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             return;
         }
 
-        if (this.commonService.session.style.widgets['polygons-show'] == false || this.commonService.session.style.widgets['polygons-foci'] == 'None') {
+        const groupingField = this.getActiveNodeGroupingField();
+        if (this.commonService.session.style.widgets['polygons-show'] == false || !groupingField) {
             await this._partialUpdate();
         } else if (this.getRenderedLayoutLinks().length === 0) {
-            await this.applyNoLinkGroupedLayout(this.commonService.session.style.widgets['polygons-foci']);
+            await this.applyNoLinkGroupedLayout(groupingField);
         } else {
             await this.gatherGroups();
         }
@@ -6028,7 +6142,9 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                     });
                 });
 
-                cy.collection(group.values).move({ parent: parentId });
+                const members = cy.collection();
+                group.values.forEach(node => members.merge(node));
+                members.move({ parent: parentId });
             });
 
             this.applyPolygonLabelStyle();
@@ -6263,9 +6379,10 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
      * @param e the name of variable to change labels to
      */
     onNodeLabelVaribleChange(e) {
-
+        e = this.normalizeNodeFieldOption(e);
+        this.SelectedNodeLabelVariable = e;
         this.widgets['node-label-variable'] = e;
-        if (e == 'None') {
+        if (e == this.noFieldOptionValue) {
             $('.node-label-row').slideUp();
         } else {
             $('.node-label-row').css('display', 'flex');
@@ -6285,9 +6402,9 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             return Number(node.nodeSize);
         }
 
-        let sizeVariable = this.widgets['node-radius-variable'];
+        const sizeVariable = this.getNodeFieldName(this.widgets['node-radius-variable']);
 
-        if (sizeVariable == 'None') {
+        if (!sizeVariable) {
             return Number(this.widgets['node-radius']);
         } else {
 
@@ -6340,9 +6457,9 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         let variable = this.widgets['link-width-variable'];
 
         // console.log('--- TwoD getLinkWidth link1: ', scalar, variable);
-        if (variable == 'None') return scalar;
+        if (variable == 'None' || variable == this.noFieldOptionValue) return scalar;
 
-        const rawValue = link[variable];
+        const rawValue = this.getLinkOptionDataValue(link, variable);
         const numericValue = this.isNumber(rawValue) ? rawValue : Number(rawValue);
 
         if (!Number.isFinite(numericValue)) {
@@ -6363,7 +6480,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         let finalColor;
         let alphaValue;
         const linkColorValue = (() => {
-            const value = link[variable];
+            const value = this.commonService.getFieldValue(link, variable);
             if (String(variable).toLowerCase() === 'origin' && Array.isArray(value)) {
                 return value.length > 1 ? 'Duo-Link' : this.commonService.normalizeStyleCategoryValue(value[0]);
             }
@@ -6420,10 +6537,11 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
     getNodeLabel(node: any) {
 
         // If no label variable then should be none
+        const labelVariable = this.getNodeFieldName(this.widgets['node-label-variable']);
         if (node?.isCollapsedAggregate) {
             return '';
         }
-        return (this.widgets['node-label-variable'] == 'None') ? '' : (String(node[this.widgets['node-label-variable']]) || '');
+        return labelVariable ? (String(node[labelVariable]) || '') : '';
 
     }
 
@@ -6470,33 +6588,36 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
     getLinkLabel(link: any) {
 
         // console.log('link variable: ',this.widgets['link-label-variable'] );
-        let labelVariable = this.widgets['link-label-variable'];
+        const labelVariable = this.normalizeLinkFieldOption(this.widgets['link-label-variable']);
         // If no label variable then should be none
-        if (labelVariable == 'None') {
+        if (labelVariable == this.noFieldOptionValue) {
             return { text: '' };
         } else {
             // console.log('link variable2: ',this.commonService.session.data.links[index]);
 
-            if (labelVariable == 'source_id') {
+            if (labelVariable == INTERNAL_FIELD_OPTION_VALUES.linkSourceId) {
                 return { text: link['source'] }
-            } else if (labelVariable == 'source_index') {
+            } else if (labelVariable == INTERNAL_FIELD_OPTION_VALUES.linkSourceIndex) {
                 return { text: link['source'] } // currently doesn't work; previous link.source and link.target were object now they are just a string of the id
                 //return link['source']['index']
-            } else if (labelVariable == 'target_id') {
+            } else if (labelVariable == INTERNAL_FIELD_OPTION_VALUES.linkTargetId) {
                 return { text: link['target'] }
-            } else if (labelVariable == 'target_index') { // currently doesn't work; previous link.source and link.target were object now they are just a string of the id
+            } else if (labelVariable == INTERNAL_FIELD_OPTION_VALUES.linkTargetIndex) { // currently doesn't work; previous link.source and link.target were object now they are just a string of the id
                 return { text: link['target'] }
                 //return link['target']['index']
-            } else if (labelVariable == 'label') {
+            }
+
+            const fieldName = this.getLinkFieldName(labelVariable);
+            if (fieldName == 'label') {
                 const labelValue = this.getRawLinkLabel(link);
                 return { text: labelValue === undefined || labelValue === null ? '' : `${labelValue}` };
-            } else if (labelVariable != 'distance') {
-                return { text: `${link[labelVariable]}`  || '' };
+            } else if (fieldName != 'distance') {
+                return { text: fieldName ? `${link[fieldName]}` || '' : '' };
             }
             if (this.debugMode) {
                 console.log('cluster link: ', link);
             }
-            const labelValue = link[labelVariable];
+            const labelValue = link[fieldName];
             // check if link has a distance origin and if the distance origin is included in the link.origin array, if not then the label should be 0
             if (link.distanceOrigin && !link.origin.includes(link.distanceOrigin)) {
                 return { text: '' };
@@ -6609,13 +6730,8 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
      * updates node-tooltip-variable
      */
     onNodeTooltipVariableChange(e) {
-
-        let selectedValue = e;
-
-        if (!Array.isArray(selectedValue)) {
-            selectedValue = [selectedValue];
-        }
-
+        const selectedValue = this.normalizeNodeTooltipOptions(e);
+        this.SelectedNodeTooltipVariable = selectedValue;
         this.widgets['node-tooltip-variable'] = selectedValue;
 
     }
@@ -6628,10 +6744,11 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
     `;
 
     public onNodeRadiusVariableChange(e) {
-
+        e = this.normalizeNodeFieldOption(e);
+        this.SelectedNodeRadiusVariable = e;
         this.widgets['node-radius-variable'] = e;
 
-        if (e == 'None') {
+        if (e == this.noFieldOptionValue) {
             $('#node-max-radius-row').slideUp();
             $('#node-min-radius-row').slideUp();
             $('#node-radius-row').slideDown();
@@ -6853,7 +6970,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
 
             // layout.run();
             if (this.commonService.session.style.widgets['polygons-show']) {
-                this.updateGroupAssignments(this.widgets['polygons-foci'], false);
+                this.updateGroupAssignments(this.getActiveNodeGroupingField(), false);
             }
             this.restoreTimelineFinalCollapsedAggregateCyPositions();
             this.recordTwoDRenderTiming('twoDRerender', rerenderStart, {
@@ -7356,10 +7473,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
      * Updates link-tooltip-variable and SelectedLinkTooltipVariable to update what tooltip displays for links
      */
     onLinkTooltipVariableChange(e) {
-        if (!Array.isArray(e)) {
-            e = [e];
-        }
-        e = e.filter(item => item !== 'None')
+        e = this.normalizeLinkTooltipOptions(e);
 
         this.widgets['link-tooltip-variable'] = e;
         this.SelectedLinkTooltipVariable = this.widgets['link-tooltip-variable'];
@@ -7369,7 +7483,8 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
      * Updates link-label-variable widget and link labels
      */
     onLinkLabelVariableChange(e) {
-        let label: any = e;
+        let label: any = this.normalizeLinkFieldOption(e);
+        this.SelectedLinkLabelVariable = label;
         this.widgets['link-label-variable'] = label;
         if (this.refreshSigmaForStyleChange()) return;
         this.updateLinkLabels();
@@ -7429,7 +7544,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
     }
 
     updateLinkWidthRows(e) {
-        if (e == 'None') {
+        if (e == 'None' || e == this.noFieldOptionValue) {
             setTimeout(() => {
                 $('#link-reciprocalthickness-row').slideUp();
                 $('#link-max-width-row').slideUp();
@@ -7450,13 +7565,15 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
      * Updates link-width-variable widget and updates link width; Also cause min, max and reciprocal link width row to appear/disappear
      */
     onLinkWidthVariableChange(e) {
+        e = this.normalizeLinkFieldOption(e);
+        this.SelectedLinkWidthByVariable = e;
         this.updateLinkWidthRows(e);
         this.widgets['link-width-variable'] = e;
         this.updateMinMaxLink();
 
         if (this.refreshSigmaForStyleChange()) return;
 
-        if (e === 'None') {
+        if (e === this.noFieldOptionValue) {
             this.scaleLinkWidth();
             return;
         }
@@ -7486,7 +7603,10 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
      */
     updateMinMaxNode() {
         this.visNodes = this.commonService.getVisibleNodes();
-        let sizeVariable = this.widgets['node-radius-variable'];
+        const sizeVariable = this.getNodeFieldName(this.widgets['node-radius-variable']);
+        if (!sizeVariable) {
+            return;
+        }
     
         this.nodeMin = Infinity;
         this.nodeMax = -Infinity;
@@ -7553,7 +7673,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             ) {
                 continue;
             }
-            const value = Number(link[variable]);
+            const value = Number(this.getLinkOptionDataValue(link, variable));
             if (!Number.isFinite(value)) continue;
             if (value > this.linkMax) this.linkMax = value;
             if (value < this.linkMin) this.linkMin = value;
@@ -7722,7 +7842,7 @@ private updateArrowStyles(): void {
      */
     calculateLinkWidthScale() {
         const variable = this.widgets['link-width-variable'];
-        if (variable === 'None') {
+        if (variable === 'None' || variable === this.noFieldOptionValue) {
             // No scaling needed
             return null;
         }
@@ -7730,9 +7850,9 @@ private updateArrowStyles(): void {
         const vlinks = this.commonService.getVisibleLinks(true).filter(link => {
             console.log("link", link);
             console.log("variable", variable);
-            console.log("value", link[variable]);
-            const value = link[variable];
-            if (variable == 'distance' && link.distanceOrigin && !link.origin.includes(link.distanceOrigin)) {
+            console.log("value", this.getLinkOptionDataValue(link, variable));
+            const value = this.getLinkOptionDataValue(link, variable);
+            if (this.getLinkFieldName(variable) == 'distance' && link.distanceOrigin && !link.origin.includes(link.distanceOrigin)) {
                 return false;
             }
             return this.isNumber(value) || (!this.isNumber(value) && !isNaN(Number(value)));
@@ -7743,7 +7863,7 @@ private updateArrowStyles(): void {
             return null;
         }
 
-        const values = vlinks.map(link => link[variable]);
+        const values = vlinks.map(link => this.getLinkOptionDataValue(link, variable));
         const min = Math.min(...values);
         const max = Math.max(...values);
 
@@ -7864,7 +7984,7 @@ private updateArrowStyles(): void {
 
             this.data.nodes.forEach((x, index) => {
 
-                x.color = this.commonService.temp.style.nodeColorMap(this.commonService.session.data.nodes[index][variable]);
+                x.color = this.commonService.temp.style.nodeColorMap(this.commonService.getFieldValue(this.commonService.session.data.nodes[index], variable));
 
             })
         }
@@ -7898,7 +8018,7 @@ private updateArrowStyles(): void {
 scaleLinkWidth() {
     const variable = this.widgets['link-width-variable'];
     if (!this.cy) return;
-    if (variable === 'None') {
+    if (variable === 'None' || variable === this.noFieldOptionValue) {
         // Apply a default width to all links
         this.cy.style().selector('edge').style({
             'width': this.widgets['link-width']
@@ -7926,8 +8046,8 @@ scaleLinkWidth() {
 
     // Iterate over each edge and set the scaled width
     this.cy.edges().forEach(edge => {
-        let dataValue = edge.data(variable) as unknown as number;
-        if (variable == 'distance' && edge.data('distanceOrigin') && !edge.data('origin').includes(edge.data('distanceOrigin'))) {
+        let dataValue = this.getLinkOptionDataValue(edge.data(), variable) as unknown as number;
+        if (this.getLinkFieldName(variable) == 'distance' && edge.data('distanceOrigin') && !edge.data('origin').includes(edge.data('distanceOrigin'))) {
             dataValue = 0;
         }
         if (this.isNumber(dataValue)) {
@@ -8039,7 +8159,7 @@ scaleLinkWidth() {
         console.log('updateVisualization');
         this._rerender();
         
-        if (this.SelectedNodeLabelVariable != 'None') { this.updateNodeLabels(); }
+        if (this.getNodeFieldName(this.SelectedNodeLabelVariable)) { this.updateNodeLabels(); }
     }
 
     /**
@@ -8424,7 +8544,7 @@ scaleLinkWidth() {
         }
 
         //Nodes|Label
-        this.SelectedNodeLabelVariable = this.widgets['node-label-variable'];
+        this.SelectedNodeLabelVariable = this.normalizeNodeFieldOption(this.widgets['node-label-variable']);
         console.log('----TWOD SelectedNodeLabelVariable: ', this.SelectedNodeLabelVariable);
         this.onNodeLabelVaribleChange(this.SelectedNodeLabelVariable);
 
@@ -8436,10 +8556,7 @@ scaleLinkWidth() {
         this.SelectedNodeLabelSizeVariable = this.widgets['node-label-size'];
         this.setNodeLabelSize(this.SelectedNodeLabelSizeVariable);
 
-        if (!Array.isArray(this.widgets['node-tooltip-variable'])) {
-            this.widgets['node-tooltip-variable'] = [this.widgets['node-tooltip-variable']];
-        }
-        this.SelectedNodeTooltipVariable = this.widgets['node-tooltip-variable'];
+        this.SelectedNodeTooltipVariable = this.normalizeNodeTooltipOptions(this.widgets['node-tooltip-variable']);
         this.onNodeTooltipVariableChange(this.SelectedNodeTooltipVariable);
 
         //Nodes|Shape
@@ -8447,7 +8564,7 @@ scaleLinkWidth() {
         this.updateNodeShapes();
 
         //Nodes|Size By
-        this.SelectedNodeRadiusVariable = this.widgets['node-radius-variable'];
+        this.SelectedNodeRadiusVariable = this.normalizeNodeFieldOption(this.widgets['node-radius-variable']);
         this.onNodeRadiusVariableChange(this.SelectedNodeRadiusVariable);
 
         //Nodes|Size
@@ -8461,11 +8578,11 @@ scaleLinkWidth() {
         this.syncNodeCollapseControlsFromWidgets();
 
         //Links|Tooltip
-        this.SelectedLinkTooltipVariable = this.widgets['link-tooltip-variable'];
+        this.SelectedLinkTooltipVariable = this.normalizeLinkTooltipOptions(this.widgets['link-tooltip-variable']);
         this.onLinkTooltipVariableChange(this.SelectedLinkTooltipVariable);
 
         //Links|Label
-        this.SelectedLinkLabelVariable = this.widgets['link-label-variable'];
+        this.SelectedLinkLabelVariable = this.normalizeLinkFieldOption(this.widgets['link-label-variable']);
         this.onLinkLabelVariableChange(this.SelectedLinkLabelVariable);
 
         //Links|Decimal Length
@@ -8480,7 +8597,7 @@ scaleLinkWidth() {
         this.onLinkOpacityChange(this.SelectedLinkTransparencyVariable, false);
 
         //Links|Width By
-        this.SelectedLinkWidthByVariable = this.widgets['link-width-variable'];
+        this.SelectedLinkWidthByVariable = this.normalizeLinkFieldOption(this.widgets['link-width-variable']);
         this.onLinkWidthVariableChange(this.SelectedLinkWidthByVariable);
 
         //Links|Reciprical

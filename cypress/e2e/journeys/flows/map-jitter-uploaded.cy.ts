@@ -43,7 +43,7 @@ describe('Journey Flow - Map uploaded jitter controls', () => {
     goToMapView();
 
     openMapSettingsDialog();
-    selectMapField('map-field-zipcode', 'Zipcode', 'map-field-zipcode', 'Zip_code');
+    selectMapField('map-field-zipcode', 'Zip_code', 'map-field-zipcode', 'Zip_code');
     setMapNodeCollapsing('Off');
 
     cy.get('@mapSettings').contains('.nav-link', 'Nodes').click({ force: true });

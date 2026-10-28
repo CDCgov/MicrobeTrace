@@ -1,0 +1,3 @@
+case_id,constructor,__proto__,isCollapsedAggregate,totalCount,counts,aggregateRenderedSize,None,Lat," Lat ",lon," seq "
+CASE-A,NODE-A,proto-a,true,8,not-an-array,900,37,10,20,-100,ACGT
+CASE-B,NODE-B,proto-b,true,9,not-an-array,900,38,11,21,-101,ACGA

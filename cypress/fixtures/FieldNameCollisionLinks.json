@@ -1,0 +1,26 @@
+[
+  {
+    "source": "NODE-A",
+    "target": "NODE-B",
+    "distance": 0.125,
+    "Distance": 101.01,
+    "id": "USER-LINK-ID-A",
+    "origin": "USER-LINK-ORIGIN-A",
+    "visible": false,
+    "cluster": 201,
+    "directed": true,
+    "Contact": "Contact-A"
+  },
+  {
+    "source": "NODE-B",
+    "target": "NODE-C",
+    "distance": 0.25,
+    "Distance": 102.02,
+    "id": "USER-LINK-ID-B",
+    "origin": "USER-LINK-ORIGIN-B",
+    "visible": true,
+    "cluster": 202,
+    "directed": false,
+    "Contact": "Contact-B"
+  }
+]

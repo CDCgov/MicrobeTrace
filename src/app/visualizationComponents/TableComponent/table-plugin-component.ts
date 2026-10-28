@@ -506,18 +506,21 @@ import { sanitizeExportCell } from '@app/contactTraceCommonServices/export-sanit
             }
           }
   
+          const header = type === 'node' || type === 'link'
+            ? this.visuals.tableComp.commonService.getFieldDisplayLabel(d)
+            : d == 'nn'
+              ? 'Nearest Neighbor'
+              : d;
+
           const column = {
             field: d,
-            header:
-              d == 'nn'
-                ? 'Nearest Neighbor'
-                : this.visuals.tableComp.capitalize(d.replace('_', '')),
+            header,
             filterValue: filterValue,
             filterType: filterType
           };
   
           const foundAvailableColumn = tableData.availableColumns.find(
-            (x) => x.label === column.header
+            (x) => x.value.field === column.field
           );
   
           if (foundAvailableColumn) {
@@ -541,8 +544,10 @@ import { sanitizeExportCell } from '@app/contactTraceCommonServices/export-sanit
   
       tableData.tableColumns.forEach((x) => {
         const c = tableData.availableColumns.find(
-          (y) => y.value.header === x.header
-        ).value;
+          (y) => y.value.field === x.field
+        )?.value;
+        if (!c) return;
+        x.header = c.header;
         x.filterValue = c.filterValue;
         x.filterType = c.filterType;
       });

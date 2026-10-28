@@ -1,0 +1,34 @@
+[
+  {
+    "case_id": "NODE-A",
+    "_id": "USER-_ID-A",
+    "_id (Imported)": "PREALIASED-A",
+    "id": "USER-id-A",
+    "ID": "USER-ID-A",
+    "origin": "USER-ORIGIN-A",
+    "visible": false,
+    "cluster": 101,
+    "x": 10,
+    "y": 20,
+    "seq": "ACGT",
+    "_jlat": 50.5,
+    "_jlong": -100.5,
+    "safe_status": "Safe-A"
+  },
+  {
+    "case_id": "NODE-B",
+    "_id": "USER-_ID-B",
+    "_id (Imported)": "PREALIASED-B",
+    "id": "USER-id-B",
+    "ID": "USER-ID-B",
+    "origin": "USER-ORIGIN-B",
+    "visible": true,
+    "cluster": 102,
+    "x": 30,
+    "y": 40,
+    "seq": "ACGA",
+    "_jlat": 51.5,
+    "_jlong": -101.5,
+    "safe_status": "Safe-B"
+  }
+]

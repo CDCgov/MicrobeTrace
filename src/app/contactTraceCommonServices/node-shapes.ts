@@ -1,5 +1,6 @@
 import { normalizeNodeStyleCategoryValue } from './color-mapping.service';
 import { buildNormalizedWeightedSegmentRanges } from './weighted-segments';
+import { getFieldOptionValue } from './internal-field-options';
 
 export type NodeShapeGroupKey = 'basic' | 'places' | 'people' | 'vectors' | 'animals' | 'specimen' | 'other';
 
@@ -683,7 +684,7 @@ export function resolveNodeShapeForNode(
         return defaultShape;
     }
 
-    const nodeValue = normalizeNodeStyleCategoryValue(node[symbolVariable]);
+    const nodeValue = normalizeNodeStyleCategoryValue(getFieldOptionValue(node, symbolVariable));
     const tableKeys = style?.nodeSymbolsTableKeys?.[symbolVariable];
     const tableShapes = style?.nodeSymbolsTable?.[symbolVariable];
 
@@ -719,7 +720,7 @@ export function aggregateNodeShapeCategories(
         }
 
         visibleNodeCount++;
-        const category = normalizeNodeStyleCategoryValue(node[variable]);
+        const category = normalizeNodeStyleCategoryValue(getFieldOptionValue(node, variable));
         counts.set(category, (counts.get(category) ?? 0) + 1);
     });
 

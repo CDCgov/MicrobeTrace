@@ -76,7 +76,7 @@ describe('Journey Flow - Aggregate uploaded export ordering', () => {
     cy.closeSettingsPane('Aggregate Settings');
 
     assertAggregateTableCount(3);
-    assertAggregateTableTitles(['Nodes', 'Distance', 'Cluster']);
+    assertAggregateTableTitles(['Nodes', 'distance', 'cluster']);
     assertAggregateTableMatchesModel(0, 'Cluster-nodes');
     assertAggregateTableMatchesModel(1, 'Link-distance');
     assertAggregateTableMatchesModel(2, 'Node-cluster');
