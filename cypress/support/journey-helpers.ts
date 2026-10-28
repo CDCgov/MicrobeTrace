@@ -106,8 +106,15 @@ export function visitAppAndAcceptEula(options: JourneyVisitOptions = {}): void {
 
   if (!resolvedOptions.skipDemoSession) {
     cy.window({ timeout: 120000 })
-      .its('commonService.session.network.isFullyLoaded')
-      .should('equal', true);
+      .should((win: any) => {
+        const service = win.commonService;
+        expect(service?.session.network.isFullyLoaded, 'sample data loaded').to.equal(true);
+        // The saved session can report loaded before its default layout opens.
+        // Wait for the initial network render so that launch cannot replace a
+        // view the test opens next.
+        expect(service.demoNetworkRendered, 'sample network completed its first render').to.equal(true);
+        expect(service.session.network.rendering, 'sample network render finished').to.equal(false);
+      });
   }
 
   cy.get('body').then(($body) => {
@@ -923,6 +930,7 @@ export function goToAggregateView(): void {
   cy.get(byTestId(testIds.appViewMenuButton), { timeout: 15000 }).click({ force: true });
   cy.get(byTestId(testIds.appViewMenuAggregate), { timeout: 15000 }).click({ force: true });
 
+  cy.get('.lm_tab[title="Aggregate"]', { timeout: 15000 }).should('have.class', 'lm_active');
   assertAggregateReady();
 }
 

@@ -6742,9 +6742,16 @@ ${warnings.join('\n')}`,
             this.focusHomepageTab(viewName);
         }
 
+        const activeTabAfterDocking = this.homepageTabs.find(tab => tab.isActive)?.label;
         setTimeout(() => {
             this._goldenLayoutHostComponent.resizeComponentWidth(viewName, 0.3);
             this.refreshKeyTablesView();
+
+            // The user may have selected or opened another view while docking
+            // was queued. Keep that choice instead of restoring stale focus.
+            if (this.homepageTabs.find(tab => tab.isActive)?.label !== activeTabAfterDocking) {
+                return;
+            }
 
             if (focusView) {
                 this.focusHomepageTab(viewName);

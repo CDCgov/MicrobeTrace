@@ -32,7 +32,7 @@ export function createNetworkCytoscapeStyles(widgets: Record<string, any>, optio
                 selector: 'node',
                 css: {
                     'background-color': 'data(nodeColor)',
-                    'border-color': '#111827',
+                    'border-color': '#000000',
                     // 'width': 'mapData(nodeSize, 0, 100, 10, 50)', // Existing dynamic sizing
                     // 'height': 'mapData(nodeSize, 0, 100, 10, 50)',
                     'border-width': 'data(borderWidth)', // Use dynamic border width

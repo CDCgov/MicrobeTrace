@@ -31,6 +31,14 @@ const dateField = 'Date of symptom onset Date';
       });
       cy.window().then((win: any) => {
         const service = win.commonService;
+        const twoD = service.visuals.twoD;
+        if (twoD.sigmaActive) {
+          twoD.sigmaRenderer.getGraph().forEachNode((_id: string, attributes: any) =>
+            expect(attributes.borderColor, 'black Sigma node border').to.equal('#000000'));
+        } else {
+          twoD.cy.nodes(':childless').forEach((node: any) =>
+            expect(node.style('border-color').replace(/\s/g, ''), 'black 2D node border').to.equal('rgb(0,0,0)'));
+        }
         settingsBefore = Object.fromEntries(keys.map(key => [key, service.session.style.widgets[key]]));
         coordinatesBefore = service.session.data.nodeFilteredValues.map((node: any) => [node._id, node.x, node.y]);
       });
@@ -58,6 +66,8 @@ const dateField = 'Date of symptom onset Date';
         expect(Object.fromEntries(keys.map(key => [key, service.session.style.widgets[key]])), '2D presentation').to.deep.equal(settingsBefore);
         expect(service.session.data.nodeFilteredValues.map((node: any) => [node._id, node.x, node.y]), 'canonical node coordinates').to.deep.equal(coordinatesBefore);
         const chain = service.visuals.transmissionChain;
+        chain.cy.nodes(':childless').forEach((node: any) =>
+          expect(node.style('border-color').replace(/\s/g, ''), 'black Explorer node border').to.equal('rgb(0,0,0)'));
         expect(Number(chain.cy.nodes().first().data('fontSize'))).to.equal(48);
         expect(chain.cy.nodes().first().style('text-halign')).to.equal('left');
       });

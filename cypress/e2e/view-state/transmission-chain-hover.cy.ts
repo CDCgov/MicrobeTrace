@@ -39,6 +39,7 @@ const expectOpaqueCustomOutline = (win: any, node: any, fillOpacity: number): vo
   const outlines = Array.from(svg.querySelectorAll('[stroke]:not([stroke="none"])')) as Element[];
   expect(outlines.length, `${node.data('shapeKey')} silhouette outline`).to.be.greaterThan(0);
   outlines.forEach(element => {
+    expect(element.getAttribute('stroke'), 'black silhouette border').to.equal('#000000');
     const width = Number(element.getAttribute('stroke-width'));
     // Glyph paths use a nested SVG with its own padded coordinate system.
     const viewBox = element.closest('svg').getAttribute('viewBox').split(/\s+/).map(Number);
@@ -93,6 +94,7 @@ describe('Transmission Chain Explorer neighbor hover', () => {
         else {
           expect(Number(node.style('background-opacity'))).to.equal(0.2);
           expect(Number(node.style('border-opacity'))).to.equal(1);
+          expect(node.style('border-color').replace(/\s/g, ''), 'black native border').to.equal('rgb(0,0,0)');
           expect(parseFloat(node.style('border-width'))).to.be.greaterThan(0);
         }
       });
@@ -217,6 +219,7 @@ describe('2D Cytoscape neighbor hover', () => {
         else {
           expect(Number(node.style('background-opacity'))).to.equal(0.12);
           expect(Number(node.style('border-opacity'))).to.equal(1);
+          expect(node.style('border-color').replace(/\s/g, ''), 'black native border').to.equal('rgb(0,0,0)');
         }
       });
     });

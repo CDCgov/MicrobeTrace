@@ -635,7 +635,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             mixedColorImageCoversShape,
             pieBackgroundImage: node.pieBackgroundImage,
             borderWidth: node.borderWidth,
-            borderColor: '#111827',
+            borderColor: '#000000',
             selectedBorderColor: this.widgets['selected-color'],
             fontSize: this.getNodeFontSize(node),
             shape: resolveCustomNodeIconCytoscapeShape(shapeKey),
@@ -651,7 +651,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
 
     private getMixedColorNodeImage(
         node: any, shapeKey: string, fillColor: string, fillOpacity: number,
-        renderedSize?: number, strokeColor = '#111827',
+        renderedSize?: number, strokeColor = '#000000',
         strokeWidth = Number(this.widgets['node-border-width'])
     ): string | undefined {
         return getNetworkNodeImage(
@@ -1929,7 +1929,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                 const [color, opacity] = this.getNodeColor(node);
                 const nodeId = this.getNodeId(node);
                 const shapeKey = this.getNodeShape(node);
-                const borderColor = String(node.borderColor || '#111827');
+                const borderColor = String(node.borderColor || '#000000');
                 const borderWidth = this.getNodeBorderWidth(node);
                 const size = this.getSigmaNodeRadius(node);
                 const imageDataUri = node.pieBackgroundImage || this.getMixedColorNodeImage(

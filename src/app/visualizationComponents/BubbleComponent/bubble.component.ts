@@ -543,7 +543,7 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
       {
         selector: 'node:selected',
         css: {
-            'border-color': '#ff8300',
+            'border-color': () => this.widgets['selected-color'],
         }
       },
     ]
@@ -1379,7 +1379,9 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
   }
 
   updateLinkColor() {}
-  updateVisualization() {}
+  updateVisualization() {
+    this.cy?.style().update();
+  }
   applyStyleFileSettings() {
     this.widgets = (window as any).context.commonService.session.style.widgets;
 

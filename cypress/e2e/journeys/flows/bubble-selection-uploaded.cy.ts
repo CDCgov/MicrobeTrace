@@ -51,6 +51,11 @@ describe('Journey Flow - Bubble uploaded selection sync', () => {
   it('selects an uploaded Bubble node and syncs the selection back into session state and 2D', () => {
     launchProfileToTwoD(profile);
     assertAfterLaunchCounts(profile);
+    cy.window().then((win: any) => {
+      const app = win.commonService.visuals.microbeTrace;
+      app.SelectedColorVariable = '#00aaee';
+      app.onSelectedColorChanged();
+    });
     goToBubbleView();
 
     cy.window().should((win: unknown) => {
@@ -80,9 +85,24 @@ describe('Journey Flow - Bubble uploaded selection sync', () => {
       expect(bubbleNode.selected(), 'Bubble node becomes selected').to.equal(true);
       expect(twoDNode?.selected(), '2D node receives the synced selection').to.equal(true);
       expect(bubbleNode.style('border-color'), 'Bubble selected border color')
-        .to.match(selectedBorderColor);
+        .to.match(/rgb\(0,\s*170,\s*238\)/);
       expect(twoDNode?.style('border-color'), '2D selected border color')
-        .to.match(selectedBorderColor);
+        .to.match(/rgb\(0,\s*170,\s*238\)/);
+    });
+
+    cy.window().then((win: any) => {
+      const app = win.commonService.visuals.microbeTrace;
+      app.SelectedColorVariable = '#a020f0';
+      app.onSelectedColorChanged();
+    });
+
+    cy.window().should((win: unknown) => {
+      const typedWindow = win as WinWithBubbleAndTwoD;
+      expectBubbleSelectionState(typedWindow, selectedNodeIds[1], false);
+      const bubbleNode = getBubbleNode(typedWindow, selectedNodeId);
+      expect(bubbleNode.selected(), 'Bubble selection survives a global color change').to.equal(true);
+      expect(bubbleNode.style('border-color'), 'existing Bubble selection uses the new global color')
+        .to.match(/rgb\(160,\s*32,\s*240\)/);
     });
   });
 
@@ -92,8 +112,14 @@ describe('Journey Flow - Bubble uploaded selection sync', () => {
     goToBubbleView();
 
     cy.window().then((win: unknown) => {
-      const bubbleNode = (win as WinWithBubbleAndTwoD).commonService.visuals.bubble.cy
-        .getElementById(selectedNodeId);
+      const typedWindow = win as WinWithBubbleAndTwoD;
+      const bubbleNode = getBubbleNode(typedWindow, selectedNodeId);
+      const twoDNode = getTwoDNode(typedWindow, selectedNodeId);
+
+      expect(bubbleNode.selected(), 'Bubble node before selection').to.equal(false);
+      expect(twoDNode?.selected(), '2D node before selection').to.equal(false);
+      expect(bubbleNode.style('border-color'), 'Bubble unselected border is black').to.match(unselectedBorderColor);
+      expect(twoDNode.style('border-color'), '2D unselected border is black').to.match(unselectedBorderColor);
       bubbleNode.select();
     });
 
@@ -106,6 +132,10 @@ describe('Journey Flow - Bubble uploaded selection sync', () => {
       expect(sessionNode?.selected, 'selected session node before Bubble unselect').to.equal(true);
       expect(bubbleNode.selected(), 'Bubble node before unselect').to.equal(true);
       expect(twoDNode?.selected(), '2D node before Bubble unselect').to.equal(true);
+      expect(bubbleNode.style('border-color'), 'Bubble selected border before unselect')
+        .to.match(selectedBorderColor);
+      expect(twoDNode?.style('border-color'), '2D selected border before unselect')
+        .to.match(selectedBorderColor);
     });
 
     cy.window().then((win: unknown) => {

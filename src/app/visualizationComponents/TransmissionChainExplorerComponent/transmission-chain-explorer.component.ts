@@ -236,7 +236,7 @@ export class TransmissionChainExplorerComponent extends BaseComponentDirective i
             mixedColorImage: node.mixedColorImage,
             mixedColorImageCoversShape,
             pieBackgroundImage: node.pieBackgroundImage,
-            borderWidth: node.borderWidth, borderColor: node.borderColor || '#111827',
+            borderWidth: node.borderWidth, borderColor: node.borderColor || '#000000',
             selectedBorderColor: this.widgets['selected-color'],
             fontSize: this.getNodeFontSize(node),
             shape: resolveCustomNodeIconCytoscapeShape(shapeKey),
@@ -248,7 +248,7 @@ export class TransmissionChainExplorerComponent extends BaseComponentDirective i
         const normalizedShapeKey = resolveNodeShapeKey(shapeKey);
         return normalizedShapeKey === 'star' || normalizedShapeKey === 'vee';
     }
-    private getMixedColorNodeImage(node: any, shapeKey: string, fillColor: string, fillOpacity: number, renderedSize?: number, strokeColor = '#111827', strokeWidth = Number(this.widgets['node-border-width'])): string | undefined { return getNetworkNodeImage(shapeKey, fillColor, fillOpacity, strokeColor, strokeWidth, renderedSize ?? this.mapNodeSize(Number(node?.nodeSize ?? this.getConfiguredNodeSize())), this.commonService.getNodeFillStyle(node).segments); }
+    private getMixedColorNodeImage(node: any, shapeKey: string, fillColor: string, fillOpacity: number, renderedSize?: number, strokeColor = '#000000', strokeWidth = Number(this.widgets['node-border-width'])): string | undefined { return getNetworkNodeImage(shapeKey, fillColor, fillOpacity, strokeColor, strokeWidth, renderedSize ?? this.mapNodeSize(Number(node?.nodeSize ?? this.getConfiguredNodeSize())), this.commonService.getNodeFillStyle(node).segments); }
     private setMixedColorNodeImageData(node: cytoscape.NodeSingular, fullNode: any, shapeKey: string, fillColor: string, fillOpacity: number, renderedSize?: number): void {
         const mixedColorImage = this.getMixedColorNodeImage(fullNode, shapeKey, fillColor, fillOpacity, renderedSize);
         if (mixedColorImage) {

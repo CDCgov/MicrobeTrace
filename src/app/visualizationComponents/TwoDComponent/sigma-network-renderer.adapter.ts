@@ -746,7 +746,7 @@ export class SigmaNetworkRendererAdapter {
         shapeKey: node.shapeKey || node.shape || 'ellipse',
         iconVectorData: node.iconVectorData || null,
         imageDataUri: node.imageDataUri || null,
-        borderColor: node.borderColor || '#111827',
+        borderColor: node.borderColor || '#000000',
         borderWidth: Math.max(0, Number(node.borderWidth) || 0),
         color: node.color || '#2563eb',
         opacity: Number.isFinite(node.opacity) ? node.opacity : 1,
