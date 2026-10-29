@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, EventEmitter, HostListener, Input, Output } from '@angular/core';
+import { ChangeDetectionStrategy, Component, ElementRef, EventEmitter, HostListener, Input, Output, ViewChild } from '@angular/core';
 import { getNodeShapePreviewDataUri } from '@app/contactTraceCommonServices/node-shapes';
 import { NODE_SHAPE_TREE_SELECT_PASS_THROUGH } from '@app/contactTraceCommonServices/node-shape-picker';
 import { TreeNode } from 'primeng/api';
@@ -149,20 +149,23 @@ export interface StyleKeyTableShapePanelRequest {
                             @if (getColorSegments(row).length) {
                                 <div
                                     class="style-key-table__color-swatch style-key-table__duo-swatch"
-                                    [attr.role]="editable && row.colorSegments?.length ? 'group' : 'img'"
+                                    [attr.role]="editable ? 'group' : 'img'"
                                     [attr.aria-label]="(row.colorSegments?.length ? 'Mixed colors for ' : 'Link colors for ') + row.displayName"
                                     [attr.data-mixed-color-swatch]="row.colorSegments?.length ? 'true' : null">
                                     <div class="style-key-table__color-swatch-inner style-key-table__duo-inner">
                                         @for (segment of getColorSegments(row); track $index) {
-                                            @if (editable && row.colorSegments?.length) {
+                                            @if (editable) {
                                                 <input
                                                     type="color"
                                                     class="style-key-table__color-segment style-key-table__color-segment-input"
+                                                    [class.duo-link-color-segment]="row.duoSegments?.length"
                                                     [attr.data-color-segment]="$index"
+                                                    [attr.data-duo-index]="row.duoSegments?.length ? $index : null"
                                                     [attr.data-segment-weight]="getSegmentFlexGrow(segment)"
                                                     [attr.aria-label]="'Change ' + getSegmentDisplayName(segment, $index) + ' color in ' + row.displayName"
                                                     [attr.title]="'Change ' + getSegmentDisplayName(segment, $index) + ' color'"
                                                     [value]="segment.color"
+                                                    [style.background-color]="segment.color"
                                                     [style.flex-grow]="getSegmentFlexGrow(segment)"
                                                     [style.opacity]="segment.opacity"
                                                     (change)="onSegmentColorInputChange(row, segment, $event)">
@@ -181,25 +184,27 @@ export interface StyleKeyTableShapePanelRequest {
                                         }
                                     </div>
                                 </div>
-                                @if (row.colorSegments?.length) {
-                                    <a
-                                        class="transparency-symbol style-key-table__segment-alpha-trigger"
-                                        role="button"
-                                        tabindex="0"
-                                        [attr.aria-label]="'Adjust transparency for mixed colors in ' + row.displayName"
-                                        [attr.aria-expanded]="isSegmentAlphaEditorOpen(row)"
-                                        data-mixed-alpha-trigger="true"
-                                        (click)="onSegmentAlphaTriggerClick(row, $event)"
-                                        (keydown)="onSegmentAlphaTriggerKeydown(row, $event)">&#8691;</a>
-                                }
-                                @if (row.colorSegments?.length && isSegmentAlphaEditorOpen(row)) {
+                                <a
+                                    class="transparency-symbol style-key-table__segment-alpha-trigger"
+                                    role="button"
+                                    tabindex="0"
+                                    [attr.aria-label]="'Adjust transparency for ' + (row.colorSegments?.length ? 'mixed colors in ' : 'link origins in ') + row.displayName"
+                                    [attr.aria-expanded]="isSegmentAlphaEditorOpen(row)"
+                                    [attr.data-mixed-alpha-trigger]="row.colorSegments?.length ? 'true' : null"
+                                    [attr.data-duo-alpha-trigger]="row.duoSegments?.length ? 'true' : null"
+                                    (click)="onSegmentAlphaTriggerClick(row, $event)"
+                                    (keydown)="onSegmentAlphaTriggerKeydown(row, $event)">&#8691;</a>
+                                @if (isSegmentAlphaEditorOpen(row)) {
                                     <div
+                                        #segmentAlphaEditor
+                                        [attr.popover]="'manual'"
                                         class="style-key-table__segment-alpha-editor"
+                                        [class.style-key-table__segment-alpha-editor--links]="row.duoSegments?.length"
                                         role="group"
                                         [style.top.px]="segmentAlphaEditorTop"
                                         [style.left.px]="segmentAlphaEditorLeft"
-                                        [attr.aria-label]="'Mixed color transparency for ' + row.displayName">
-                                        @for (segment of row.colorSegments; track $index) {
+                                        [attr.aria-label]="(row.colorSegments?.length ? 'Mixed color transparency for ' : 'Link origin transparency for ') + row.displayName">
+                                        @for (segment of getColorSegments(row); track segment.value ?? $index) {
                                             <div class="style-key-table__segment-alpha-control">
                                                 <label
                                                     class="style-key-table__segment-alpha-label"
@@ -210,7 +215,7 @@ export interface StyleKeyTableShapePanelRequest {
                                                             [style.background]="segment.color"
                                                             [style.opacity]="segment.opacity">
                                                         </span>
-                                                        {{ getSegmentDisplayName(segment, $index) }}
+                                                        <span class="style-key-table__segment-alpha-text" [title]="getSegmentDisplayName(segment, $index)">{{ getSegmentDisplayName(segment, $index) }}</span>
                                                     </span>
                                                     <span>{{ formatAlphaPercent(segment.opacity) }}</span>
                                                 </label>
@@ -283,6 +288,7 @@ export interface StyleKeyTableShapePanelRequest {
         }
 
         .style-key-table {
+            --style-key-table-swatch-width: 42px;
             height: 100%;
             min-width: 100%;
             width: max-content;
@@ -292,12 +298,21 @@ export interface StyleKeyTableShapePanelRequest {
             white-space: nowrap;
         }
 
+        .style-key-table th:not(:first-child),
+        .style-key-table td:not(:first-child) {
+            text-align: center;
+        }
+
         .style-key-table .header-content {
             display: inline-flex;
             flex-wrap: nowrap;
             min-width: 100%;
             white-space: nowrap;
             width: max-content;
+        }
+
+        .style-key-table th:not(:first-child) .header-content {
+            justify-content: center;
         }
 
         .style-key-table .header-content > span,
@@ -316,17 +331,19 @@ export interface StyleKeyTableShapePanelRequest {
 
         .style-key-table__duo-swatch {
             background: #f0f0f0;
+            box-sizing: border-box;
             display: inline-flex;
             height: 25px;
             padding: 4px;
             vertical-align: middle;
-            width: 50px;
+            width: var(--style-key-table-swatch-width);
+            flex: 0 0 var(--style-key-table-swatch-width);
         }
 
         .style-key-table__segment-alpha-trigger {
             cursor: pointer;
             display: inline-block;
-            margin-left: 2px;
+            padding-left: 0;
             vertical-align: middle;
         }
 
@@ -337,9 +354,11 @@ export interface StyleKeyTableShapePanelRequest {
 
         .style-key-table__duo-inner {
             border: 1px solid #777777;
+            box-sizing: border-box;
             display: inline-flex;
             height: 17px;
-            width: 42px;
+            width: 100%;
+            min-width: 0;
         }
 
         .style-key-table__color-segment {
@@ -381,6 +400,8 @@ export interface StyleKeyTableShapePanelRequest {
             display: flex;
             flex-direction: row;
             gap: 10px;
+            inset: auto;
+            margin: 0;
             padding: 8px;
             position: fixed;
             z-index: 1300;
@@ -392,6 +413,20 @@ export interface StyleKeyTableShapePanelRequest {
             flex-direction: column;
             gap: 4px;
             width: 44px;
+        }
+
+        .style-key-table__segment-alpha-editor--links .style-key-table__segment-alpha-control {
+            width: 140px;
+        }
+
+        .style-key-table__segment-alpha-editor--links .style-key-table__segment-alpha-name {
+            max-width: 140px;
+        }
+
+        .style-key-table__segment-alpha-text {
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
         }
 
         .style-key-table__segment-alpha-label,
@@ -453,9 +488,9 @@ export interface StyleKeyTableShapePanelRequest {
 
         .style-key-table__color-input {
             box-sizing: border-box;
-            flex: 0 0 42px;
-            min-width: 42px;
-            width: 42px;
+            flex: 0 0 var(--style-key-table-swatch-width);
+            min-width: var(--style-key-table-swatch-width);
+            width: var(--style-key-table-swatch-width);
             border: none;
         }
 
@@ -468,7 +503,10 @@ export interface StyleKeyTableShapePanelRequest {
             align-items: center;
             display: inline-flex;
             gap: 8px;
+            justify-content: flex-start;
             min-width: 0;
+            text-align: left;
+            width: 100%;
         }
 
         .style-key-table__shape-preview {
@@ -515,6 +553,11 @@ export class StyleKeyTableComponent {
     private segmentAlphaEditorTrigger: HTMLElement | null = null;
     segmentAlphaEditorTop = 0;
     segmentAlphaEditorLeft = 0;
+
+    @ViewChild('segmentAlphaEditor')
+    set segmentAlphaEditor(element: ElementRef<HTMLDivElement> | undefined) {
+        element?.nativeElement.showPopover();
+    }
 
     getColorSegments(row: StyleKeyTableRow): StyleKeyTableDuoSegment[] {
         return row.colorSegments?.length ? row.colorSegments : row.duoSegments ?? [];
@@ -601,7 +644,7 @@ export class StyleKeyTableComponent {
     }
 
     onSegmentAlphaTriggerClick(row: StyleKeyTableRow, event: MouseEvent): void {
-        if (!row.colorSegments?.length) {
+        if (!this.getColorSegments(row).length) {
             return;
         }
 
@@ -609,7 +652,7 @@ export class StyleKeyTableComponent {
     }
 
     onSegmentAlphaTriggerKeydown(row: StyleKeyTableRow, event: KeyboardEvent): void {
-        if (!row.colorSegments?.length || (event.key !== 'Enter' && event.key !== ' ')) {
+        if (!this.getColorSegments(row).length || (event.key !== 'Enter' && event.key !== ' ')) {
             return;
         }
 
@@ -691,7 +734,8 @@ export class StyleKeyTableComponent {
         const rect = anchor?.getBoundingClientRect();
         const viewportWidth = typeof window === 'undefined' ? 1280 : window.innerWidth;
         const viewportHeight = typeof window === 'undefined' ? 720 : window.innerHeight;
-        const editorWidth = Math.max(68, row.colorSegments!.length * 54 + 16);
+        const controlWidth = row.duoSegments?.length ? 150 : 54;
+        const editorWidth = Math.max(68, this.getColorSegments(row).length * controlWidth + 16);
         const editorHeight = 170;
         const anchorLeft = rect?.left ?? clientX;
         const anchorRight = rect?.right ?? clientX;

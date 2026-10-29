@@ -234,6 +234,8 @@ describe('Journey Flow - 2D mixed-origin link coloring', () => {
   };
 
   it('keeps mixed-origin rendered edges and the thresholded duo-link table swatch aligned with origin colors', () => {
+    let editedOrigin = '';
+    let otherOrigin = '';
     launchProfileToTwoD(profile);
     assertAfterLaunchCounts(profile);
     waitForProcessingDialogToClear();
@@ -383,6 +385,81 @@ describe('Journey Flow - 2D mixed-origin link coloring', () => {
           normalizeColor(String(Cypress.$(segment).css('background-color') || '')),
         );
         expect(actualColors, 'duo-link swatch colors').to.deep.equal(expectedColors);
+      });
+    });
+
+    cy.closeGlobalSettings();
+    cy.window().then((win: unknown) => {
+      const duoRow = (win as WinWithCy).commonService.visuals.microbeTrace.linkColorRows
+        .find((row: any) => row.rawValue === 'Duo-Link');
+      [editedOrigin, otherOrigin] = duoRow.duoSegments.map((segment: any) => segment.value);
+    });
+    cy.get('#key-tables-link-table [data-duo-alpha-trigger="true"]').click();
+    cy.get('#key-tables-link-table .style-key-table__segment-alpha-slider')
+      .should('have.length', 2)
+      .should('be.visible')
+      .first().invoke('val', '0.35').trigger('input');
+    cy.window().should((win: unknown) => {
+      const typedWindow = win as WinWithCy;
+      expect(typedWindow.commonService.temp.style.linkAlphaMap(editedOrigin)).to.equal(0.35);
+      expect(typedWindow.commonService.temp.style.linkAlphaMap(otherOrigin)).to.equal(1);
+      const firstOriginEdges = typedWindow.cytoscapeInstance.edges().filter((edge: any) =>
+        edge.data('origin')?.[0] === editedOrigin,
+      );
+      expect(firstOriginEdges.length, 'edges for the edited Duo-Link origin').to.be.greaterThan(0);
+      firstOriginEdges.forEach((edge: any) => {
+        expect(Number(edge.style('line-opacity')), 'rendered origin opacity').to.equal(0.35);
+      });
+    });
+
+    cy.get('#key-tables-link-table td[data-value="Duo-Link"]').parents('tr')
+      .find('input[type="color"]').should('have.length', 2)
+      .filter((_, input) => input.getAttribute('aria-label') === `Change ${editedOrigin} color in Duo-Link`)
+      .invoke('val', '#2244aa').trigger('change');
+    cy.window().should((win: unknown) => {
+      const app = (win as WinWithCy).commonService;
+      expect(app.temp.style.linkColorMap(editedOrigin)).to.equal('#2244aa');
+      expect(app.temp.style.linkAlphaMap(editedOrigin)).to.equal(0.35);
+    });
+
+    cy.contains('.key-table-card__header h5', 'Link Colors')
+      .parents('.key-table-card').find('button[title="Float table"]').click();
+    cy.get('#link-color-table [data-duo-alpha-trigger="true"]').click();
+    cy.get('#link-color-table .style-key-table__segment-alpha-editor').should(($editor) => {
+      const bounds = $editor[0].getBoundingClientRect();
+      expect(bounds.left, 'floating transparency panel left edge').to.be.at.least(0);
+      expect(bounds.right, 'floating transparency panel right edge').to.be.at.most(Cypress.config('viewportWidth'));
+      expect(bounds.bottom, 'floating transparency panel bottom edge').to.be.at.most(Cypress.config('viewportHeight'));
+    });
+    cy.get('#link-color-table .style-key-table__segment-alpha-slider')
+      .should('have.length', 2)
+      .should('be.visible')
+      .filter((_, input) => input.getAttribute('aria-label') === `${editedOrigin} transparency`)
+      .should('have.value', '0.35');
+    cy.get('#link-color-table .style-key-table__segment-alpha-slider')
+      .filter((_, input) => input.getAttribute('aria-label') === `${otherOrigin} transparency`)
+      .invoke('val', '0.6').trigger('input');
+    cy.window().should((win: unknown) => {
+      const app = (win as WinWithCy).commonService;
+      expect([app.temp.style.linkAlphaMap(editedOrigin), app.temp.style.linkAlphaMap(otherOrigin)])
+        .to.deep.equal([0.35, 0.6]);
+    });
+
+    cy.get('#link-color-table td[data-value="Duo-Link"]').parents('tr')
+      .find('input[type="color"]').should('have.length', 2)
+      .filter((_, input) => input.getAttribute('aria-label') === `Change ${otherOrigin} color in Duo-Link`)
+      .invoke('val', '#cc5500').trigger('change');
+    cy.window().should((win: unknown) => {
+      const typedWindow = win as WinWithCy;
+      const app = typedWindow.commonService;
+      expect([app.temp.style.linkColorMap(editedOrigin), app.temp.style.linkColorMap(otherOrigin)])
+        .to.deep.equal(['#2244aa', '#cc5500']);
+      const editedEdges = typedWindow.cytoscapeInstance.edges().filter((edge: any) =>
+        edge.data('origin')?.[0] === otherOrigin,
+      );
+      expect(editedEdges.length, 'edges for the recolored Duo-Link origin').to.be.greaterThan(0);
+      editedEdges.forEach((edge: any) => {
+        expect(normalizeColor(String(edge.style('line-color')))).to.equal(normalizeExpectedColor('#cc5500'));
       });
     });
   });

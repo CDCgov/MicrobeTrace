@@ -188,7 +188,8 @@
             (rowNameChange)="onLinkColorRowNameChange($event)"
             (sortChange)="onStyleKeyTableSort('link-color', $event)"
             (colorChange)="onLinkColorTableColorChange($event)"
-            (alphaRequest)="onLinkColorAlphaRequested($event)">
+            (alphaRequest)="onLinkColorAlphaRequested($event)"
+            (segmentAlphaChange)="onLinkColorSegmentAlphaChange($event)">
           </style-key-table>
         </div>
       </p-dialog>
@@ -256,7 +257,8 @@
             <span style="overflow: visible; position: relative;">
               <button title="Settings" class="btn btn-sm btn-clean btn-icon btn-icon-md" style="float:left" (click)="toggleColorTableSettings('node-shape')"><i class="pi pi-cog"></i></button>
               <button [title]="getKeyTableDockButtonTitle('node-shape')" class="btn btn-sm btn-clean btn-icon btn-icon-md" style="float:left" (click)="toggleKeyTableDocking('node-shape')"><i [className]="isKeyTableDocked('node-shape') ? 'pi pi-window-minimize' : 'pi pi-window-maximize'"></i></button>
-              <div id="globalNodeShapeTableSettings" class="dropdown-menu" style="display: none;">
+              <div #nodeShapeSettingsMenu id="globalNodeShapeTableSettings" class="dropdown-menu" style="display: none;"
+                (mouseleave)="nodeShapeSettingsMenu.style.display = 'none'">
                 <button id="nodeShapeCounts" class="dropdown-item" (click)="toggleColorTableColumns('node-shape', 'tableCounts')">
                   <span>Show Counts</span>
                   <i [className]="this.widgets['node-symbol-table-counts'] ? 'pi pi-check' : 'pi pi-times'" style="line-height: 1.5"></i>

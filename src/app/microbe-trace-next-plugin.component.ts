@@ -41,6 +41,7 @@ import {
     StyleKeyTableAlphaRequest,
     StyleKeyTableColorChange,
     StyleKeyTableColumnNameChange,
+    StyleKeyTableDuoSegment,
     StyleKeyTableRow,
     StyleKeyTableRowNameChange,
     StyleKeyTableSegmentAlphaChange,
@@ -3220,7 +3221,7 @@ ${warnings.join('\n')}`,
       }
 
 
-    private getDuoLinkSwatchSegments(fallbackOrigins: string[] = []): Array<{ color: string; opacity: number }> {
+    private getDuoLinkSwatchSegments(fallbackOrigins: string[] = []): StyleKeyTableDuoSegment[] {
         const visibleDuoLink = this.commonService.getVisibleLinksForCurrentTimeline().find((link: any) =>
             Array.isArray(link?.origin) && link.origin.length > 1,
         );
@@ -3244,6 +3245,8 @@ ${warnings.join('\n')}`,
         }
 
         return this.duoLinkOrigins.map(origin => ({
+            value: origin,
+            displayName: this.getStyleValueDisplayName(origin, 'origin', this.commonService.session.style.linkValueNames),
             color: origin ? this.commonService.temp.style.linkColorMap(origin) : '#f0f0f0',
             opacity: origin ? this.commonService.temp.style.linkAlphaMap(origin) : 1,
         }));
@@ -4272,10 +4275,6 @@ ${warnings.join('\n')}`,
     }
 
     onLinkColorTableColorChange(change: StyleKeyTableColorChange): void {
-        if (change.row.duoSegments?.length) {
-            return;
-        }
-
         const value = change.value;
         const selectedVariable = this.SelectedColorLinksByVariable;
         const aggregateValues = this.linkColorDomain.length ? this.linkColorDomain : this.linkColorRows.map(row => row.rawValue);
@@ -4340,18 +4339,29 @@ ${warnings.join('\n')}`,
     onLinkColorAlphaRequested(request: StyleKeyTableAlphaRequest): void {
         this.showColorAlphaPicker(
             request,
-            this.commonService.session.style.linkAlphas[request.row.index ?? 0],
-            alphaValue => {
-                const aggregateValues = this.linkColorDomain.length ? this.linkColorDomain : this.linkColorRows.map(row => row.rawValue);
-                const index = request.row.index ?? 0;
-                this.commonService.session.style.linkAlphas.splice(index, 1, parseFloat(String(alphaValue)));
-                this.commonService.temp.style.linkAlphaMap = d3
-                    .scaleOrdinal(this.commonService.session.style.linkAlphas)
-                    .domain(aggregateValues);
-                this.generateNodeLinkTable('', true);
-                this.publishUpdateLinkColor();
-            }
+            this.commonService.temp.style.linkAlphaMap(request.value),
+            alphaValue => this.updateLinkColorAlpha(request.value, Number(alphaValue))
         );
+    }
+
+    onLinkColorSegmentAlphaChange(change: StyleKeyTableSegmentAlphaChange): void {
+        this.updateLinkColorAlpha(change.value, change.alpha);
+    }
+
+    private updateLinkColorAlpha(value: any, alphaValue: number): void {
+        const storedKeys = this.commonService.session.style.linkColorsTableKeys?.[this.SelectedColorLinksByVariable];
+        const aggregateValues = storedKeys?.length
+            ? storedKeys
+            : this.linkColorDomain.length ? this.linkColorDomain : this.linkColorRows.map(row => row.rawValue);
+        const index = aggregateValues.findIndex(origin => origin === value);
+        if (index < 0) return;
+
+        this.commonService.session.style.linkAlphas.splice(index, 1, this.commonService.clampStyleAlpha(alphaValue));
+        this.commonService.temp.style.linkAlphaMap = d3
+            .scaleOrdinal(this.commonService.session.style.linkAlphas)
+            .domain(aggregateValues);
+        this.generateNodeLinkTable('', true);
+        this.publishUpdateLinkColor();
     }
 
     onNodeShapeTableShapeChange(change: StyleKeyTableShapeChange): void {
