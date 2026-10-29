@@ -7,7 +7,6 @@ export interface NetworkRendererExportMetadata {
   drawnNodeCount: number;
   drawnEdgeCount: number;
   collapsedGroupIds: string[];
-  geographicOverlayActive: boolean;
   mixedValueDonutNodeCount: number;
 }
 

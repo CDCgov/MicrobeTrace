@@ -47,10 +47,6 @@ import {
     type NetworkNodeFeatureFields,
     type NetworkNodeVisualFeatures
 } from '@app/contactTraceCommonServices/network-node-features';
-import {
-    projectNetworkGeography,
-    type NetworkGeographicProjection
-} from '@app/contactTraceCommonServices/network-geography.model';
 import { createGlobalSettingsDialogRequest, GlobalSettingsDialogRequest } from '@app/helperClasses/globalSettingsDialogRequest';
 import {
     canCreateWebGL2Context,
@@ -90,7 +86,7 @@ interface CustomNodeSvgExportReplacement {
 }
 
 type PolygonColorTableDisplayMode = 'Show' | 'Dock' | 'Hide';
-type TwoDNetworkLayout = 'force-directed' | 'order-by-size' | 'geographic';
+type TwoDNetworkLayout = 'force-directed' | 'order-by-size';
 
 interface CollapsedAggregatePositionAnchor {
     id: string;
@@ -174,7 +170,6 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
     private rendererViewStateTimer: ReturnType<typeof setTimeout> | null = null;
     private containerResizeTimer: ReturnType<typeof setTimeout> | null = null;
     private containerShowTimer: ReturnType<typeof setTimeout> | null = null;
-    private rendererGeographicProjection: NetworkGeographicProjection | null = null;
     vizLoaded = true;
     nodePositions: Map<string, { x: number; y: number }> = new Map();
     private forceDirectedLayoutSnapshot: Map<string, { x: number; y: number }> = new Map();
@@ -900,11 +895,10 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
 
     SelectedNetworkGridLineTypeVariable: string = "Hide";
 
-    get NetworkLayoutOptions(): { label: string; value: TwoDNetworkLayout; disabled?: boolean }[] {
+    get NetworkLayoutOptions(): { label: string; value: TwoDNetworkLayout }[] {
         return [
             { label: 'Force directed', value: 'force-directed' },
             { label: 'Order clusters by size', value: 'order-by-size' },
-            { label: 'Geographic', value: 'geographic', disabled: !this.sigmaActive },
         ];
     }
     SelectedNetworkLayoutVariable: TwoDNetworkLayout = 'force-directed';
@@ -1264,27 +1258,6 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         }
     }
 
-    private isRendererGeographicOverlayEnabled(): boolean {
-        const setting = this.widgets?.['network-geographic-overlay'];
-        const enabled = setting === true || String(setting).toLowerCase() === 'true' || setting === 'On';
-        return enabled
-            && String(this.widgets?.['map-field-lat'] || 'None') !== 'None'
-            && String(this.widgets?.['map-field-lon'] || 'None') !== 'None';
-    }
-
-    private applyRendererGeographicProjection<T extends { nodes: any[]; links: any[] }>(networkData: T): T {
-        this.rendererGeographicProjection = null;
-        if (!this.isRendererGeographicOverlayEnabled()) return networkData;
-
-        const result = projectNetworkGeography(
-            networkData.nodes,
-            String(this.widgets['map-field-lat']),
-            String(this.widgets['map-field-lon'])
-        );
-        this.rendererGeographicProjection = result.projection;
-        return { ...networkData, nodes: result.nodes };
-    }
-
     public async exportRendererComposite(
         pixelRatio?: number,
         encodePng: boolean = true
@@ -1334,7 +1307,6 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             drawnNodeCount,
             drawnEdgeCount,
             collapsedGroupIds,
-            geographicOverlayActive: Boolean(this.rendererGeographicProjection),
             ...featureSummary
         }, String(this.widgets?.['background-color'] || '#ffffff'), pixelRatio, encodePng);
     }
@@ -1862,7 +1834,6 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                 timelineTick || this.isTimelineFilteringActive()
             );
             this.normalizeNetworkDataForCytoscape(networkData, false);
-            networkData = this.applyRendererGeographicProjection(networkData);
             const sigmaGroupingNodes = networkData.nodes;
             networkData = this.applyNodeCollapseToNetworkData(networkData);
             this.normalizeNetworkDataForCytoscape(networkData, false);
@@ -1883,8 +1854,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                 || networkData.nodes.some(node => !this.hasFinitePosition(node));
 
             if ((needsInitialLayout || settleMergedClusters)
-                && !this.commonService.session.network.allPinned
-                && !this.widgets['network-geographic-overlay']) {
+                && !this.commonService.session.network.allPinned) {
                 this.sigmaLoadingMessage = 'Computing the network layout';
                 this.cdref.markForCheck();
                 const overviewLayout = assignSigmaOverviewPositions(
@@ -1919,8 +1889,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             });
             if (this.getNetworkLayout() === 'order-by-size'
                 && !this.isTimelineFilteringActive()
-                && !this.commonService.session.network.allPinned
-                && !this.widgets['network-geographic-overlay']) {
+                && !this.commonService.session.network.allPinned) {
                 this.layoutSigmaClusters(networkData.nodes, networkData.links);
             }
             this.updateRendererAccessibleFeatures(networkData.nodes);
@@ -2047,8 +2016,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                 showGroupLabels: this.widgets['polygons-label-show'] !== false,
                 groupLabelSize: Number(this.widgets['polygons-label-size']) || 12,
                 groupLabelPosition: this.getSigmaGroupLabelPosition(),
-                edgeLabelSize: Number(this.widgets['link-label-size']) || 12,
-                geographicOverlay: this.rendererGeographicProjection
+                edgeLabelSize: Number(this.widgets['link-label-size']) || 12
             }, Boolean(this.sigmaRenderer.getRenderer()));
             this.sigmaRenderer.setNodeDraggingEnabled(!this.commonService.session.network.allPinned);
             this.sigmaRenderer.setNeighborHighlighting(Boolean(this.widgets['node-highlight']));
@@ -2103,10 +2071,6 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         return true;
     }
 
-    onRendererGeographicSettingsChange(): void {
-        this.refreshSigmaForStyleChange(true);
-    }
-
     private ensureNodeCollapseWidgetDefaults(): void {
         const sessionWidgets = this.commonService.session?.style?.widgets;
         if (sessionWidgets) {
@@ -2122,9 +2086,6 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         if (!['overview', 'detail', 'all'].includes(this.widgets['network-edge-detail-mode'])) {
             this.widgets['network-edge-detail-mode'] = 'overview';
         }
-        if (this.widgets['network-geographic-overlay'] === undefined) {
-            this.widgets['network-geographic-overlay'] = false;
-        }
     }
 
     private ensureNetworkLayoutWidgetDefault(): void {
@@ -2134,20 +2095,16 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         }
         if (!this.widgets) return;
 
-        let layout = this.widgets['network-layout'];
-        // Older sessions stored geographic placement as an independent toggle.
-        if (this.widgets['network-geographic-overlay']) {
-            layout = 'geographic';
-        } else if (layout !== 'force-directed' && layout !== 'order-by-size' && layout !== 'geographic') {
-            layout = 'force-directed';
+        const layout = this.widgets['network-layout'];
+        if (layout !== 'force-directed' && layout !== 'order-by-size') {
+            this.widgets['network-layout'] = 'force-directed';
         }
-        this.widgets['network-layout'] = layout;
-        this.widgets['network-geographic-overlay'] = layout === 'geographic';
     }
 
     private getNetworkLayout(): TwoDNetworkLayout {
-        const layout = this.widgets?.['network-layout'];
-        return layout === 'order-by-size' || layout === 'geographic' ? layout : 'force-directed';
+        return this.widgets?.['network-layout'] === 'order-by-size'
+            ? 'order-by-size'
+            : 'force-directed';
     }
 
     private getNodeCollapseMetric(): string {
@@ -5323,9 +5280,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
     private applyOrderByClusterSizeLayout(): void {
         if (this.commonService.session.network.allPinned) return;
         if (this.sigmaActive) {
-            if (!this.widgets['network-geographic-overlay']) {
-                void this.renderSigma().then(() => this.fit());
-            }
+            void this.renderSigma().then(() => this.fit());
             return;
         }
         if (!this.cy) return;
@@ -5458,15 +5413,15 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
     async onNetworkLayoutChange(layout: TwoDNetworkLayout): Promise<void> {
         this.ensureNetworkLayoutWidgetDefault();
         const previousLayout = this.getNetworkLayout();
-        const selectedLayout: TwoDNetworkLayout = layout === 'geographic' && this.sigmaActive
-            ? 'geographic' : layout === 'order-by-size' ? 'order-by-size' : 'force-directed';
+        const selectedLayout: TwoDNetworkLayout = layout === 'order-by-size'
+            ? 'order-by-size'
+            : 'force-directed';
 
         if (previousLayout === 'force-directed' && selectedLayout === 'order-by-size') {
             this.captureForceDirectedLayout();
         }
 
         this.widgets['network-layout'] = selectedLayout;
-        this.widgets['network-geographic-overlay'] = selectedLayout === 'geographic';
         this.SelectedNetworkLayoutVariable = selectedLayout;
 
         if ((this.cy || this.sigmaActive) && !this.commonService.session.network.allPinned) {
@@ -8047,7 +8002,6 @@ scaleLinkWidth() {
         this.rendererAccessibleFeatureItems = [];
         this.ContextSelectedNodeAttributes = [];
         this.graphData = { nodes: [], links: [] };
-        this.rendererGeographicProjection = null;
         this.cyContainer = null;
         this.sigmaContainer = null;
 

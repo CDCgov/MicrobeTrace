@@ -11,8 +11,6 @@ import {
   drawNetworkNodeFeatureGlyph,
   prepareNetworkFeatureCanvas,
 } from './network-node-feature-overlay';
-import type { NetworkGeographicProjection } from '@app/contactTraceCommonServices/network-geography.model';
-import { drawNetworkGeographicOverlay } from './network-geographic-overlay';
 import type { NetworkRendererViewState } from './network-renderer-view-state';
 import {
   buildSigmaNetworkFeatureAttributes,
@@ -169,7 +167,6 @@ export interface SigmaPocGraphData {
   groupLabelSize?: number;
   groupLabelPosition?: 'left' | 'right' | 'above' | 'below' | 'over';
   edgeLabelSize?: number;
-  geographicOverlay?: NetworkGeographicProjection | null;
 }
 
 export interface SigmaPocRenderSummary {
@@ -618,7 +615,6 @@ export class SigmaNetworkRendererAdapter {
     allowSelfLoops: true,
   });
   private renderer: Sigma<SigmaNodeAttributes, SigmaEdgeAttributes> | null = null;
-  private geographicLayer: HTMLCanvasElement | null = null;
   private groupLayer: HTMLCanvasElement | null = null;
   private edgeOverlayLayer: HTMLCanvasElement | null = null;
   private edgeLabelLayer: HTMLCanvasElement | null = null;
@@ -636,7 +632,6 @@ export class SigmaNetworkRendererAdapter {
   private showGroupLabels = true;
   private groupLabelSize = 12;
   private groupLabelPosition: 'left' | 'right' | 'above' | 'below' | 'over' = 'above';
-  private geographicOverlay: NetworkGeographicProjection | null = null;
   private rankedEdges: SigmaRankedEdge[] = [];
   private incidentEdgeIdsByNode = new Map<string, string[]>();
   private projectionTimer: ReturnType<typeof setTimeout> | null = null;
@@ -807,7 +802,6 @@ export class SigmaNetworkRendererAdapter {
     this.groupLabelSize = Math.max(6, Number(data.groupLabelSize) || 12);
     this.groupLabelPosition = data.groupLabelPosition || 'above';
     this.edgeLabelSize = Math.max(6, Number(data.edgeLabelSize) || 12);
-    this.geographicOverlay = data.geographicOverlay || null;
     this.baseEdgeStride = this.resolveBaseEdgeStride(graph.size);
     this.updateEffectiveEdgeStride(this.renderer?.getCamera().getState().ratio || 1);
     this.rebuildEdgeIndexes();
@@ -829,7 +823,6 @@ export class SigmaNetworkRendererAdapter {
     if (priorCamera) this.renderer.getCamera().setState(priorCamera);
     else void this.renderer.getCamera().reset({ duration: 0 });
     this.renderer.refresh();
-    this.drawGeographicOverlay();
     this.drawGroupHulls();
     this.drawEdgeOverlays();
     this.drawNodeFeatures();
@@ -869,7 +862,6 @@ export class SigmaNetworkRendererAdapter {
       skipIndexation: true,
       schedule: false,
     });
-    this.drawGeographicOverlay();
     this.drawGroupHulls();
     this.drawEdgeOverlays();
     this.drawNodeFeatures();
@@ -1002,7 +994,6 @@ export class SigmaNetworkRendererAdapter {
     this.detachWebglFailureMonitor();
     this.renderer.kill();
     this.renderer = null;
-    this.geographicLayer = null;
     this.groupLayer = null;
     this.edgeOverlayLayer = null;
     this.edgeLabelLayer = null;
@@ -1015,7 +1006,6 @@ export class SigmaNetworkRendererAdapter {
       this.renderer.setCustomBBox(this.resolveGraphBounds());
       this.renderer.getCamera().setState(priorCamera);
       this.renderer.refresh();
-      this.drawGeographicOverlay();
       this.drawGroupHulls();
       this.drawEdgeOverlays();
       this.drawNodeFeatures();
@@ -1055,7 +1045,6 @@ export class SigmaNetworkRendererAdapter {
     document.removeEventListener('pointercancel', this.handleSelectionPointerUp, true);
     this.renderer?.kill();
     this.renderer = null;
-    this.geographicLayer = null;
     this.groupLayer = null;
     this.edgeOverlayLayer = null;
     this.edgeLabelLayer = null;
@@ -1088,7 +1077,6 @@ export class SigmaNetworkRendererAdapter {
     this.customWebglNodeFeaturesActive = false;
     this.graph.clear();
     this.displayGraph.clear();
-    this.geographicOverlay = null;
     this.callbacks = {};
     this.container.replaceChildren();
     // A retired adapter can remain reachable briefly from browser tooling or
@@ -1204,13 +1192,6 @@ export class SigmaNetworkRendererAdapter {
       this.customWebglNodeFeaturesActive = false;
     }
 
-    this.geographicLayer = this.renderer.createCanvas('microbetrace-geography', {
-      beforeLayer: 'stage',
-      style: { pointerEvents: 'none' },
-    });
-    this.geographicLayer.dataset.testid = 'network-geographic-overlay';
-    this.geographicLayer.dataset.renderer = 'sigma';
-    this.geographicLayer.setAttribute('aria-hidden', 'true');
     this.groupLayer = this.renderer.createCanvas('microbetrace-groups', {
       beforeLayer: 'stage',
       style: { pointerEvents: 'none' },
@@ -1252,7 +1233,6 @@ export class SigmaNetworkRendererAdapter {
     // internal mouse layer while rebuilding the display graph.
     this.container.addEventListener('pointerdown', this.handleSelectionPointerDown, true);
     this.renderer.on('afterRender', () => {
-      this.drawGeographicOverlay();
       this.drawGroupHulls();
       this.drawEdgeOverlays();
       this.drawNodeFeatures();
@@ -2299,18 +2279,6 @@ export class SigmaNetworkRendererAdapter {
     this.nodeImageCache.set(dataUri, image);
     image.src = dataUri;
     return image;
-  }
-
-  private drawGeographicOverlay(): void {
-    if (!this.renderer || !this.geographicLayer) return;
-    const { width, height } = this.renderer.getDimensions();
-    drawNetworkGeographicOverlay(
-      this.geographicLayer,
-      width,
-      height,
-      this.geographicOverlay,
-      point => this.renderer!.graphToViewport(point),
-    );
   }
 
   private drawGroupHulls(): void {
