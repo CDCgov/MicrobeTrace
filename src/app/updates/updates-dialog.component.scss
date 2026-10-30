@@ -1,0 +1,72 @@
+.updates-intro {
+    margin: 0 0 1rem;
+    color: #52606d;
+    line-height: 1.5;
+}
+
+.updates-version {
+    font-size: 1rem;
+    font-weight: 600;
+}
+
+.release-notes {
+    color: #334155;
+    font-size: 0.95rem;
+    line-height: 1.65;
+    overflow-wrap: anywhere;
+}
+
+.release-notes-section {
+    margin-bottom: 1.5rem;
+}
+
+.release-notes-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem 1.25rem;
+    margin-bottom: 1.25rem;
+    color: #52606d;
+    font-size: 0.85rem;
+}
+
+.release-notes-section h3 {
+    margin: 0 0 0.75rem;
+    color: #1e293b;
+    font-size: 1.1rem;
+    font-weight: 600;
+}
+
+.release-notes-section h4 {
+    margin: 1rem 0 0.5rem;
+    color: #334155;
+    font-size: 0.95rem;
+    font-weight: 600;
+}
+
+.release-notes-section ul {
+    list-style: disc;
+    margin: 0;
+    padding-left: 1.4rem;
+}
+
+.release-notes-section li + li {
+    margin-top: 0.5rem;
+}
+
+.release-notes-source {
+    margin: 0;
+    padding-top: 1rem;
+    border-top: 1px solid #e2e8f0;
+    font-size: 0.85rem;
+}
+
+.release-notes a {
+    color: #005ea8;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+}
+
+.release-notes a:focus-visible {
+    outline: 2px solid #005ea8;
+    outline-offset: 3px;
+}

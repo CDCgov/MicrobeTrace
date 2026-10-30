@@ -88,11 +88,21 @@
           <button mat-menu-item (click)="WindowClick('Reload Screen')">Reload</button>
           <button mat-menu-item (click)="WindowClick('Fullscreen')">Fullscreen</button>
         </mat-menu>
-        <button class="navbar-item" mat-button [matMenuTriggerFor]="helpMenu"><i class="far nav-icon flaticon-questions-circular-button"></i>Help<span class="dropdown-symbol">&#9660;</span></button>
+        <button class="navbar-item" mat-button [matMenuTriggerFor]="helpMenu" [attr.aria-describedby]="showUpdatesNotification ? 'updates-available-description' : null">
+          <i class="far nav-icon flaticon-questions-circular-button"></i>
+          <span class="updates-menu-label">Help @if (showUpdatesNotification) { <span class="updates-notification-dot" data-testid="help-updates-indicator" aria-hidden="true"></span> }</span>
+          <span class="dropdown-symbol">&#9660;</span>
+        </button>
+        @if (showUpdatesNotification) {
+          <span id="updates-available-description" class="sr-only">New updates available</span>
+        }
         <mat-menu #helpMenu="matMenu" overlapTrigger="false">
           <a href="https://github.com/CDCgov/MicrobeTrace/wiki" class="dropdown-item ifOnline" target="_blank" rel="noreferrer noopener" mat-menu-item>Help</a>
           <a href="https://github.com/CDCgov/MicrobeTrace/issues/new" class="dropdown-item ifOnline" target="_blank" rel="noreferrer noopener" mat-menu-item>Report Bug</a>
           <button (click)="openMT_Classic()" mat-menu-item>MicrobeTrace Classic</button>
+          <button type="button" data-testid="app-help-updates" (click)="HelpClick('Updates')" mat-menu-item [attr.aria-describedby]="showUpdatesNotification ? 'updates-available-description' : null">
+            <span class="updates-menu-label">Updates @if (showUpdatesNotification) { <span class="updates-notification-dot" data-testid="updates-menu-indicator" aria-hidden="true"></span> }</span>
+          </button>
           <button (click)="HelpClick('About')" mat-menu-item>About</button>
         </mat-menu>
         <!-- <button class="navbar-item" mat-button [matMenuTriggerFor]="langMenu"><i class="far nav-icon flaticon-earth-globe"></i>Language<span class="dropdown-symbol">&#9660;</span></button>
@@ -1315,6 +1325,8 @@
     </p-dialog>
   </div><!-- Loading Files/.modal -->
 
+
+  <app-updates-dialog [(visible)]="displayUpdates" (viewed)="onUpdatesViewed($event)"></app-updates-dialog>
 
   <p-dialog id="about-dialog" [(visible)]="displayAbout" header="About Microbetrace">
     <div class="modal-dialog modal-lg" role="document">

@@ -75,6 +75,9 @@ import {
 } from './helperClasses/globalSettingsDialogRequest';
 import { AnalyticsService } from './contactTraceCommonServices/analytics.service';
 import { encodeCanvasOffMainThread } from './visualizationComponents/TwoDComponent/canvas-export-encoder';
+import { RELEASE_NOTES } from './updates/release-notes';
+
+const UPDATES_LAST_VIEWED_VERSION_KEY = 'microbetrace_updates_last_viewed_version';
 
 type ThresholdSweepSnapshot = ComponentStructureMetrics & {
     threshold: number;
@@ -240,6 +243,9 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
     activeTabIndex: any;
     displayHelp: boolean = false;
     displayAbout: boolean = false;
+    displayUpdates: boolean = false;
+    showUpdatesNotification: boolean = false;
+    private viewedUpdatesVersion: string | null = null;
     displayStashDialog: boolean = false;
     displayUrlDialog: boolean = false;
     displayMTDialog: boolean = false;
@@ -551,6 +557,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
 
         // Check if user has accepted the license:
         this.check_eula_acceptance();
+        void this.checkUpdatesNotification();
 
         this.auspiceUrlVal = this.commonService.getURL();
         if(this.commonService.debugMode) {
@@ -6089,8 +6096,36 @@ ${warnings.join('\n')}`,
         }
     }
 
+    private async checkUpdatesNotification(): Promise<void> {
+        let storedVersion: string | null = null;
+        try {
+            storedVersion = await this.commonService.localStorageService.getItemAsync<string>(UPDATES_LAST_VIEWED_VERSION_KEY);
+        } catch {
+            // Show unread updates when browser storage is unavailable.
+        }
+
+        // Opening Updates can finish before the initial storage read.
+        this.showUpdatesNotification = (this.viewedUpdatesVersion ?? storedVersion) !== RELEASE_NOTES[0].version;
+        this.cdref.markForCheck();
+    }
+
+    async onUpdatesViewed(version: string): Promise<void> {
+        this.viewedUpdatesVersion = version;
+        this.showUpdatesNotification = false;
+
+        try {
+            await this.commonService.localStorageService.setItemAsync(UPDATES_LAST_VIEWED_VERSION_KEY, version);
+        } catch {
+            // Keep the dots dismissed for this visit if the browser cannot save the version.
+        }
+    }
+
     HelpClick(actionName: any) {
         switch (actionName) {
+            case "Updates": {
+                this.displayUpdates = true;
+                break;
+            }
             case "Help": {
                 this.DisplayHelp();
                 break;

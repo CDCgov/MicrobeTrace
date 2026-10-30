@@ -1,0 +1,76 @@
+<p-dialog
+  id="updates-dialog"
+  header="Updates"
+  [visible]="visible"
+  (visibleChange)="setVisible($event)"
+  (onShow)="onShow()"
+  [modal]="true"
+  [draggable]="false"
+  [baseZIndex]="1400"
+  [style]="{ width: '52rem', maxWidth: 'calc(100vw - 32px)' }"
+  [contentStyle]="{ maxHeight: '70vh', overflow: 'auto' }">
+  <p class="updates-intro">What's new in MicrobeTrace, version by version.</p>
+
+  <p-accordion [(value)]="expandedVersions" [multiple]="true">
+    @for (release of releases; track release.version) {
+      <p-accordion-panel [value]="release.version">
+        <p-accordion-header>
+          <span class="updates-version">v{{ release.version }}</span>
+        </p-accordion-header>
+        <!-- Keep collapsed notes out of the dialog's scrollable area. -->
+        <p-accordion-content [pt]="{ contentWrapper: { style: { overflow: 'hidden' } } }">
+          <article class="release-notes" [attr.aria-label]="'MicrobeTrace v' + release.version + ' release notes'">
+            @if (release.date) {
+              <div class="release-notes-meta">
+                @if (release.date) {
+                  <time [attr.datetime]="release.date">{{ release.date | date: 'MMMM d, y' : 'UTC' }}</time>
+                }
+              </div>
+            }
+            @for (section of release.sections; track section.title) {
+              <section class="release-notes-section">
+                <h3>{{ section.title }}</h3>
+                @if (section.items?.length) {
+                  <ul>
+                    @for (item of section.items; track $index) {
+                      <li>
+                        @if (isLinkedItem(item)) {
+                          {{ item.before }}<a [href]="item.link.url" target="_blank" rel="noopener noreferrer">{{ item.link.text }}</a>{{ item.after }}
+                        } @else {
+                          {{ item }}
+                        }
+                      </li>
+                    }
+                  </ul>
+                }
+                @for (group of section.groups ?? []; track group.title) {
+                  <h4>{{ group.title }}</h4>
+                  <ul>
+                    @for (item of group.items; track $index) {
+                      <li>
+                        @if (isLinkedItem(item)) {
+                          {{ item.before }}<a [href]="item.link.url" target="_blank" rel="noopener noreferrer">{{ item.link.text }}</a>{{ item.after }}
+                        } @else {
+                          {{ item }}
+                        }
+                      </li>
+                    }
+                  </ul>
+                }
+              </section>
+            }
+            @if (release.sourceUrl) {
+              <p class="release-notes-source">
+                <a [href]="release.sourceUrl" target="_blank" rel="noopener noreferrer">View full release notes on GitHub</a>
+              </p>
+            }
+          </article>
+        </p-accordion-content>
+      </p-accordion-panel>
+    }
+  </p-accordion>
+
+  <ng-template #footer>
+    <button type="button" class="btn btn-primary" (click)="setVisible(false)">Close</button>
+  </ng-template>
+</p-dialog>
