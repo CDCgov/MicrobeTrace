@@ -7,8 +7,12 @@ import {
   type FragmentLayer,
 } from 'sigma/rendering';
 import type { NodePrimitives } from 'sigma/primitives';
+import { SIGMA_NETWORK_ADDITIONAL_SHAPES } from './sigma-network-node-shapes';
 
 export interface SigmaNetworkFeatureAttributes extends Record<string, unknown> {
+  mtFillOpacity: number;
+  mtBorderWidth: number;
+  mtBorderColor: string;
   mtDonutCount: number;
   mtDonutStops: number[];
   mtDonutColor1: string;
@@ -51,6 +55,9 @@ export function buildSigmaNetworkFeatureAttributes(
   const hasDonut = sourceSegments.length > 1;
 
   return {
+    mtFillOpacity: 1,
+    mtBorderWidth: 0,
+    mtBorderColor: '#000000',
     mtDonutCount: hasDonut ? Math.min(4, visibleSegments.length) : 0,
     mtDonutStops: stops,
     mtDonutColor1: colors[0] || TRANSPARENT,
@@ -67,6 +74,9 @@ const microbeTraceFeatureLayer: FragmentLayer = {
   name: 'mt_features',
   uniforms: [],
   attributes: [
+    { name: 'mtFillOpacity', size: 1, type: FLOAT, source: 'mtFillOpacity', defaultValue: 1 },
+    { name: 'mtBorderWidth', size: 1, type: FLOAT, source: 'mtBorderWidth', defaultValue: 0 },
+    { name: 'mtBorderColor', size: 4, type: UNSIGNED_BYTE, normalized: true, source: 'mtBorderColor', defaultValue: '#000000' },
     { name: 'mtBaseColor', size: 4, type: UNSIGNED_BYTE, normalized: true, source: 'color' },
     { name: 'mtDonutColor1', size: 4, type: UNSIGNED_BYTE, normalized: true, source: 'mtDonutColor1', defaultValue: TRANSPARENT },
     { name: 'mtDonutColor2', size: 4, type: UNSIGNED_BYTE, normalized: true, source: 'mtDonutColor2', defaultValue: TRANSPARENT },
@@ -86,6 +96,9 @@ float mtCircleMask(vec2 point, vec2 center, float radius) {
 }
 
 vec4 layer_mt_features(
+  float v_mtFillOpacity,
+  float v_mtBorderWidth,
+  vec4 v_mtBorderColor,
   vec4 v_mtBaseColor,
   vec4 v_mtDonutColor1,
   vec4 v_mtDonutColor2,
@@ -117,14 +130,32 @@ vec4 layer_mt_features(
     result = blendOver(result, mtMaskColor(donutColor, ringMask));
   }
 
+  // Fade the fill independently. Paint an opaque border over it so dimming
+  // cannot expose an extra inward half of an outline underneath the fill.
+  result.a *= v_mtFillOpacity;
+  if (v_mtBorderWidth > 0.0) {
+    // Sigma's node quad spans twice its size; two UV pixel units correspond
+    // to one CSS pixel along the radius.
+    float borderUV = 2.0 * v_mtBorderWidth * context.pixelToUV;
+    float borderAlpha = v_mtBorderColor.a * smoothstep(
+      -borderUV - context.aaWidth, -borderUV + context.aaWidth, context.sdf
+    );
+    float alpha = borderAlpha + result.a * (1.0 - borderAlpha);
+    vec3 premultiplied = v_mtBorderColor.rgb * borderAlpha
+      + result.rgb * result.a * (1.0 - borderAlpha);
+    result = vec4(premultiplied / max(alpha, 0.000001), alpha);
+  }
   return result;
 }
 `,
 };
 
 export const MICROBETRACE_SIGMA_NODE_PRIMITIVES: NodePrimitives = {
-  shapes: [sdfCircle(), sdfSquare(), sdfTriangle(), sdfDiamond()],
+  shapes: [sdfCircle(), sdfSquare(), sdfTriangle(), sdfDiamond(), ...SIGMA_NETWORK_ADDITIONAL_SHAPES],
   variables: {
+    mtFillOpacity: { type: 'number', default: 1 },
+    mtBorderWidth: { type: 'number', default: 0 },
+    mtBorderColor: { type: 'color', default: '#000000' },
     mtDonutCount: { type: 'number', default: 0 },
     mtDonutStops: { type: 'number', default: 0 },
     mtDonutColor1: { type: 'color', default: TRANSPARENT },

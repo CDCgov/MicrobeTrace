@@ -1061,6 +1061,9 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
     }
 
     private persistRendererViewState(stateValue?: NetworkRendererViewState | null): void {
+        // An explicit change supersedes camera updates still waiting to save.
+        if (this.rendererViewStateTimer) clearTimeout(this.rendererViewStateTimer);
+        this.rendererViewStateTimer = null;
         const state = normalizeNetworkRendererViewState(stateValue || this.getRendererViewState());
         if (!state) return;
         const sessionMeta = this.commonService.session.meta as any;
@@ -1671,17 +1674,24 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
     }
 
     private getSigmaNodeShape(shapeKey: string): SigmaNodeShape {
-        switch (resolveNodeShapeKey(shapeKey)) {
+        const resolvedShape = resolveNodeShapeKey(shapeKey);
+        switch (resolvedShape) {
             case 'triangle':
-            case 'tag':
-            case 'vee':
                 return 'triangle';
             case 'rectangle':
-            case 'barrel':
                 return 'square';
-            case 'rhomboid':
             case 'diamond':
                 return 'diamond';
+            case 'rhomboid':
+            case 'pentagon':
+            case 'hexagon':
+            case 'heptagon':
+            case 'octagon':
+            case 'star':
+            case 'barrel':
+            case 'tag':
+            case 'vee':
+                return resolvedShape;
             default: {
                 const cytoscapeShape = resolveCustomNodeIconCytoscapeShape(shapeKey);
                 if (cytoscapeShape.includes('triangle')) return 'triangle';
@@ -5460,6 +5470,9 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             this.sigmaRenderer = null;
             this.sigmaLayoutGroupByNodeId.clear();
             await this.renderSigma(false);
+            // Recalculation changes the graph bounds, so the saved camera can
+            // leave the new layout outside the viewport.
+            this.fit();
             return;
         }
         if (this.getNetworkLayout() === 'order-by-size') {
