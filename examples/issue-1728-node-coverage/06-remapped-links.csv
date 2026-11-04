@@ -1,0 +1,3 @@
+from_id,to_id,relationship
+X,Y,contact
+Y,W,contact

@@ -81,7 +81,7 @@ const assertHeatmapColorbarFormat = (expectedPercentageFormat: boolean): void =>
 
 describe('Heatmap View', () => {
   beforeEach(() => {
-    visitAppAndAcceptEula({ skipDemoSession: false });
+    visitAppAndAcceptEula({ skipDemoSession: false, dismissWelcomeOverlay: true });
     cy.window({ timeout: 60000 })
       .its('commonService.session.network.isFullyLoaded')
       .should('equal', true);

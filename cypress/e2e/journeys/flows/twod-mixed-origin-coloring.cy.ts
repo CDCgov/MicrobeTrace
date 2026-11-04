@@ -4,6 +4,7 @@ import { getProfile } from '../datasets/profile';
 import {
   applyPreLaunchFileSettings,
   assertAfterLaunchCounts,
+  continuePastMissingNodeCoverageWarning,
   ensurePreLaunchProfileSynced,
   ensureTwoDNetworkView,
   launchAndWaitForProcessing,
@@ -229,6 +230,7 @@ describe('Journey Flow - 2D mixed-origin link coloring', () => {
     } else {
       cy.get('[data-testid="files-update-button"]', { timeout: 20000 }).should('not.be.disabled').click({ force: true });
     }
+    continuePastMissingNodeCoverageWarning();
     waitForProcessingDialogToClear();
     ensureTwoDNetworkView();
   };

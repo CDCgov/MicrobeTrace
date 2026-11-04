@@ -5722,7 +5722,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                     });
                 });
 
-                cy.collection(group.values).move({ parent: parentId });
+                cy.collection().union(group.values).move({ parent: parentId });
             });
 
             this.applyPolygonLabelStyle();

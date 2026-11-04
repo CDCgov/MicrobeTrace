@@ -1,0 +1,16 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [-84.39, 33.75]
+      },
+      "properties": {
+        "id": "Z",
+        "label": "Enrichment-only identifier"
+      }
+    }
+  ]
+}

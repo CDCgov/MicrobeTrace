@@ -7,6 +7,7 @@ import {
   assertMapReady,
   assertMapRenderedCounts,
   assertSessionAfterLaunchCounts,
+  continuePastMissingNodeCoverageWarning,
   ensurePreLaunchProfileSynced,
   openMapSettingsDialog,
   selectMapField,
@@ -33,6 +34,7 @@ const launchProfileDirectToMap = (profile: DatasetProfile): void => {
   useOfflineMapLayers({ surviveLaunchReset: true });
 
   cy.get('#launch', { timeout: 15000 }).should('not.be.disabled').click({ force: true });
+  continuePastMissingNodeCoverageWarning();
   cy.get('#loading-information', { timeout: 120000 }).should('not.exist');
   cy.window({ timeout: 120000 })
     .its('commonService.session.network.isFullyLoaded')

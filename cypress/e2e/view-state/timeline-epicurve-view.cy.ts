@@ -1,3 +1,9 @@
+import {
+  goToEpiCurveView,
+  setGlobalLinkThreshold,
+  visitAppAndAcceptEula,
+} from '../../support/journey-helpers';
+
 describe('Epi Curve / Timeline View', () => {
     const selectors = {
       container: '#epiCurve',
@@ -6,15 +12,9 @@ describe('Epi Curve / Timeline View', () => {
     };
   
     beforeEach(() => {
-      cy.visit('/');
-      cy.wait(6000);
-  
-      cy.contains('button', 'Continue with Sample Dataset', { timeout: 10000 }).click({ force: true });
-      cy.get('#overlay').should('not.be.visible', { timeout: 10000 });
-  
-      cy.contains('button', 'View').click();
-      cy.contains('button[mat-menu-item]', 'Epi Curve').click();
-  
+      visitAppAndAcceptEula({ skipDemoSession: false, dismissWelcomeOverlay: true });
+      goToEpiCurveView();
+
       cy.get(selectors.container, { timeout: 15000 }).should('be.visible');
     });
   
@@ -129,24 +129,16 @@ describe('Epi Curve / Timeline View', () => {
 
         let expectedClusterCount = 2
         cy.contains('#global-settings-modal .nav-link', 'Filtering').click();
-        for (let i = 0; i < 6; i++) {
-          cy.get('#link-threshold').type('{uparrow}');
-        }
-
-        cy.wait(2000);
-        cy.window().then((win: any) => {
-          expect(win.commonService.session.style.widgets['link-threshold']).to.eq(22);
-          expect(win.commonService.session.data.clusters.length).to.eq(expectedClusterCount)
-        });
+        setGlobalLinkThreshold(22);
+        cy.window()
+          .its('commonService.session.data.clusters')
+          .should('have.length', expectedClusterCount);
 
         cy.get('#epiCurveSVG .epiCurve-epi-curve circle')
-          .its('length')
-          .then((count) => {
-            expect(count).to.be.eq(expectedClusterCount);
-          });
+          .should('have.length', expectedClusterCount);
 
         cy.get('#epiCurveSVG .epiCurve-epi-curve rect')
-          .then(($rects) => {
+          .should(($rects) => {
             const rectFills = [...$rects]
               .map((c) => c.getAttribute('fill') || '')
               .filter(Boolean)
@@ -155,25 +147,17 @@ describe('Epi Curve / Timeline View', () => {
             expect(rectFills.some((fill) => fill === '#b732cc' || fill === 'rgb(183,50,204)' || fill === 'rgb(183, 50, 204)')).to.equal(false);
           });
         
-        for (let i = 0; i < 8; i++) {
-          cy.get('#link-threshold').type('{downarrow}');
-        }
-
-        cy.wait(2000);
-        cy.window().then((win: any) => {
-          expectedClusterCount = 4
-          expect(win.commonService.session.style.widgets['link-threshold']).to.eq(14);
-          expect(win.commonService.session.data.clusters.length).to.eq(expectedClusterCount)
-        });
+        expectedClusterCount = 4
+        setGlobalLinkThreshold(14);
+        cy.window()
+          .its('commonService.session.data.clusters')
+          .should('have.length', expectedClusterCount);
 
         cy.get('#epiCurveSVG .epiCurve-epi-curve circle')
-          .its('length')
-          .then((count) => {
-            expect(count).to.be.eq(expectedClusterCount);
-          });
+          .should('have.length', expectedClusterCount);
 
         cy.get('#epiCurveSVG .epiCurve-epi-curve rect')
-          .then(($rects) => {
+          .should(($rects) => {
             const rectFills = [...$rects]
               .map((c) => c.getAttribute('fill') || '')
               .filter(Boolean)
@@ -200,28 +184,20 @@ describe('Epi Curve / Timeline View', () => {
         cy.window()
           .its('commonService.GlobalSettingsModel.SelectedNodeColorTableTypesVariable')
           .should('equal', 'Show');
-        cy.get('#key-tables-node-table').should('be.visible');
+        cy.get('#node-color-table:visible').should('be.visible');
 
         cy.contains('#global-settings-modal .nav-link', 'Filtering').click();
         let expectedClusterCount = 4
-        for (let i = 0; i < 2; i++) {
-          cy.get('#link-threshold').type('{downarrow}');
-        }
-
-        cy.wait(2000);
-        cy.window().then((win: any) => {
-          expect(win.commonService.session.style.widgets['link-threshold']).to.eq(14);
-          expect(win.commonService.session.data.clusters.length).to.eq(expectedClusterCount)
-        });
+        setGlobalLinkThreshold(14);
+        cy.window()
+          .its('commonService.session.data.clusters')
+          .should('have.length', expectedClusterCount);
 
         cy.get('#epiCurveSVG .epiCurve-epi-curve circle')
-          .its('length')
-          .then((count) => {
-            expect(count).to.be.eq(expectedClusterCount);
-          });
+          .should('have.length', expectedClusterCount);
 
         cy.get('#epiCurveSVG .epiCurve-epi-curve rect')
-          .then(($rects) => {
+          .should(($rects) => {
             const rectFills = [...$rects]
               .map((c) => c.getAttribute('fill') || '')
               .filter(Boolean)
@@ -231,9 +207,9 @@ describe('Epi Curve / Timeline View', () => {
             expect(rectFills.some((fill) => fill === '#b732cc' || fill === 'rgb(183,50,204)' || fill === 'rgb(183, 50, 204)')).to.equal(true);
           });
 
-        cy.get('#key-tables-node-table td input').first().invoke('val', '#777777').trigger('input').trigger('change');
+        cy.get('#node-color-table:visible td input').first().invoke('val', '#777777').trigger('input').trigger('change');
         cy.get('#epiCurveSVG .epiCurve-epi-curve rect')
-          .then(($rects) => {
+          .should(($rects) => {
             const rectFills = [...$rects]
               .map((c) => c.getAttribute('fill') || '')
               .filter(Boolean)
@@ -249,7 +225,7 @@ describe('Epi Curve / Timeline View', () => {
         cy.get('#node-color').invoke('val', '#ff0000').trigger('input');
 
         cy.get('#epiCurveSVG .epiCurve-epi-curve rect')
-          .then(($rects) => {
+          .should(($rects) => {
             const rectFills = [...$rects]
               .map((c) => c.getAttribute('fill') || '')
               .filter(Boolean)
@@ -378,16 +354,26 @@ describe('Epi Curve / Timeline View', () => {
       cy.contains('.p-dialog-title', 'Epi Curve Settings')
       .parents('.p-dialog')
       .within(() => {
-        cy.contains('label', field)
-          .parents('.form-group.row')
-          .first()
-          .find('p-select')
-          .click();
+          cy.contains('label', field)
+            .parents('.form-group.row')
+            .first()
+            .find('p-select')
+            .as('epiFieldSelect')
+            .click();
       });
 
-      cy.get('.p-select-option')
-        .contains(value)
-        .click();
+      // PrimeNG keeps off-screen options in the active listbox so Cypress can
+      // scroll them into view. Scope to the newest listbox without filtering
+      // the option itself through jQuery's stricter :visible semantics.
+      cy.get('[role="listbox"]')
+        .last()
+        .within(() => {
+          cy.contains('.p-select-option', value).click();
+        });
+
+      cy.get('@epiFieldSelect')
+        .find('[role="combobox"]')
+        .should('not.have.attr', 'aria-expanded', 'true');
 
       const normalize = (s: string) => s.replace(/_/g, '').toLowerCase();
       let widgetLocation: string;
@@ -409,7 +395,7 @@ describe('Epi Curve / Timeline View', () => {
 
       cy.window()
         .its(widgetLocation)
-        .then(widgetValue =>
+        .should(widgetValue =>
           expect(normalize(widgetValue)).to.equal(normalize(value))
         )
 
@@ -421,9 +407,8 @@ describe('Epi Curve / Timeline View', () => {
 
         cy.get('#epiCurveSVG .epiCurve-epi-curve text')
           .eq(textBoxNumber)
-          .invoke('text')
-          .then((textValue) => {
-            expect(normalize(textValue)).to.equal(normalize(value));
+          .should(($text) => {
+            expect(normalize($text.text())).to.equal(normalize(value));
           });
       }
     }
@@ -499,7 +484,7 @@ describe('Epi Curve / Timeline View', () => {
         .should('contain.text', `Date (${binSizeLabel} Bins)`);
 
       cy.get('#epiCurveSVG .epiCurve-epi-curve rect')
-        .then(($rects) => {
+        .should(($rects) => {
           const nextRectCount = $rects.length;
           const nextFirstRectWidth = Number($rects.first().attr('width') || 0);
 
@@ -553,7 +538,7 @@ describe('Epi Curve / Timeline View', () => {
         .its('commonService.session.style.widgets.epiCurve-cumulative')
         .should('equal', cumulative);
 
-      cy.get('#epiCurveSVG .epiCurve-epi-curve rect').then(($rects) => {
+      cy.get('#epiCurveSVG .epiCurve-epi-curve rect').should(($rects) => {
         const nextHeights = [...$rects].map((rect) => Number(rect.getAttribute('height') || 0));
         expect(nextHeights.length, 'rect count after cumulative toggle').to.be.greaterThan(1);
         expect(nextHeights.length, 'rect count should stay stable after cumulative toggle').to.equal(previousHeights.length);

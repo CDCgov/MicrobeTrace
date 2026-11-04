@@ -2,6 +2,7 @@
 /// <reference types="cypress" />
 
 import { byTestId, testIds } from '../../support/selectors';
+import { continuePastMissingNodeCoverageWarning } from '../../support/journey-helpers';
 
 describe('File Handling and Processing', () => {
   const nodeFile = 'AngularTesting_nodelist_withseqs_TN93_BS.csv';
@@ -9,6 +10,11 @@ describe('File Handling and Processing', () => {
   const linkFile = 'AngularTesting_Epi_linklist_BS.csv';
   const additionalNodeFile = compatibleNodeFile;
   const geoJSONLocationFile = 'map-node-locations.geojson';
+  const coverageNodeFile = 'missing-node-coverage-nodes.csv';
+  const coverageLinkFile = 'missing-node-coverage-links.csv';
+  const matchedCoverageNodeFile = 'missing-node-coverage-matched-nodes.csv';
+  const matchedCoverageLinkFile = 'missing-node-coverage-matched-links.csv';
+  const extraCoverageNodeFile = 'missing-node-coverage-extra-node.csv';
   const loadNodeFile = () => cy.loadFiles([{ name: nodeFile, datatype: 'node' }]);
 
   beforeEach(() => {
@@ -180,6 +186,7 @@ describe('File Handling and Processing', () => {
     cy.contains('#file-table .file-table-row', linkFile, { timeout: 20000 }).should('be.visible');
     cy.get('.runtime-error-banner').should('not.exist');
     cy.get('#launch').should('not.be.disabled').click({ force: true });
+    continuePastMissingNodeCoverageWarning();
     cy.get('.lm_tab.lm_active', { timeout: 20000 }).should('contain.text', '2D Network');
   });
 
@@ -286,6 +293,7 @@ describe('File Handling and Processing', () => {
     ]);
 
     cy.get('#launch').click({ force: true });
+    continuePastMissingNodeCoverageWarning();
     cy.get('.lm_tab.lm_active', { timeout: 20000 }).should('contain.text', '2D Network');
 
     cy.window().its('commonService.session.data.nodes').should('have.length.greaterThan', 0);
@@ -300,6 +308,110 @@ describe('File Handling and Processing', () => {
         (l.source === 'KF773571' && l.target === 'KF773578')
       );
       expect(link.Contact).to.equal('Bar');
+    });
+  });
+
+  it('gates launch when imported node and topology identifiers do not match', () => {
+    cy.loadFiles([
+      { name: coverageNodeFile, datatype: 'node', field1: 'id' },
+      { name: coverageLinkFile, datatype: 'link', field1: 'source', field2: 'target' },
+    ]);
+
+    cy.get('#launch').click({ force: true });
+    cy.get(byTestId(testIds.filesMissingNodeCoverageDialog), { timeout: 10000 })
+      .should('be.visible')
+      .parents('.p-dialog')
+      .as('coverageDialog');
+
+    cy.get('@coverageDialog')
+      .find(byTestId(testIds.filesMissingNodeDataSection))
+      .should('contain.text', 'Missing node data (1)')
+      .and('contain.text', 'D');
+    cy.get('@coverageDialog')
+      .find(byTestId(testIds.filesMissingLinkInformationSection))
+      .should('contain.text', 'Missing link information (1)')
+      .and('contain.text', 'C');
+    cy.window().then((win: any) => {
+      expect(win.commonService.session.network.launched).to.equal(false);
+      expect(win.commonService.session.data.nodes).to.have.length(0);
+    });
+
+    cy.get('@coverageDialog')
+      .find(byTestId(testIds.filesMissingNodeCoverageCancel))
+      .click({ force: true });
+    cy.get(byTestId(testIds.filesMissingNodeCoverageDialog)).should('not.exist');
+    cy.get('.lm_tab.lm_active').should('contain.text', 'Files');
+    cy.window().then((win: any) => {
+      expect(win.commonService.session.network.launched).to.equal(false);
+      expect(win.commonService.session.files.map((file: any) => file.name)).to.include.members([
+        coverageNodeFile,
+        coverageLinkFile,
+      ]);
+    });
+
+    cy.get('#launch').click({ force: true });
+    cy.get(byTestId(testIds.filesMissingNodeCoverageDialog), { timeout: 10000 })
+      .should('be.visible')
+      .parents('.p-dialog')
+      .find(byTestId(testIds.filesMissingNodeCoverageContinue))
+      .click({ force: true });
+
+    cy.window({ timeout: 30000 })
+      .its('commonService.session.network.isFullyLoaded')
+      .should('be.true');
+    cy.get('.lm_tab.lm_active', { timeout: 20000 }).should('contain.text', '2D Network');
+  });
+
+  it('launches without a coverage dialog when explicit topology is absent or fully matched', () => {
+    cy.loadFiles([{ name: coverageNodeFile, datatype: 'node', field1: 'id' }]);
+    cy.get('#launch').click({ force: true });
+    cy.get(byTestId(testIds.filesMissingNodeCoverageDialog)).should('not.exist');
+    cy.window({ timeout: 30000 })
+      .its('commonService.session.network.isFullyLoaded')
+      .should('be.true');
+
+    cy.visit('/?skipEula=1&skipDemoSession=1');
+    cy.get('#fileDropRef', { timeout: 15000 }).should('exist');
+
+    cy.loadFiles([
+      { name: matchedCoverageNodeFile, datatype: 'node', field1: 'id' },
+      { name: matchedCoverageLinkFile, datatype: 'link', field1: 'source', field2: 'target' },
+    ]);
+    cy.get('#launch').click({ force: true });
+    cy.get(byTestId(testIds.filesMissingNodeCoverageDialog)).should('not.exist');
+    cy.window({ timeout: 30000 })
+      .its('commonService.session.network.isFullyLoaded')
+      .should('be.true');
+  });
+
+  it('cancels an update without replacing the currently processed network', () => {
+    cy.loadFiles([
+      { name: matchedCoverageNodeFile, datatype: 'node', field1: 'id' },
+      { name: matchedCoverageLinkFile, datatype: 'link', field1: 'source', field2: 'target' },
+    ]);
+    cy.get('#launch').click({ force: true });
+    cy.window({ timeout: 30000 })
+      .its('commonService.session.network.isFullyLoaded')
+      .should('be.true');
+
+    cy.get(byTestId(testIds.appFileMenuButton)).click({ force: true });
+    cy.contains('[role="menuitem"]', 'Add Data').click({ force: true });
+    cy.get('.lm_tab.lm_active', { timeout: 20000 }).should('contain.text', 'Files');
+    cy.loadFiles([{ name: extraCoverageNodeFile, datatype: 'node', field1: 'id' }]);
+
+    cy.get(byTestId(testIds.filesUpdateButton)).click({ force: true });
+    cy.get(byTestId(testIds.filesMissingNodeCoverageDialog), { timeout: 10000 })
+      .should('be.visible')
+      .parents('.p-dialog')
+      .find(byTestId(testIds.filesMissingNodeCoverageCancel))
+      .click({ force: true });
+
+    cy.window().then((win: any) => {
+      expect(win.commonService.session.network.launched).to.equal(true);
+      expect(win.commonService.session.data.nodes.map((node: any) => node._id).sort())
+        .to.deep.equal(['A', 'B']);
+      expect(win.commonService.session.files.map((file: any) => file.name))
+        .to.include(extraCoverageNodeFile);
     });
   });
 
@@ -351,6 +463,7 @@ describe('File Handling and Processing', () => {
     ]);
 
     cy.get('#launch').click({ force: true });
+    continuePastMissingNodeCoverageWarning();
     cy.get('.lm_tab.lm_active', { timeout: 20000 }).should('contain.text', '2D Network');
 
     cy.get(byTestId(testIds.appFileMenuButton)).click({ force: true });
@@ -383,6 +496,7 @@ describe('File Handling and Processing', () => {
     ]);
 
     cy.get('#launch').click({ force: true });
+    continuePastMissingNodeCoverageWarning();
     cy.window({ timeout: 30000 })
       .its('commonService.session.network.isFullyLoaded')
       .should('be.true');
@@ -410,6 +524,7 @@ describe('File Handling and Processing', () => {
 
     cy.loadFiles([{ name: linkFile, datatype: 'link' }]);
     cy.get('#launch').click({ force: true });
+    continuePastMissingNodeCoverageWarning();
     cy.window({ timeout: 30000 })
       .its('commonService.session.network.isFullyLoaded')
       .should('be.true');
@@ -428,6 +543,7 @@ describe('File Handling and Processing', () => {
     ]);
 
     cy.get('#launch').click({ force: true });
+    continuePastMissingNodeCoverageWarning();
     cy.window({ timeout: 30000 })
       .its('commonService.session.network.isFullyLoaded')
       .should('be.true');
@@ -449,6 +565,7 @@ describe('File Handling and Processing', () => {
       .find('.flaticon-delete-1')
       .click({ force: true });
     cy.get('#launch').click({ force: true });
+    continuePastMissingNodeCoverageWarning();
     cy.window({ timeout: 30000 })
       .its('commonService.session.network.isFullyLoaded')
       .should('be.true');
@@ -461,6 +578,7 @@ describe('File Handling and Processing', () => {
 
     cy.loadFiles([{ name: compatibleNodeFile, datatype: 'node', field1: '_id', field2: 'seq' }]);
     cy.get('#launch').should('contain.text', 'Update').click({ force: true });
+    continuePastMissingNodeCoverageWarning();
     cy.window({ timeout: 30000 })
       .its('commonService.session.network.isFullyLoaded')
       .should('be.true');
@@ -482,6 +600,7 @@ describe('File Handling and Processing', () => {
     ]);
 
     cy.get('#launch').click({ force: true });
+    continuePastMissingNodeCoverageWarning();
     cy.window({ timeout: 30000 })
       .its('commonService.session.network.isFullyLoaded')
       .should('be.true');
@@ -504,6 +623,7 @@ describe('File Handling and Processing', () => {
     cy.get('#launch-reset-settings', { timeout: 20000 })
       .should('exist')
       .click({ force: true });
+    continuePastMissingNodeCoverageWarning();
     cy.window({ timeout: 30000 })
       .its('commonService.session.network.isFullyLoaded')
       .should('be.true');

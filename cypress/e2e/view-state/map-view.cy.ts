@@ -611,7 +611,7 @@ describe('Map View', () => {
         }, end))
         container.dispatchEvent(mm1);
 
-        const me1 = new MouseEvent('mouseend', Object.assign({
+        const me1 = new MouseEvent('mouseup', Object.assign({
           bubbles: true, cancelable: true, composed: true,
           pointerId: 1, pointerType: 'mouse', isPrimary: true, button: 0
         }, end))
@@ -628,13 +628,13 @@ describe('Map View', () => {
       cy.get('#centerMapButton').click({ force: true });
       cy.wait(500);
 
-      cy.window().then((win: any) => {
+      cy.window().should((win: any) => {
         const lmap = win.commonService.visuals.gisMap.lmap;
         const c = lmap.getCenter();
         newCenter = { lat: c.lat, lng: c.lng };
-        const latDiff = Math.abs(newCenter.lat - initialCenter.lat);
-        const lngDiff = Math.abs(newCenter.lng - initialCenter.lng);
-        expect(latDiff < 0.05 && lngDiff < 0.05).to.equal(true);
+        const zoom = lmap.getZoom();
+        const pixelDiff = lmap.project(newCenter, zoom).distanceTo(lmap.project(initialCenter, zoom));
+        expect(pixelDiff, 'center difference in rendered map pixels').to.be.at.most(1.5);
       })
     });
 
