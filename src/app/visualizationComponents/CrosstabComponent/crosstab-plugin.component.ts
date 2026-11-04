@@ -122,6 +122,10 @@ export class CrosstabComponent extends BaseComponentDirective implements OnInit,
         this.refreshFromSession();
       }
     })
+
+    this.store.styleFileApplied$.pipe(takeUntil(this.destroy$)).subscribe(() => {
+      this.applyStyleFileSettings();
+    })
   }
 
     ngOnDestroy(): void {
@@ -376,7 +380,7 @@ export class CrosstabComponent extends BaseComponentDirective implements OnInit,
   }
 
   applyStyleFileSettings() { 
-    this.widgets = (window as any).context.commonService.session.style.widgets;
+    this.widgets = this.commonService.session.style.widgets;
     let tempX, tempY;
     if (this.widgets['crosstab-xVariable'] != undefined) {
       tempX = this.widgets['crosstab-xVariable']

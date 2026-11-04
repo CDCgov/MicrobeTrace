@@ -1419,6 +1419,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
 
         const layoutStart = this.getPerformanceNow();
         let finalNetworkData = this.getFinalTimelineNetworkDataForLayout();
+        this.updateMinMaxNode(finalNetworkData.nodes);
         finalNetworkData.nodes.forEach(node => {
             node.nodeSize = Number(this.getNodeSize(node));
         });
@@ -3455,7 +3456,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         this.styleFileSub = this.store.styleFileApplied$.subscribe(() => {
             console.log('--- TwoD InitView stylefile sub');
 
-            this.applyStyleFileSettings();
+            void this.applyStyleFileSettings();
         });
 
 
@@ -6456,6 +6457,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
 
         const collectDataStart = this.getPerformanceNow();
         let networkData = this.getVisibleNetworkDataForRender(timelineTick || this.isTimelineFilteringActive());
+        this.updateMinMaxNode(networkData.nodes);
         this.normalizeNetworkDataForCytoscape(networkData, false);
         networkData = this.applyNodeCollapseToNetworkData(networkData);
         this.normalizeNetworkDataForCytoscape(networkData, false);
@@ -7172,8 +7174,8 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
     /**
      * Updates the values for this.nodeMin, this.nodeMax, this.nodeMid and uses that info to update this.nodeScale() to set the size of the nodes
      */
-    updateMinMaxNode() {
-        this.visNodes = this.commonService.getVisibleNodes();
+    updateMinMaxNode(nodes: any[] = this.commonService.getVisibleNodes()) {
+        this.visNodes = nodes ?? [];
         let sizeVariable = this.widgets['node-radius-variable'];
     
         this.nodeMin = Infinity;
@@ -7206,10 +7208,20 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         // console.log('noderad Max: ', this.widgets['node-radius-max']);
         // console.log('noderad Min ', this.widgets['node-radius-min']);
 
-        let maxWidth = this.widgets['node-radius-max'];
-        let minWidth = this.widgets['node-radius-min'];
-    
-        this.nodeMid = (this.nodeMax - this.nodeMin) / 2;
+        const maxWidth = Number(this.widgets['node-radius-max']);
+        const minWidth = Number(this.widgets['node-radius-min']);
+
+        if (!Number.isFinite(this.nodeMin) || !Number.isFinite(this.nodeMax)) {
+            this.nodeMin = 0;
+            this.nodeMax = 0;
+            this.nodeMid = 0;
+            this.nodeScale = d3.scaleLinear()
+                .domain([0, 1])
+                .range([minWidth, minWidth]);
+            return;
+        }
+
+        this.nodeMid = this.nodeMin + (this.nodeMax - this.nodeMin) / 2;
     
         this.nodeScale = d3.scaleLinear()
             .domain([this.nodeMin, this.nodeMax])
@@ -7792,6 +7804,7 @@ scaleLinkWidth() {
     });
 
     // Keep layout collision sizing in sync with current style widgets.
+    this.updateMinMaxNode(networkData.nodes);
     networkData.nodes.forEach(node => {
         node.nodeSize = Number(this.getNodeSize(node));
     });
@@ -7957,12 +7970,34 @@ scaleLinkWidth() {
 
     }
 
-    applyStyleFileSettings() {
+    async applyStyleFileSettings(): Promise<void> {
         this.widgets = this.commonService.session.style.widgets;
         this.ensureNodeCollapseWidgetDefaults();
         this.ensureNetworkLayoutWidgetDefault();
         this.loadSettings();
-        this._partialUpdate(); 
+        await this._partialUpdate();
+
+        if (this.isDestroyed) {
+            return;
+        }
+
+        // Global style settings can trigger an asynchronous network refresh.
+        // Rebuild grouping after the graph update so the group color table uses
+        // the final parent nodes rather than the graph from before the import.
+        const showGroups = this.widgets['polygons-show'] === true;
+        this.polygonsToggle(showGroups, false);
+        if (!showGroups) {
+            return;
+        }
+
+        await this.centerPolygons(this.widgets['polygons-foci'], false, false);
+        const showGroupColors = this.widgets['polygons-color-show'] === true;
+        this.polygonColorsToggle(showGroupColors, false);
+        if (showGroupColors) {
+            this.onPolygonColorTableChange(this.widgets['polygon-color-table-visible']);
+            this.updatePolygonColors();
+            this.updateGroupNodeColors();
+        }
     }
 
     ngOnDestroy(): void {

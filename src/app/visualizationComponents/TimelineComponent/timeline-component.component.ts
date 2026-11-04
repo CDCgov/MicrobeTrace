@@ -142,6 +142,10 @@ export class TimelineComponent extends BaseComponentDirective implements OnInit,
         this.refresh();
       }
     })
+
+    this.store.styleFileApplied$.pipe(takeUntil(this.destroy$)).subscribe(() => {
+      this.applyStyleFileSettings();
+    })
  }
   
   ngOnDestroy(): void {
@@ -1465,7 +1469,7 @@ updateVisualization() {
 }
 
 applyStyleFileSettings() {
-  this.widgets = (window as any).context.commonService.session.style.widgets;
+  this.widgets = this.commonService.session.style.widgets;
   this.setDefaultsWidgets();
   
   this.updateSettingsRows()

@@ -1190,6 +1190,14 @@ export function waitForProcessingDialogToClear(timeout = 30000): void {
   });
 }
 
+export function waitForStyleApplicationToSettle(timeout = 30000): void {
+  waitForProcessingDialogToClear(timeout);
+
+  cy.window({ timeout })
+    .its('commonService.session.network.rendering')
+    .should('equal', false);
+}
+
 export function openGlobalFilteringTab(): void {
   cy.openGlobalSettings();
   cy.contains('.p-dialog-title:visible', 'Global Settings')
@@ -1653,6 +1661,7 @@ export function applyStyleFromProfile(profile: DatasetProfile): void {
   cy.attach_files('#apply-style', [style.styleFile], ['application/json']);
 
   assertStyleWidgetsFromProfile(profile);
+  waitForStyleApplicationToSettle(30000);
 }
 
 export function assertStyleWidgetsFromProfile(profile: DatasetProfile): void {

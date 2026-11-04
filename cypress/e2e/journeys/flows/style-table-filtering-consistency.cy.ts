@@ -33,6 +33,8 @@ const nodeShapeTableSelector = '#node-shape-table, #key-tables-node-shape-table,
 
 const normalizeColor = (value: string): string => String(value || '').replace(/\s+/g, '').toLowerCase();
 
+const escapeRegExp = (value: string): string => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
 const normalizeStyleCategoryValue = (value: unknown): string => {
   const normalized = String(value ?? '').trim();
   const normalizedLowerCase = normalized.toLowerCase();
@@ -58,8 +60,14 @@ const hexToRgbString = (hex: string): string => {
 };
 
 const selectPrimeOption = (selector: string, label: string): void => {
-  cy.get(selector).click({ force: true });
-  cy.contains('li[role="option"]', label, { timeout: 15000 }).click({ force: true });
+  cy.get(selector).should('be.visible').click({ force: true });
+  cy.get('.p-select-overlay:visible', { timeout: 15000 })
+    .last()
+    .should('be.visible')
+    .contains('.p-select-option', new RegExp(`^${escapeRegExp(label)}$`))
+    .scrollIntoView()
+    .click({ force: true });
+  cy.get('.p-select-overlay:visible').should('not.exist');
 };
 
 const closeDialogIfVisible = (dialogTitle: string): void => {
@@ -110,13 +118,13 @@ const applyMinimumClusterSize = (size: number): void => {
   openGlobalFilteringTab();
   cy.get(byTestId(testIds.filterMinimumClusterSize))
     .should('not.be.disabled')
-    .clear()
-    .wait(100)
-    .type(String(size))
     .then(($input) => {
-      const input = $input.get(0);
+      const input = $input.get(0) as HTMLInputElement;
+      input.focus();
+      input.value = String(size);
+      input.dispatchEvent(new Event('input', { bubbles: true }));
       input.dispatchEvent(new Event('change', { bubbles: true }));
-      input.dispatchEvent(new Event('blur', { bubbles: true }));
+      input.blur();
     });
 
   cy.window()

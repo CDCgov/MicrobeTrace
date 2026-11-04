@@ -239,6 +239,10 @@ export class AlignmentViewComponent extends BaseComponentDirective implements On
       }
       this.cdref.detectChanges();
     })
+
+    this.store.styleFileApplied$.pipe(takeUntil(this.destroy$)).subscribe(() => {
+      this.applyStyleFileSettings();
+    })
   }
 
   ngAfterViewInit(): void {
@@ -1673,7 +1677,7 @@ export class AlignmentViewComponent extends BaseComponentDirective implements On
 
   // function is called when style file is applied
   applyStyleFileSettings() {
-    this.widgets = (window as any).context.commonService.session.style.widgets;
+    this.widgets = this.commonService.session.style.widgets;
 
     this.labelArray = this.getData(this.nodesWithSeq, ['index', this.widgets['alignView-labelField']]);
 
