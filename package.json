@@ -214,16 +214,21 @@
   "overrides": {
     "@babel/core": "7.29.6",
     "@hono/node-server": "2.0.10",
+    "@typescript-eslint/typescript-estree": {
+      "minimatch": "11.0.4"
+    },
+    "body-parser": "1.20.9",
     "d3-color": "3.1.0",
     "engine.io": {
       "ws": "8.21.0"
     },
     "esbuild": "0.28.1",
-    "follow-redirects": "1.16.1",
+    "follow-redirects": "1.16.2",
+    "joi": "18.3.2",
     "picomatch": "4.0.4",
     "piscina": "5.3.2",
     "postcss": "8.5.23",
-    "qs": "6.16.0",
+    "qs": "6.17.1",
     "source-map-js": "1.2.2",
     "socket.io-adapter": {
       "ws": "8.21.0"
