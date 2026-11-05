@@ -10,7 +10,7 @@ The implementation branch is `codex/sigma-migration`, based on `origin/dev` at `
 
 - `TwoDComponent` owns renderer-neutral MicrobeTrace behavior and chooses the active renderer.
 - `SigmaNetworkRendererAdapter` owns Graphology, Sigma, WebGL layers, camera interaction, selection, dragging, group hulls, edge level of detail, and resource teardown.
-- Renderer-neutral modules provide existing mixed-value node coloring, grouping, geographic projection, composite export, and saved view-state normalization.
+- Renderer-neutral modules provide existing mixed-value node coloring, grouping, composite export, and saved view-state normalization.
 - Sigma is selected when no renderer query parameter is supplied.
 - `?renderer=cytoscape-canvas` remains available for an explicit compatibility override.
 - Cytoscape and `cytoscape-svg` are dynamic imports. The optimized production build emits them as separate lazy chunks (approximately 419 kB and 21 kB raw, or 113 kB and 7 kB estimated transfer respectively), so they are not loaded on a successful Sigma startup.
@@ -37,7 +37,6 @@ The integrated Sigma renderer supports:
 - grouping hulls for singleton, pair, and larger groups, group labels and orientations, shared or per-group colors, per-group transparency, editable/sortable group key tables, and grouped layouts;
 - node collapsing and aggregate metadata used by renderer-neutral exports;
 - existing mixed-value node coloring and collapsed aggregate pie charts;
-- geographic longitude/latitude projection with an exported geographic overlay;
 - camera position, zoom, edge-detail mode, styling, and selection round-tripped through saved sessions;
 - PNG/JPEG/WebP/SVG composite export metadata and layered canvas capture;
 - keyboard navigation, focus status, and accessible feature summaries.
@@ -73,6 +72,8 @@ The migration adds the following direct runtime dependencies:
 Sigma is pinned to an exact beta release, and Sigma-specific calls are isolated behind the adapter to contain future API changes. Cytoscape remains installed because it is the compatibility renderer, but its code and renderer state are lazy on the normal path. `less` is a development dependency used by the Angular 22 build for the repository's existing Less stylesheet.
 
 ## Verification record
+
+The results below record the original migration validation. The 2D geographic layout and its dedicated tests were subsequently removed on October 28, 2026.
 
 - Angular 22 development and optimized production builds: passed.
 - Focused renderer, view-state, grouping, geography, and node-feature unit tests: 25 passed.

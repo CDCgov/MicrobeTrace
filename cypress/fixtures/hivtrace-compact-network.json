@@ -1,0 +1,37 @@
+{
+  "trace_results": {
+    "Network Summary": {
+      "Edges": 1,
+      "Nodes": 2
+    },
+    "Settings": {
+      "threshold": 0.02,
+      "compact_json": true
+    },
+    "Nodes": {
+      "cluster": [1, 1],
+      "id": ["sample-a", "sample-b"],
+      "patient_attributes": [
+        { "city": "Atlanta" },
+        { "city": "Baltimore" }
+      ]
+    },
+    "Edges": {
+      "directed": {
+        "keys": { "0": false },
+        "values": [0]
+      },
+      "sequences": [["sample-a", "sample-b"]],
+      "target": [1],
+      "length": [0.0125],
+      "source": [0]
+    },
+    "patient_attribute_schema": {
+      "city": {
+        "name": "city",
+        "type": "String",
+        "label": "City"
+      }
+    }
+  }
+}

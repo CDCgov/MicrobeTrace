@@ -176,15 +176,48 @@ export function getAggregateFieldOption(fullField: string): Cypress.Chainable<Ag
   });
 }
 
-export function selectAggregateField(index: number, optionLabel: string, expectedFullField: string): void {
-  cy.get('@aggregateSettings')
+function getAggregateFieldControl(index: number): Cypress.Chainable<JQuery<HTMLElement>> {
+  return cy.get('@aggregateSettings')
     .find('p-select')
     .eq(index)
-    .should('exist')
-    .click({ force: true });
+    .find('[role="combobox"]')
+    .should('be.visible');
+}
 
-  cy.contains('li[role="option"]', new RegExp(`^${escapeRegExp(optionLabel)}$`))
-    .click({ force: true });
+function openAggregateField(index: number): Cypress.Chainable<string> {
+  getAggregateFieldControl(index).then(($control) => {
+    if ($control.attr('aria-expanded') !== 'true') {
+      cy.wrap($control).click();
+    }
+  });
+
+  return getAggregateFieldControl(index)
+    .should('have.attr', 'aria-expanded', 'true')
+    .invoke('attr', 'aria-controls')
+    .should('be.a', 'string')
+    .then((listId) => {
+      const listSelector = `[id="${listId}"]`;
+      cy.get(listSelector).should('be.visible');
+      return cy.wrap(listSelector, { log: false });
+    });
+}
+
+function assertAggregateFieldClosed(index: number, listSelector: string): void {
+  getAggregateFieldControl(index).should('have.attr', 'aria-expanded', 'false');
+  // Wait for the closing animation to unmount this field's menu, not just
+  // for its visibility to change, before another field can open.
+  cy.get(listSelector).should('not.exist');
+}
+
+export function selectAggregateField(index: number, optionLabel: string, expectedFullField: string): void {
+  openAggregateField(index).then((listSelector) => {
+    cy.get(listSelector).within(() => {
+      cy.contains('li[role="option"]', new RegExp(`^${escapeRegExp(optionLabel)}$`))
+        .scrollIntoView()
+        .click();
+    });
+    assertAggregateFieldClosed(index, listSelector);
+  });
 
   cy.window()
     .its('commonService.visuals.aggregate.SelectedDataFields')
@@ -194,17 +227,16 @@ export function selectAggregateField(index: number, optionLabel: string, expecte
 }
 
 export function assertAggregateFieldOptionsVisible(index: number, expectedOptionLabels: string[]): void {
-  cy.get('@aggregateSettings')
-    .find('p-select')
-    .eq(index)
-    .should('exist')
-    .click({ force: true });
+  openAggregateField(index).then((listSelector) => {
+    cy.get(listSelector).within(() => {
+      expectedOptionLabels.forEach((label) => {
+        cy.contains('li[role="option"]', new RegExp(`^${escapeRegExp(label)}$`)).should('exist');
+      });
+    });
 
-  expectedOptionLabels.forEach((label) => {
-    cy.contains('li[role="option"]', new RegExp(`^${escapeRegExp(label)}$`)).should('exist');
+    getAggregateFieldControl(index).focus().type('{esc}');
+    assertAggregateFieldClosed(index, listSelector);
   });
-
-  cy.get('body').type('{esc}');
 }
 
 export function assertAggregateTableCount(expectedCount: number): void {

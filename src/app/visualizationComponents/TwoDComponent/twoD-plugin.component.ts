@@ -1,3 +1,6 @@
+import { createNetworkCytoscapeStyles } from '../shared/network-cytoscape-styles';
+import { setNetworkNeighborHover } from '../shared/network-neighbor-hover';
+import { getNetworkNodeImage } from '@app/contactTraceCommonServices/network-node-appearance';
 import { Injector, Component, Output, OnChanges, SimpleChange, EventEmitter, OnInit, ViewChild, ElementRef, ChangeDetectorRef, OnDestroy, Inject, ChangeDetectionStrategy } from '@angular/core';
 import { AppComponentBase } from '@shared/common/app-component-base';
 import { EventManager } from '@angular/platform-browser';
@@ -17,6 +20,7 @@ import { getCustomNodeShapeData, getCustomNodeShapeVectorData, getMixedNodeShape
 import type cytoscape from 'cytoscape';
 import type { Core, Style } from 'cytoscape';
 import { layoutClustersBySize } from './cluster-size-layout';
+import { layoutSparseDisconnectedComponents } from './sparse-component-layout';
 import { Subject, Subscription, takeUntil } from 'rxjs';
 //import fcose from 'cytoscape-fcose';
 import * as d3f from 'd3-force';
@@ -33,7 +37,7 @@ import {
 } from '../KeyTablesComponent/style-key-table.component';
 import { showColorTransparencyPicker } from '../KeyTablesComponent/color-transparency-picker';
 import { buildThresholdConnectedComponents } from '@app/contactTraceCommonServices/threshold-analysis';
-import { buildPieChartSlicesWithSegmentedFills, buildPieChartSvgDataUri, getCollapsedAggregateBorderWidth, getCollapsedAggregateMinimumRenderedSize, PieChartSlice } from '@app/contactTraceCommonServices/pie-chart-utils';
+import { buildPieChartPathSlices, buildPieChartSlicesWithSegmentedFills, buildPieChartSvgDataUri, getCollapsedAggregateBorderWidth, getCollapsedAggregateMinimumRenderedSize, PieChartSlice } from '@app/contactTraceCommonServices/pie-chart-utils';
 import { buildCanonicalNodeColorCounts } from '@app/contactTraceCommonServices/color-mapping.service';
 import {
     applyNetworkNodeCompositionSegments,
@@ -43,10 +47,6 @@ import {
     type NetworkNodeFeatureFields,
     type NetworkNodeVisualFeatures
 } from '@app/contactTraceCommonServices/network-node-features';
-import {
-    projectNetworkGeography,
-    type NetworkGeographicProjection
-} from '@app/contactTraceCommonServices/network-geography.model';
 import { createGlobalSettingsDialogRequest, GlobalSettingsDialogRequest } from '@app/helperClasses/globalSettingsDialogRequest';
 import {
     canCreateWebGL2Context,
@@ -86,7 +86,7 @@ interface CustomNodeSvgExportReplacement {
 }
 
 type PolygonColorTableDisplayMode = 'Show' | 'Dock' | 'Hide';
-type TwoDNetworkLayout = 'force-directed' | 'order-by-size' | 'geographic';
+type TwoDNetworkLayout = 'force-directed' | 'order-by-size';
 
 interface CollapsedAggregatePositionAnchor {
     id: string;
@@ -99,6 +99,17 @@ interface TwoDViewportBoundingBox {
     y1: number;
     x2: number;
     y2: number;
+}
+
+interface CollapsedPieSvgExportReplacement {
+    borderColor: string;
+    borderOpacity: number;
+    borderWidth: number;
+    exportHeight: number;
+    exportWidth: number;
+    exportX: number;
+    exportY: number;
+    slices: PieChartSlice[];
 }
 
 @Component({
@@ -159,7 +170,6 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
     private rendererViewStateTimer: ReturnType<typeof setTimeout> | null = null;
     private containerResizeTimer: ReturnType<typeof setTimeout> | null = null;
     private containerShowTimer: ReturnType<typeof setTimeout> | null = null;
-    private rendererGeographicProjection: NetworkGeographicProjection | null = null;
     vizLoaded = true;
     nodePositions: Map<string, { x: number; y: number }> = new Map();
     private forceDirectedLayoutSnapshot: Map<string, { x: number; y: number }> = new Map();
@@ -268,6 +278,43 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                 : this.mapNodeSize(fallbackNodeSize);
 
         return (renderedDiameter / 2) + 6;
+    }
+
+    private applySparseDisconnectedComponentLayout(nodes: any[], links: any[]): void {
+        const container = this.sigmaActive
+            ? this.sigmaContainer?.nativeElement
+            : this.cyContainer?.nativeElement;
+        const bounds = container?.getBoundingClientRect?.();
+        const result = layoutSparseDisconnectedComponents(
+            nodes.map(node => {
+                const radius = this.getNodeCollisionRadius(node);
+                const x = Number(node.x);
+                const y = Number(node.y);
+                return {
+                    id: this.getNodeId(node),
+                    x,
+                    y,
+                    minX: x - radius,
+                    minY: y - radius,
+                    maxX: x + radius,
+                    maxY: y + radius,
+                };
+            }),
+            links.map(link => ({
+                source: this.getLinkEndpointId(link.source),
+                target: this.getLinkEndpointId(link.target),
+            })),
+            this.getNodeLayoutSpacing(),
+            Number(bounds?.width) || 1280,
+            Number(bounds?.height) || 720,
+        );
+        if (!result.applied) return;
+
+        nodes.forEach(node => {
+            const position = result.positions.get(this.getNodeId(node));
+            if (!position) return;
+            Object.assign(node, position, { vx: 0, vy: 0 });
+        });
     }
 
     private assignNoLinkGridPositions(nodes: any[], force: boolean = false): void {
@@ -583,6 +630,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             mixedColorImageCoversShape,
             pieBackgroundImage: node.pieBackgroundImage,
             borderWidth: node.borderWidth,
+            borderColor: '#000000',
             selectedBorderColor: this.widgets['selected-color'],
             fontSize: this.getNodeFontSize(node),
             shape: resolveCustomNodeIconCytoscapeShape(shapeKey),
@@ -597,38 +645,14 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
     }
 
     private getMixedColorNodeImage(
-        node: any,
-        shapeKey: string,
-        fillColor: string,
-        fillOpacity: number,
-        renderedSize?: number,
-        strokeColor: string = '#000000',
-        strokeWidth: number = 1
+        node: any, shapeKey: string, fillColor: string, fillOpacity: number,
+        renderedSize?: number, strokeColor = '#000000',
+        strokeWidth = Number(this.widgets['node-border-width'])
     ): string | undefined {
-        const segments = this.commonService.getNodeFillStyle(node).segments;
-        if (!segments || segments.length < 2) {
-            return undefined;
-        }
-
-        const normalizedShapeKey = resolveNodeShapeKey(shapeKey);
-        const isCustomShape = isCustomNodeIconShape(normalizedShapeKey);
-
-        return getMixedNodeShapeDataUri(
-            normalizedShapeKey,
-            fillColor,
-            strokeColor,
-            strokeWidth,
-            fillOpacity,
-            segments,
-            null,
-            {
-                fillCanvas: !isCustomShape,
-                includeStroke: isCustomShape,
-                useNativeShapeClip: this.mixedColorImageShouldCoverShape(normalizedShapeKey),
-                customShapePadding: 0,
-                customShapeViewBoxPadding: 0,
-                renderedSize: renderedSize ?? this.mapNodeSize(Number(node?.nodeSize ?? this.widgets['node-radius']))
-            }
+        return getNetworkNodeImage(
+            shapeKey, fillColor, fillOpacity, strokeColor, strokeWidth,
+            renderedSize ?? this.mapNodeSize(Number(node?.nodeSize ?? this.widgets['node-radius'])),
+            this.commonService.getNodeFillStyle(node).segments, !this.sigmaActive
         );
     }
 
@@ -871,11 +895,10 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
 
     SelectedNetworkGridLineTypeVariable: string = "Hide";
 
-    get NetworkLayoutOptions(): { label: string; value: TwoDNetworkLayout; disabled?: boolean }[] {
+    get NetworkLayoutOptions(): { label: string; value: TwoDNetworkLayout }[] {
         return [
             { label: 'Force directed', value: 'force-directed' },
             { label: 'Order clusters by size', value: 'order-by-size' },
-            { label: 'Geographic', value: 'geographic', disabled: !this.sigmaActive },
         ];
     }
     SelectedNetworkLayoutVariable: TwoDNetworkLayout = 'force-directed';
@@ -1038,6 +1061,9 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
     }
 
     private persistRendererViewState(stateValue?: NetworkRendererViewState | null): void {
+        // An explicit change supersedes camera updates still waiting to save.
+        if (this.rendererViewStateTimer) clearTimeout(this.rendererViewStateTimer);
+        this.rendererViewStateTimer = null;
         const state = normalizeNetworkRendererViewState(stateValue || this.getRendererViewState());
         if (!state) return;
         const sessionMeta = this.commonService.session.meta as any;
@@ -1235,27 +1261,6 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         }
     }
 
-    private isRendererGeographicOverlayEnabled(): boolean {
-        const setting = this.widgets?.['network-geographic-overlay'];
-        const enabled = setting === true || String(setting).toLowerCase() === 'true' || setting === 'On';
-        return enabled
-            && String(this.widgets?.['map-field-lat'] || 'None') !== 'None'
-            && String(this.widgets?.['map-field-lon'] || 'None') !== 'None';
-    }
-
-    private applyRendererGeographicProjection<T extends { nodes: any[]; links: any[] }>(networkData: T): T {
-        this.rendererGeographicProjection = null;
-        if (!this.isRendererGeographicOverlayEnabled()) return networkData;
-
-        const result = projectNetworkGeography(
-            networkData.nodes,
-            String(this.widgets['map-field-lat']),
-            String(this.widgets['map-field-lon'])
-        );
-        this.rendererGeographicProjection = result.projection;
-        return { ...networkData, nodes: result.nodes };
-    }
-
     public async exportRendererComposite(
         pixelRatio?: number,
         encodePng: boolean = true
@@ -1305,7 +1310,6 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             drawnNodeCount,
             drawnEdgeCount,
             collapsedGroupIds,
-            geographicOverlayActive: Boolean(this.rendererGeographicProjection),
             ...featureSummary
         }, String(this.widgets?.['background-color'] || '#ffffff'), pixelRatio, encodePng);
     }
@@ -1670,17 +1674,24 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
     }
 
     private getSigmaNodeShape(shapeKey: string): SigmaNodeShape {
-        switch (resolveNodeShapeKey(shapeKey)) {
+        const resolvedShape = resolveNodeShapeKey(shapeKey);
+        switch (resolvedShape) {
             case 'triangle':
-            case 'tag':
-            case 'vee':
                 return 'triangle';
             case 'rectangle':
-            case 'barrel':
                 return 'square';
-            case 'rhomboid':
             case 'diamond':
                 return 'diamond';
+            case 'rhomboid':
+            case 'pentagon':
+            case 'hexagon':
+            case 'heptagon':
+            case 'octagon':
+            case 'star':
+            case 'barrel':
+            case 'tag':
+            case 'vee':
+                return resolvedShape;
             default: {
                 const cytoscapeShape = resolveCustomNodeIconCytoscapeShape(shapeKey);
                 if (cytoscapeShape.includes('triangle')) return 'triangle';
@@ -1833,7 +1844,6 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                 timelineTick || this.isTimelineFilteringActive()
             );
             this.normalizeNetworkDataForCytoscape(networkData, false);
-            networkData = this.applyRendererGeographicProjection(networkData);
             const sigmaGroupingNodes = networkData.nodes;
             networkData = this.applyNodeCollapseToNetworkData(networkData);
             this.normalizeNetworkDataForCytoscape(networkData, false);
@@ -1854,8 +1864,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                 || networkData.nodes.some(node => !this.hasFinitePosition(node));
 
             if ((needsInitialLayout || settleMergedClusters)
-                && !this.commonService.session.network.allPinned
-                && !this.widgets['network-geographic-overlay']) {
+                && !this.commonService.session.network.allPinned) {
                 this.sigmaLoadingMessage = 'Computing the network layout';
                 this.cdref.markForCheck();
                 const overviewLayout = assignSigmaOverviewPositions(
@@ -1890,8 +1899,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             });
             if (this.getNetworkLayout() === 'order-by-size'
                 && !this.isTimelineFilteringActive()
-                && !this.commonService.session.network.allPinned
-                && !this.widgets['network-geographic-overlay']) {
+                && !this.commonService.session.network.allPinned) {
                 this.layoutSigmaClusters(networkData.nodes, networkData.links);
             }
             this.updateRendererAccessibleFeatures(networkData.nodes);
@@ -1900,7 +1908,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                 const [color, opacity] = this.getNodeColor(node);
                 const nodeId = this.getNodeId(node);
                 const shapeKey = this.getNodeShape(node);
-                const borderColor = String(node.borderColor || '#111827');
+                const borderColor = String(node.borderColor || '#000000');
                 const borderWidth = this.getNodeBorderWidth(node);
                 const size = this.getSigmaNodeRadius(node);
                 const imageDataUri = node.pieBackgroundImage || this.getMixedColorNodeImage(
@@ -1919,7 +1927,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                     id: nodeId,
                     x: Number(node.x) || 0,
                     y: Number(node.y) || 0,
-                    label: node.isCollapsedAggregate ? '' : String(this.getNodeLabel(node) || nodeId),
+                    label: String(this.getNodeLabel(node)),
                     labelSize: Math.max(6, Number(this.widgets['node-label-size']) || 12),
                     labelPosition: this.getSigmaLabelPosition(),
                     shape: this.getSigmaNodeShape(shapeKey),
@@ -2018,8 +2026,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                 showGroupLabels: this.widgets['polygons-label-show'] !== false,
                 groupLabelSize: Number(this.widgets['polygons-label-size']) || 12,
                 groupLabelPosition: this.getSigmaGroupLabelPosition(),
-                edgeLabelSize: Number(this.widgets['link-label-size']) || 12,
-                geographicOverlay: this.rendererGeographicProjection
+                edgeLabelSize: Number(this.widgets['link-label-size']) || 12
             }, Boolean(this.sigmaRenderer.getRenderer()));
             this.sigmaRenderer.setNodeDraggingEnabled(!this.commonService.session.network.allPinned);
             this.sigmaRenderer.setNeighborHighlighting(Boolean(this.widgets['node-highlight']));
@@ -2074,10 +2081,6 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         return true;
     }
 
-    onRendererGeographicSettingsChange(): void {
-        this.refreshSigmaForStyleChange(true);
-    }
-
     private ensureNodeCollapseWidgetDefaults(): void {
         const sessionWidgets = this.commonService.session?.style?.widgets;
         if (sessionWidgets) {
@@ -2093,9 +2096,6 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         if (!['overview', 'detail', 'all'].includes(this.widgets['network-edge-detail-mode'])) {
             this.widgets['network-edge-detail-mode'] = 'overview';
         }
-        if (this.widgets['network-geographic-overlay'] === undefined) {
-            this.widgets['network-geographic-overlay'] = false;
-        }
     }
 
     private ensureNetworkLayoutWidgetDefault(): void {
@@ -2105,20 +2105,16 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         }
         if (!this.widgets) return;
 
-        let layout = this.widgets['network-layout'];
-        // Older sessions stored geographic placement as an independent toggle.
-        if (this.widgets['network-geographic-overlay']) {
-            layout = 'geographic';
-        } else if (layout !== 'force-directed' && layout !== 'order-by-size' && layout !== 'geographic') {
-            layout = 'force-directed';
+        const layout = this.widgets['network-layout'];
+        if (layout !== 'force-directed' && layout !== 'order-by-size') {
+            this.widgets['network-layout'] = 'force-directed';
         }
-        this.widgets['network-layout'] = layout;
-        this.widgets['network-geographic-overlay'] = layout === 'geographic';
     }
 
     private getNetworkLayout(): TwoDNetworkLayout {
-        const layout = this.widgets?.['network-layout'];
-        return layout === 'order-by-size' || layout === 'geographic' ? layout : 'force-directed';
+        return this.widgets?.['network-layout'] === 'order-by-size'
+            ? 'order-by-size'
+            : 'force-directed';
     }
 
     private getNodeCollapseMetric(): string {
@@ -2743,7 +2739,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
 
     ngOnInit() {
         this.commonService.visuals.twoD = this;
-        
+
         // Console log this out to see what the window objetc has like temp
         // const windowKeys = Reflect.ownKeys(window);
 
@@ -2758,7 +2754,13 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         .pipe(takeUntil(this.destroy$))
         .subscribe(newPruned => {
             console.log('--- TwoD DATA network updated', newPruned);
-            if (this.data && this.store.settingsLoadedValue && newPruned) {
+            // Sigma renders directly from visible session data and does not populate
+            // the legacy Cytoscape `data` cache. Treat either renderer as initialized
+            // so visibility-only changes (such as Minimum Cluster Size) are rendered.
+            const rendererInitialized = this.sigmaActive
+                ? Boolean(this.sigmaRenderer)
+                : Boolean(this.data);
+            if (rendererInitialized && this.store.settingsLoadedValue && newPruned) {
                 console.log(`TwoD view to be rerendered.  ${this.viewActive ? 'Updating Now' : 'Updating when view is active'}`);
                 if (this.viewActive){
                     this._rerender(false);
@@ -2891,7 +2893,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
 	            return {
 	                data: this.buildCytoscapeNodeData(node, shapeKey, parent),
 	                position: this.getNodeRenderPosition(node)
-                  
+
             };
         }
     });
@@ -2913,290 +2915,11 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
     }
 
     getCytoscapeStyles(): cytoscape.StylesheetCSS[] {
-        return [
-            {
-                selector: 'node',
-                css: {
-                    'background-color': 'data(nodeColor)', // Use dynamic node color
-                    // 'width': 'mapData(nodeSize, 0, 100, 10, 50)', // Existing dynamic sizing
-                    // 'height': 'mapData(nodeSize, 0, 100, 10, 50)',
-                    'border-width': 'data(borderWidth)', // Use dynamic border width
-                    // 'border-color': '#000',
-                    'color': 'black',
-                    'z-index': 10, // Not a standard Cytoscape property, but kept for clarity
-                    // 'font-size': 'data(fontSize)' // Ensure this line is included
-                }
-            },
-            {
-                selector: 'node[!isParent]',
-                css: {
-                    'text-valign': (() => {
-                        const o = (this.widgets && this.widgets['node-label-orientation']) ? this.widgets['node-label-orientation'].toLowerCase() : 'right';
-                        if (o === 'top') return 'top';
-                        if (o === 'bottom') return 'bottom';
-                        return 'center';
-                    })(),
-                    'text-halign': (() => {
-                        const o = (this.widgets && this.widgets['node-label-orientation']) ? this.widgets['node-label-orientation'].toLowerCase() : 'right';
-                        if (o === 'left') return 'left';
-                        if (o === 'right') return 'right';
-                        return 'center';
-                    })(),
-                    // @ts-ignore
-                    'shape': 'data(shape)'
-                }
-            },
-            {
-                selector: 'node[label]',
-                css: {
-                  'label': 'data(label)' 
-                }
-              },
-              {
-                selector: 'node[!label]',
-                css: {
-                  'label': '' // or omit entirely
-                }
-              },
-              // Apply styles only to nodes with nodeSize defined
-            {
-                selector: 'node[nodeSize]',
-                css: {
-                    'width': 'mapData(nodeSize, 0, 100, 10, 50)',
-                    'height': 'mapData(nodeSize, 0, 100, 10, 50)'
-                }
-            },
-            {
-                selector: 'node[!isParent][isCollapsedAggregate][aggregateRenderedSize]',
-                css: {
-                    'width': 'data(aggregateRenderedSize)',
-                    'height': 'data(aggregateRenderedSize)'
-                }
-            },
-            {
-                selector: 'node[bgOpacity]',
-                css: {
-                    // @ts-ignore
-                    'background-opacity': 'data(bgOpacity)',
-                }
-            },
-            {
-                selector: 'node[!isParent][iconBackgroundImage]',
-                css: {
-                    // @ts-ignore
-                    'background-image': 'data(iconBackgroundImage)',
-                    'background-image-containment': 'over',
-                    'background-fit': 'contain',
-                    'background-clip': 'node',
-                    'background-position-x': '50%',
-                    'background-position-y': '50%',
-                    'background-repeat': 'no-repeat',
-                    // @ts-ignore
-                    'background-image-opacity': 'data(bgOpacity)',
-                    'background-opacity': 0,
-                    'border-width': 0
-                }
-            },
-            {
-                selector: 'node[!isParent][mixedColorImage]',
-                css: {
-                    // @ts-ignore
-                    'background-image': 'data(mixedColorImage)',
-                    'background-image-containment': 'inside',
-                    'background-fit': 'contain',
-                    'background-clip': 'node',
-                    'background-position-x': '50%',
-                    'background-position-y': '50%',
-                    'background-repeat': 'no-repeat',
-                    // @ts-ignore
-                    'background-image-opacity': 1,
-                    'background-opacity': 0,
-                    'border-width': 'data(borderWidth)'
-                }
-            },
-            {
-                selector: 'node[!isParent][mixedColorImage][customIconKey]',
-                css: {
-                    'border-width': 0
-                }
-            },
-            {
-                selector: 'node[!isParent][mixedColorImage][mixedColorImageCoversShape]',
-                css: {
-                    'background-image-containment': 'inside',
-                    'background-fit': 'cover',
-                    'background-clip': 'node'
-                }
-            },
-            {
-                selector: 'node[!isParent][pieBackgroundImage]',
-                css: {
-                    // @ts-ignore
-                    'background-image': 'data(pieBackgroundImage)',
-                    'background-fit': 'cover',
-                    'background-clip': 'node',
-                    'background-position-x': '50%',
-                    'background-position-y': '50%',
-                    'background-repeat': 'no-repeat',
-                    'background-color': 'transparent',
-                    'background-opacity': 0
-                }
-            },
-                {
-                    selector: '.hidden',
-                    css: {
-                        display: 'none'
-                    }
-                },
-            // Apply styles only to nodes with nodeColor defined
-            {
-                selector: 'node[nodeColor]',
-                css: {
-                    'background-color': 'data(nodeColor)'
-                }
-            },
-            {
-                selector: 'node[!isParent][nodeColor][iconBackgroundImage]',
-                css: {
-                    'background-color': '#ffffff',
-                    // @ts-ignore
-                    'background-opacity': 'data(bgOpacity)'
-                }
-            },
-            // Apply styles only to nodes with fontSize defined
-            {
-                selector: 'node[!isParent][fontSize]',
-                css: {
-                    'font-size': 'data(fontSize)'
-                }
-            },
-            {
-                selector: 'node[!isParent][shape]',
-                css: {
-                    // @ts-ignore
-                    'shape': 'data(shape)'
-                }
-            },
-            {
-                selector: 'node.parent',
-                css: {
-                    'z-index': 20, // Not a standard Cytoscape property, but kept for clarity
-                    // We also need to ensure that it uses data(...) for color & alpha:
-                    'background-color': 'data(nodeColor)', 
-                    'border-width': 'data(borderWidth)',
-                    'shape': 'rectangle'
-                    // The critical addition (can also be 'opacity' but that will fade the label, border, etc.):
-                    // 'z-compound-depth': 'back',  // ensures parent is behind children
-                }
-            },
-            {
-                selector: 'node.parent[bgOpacity]',
-                css: {
-                    // @ts-ignore
-                    'background-opacity': 'data(bgOpacity)',
-                }
-            },
-            {
-                selector: 'edge',
-                css: {
-                    'width': 'data(width)', // Existing dynamic edge width
-                    'line-color': 'data(lineColor)', // Maps 'lineColor' data attribute to 'line-color' style
-                    // @ts-ignore
-                    'line-opacity': 'data(lineOpacity)', // Explicitly control link transparency
-
-                    'label' : 'data(label)',                   
-                    // 'target-arrow-color': '#ccc',
-                    // 'target-arrow-shape': 'triangle',
-                    'curve-style': 'straight'
-                    // 'opacity': 'data(opacity)' // Existing opacity
-                }
-            },
-            {
-                selector: 'edge[fontSize]',
-                css: {
-                    'font-size': 'data(fontSize)'
-                } // Apply font size change only to edges with font-size defined
-            },
-            {
-                selector: 'edge[secondLink]',
-                css: {
-                    'line-style': 'dashed',
-                    'line-dash-pattern': [10, 10],
-                    'line-dash-offset': 5,
-                }
-            },
-            {
-                selector: 'edge[!secondLink]',
-                css: {
-                    'line-style': 'solid',
-                }
-            },
-            {
-                selector: 'node:selected[!isParent][!iconBackgroundImage][!pieBackgroundImage]',
-                css: {
-                    'background-color': 'data(nodeColor)',
-                    'border-color': 'data(selectedBorderColor)',
-                    'border-width': 3
-                }
-            },
-            {
-                selector: 'node:selected[!isParent][iconBackgroundImage]',
-                css: {
-                    'background-color': '#ffffff',
-                    // @ts-ignore
-                    'background-opacity': 'data(bgOpacity)',
-                    'border-color': 'data(selectedBorderColor)',
-                    'border-width': 3
-                }
-            },
-            {
-                selector: 'node:selected[!isParent][mixedColorImage]',
-                css: {
-                    // @ts-ignore
-                    'background-image': 'data(mixedColorImage)',
-                    'background-image-containment': 'inside',
-                    'background-fit': 'contain',
-                    'background-clip': 'node',
-                    // @ts-ignore
-                    'background-image-opacity': 1,
-                    'background-opacity': 0,
-                    'border-color': 'data(selectedBorderColor)',
-                    'border-width': 3
-                }
-            },
-            {
-                selector: 'node:selected[!isParent][pieBackgroundImage]',
-                css: {
-                    'background-color': 'transparent',
-                    'background-opacity': 0,
-                    'border-color': 'data(selectedBorderColor)',
-                    'border-width': 3
-                }
-            },
-            {
-                selector: 'node:selected[!isParent][isCollapsedAggregate]',
-                css: {
-                    'border-color': 'data(selectedBorderColor)',
-                    'border-width': 'data(borderWidth)'
-                }
-            },
-            {
-                selector: 'edge:selected',
-                css: {
-                    // 'line-color': '#f00',
-                    // 'target-arrow-color': '#f00',
-                    'width': 3
-                }
-            },
-            {
-                selector: 'edge.highlighted',
-                css: {
-                    'line-color': 'data(lineSelectedColor)', // Highlight color
-                    'width': '3px',
-                    'opacity': 1,
-                }
-            }
-        ];
+        return createNetworkCytoscapeStyles(this.widgets, {
+            explorer: false,
+            linkWidth: edge => Number(edge.data('width')),
+            edgeRouting: { 'curve-style': 'straight' }
+        });
     }
 
     attachCytoscapeEvents() {
@@ -3205,6 +2928,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
 
         // Debounced function to sync Cytoscape selections with the common service.
         const syncCySelectionToService = _.debounce(() => {
+            if (this.isDestroyed || !this.cy) return;
             const selectedNodes = this.cy.nodes(':selected').filter((node: any) => !node.data('isCollapsedAggregate'));
             const selectedIds = new Set(selectedNodes.map(node => node.id()));
 
@@ -3290,7 +3014,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                 $('html,body').css('cursor', 'pointer');
     
                 if (this.widgets['node-highlight']) {
-                    node.connectedEdges().addClass('highlighted');
+                    setNetworkNeighborHover(this.cy, node, true, false);
                 }
             });
         });
@@ -3303,7 +3027,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                 $('html,body').css('cursor', 'default');
     
                 if (this.widgets['node-highlight']) {
-                    node.connectedEdges().removeClass('highlighted');
+                    setNetworkNeighborHover(this.cy, null, false, false);
                 }
             });
         });
@@ -3671,6 +3395,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         } 
         const ticksPerYield = this.getD3TicksPerYield(nodes, links);
         const tickBatches = await this.runStoppedD3Ticks(simulation, ticks, ticksPerYield);
+        if (initial) this.applySparseDisconnectedComponentLayout(nodes, links);
         return { nodes, links, tickBatches, ticksPerYield };
       }
 
@@ -3697,7 +3422,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
     updateNodePos(node: cytoscape.NodeSingular): void {
         const nodeId = node.id();
         // This is for REAL user events. It reads the now-updated position from Cytoscape.
-        const newPosition = node.position(); 
+        const newPosition = node.position();
         if (node.data('isCollapsedAggregate')) {
             this.nodePositions.set(nodeId, newPosition);
             return;
@@ -5371,6 +5096,10 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
      * @param d a node
      */
     showNodeTooltip(d, event) {
+        const tooltipElement = this.tooltipElement?.nativeElement;
+        if (!tooltipElement) {
+            return;
+        }
 
         // Only show tooltip for nodes, not parent/group nodes
         if(d.isParent) {
@@ -5413,7 +5142,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         }
 
         let [X, Y] = this.getRelativeMousePosition(event);
-        d3.select('#tooltip')
+        d3.select(tooltipElement)
             .html(tooltipHtml)
             .style('position', 'absolute')
             .style('left', (X+ 10) + 'px')
@@ -5428,6 +5157,11 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
      * @param d link
      */
     showLinkTooltip(d, event) {
+        const tooltipElement = this.tooltipElement?.nativeElement;
+        if (!tooltipElement) {
+            return;
+        }
+
         let v: any = this.SelectedLinkTooltipVariable;
 
         if (v == 'None') return;
@@ -5478,7 +5212,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         }
 
         let [X, Y] = this.getRelativeMousePosition(event);
-        d3.select('#tooltip')
+        d3.select(tooltipElement)
             .html(tooltipHtml)
             .style('position', 'absolute')
             .style('left', (X + 10) + 'px')
@@ -5495,7 +5229,11 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         if (this.widgets['node-highlight']) {
             this.selectedNodeId = undefined;
         }
-        let tooltip = d3.select('#tooltip');
+        const tooltipElement = this.tooltipElement?.nativeElement;
+        if (!tooltipElement) {
+            return;
+        }
+        let tooltip = d3.select(tooltipElement);
         tooltip
             .transition().duration(100)
             .style('opacity', 0)
@@ -5552,9 +5290,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
     private applyOrderByClusterSizeLayout(): void {
         if (this.commonService.session.network.allPinned) return;
         if (this.sigmaActive) {
-            if (!this.widgets['network-geographic-overlay']) {
-                void this.renderSigma().then(() => this.fit());
-            }
+            void this.renderSigma().then(() => this.fit());
             return;
         }
         if (!this.cy) return;
@@ -5687,15 +5423,15 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
     async onNetworkLayoutChange(layout: TwoDNetworkLayout): Promise<void> {
         this.ensureNetworkLayoutWidgetDefault();
         const previousLayout = this.getNetworkLayout();
-        const selectedLayout: TwoDNetworkLayout = layout === 'geographic' && this.sigmaActive
-            ? 'geographic' : layout === 'order-by-size' ? 'order-by-size' : 'force-directed';
+        const selectedLayout: TwoDNetworkLayout = layout === 'order-by-size'
+            ? 'order-by-size'
+            : 'force-directed';
 
         if (previousLayout === 'force-directed' && selectedLayout === 'order-by-size') {
             this.captureForceDirectedLayout();
         }
 
         this.widgets['network-layout'] = selectedLayout;
-        this.widgets['network-geographic-overlay'] = selectedLayout === 'geographic';
         this.SelectedNetworkLayoutVariable = selectedLayout;
 
         if ((this.cy || this.sigmaActive) && !this.commonService.session.network.allPinned) {
@@ -5734,6 +5470,9 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             this.sigmaRenderer = null;
             this.sigmaLayoutGroupByNodeId.clear();
             await this.renderSigma(false);
+            // Recalculation changes the graph bounds, so the saved camera can
+            // leave the new layout outside the viewport.
+            this.fit();
             return;
         }
         if (this.getNetworkLayout() === 'order-by-size') {
@@ -6220,12 +5959,6 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
     onNodeLabelVaribleChange(e) {
 
         this.widgets['node-label-variable'] = e;
-        if (e == 'None') {
-            $('.node-label-row').slideUp();
-        } else {
-            $('.node-label-row').css('display', 'flex');
-        }
-
         if (!this.refreshSigmaForStyleChange()) this.updateNodeLabels();
         
     }
@@ -6285,7 +6018,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                 return [this.commonService.temp.style.polygonColorMap(node.label), this.commonService.temp.style.polygonAlphaMap(node.label)];
             }
         }
-      
+
         const nodeStyle = this.commonService.getNodeFillStyle(node);
         return [nodeStyle.color, nodeStyle.alpha];
       }
@@ -6756,7 +6489,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         if (this.debugMode) {
             console.log('--- TwoD networkData after precompute0: ', _.cloneDeep(networkData.links));
         }
-        
+
         // Update networkData with the precomputed positions
         networkData.nodes = laidOutNodes;
         networkData.links = laidOutLinks;
@@ -7669,6 +7402,8 @@ private updateArrowStyles(): void {
         }
         if (this.sigmaActive) {
             this.sigmaRenderer?.setNeighborHighlighting(Boolean(this.widgets['node-highlight']));
+        } else if (!this.widgets['node-highlight']) {
+            setNetworkNeighborHover(this.cy, null, false, false);
         }
     }
 
@@ -7691,8 +7426,8 @@ private updateArrowStyles(): void {
                 return false;
             }
             return this.isNumber(value) || (!this.isNumber(value) && !isNaN(Number(value)));
-        });        
-        
+        });
+
         if (vlinks.length === 0) {
             console.warn('No valid link-width data available for scaling.');
             return null;
@@ -8280,7 +8015,6 @@ scaleLinkWidth() {
         this.rendererAccessibleFeatureItems = [];
         this.ContextSelectedNodeAttributes = [];
         this.graphData = { nodes: [], links: [] };
-        this.rendererGeographicProjection = null;
         this.cyContainer = null;
         this.sigmaContainer = null;
 
@@ -8569,6 +8303,8 @@ scaleLinkWidth() {
 	            const fullNode = this.getFullNodeDataForCyNode(node);
 	            const newBorderWidth = this.getNodeBorderWidth(fullNode);
 	            node.data('borderWidth', newBorderWidth);
+            const shapeKey = node.data('shapeKey') || this.getNodeShape(fullNode);
+            this.setMixedColorNodeImageData(node, fullNode, shapeKey, node.data('nodeColor'), Number(node.data('bgOpacity')), this.mapNodeSize(Number(node.data('nodeSize'))));
 	        });
         this.cy.style().update(); // Refresh Cytoscape styles to apply changes
     }
@@ -8719,6 +8455,7 @@ scaleLinkWidth() {
     }
 
 
+@ViewChild('tooltipElement', { static: false }) tooltipElement: ElementRef<HTMLElement>;
 }
 
 export namespace TwoDComponent {

@@ -41,6 +41,7 @@ import {
     StyleKeyTableAlphaRequest,
     StyleKeyTableColorChange,
     StyleKeyTableColumnNameChange,
+    StyleKeyTableDuoSegment,
     StyleKeyTableRow,
     StyleKeyTableRowNameChange,
     StyleKeyTableSegmentAlphaChange,
@@ -85,6 +86,9 @@ import {
 import { validateStyleFileSchema } from './contactTraceCommonServices/style-file.schema';
 import { AnalyticsService } from './contactTraceCommonServices/analytics.service';
 import { encodeCanvasOffMainThread } from './visualizationComponents/TwoDComponent/canvas-export-encoder';
+import { RELEASE_NOTES } from './updates/release-notes';
+
+const UPDATES_LAST_VIEWED_VERSION_KEY = 'microbetrace_updates_last_viewed_version';
 
 type ThresholdSweepSnapshot = ComponentStructureMetrics & {
     threshold: number;
@@ -256,6 +260,9 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
     activeTabIndex: any;
     displayHelp: boolean = false;
     displayAbout: boolean = false;
+    displayUpdates: boolean = false;
+    showUpdatesNotification: boolean = false;
+    private viewedUpdatesVersion: string | null = null;
     displayStashDialog: boolean = false;
     displayUrlDialog: boolean = false;
     displayMTDialog: boolean = false;
@@ -569,6 +576,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
 
         // Check if user has accepted the license:
         this.check_eula_acceptance();
+        void this.checkUpdatesNotification();
 
         this.auspiceUrlVal = this.commonService.getURL();
         if(this.commonService.debugMode) {
@@ -2514,8 +2522,7 @@ ${warnings.join('\n')}`,
             $('#filtering-epsilon-row').slideUp();
             this.commonService.session.style.widgets["link-show-nn"] = false;
             this.commonService.setLinkVisibility(true);
-            this.commonService.updateNetworkVisuals(true);
-            this.store.setLinkThreshold(this.SelectedLinkThresholdVariable-0.000001);
+            this.commonService.updateNetworkVisuals(false, true);
             this.commonService.onStatisticsChanged("Show");
         }
         else {
@@ -2537,8 +2544,7 @@ ${warnings.join('\n')}`,
                 //console log link that source is MZ798055 and target is MZ375596
                 console.log('link after computeMST: ', this.commonService.session.data.links.filter(link => link.source === "MZ798055" && link.target === "MZ375596"));
                 this.commonService.setLinkVisibility(true);
-                this.commonService.updateNetworkVisuals(true);
-                this.store.setLinkThreshold(this.SelectedLinkThresholdVariable + 0.000001);
+                this.commonService.updateNetworkVisuals(false, true);
 
                 console.log('onlink compute mst')
                 this.onLinkColorTableChanged();
@@ -3460,7 +3466,7 @@ ${warnings.join('\n')}`,
     }
 
 
-    private getDuoLinkSwatchSegments(fallbackOrigins: string[] = []): Array<{ color: string; opacity: number }> {
+    private getDuoLinkSwatchSegments(fallbackOrigins: string[] = []): StyleKeyTableDuoSegment[] {
         const visibleDuoLink = this.commonService.getVisibleLinksForCurrentTimeline().find((link: any) =>
             Array.isArray(link?.origin) && link.origin.length > 1,
         );
@@ -3484,6 +3490,8 @@ ${warnings.join('\n')}`,
         }
 
         return this.duoLinkOrigins.map(origin => ({
+            value: origin,
+            displayName: this.getStyleValueDisplayName(origin, 'origin', this.commonService.session.style.linkValueNames),
             color: origin ? this.commonService.temp.style.linkColorMap(origin) : '#f0f0f0',
             opacity: origin ? this.commonService.temp.style.linkAlphaMap(origin) : 1,
         }));
@@ -3767,6 +3775,8 @@ ${warnings.join('\n')}`,
     }
 
     private applyTimelineVisibility(): void {
+        // Timeline-only changes notify the views that subscribe to visibility
+        // events. Explorer and other static views keep their current graph.
         this.commonService.setNodeVisibility(false);
         this.commonService.setLinkVisibility(false);
         this.commonService.updateStatistics();
@@ -3842,11 +3852,10 @@ ${warnings.join('\n')}`,
         let variable = e;  
         let loadingJsonFile = this.commonService.session.style.widgets["node-timeline-variable"] == variable;
         if (this.commonService.session.style.widgets["node-timeline-variable"] != 'None' && !loadingJsonFile) {
-            // change timeline variable when end time not reaching target time - redraw netwrok to start fresh
+            // Restore the selected range before changing timeline fields.
             if (moment(this.commonService.session.state.timeEnd).toDate() < moment(this.commonService.session.state.timeTarget).toDate()) {
                 this.commonService.session.state.timeEnd = this.commonService.session.state.timeTarget;
                 this.applyTimelineVisibility();
-                this.store.setNetworkUpdated(true);
             }
         }
         this.commonService.session.style.widgets["node-timeline-variable"] = variable;
@@ -3864,7 +3873,6 @@ ${warnings.join('\n')}`,
             // }
             this.commonService.session.network.timelineNodes = [];
             this.applyTimelineVisibility();
-            this.store.setNetworkUpdated(true);
             return;
         }
 
@@ -4525,10 +4533,6 @@ ${warnings.join('\n')}`,
     }
 
     onLinkColorTableColorChange(change: StyleKeyTableColorChange): void {
-        if (change.row.duoSegments?.length) {
-            return;
-        }
-
         const value = change.value;
         const selectedVariable = this.SelectedColorLinksByVariable;
         const aggregateValues = this.linkColorDomain.length ? this.linkColorDomain : this.linkColorRows.map(row => row.rawValue);
@@ -4593,18 +4597,29 @@ ${warnings.join('\n')}`,
     onLinkColorAlphaRequested(request: StyleKeyTableAlphaRequest): void {
         this.showColorAlphaPicker(
             request,
-            this.commonService.session.style.linkAlphas[request.row.index ?? 0],
-            alphaValue => {
-                const aggregateValues = this.linkColorDomain.length ? this.linkColorDomain : this.linkColorRows.map(row => row.rawValue);
-                const index = request.row.index ?? 0;
-                this.commonService.session.style.linkAlphas.splice(index, 1, parseFloat(String(alphaValue)));
-                this.commonService.temp.style.linkAlphaMap = d3
-                    .scaleOrdinal(this.commonService.session.style.linkAlphas)
-                    .domain(aggregateValues);
-                this.generateNodeLinkTable('', true);
-                this.publishUpdateLinkColor();
-            }
+            this.commonService.temp.style.linkAlphaMap(request.value),
+            alphaValue => this.updateLinkColorAlpha(request.value, Number(alphaValue))
         );
+    }
+
+    onLinkColorSegmentAlphaChange(change: StyleKeyTableSegmentAlphaChange): void {
+        this.updateLinkColorAlpha(change.value, change.alpha);
+    }
+
+    private updateLinkColorAlpha(value: any, alphaValue: number): void {
+        const storedKeys = this.commonService.session.style.linkColorsTableKeys?.[this.SelectedColorLinksByVariable];
+        const aggregateValues = storedKeys?.length
+            ? storedKeys
+            : this.linkColorDomain.length ? this.linkColorDomain : this.linkColorRows.map(row => row.rawValue);
+        const index = aggregateValues.findIndex(origin => origin === value);
+        if (index < 0) return;
+
+        this.commonService.session.style.linkAlphas.splice(index, 1, this.commonService.clampStyleAlpha(alphaValue));
+        this.commonService.temp.style.linkAlphaMap = d3
+            .scaleOrdinal(this.commonService.session.style.linkAlphas)
+            .domain(aggregateValues);
+        this.generateNodeLinkTable('', true);
+        this.publishUpdateLinkColor();
     }
 
     onNodeShapeTableShapeChange(change: StyleKeyTableShapeChange): void {
@@ -6054,7 +6069,7 @@ ${warnings.join('\n')}`,
             const instance = this._goldenLayoutHostComponent.getComponentRef(container).instance as any;
             console.log('--- viewClick exisitng view - load settings');
 
-            if (viewName === '2D Network' && !instance.cy) {
+            if ((viewName === '2D Network' || viewName === 'Transmission Chain Explorer') && !instance.cy) {
                 if (instance.onLoadNewData) {
                     instance.onLoadNewData();
                 }
@@ -6378,8 +6393,36 @@ ${warnings.join('\n')}`,
         }
     }
 
+    private async checkUpdatesNotification(): Promise<void> {
+        let storedVersion: string | null = null;
+        try {
+            storedVersion = await this.commonService.localStorageService.getItemAsync<string>(UPDATES_LAST_VIEWED_VERSION_KEY);
+        } catch {
+            // Show unread updates when browser storage is unavailable.
+        }
+
+        // Opening Updates can finish before the initial storage read.
+        this.showUpdatesNotification = (this.viewedUpdatesVersion ?? storedVersion) !== RELEASE_NOTES[0].version;
+        this.cdref.markForCheck();
+    }
+
+    async onUpdatesViewed(version: string): Promise<void> {
+        this.viewedUpdatesVersion = version;
+        this.showUpdatesNotification = false;
+
+        try {
+            await this.commonService.localStorageService.setItemAsync(UPDATES_LAST_VIEWED_VERSION_KEY, version);
+        } catch {
+            // Keep the dots dismissed for this visit if the browser cannot save the version.
+        }
+    }
+
     HelpClick(actionName: any) {
         switch (actionName) {
+            case "Updates": {
+                this.displayUpdates = true;
+                break;
+            }
             case "Help": {
                 this.DisplayHelp();
                 break;
@@ -6439,7 +6482,8 @@ ${warnings.join('\n')}`,
 
                 break;
             }
-            case "2D Network": {
+            case "2D Network":
+            case "Transmission Chain Explorer": {
 
                 this.showSettings = true;
                 this.showExport = true;
@@ -7040,9 +7084,16 @@ ${warnings.join('\n')}`,
             this.focusHomepageTab(viewName);
         }
 
+        const activeTabAfterDocking = this.homepageTabs.find(tab => tab.isActive)?.label;
         setTimeout(() => {
             this._goldenLayoutHostComponent.resizeComponentWidth(viewName, 0.3);
             this.refreshKeyTablesView();
+
+            // The user may have selected or opened another view while docking
+            // was queued. Keep that choice instead of restoring stale focus.
+            if (this.homepageTabs.find(tab => tab.isActive)?.label !== activeTabAfterDocking) {
+                return;
+            }
 
             if (focusView) {
                 this.focusHomepageTab(viewName);
@@ -7056,6 +7107,11 @@ ${warnings.join('\n')}`,
 
     private scheduleDockContextViewCenter(viewName?: string): void {
         if (!viewName || viewName === KeyTablesComponent.componentTypeName) {
+            return;
+        }
+        // Explorer handles pane resizing itself. Re-centering it for a docked
+        // color table would change chain positions during a styling change.
+        if (viewName === 'Transmission Chain Explorer') {
             return;
         }
 

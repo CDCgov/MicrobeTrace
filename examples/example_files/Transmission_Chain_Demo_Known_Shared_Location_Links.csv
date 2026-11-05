@@ -1,0 +1,14 @@
+source,target,relationship,shared_location
+A11,A12,known shared location,Community school event
+B05,B06,known shared location,Northside Clinic waiting room
+B07,B08,known shared location,Community center
+C03,C04,known shared location,Northside Clinic pediatrics
+A04,A05,known shared location,Central Hospital waiting room
+A06,A07,known shared location,Riverside Care visit
+A10,A11,known shared location,Community school event
+B02,B03,known shared location,Central Hospital laboratory
+B04,B05,known shared location,Community pharmacy
+B06,B07,known shared location,Northside Clinic intake
+B08,B09,known shared location,Riverside Care common area
+C02,C03,known shared location,Youth sports event
+C04,C05,known shared location,Central Hospital referral

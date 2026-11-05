@@ -98,7 +98,7 @@ const countNodeBorderPixels = (canvas: HTMLCanvasElement): number => {
     const green = pixels[index + 1];
     const blue = pixels[index + 2];
     const alpha = pixels[index + 3];
-    if (red <= 45 && green <= 52 && blue >= 15 && blue <= 70 && alpha >= 220) count += 1;
+    if (red <= 45 && green <= 52 && blue <= 70 && alpha >= 220) count += 1;
   }
   return count;
 };
@@ -147,9 +147,9 @@ describe('Sigma settings parity', () => {
         graph.getNodeAttributes(nodeId),
         renderer.getNodeState(nodeId),
       );
-      expect(reducedNode.backdropVisibility).to.equal('visible');
-      expect(reducedNode.backdropBorderWidth).to.equal(8);
-      expect(reducedNode.backdropPadding).to.equal(4);
+      expect(reducedNode.backdropVisibility).to.equal('hidden');
+      expect(reducedNode.mtBorderWidth).to.equal(8);
+      expect(reducedNode.mtBorderColor).to.equal('#000000');
 
       const composite = await twoD.exportRendererComposite(1, false);
       const pixelsWithBorders = countNodeBorderPixels(composite.canvas);
@@ -213,8 +213,8 @@ describe('Sigma settings parity', () => {
       // Custom vector shapes draw their own exact outline; the generic Sigma
       // backdrop is deliberately hidden so it cannot add a circular border.
       expect(reducedNode.backdropVisibility).to.equal('hidden');
-      expect(reducedNode.backdropBorderWidth).to.equal(5);
-      expect(reducedNode.backdropPadding).to.equal(2.5);
+      expect(reducedNode.mtBorderWidth).to.equal(0);
+      expect(reducedNode.backdropPadding).to.equal(0);
       expect(reducedNode.backdropShadowColor).to.equal('rgba(0,0,0,0)');
       expect(reducedNode.backdropShadowBlur).to.equal(0);
     });
@@ -452,7 +452,7 @@ describe('Sigma settings parity', () => {
         graph.getNodeAttributes(nonNeighborId),
         renderer.getNodeState(nonNeighborId),
       );
-      expect(dimmed.opacity, 'non-neighbor opacity while highlighted').to.equal(0.12);
+      expect(dimmed.mtFillOpacity, 'non-neighbor fill opacity while highlighted').to.equal(0.12);
       expect(adapter.getDisplayGraph().edges().every((candidate: string) => {
         const [sourceId, targetId] = adapter.getDisplayGraph().extremities(candidate);
         return sourceId === nodeId || targetId === nodeId;
@@ -468,7 +468,7 @@ describe('Sigma settings parity', () => {
         graph.getNodeAttributes(nonNeighborId),
         renderer.getNodeState(nonNeighborId),
       );
-      expect(restored.opacity, 'non-neighbor opacity after whitespace click').to.be.greaterThan(0.12);
+      expect(restored.mtFillOpacity, 'non-neighbor fill opacity after whitespace click').to.be.greaterThan(0.12);
     });
 
     cy.window().then(win => {
@@ -519,7 +519,7 @@ describe('Sigma settings parity', () => {
           attributes,
           renderer.getNodeState(nodeId),
         );
-        expect(reduced.opacity, `normal opacity for ${nodeId}`).to.equal(attributes.opacity);
+        expect(reduced.mtFillOpacity, `normal fill opacity for ${nodeId}`).to.equal(attributes.opacity);
       });
     });
 
@@ -559,7 +559,7 @@ describe('Sigma settings parity', () => {
         graph.getNodeAttributes(nonNeighborId),
         renderer.getNodeState(nonNeighborId),
       );
-      expect(normal.opacity, 'disabled setting does not dim non-neighbors')
+      expect(normal.mtFillOpacity, 'disabled setting does not dim non-neighbors')
         .to.equal(graph.getNodeAttribute(nonNeighborId, 'opacity'));
       adapter.handleNodeHover(null, new win.MouseEvent('mouseout'));
       expect(adapter.container.style.cursor, 'stage cursor after leaving node').to.equal('');

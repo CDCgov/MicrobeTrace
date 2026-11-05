@@ -48,6 +48,7 @@ describe('StyleKeyTableComponent mixed color controls', () => {
 
     let editor = fixture.nativeElement.querySelector('.style-key-table__segment-alpha-editor') as HTMLElement | null;
     expect(editor).not.toBeNull();
+    expect(editor!.matches(':popover-open')).toBe(true);
 
     const slider = editor!.querySelector('.style-key-table__segment-alpha-slider') as HTMLElement;
     slider.click();
@@ -99,7 +100,7 @@ describe('StyleKeyTableComponent mixed color controls', () => {
     }]);
   });
 
-  it('keeps non-node segmented swatches non-interactive', () => {
+  it('opens per-origin transparency controls for Duo-Link swatches', () => {
     const duoRow: StyleKeyTableRow = {
       rawValue: 'Duo-Link',
       trackKey: 'link-color-duo',
@@ -107,14 +108,22 @@ describe('StyleKeyTableComponent mixed color controls', () => {
       count: 2,
       frequency: 1,
       duoSegments: [
-        { color: '#ff0000', opacity: 1 },
-        { color: '#0000ff', opacity: 1 }
+        { value: 'genetic', displayName: 'Genetic', color: '#ff0000', opacity: 1 },
+        { value: 'contact', displayName: 'Contact', color: '#0000ff', opacity: 1 }
       ]
     };
 
     component.onSegmentAlphaTriggerClick(duoRow, new MouseEvent('click'));
 
-    expect(component.isSegmentAlphaEditorOpen(duoRow)).toBe(false);
+    expect(component.isSegmentAlphaEditorOpen(duoRow)).toBe(true);
+
+    const changes: any[] = [];
+    component.segmentAlphaChange.subscribe(change => changes.push(change));
+    const input = document.createElement('input');
+    input.value = '0.4';
+    component.onSegmentAlphaInput(duoRow, duoRow.duoSegments![1], 1, { target: input } as unknown as Event);
+    expect(changes[0]).toEqual(jasmine.objectContaining({ value: 'contact', segmentIndex: 1, alpha: 0.4 }));
+    expect(duoRow.duoSegments![0].opacity).toBe(1);
   });
 
   it('renders mixed legend colors as one rectangular striped swatch', async () => {
@@ -139,8 +148,8 @@ describe('StyleKeyTableComponent mixed color controls', () => {
       'rgb(255, 0, 0)',
       'rgb(0, 0, 255)'
     ]);
-    expect(getComputedStyle(swatchSet).width).toBe('50px');
-    expect(getComputedStyle(swatchBar).width).toBe('42px');
+    expect(getComputedStyle(swatchSet).width).toBe('42px');
+    expect(getComputedStyle(swatchBar).width).toBe('34px');
     expect(getComputedStyle(swatchBar).borderStyle).toBe('solid');
     expect(getComputedStyle(swatchBar).borderRadius).toBe('0px');
     expect(stripes.every(stripe => getComputedStyle(stripe).borderRadius === '0px')).toBe(true);
