@@ -28,6 +28,7 @@ import {
     type ThresholdSweepSummary
 } from './threshold-analysis';
 import * as tn93 from 'tn93';
+import { normalizeHIVTraceNetwork } from './hivtrace-import';
 
 interface SequencePairwiseLinkGuardrails {
     warningThreshold: number;
@@ -3092,33 +3093,43 @@ export class CommonService extends AppComponentBase implements OnInit {
       console.log("Running applyHIVTrace");
         this.resetData();
         this.session.meta.startTime = Date.now();
-        hivtrace["trace_results"]["Nodes"].forEach(node => {
-          let newNode = {
-            _id: node.id,
-            origin: "HIVTRACE Import",
-          }
-          if (Object.prototype.hasOwnProperty.call(node, "patient_attributes")){ 
-            console.log("had patient_attributes");
-            newNode = JSON.parse(JSON.stringify(node.patient_attributes));
-            Object.keys(
-                hivtrace["trace_results"]["Nodes"][0]["patient_attributes"]
-            ).forEach(key => {
-                if (!this.session.data.nodeFields.includes(key))
-                    this.session.data.nodeFields.push(key);
-            });
-          }
+        const normalized = normalizeHIVTraceNetwork(hivtrace);
+        normalized.nodes.forEach(node => {
+          const patientAttributes = node.patient_attributes
+            && typeof node.patient_attributes === 'object'
+            && !Array.isArray(node.patient_attributes)
+              ? JSON.parse(JSON.stringify(node.patient_attributes))
+              : {};
+          const nodeMetadata = Object.keys(node).reduce((metadata, key) => {
+            if (key !== 'id' && key !== 'patient_attributes') {
+              metadata[key] = node[key];
+            }
+            return metadata;
+          }, {});
+          const newNode = Object.assign({}, nodeMetadata, patientAttributes, {
+            _id: '' + node.id,
+            origin: ["HIVTRACE Import"]
+          });
+
+          Object.keys(newNode).forEach(key => {
+            if (key !== 'id' && key !== '_id' && key !== 'origin'
+                && !this.session.data.nodeFields.includes(key)) {
+              this.session.data.nodeFields.push(key);
+            }
+          });
           this.addNode(newNode, false);
         });
         this.processData();
-        let n = hivtrace["trace_results"]["Edges"].length;
+        let n = normalized.edges.length;
         let metric = this.session.style.widgets['default-distance-metric'];
         for (let i = 0; i < n; i++) {
-            const link = hivtrace["trace_results"]["Edges"][i];
+            const link = normalized.edges[i];
             const newLink = {
                 source: "" + link.sequences[0],
                 target: "" + link.sequences[1],
                 origin: ["HIVTRACE Import"],
-                visible: true
+                visible: true,
+                directed: Boolean(link.directed)
             };
             newLink[metric] = parseFloat(link.length);
             newLink["distance"] = newLink[metric];
