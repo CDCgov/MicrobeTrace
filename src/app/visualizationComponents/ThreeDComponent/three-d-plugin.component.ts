@@ -25,6 +25,7 @@ import {
 export class ThreeDComponent extends BaseComponentDirective implements OnInit, AfterViewInit, OnDestroy, MicobeTraceNextPluginEvents {
   @Output() DisplayGlobalSettingsDialogEvent = new EventEmitter();
   @ViewChild('graphHost', { static: true }) graphHost: ElementRef<HTMLDivElement>;
+  @ViewChild('orientationIndicator', { static: true }) orientationIndicator: ElementRef<SVGSVGElement>;
 
   settings: ThreeDSettings = readThreeDSettings({});
   settingsOpen = false;
@@ -38,6 +39,7 @@ export class ThreeDComponent extends BaseComponentDirective implements OnInit, A
   error = '';
   exportError = '';
   layoutFrozen = false;
+  cameraRotating = false;
   nodeCount = 0;
   linkCount = 0;
   nodeFields: Array<{ label: string; value: string }> = [];
@@ -109,9 +111,15 @@ export class ThreeDComponent extends BaseComponentDirective implements OnInit, A
           this.error = 'The graphics connection was lost. Retry the 3D view or continue in 2D Network.';
           this.cdref.markForCheck();
         }),
+        playing => this.zone.run(() => {
+          if (this.destroyed) return;
+          this.cameraRotating = playing;
+          this.cdref.markForCheck();
+        }),
       );
       if (this.destroyed) { renderer.destroy(); return; }
       this.renderer = renderer;
+      renderer.setOrientationIndicator(this.orientationIndicator.nativeElement);
       renderer.canvas.dataset.testid = 'threed-webgl-canvas';
       this.goldenLayoutComponentResize();
       renderer.setVisible(this.viewActive && !document.hidden);
@@ -270,6 +278,11 @@ export class ThreeDComponent extends BaseComponentDirective implements OnInit, A
     this.layoutFrozen = !this.layoutFrozen;
     this.zone.runOutsideAngular(() => this.renderer?.setFrozen(this.layoutFrozen));
     this.persistViewState();
+  }
+
+  toggleCameraRotation(): void {
+    if (this.loading || this.error || !this.nodeCount) return;
+    this.zone.runOutsideAngular(() => this.renderer?.setCameraRotating(!this.cameraRotating));
   }
 
   resetCamera(): void { this.renderer?.resetCamera(); this.persistViewState(); }

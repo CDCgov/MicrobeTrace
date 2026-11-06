@@ -7,7 +7,18 @@
 .three-d-toolbar .flaticon-settings:before,
 .three-d-toolbar .flaticon-download:before,
 .three-d-toolbar .flaticon-pin:before { font-weight: 800 !important; }
-.three-d-canvas { flex: 1; min-height: 0; overflow: hidden; position: relative; }
+.three-d-stage { display: flex; flex: 1; min-height: 0; position: relative; }
+.three-d-canvas { flex: 1; min-height: 0; min-width: 0; overflow: hidden; position: relative; }
+.three-d-compass { position: absolute; right: 12px; bottom: 12px; width: 100px; height: 100px; border: 1px solid #d6e0ea; border-radius: 8px; background: rgba(255, 255, 255, 0.94); pointer-events: none; }
+.three-d-compass-hidden { display: none; }
+.three-d-axis-x { color: #c9353b; }
+.three-d-axis-y { color: #238636; }
+.three-d-axis-z { color: #245bd7; }
+.three-d-compass line { stroke: currentColor; stroke-width: 2.5; stroke-linecap: round; }
+.three-d-compass path { fill: currentColor; }
+.three-d-compass g > circle { stroke: currentColor; stroke-width: 2; }
+.three-d-compass text { fill: currentColor; font: 700 13px sans-serif; text-anchor: middle; dominant-baseline: central; paint-order: stroke; stroke: white; stroke-width: 3px; stroke-linejoin: round; }
+.three-d-compass .is-away line, .three-d-compass .is-away path { opacity: 0.55; }
 .three-d-canvas:focus-visible { outline: 2px solid #286bba; outline-offset: -2px; }
 .three-d-footer { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 6px; padding: 5px 8px; font-size: 11px; background: var(--surface-ground, #f5f5f5); }
 .three-d-message { position: absolute; top: 45%; left: 50%; transform: translate(-50%, -50%); padding: 16px; max-width: 90%; text-align: center; background: var(--surface-ground, #fff); border-radius: 6px; }

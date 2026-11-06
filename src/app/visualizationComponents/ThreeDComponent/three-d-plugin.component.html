@@ -1,16 +1,73 @@
 <div class="three-d-wrapper" data-testid="threed-view" [attr.aria-busy]="loading">
-  <div class="three-d-toolbar" role="toolbar" aria-label="3D Network controls" data-html2canvas-ignore>
-    <button type="button" class="btn btn-sm btn-light" data-testid="threed-settings-button" (click)="openSettings()">Settings</button>
-    <button type="button" class="btn btn-sm btn-light" data-testid="threed-export-button" (click)="openExport()" [disabled]="loading || !!error">Export</button>
-    <button type="button" class="btn btn-sm btn-light" data-testid="threed-fit-button" (click)="openCenter()" [disabled]="loading || !!error">Fit Network</button>
-    <button type="button" class="btn btn-sm btn-light" data-testid="threed-reset-camera-button" (click)="resetCamera()" [disabled]="loading || !!error">Reset Camera</button>
-    <button type="button" class="btn btn-sm btn-light" data-testid="threed-recalculate-button" (click)="openRefreshScreen()" [disabled]="loading || !!error">Recalculate Layout</button>
-    <button type="button" class="btn btn-sm btn-light" data-testid="threed-freeze-button" (click)="toggleFrozen()" [attr.aria-pressed]="layoutFrozen" [disabled]="loading || !!error">{{ layoutFrozen ? 'Resume Layout' : 'Freeze Layout' }}</button>
-    <button type="button" class="btn btn-sm btn-light" aria-label="Zoom in" (click)="zoom(0.8)" [disabled]="loading || !!error">+</button>
-    <button type="button" class="btn btn-sm btn-light" aria-label="Zoom out" (click)="zoom(1.25)" [disabled]="loading || !!error">−</button>
+  <div class="three-d-toolbar tool-btn-container m-portlet" role="toolbar" aria-label="3D Network controls" data-html2canvas-ignore>
+    <button type="button" class="btn btn-sm btn-clean btn-icon btn-icon-md" title="Settings" aria-label="Settings"
+      data-testid="threed-settings-button" (click)="openSettings()">
+      <i class="flaticon-settings primary" aria-hidden="true"></i>
+    </button>
+    <button type="button" class="btn btn-sm btn-clean btn-icon btn-icon-md" title="Export Screen" aria-label="Export Screen"
+      data-testid="threed-export-button" (click)="openExport()" [disabled]="loading || !!error">
+      <i class="flaticon-download primary" aria-hidden="true"></i>
+    </button>
+    <button type="button" class="btn btn-sm btn-clean btn-icon btn-icon-md" title="Fit Network" aria-label="Fit Network"
+      data-testid="threed-fit-button" (click)="openCenter()" [disabled]="loading || !!error">
+      <i class="flaticon-eye primary" aria-hidden="true"></i>
+    </button>
+    <button type="button" class="btn btn-sm btn-clean btn-icon btn-icon-md"
+      [title]="layoutFrozen ? 'Resume Layout' : 'Freeze Layout'" [attr.aria-label]="layoutFrozen ? 'Resume Layout' : 'Freeze Layout'"
+      [style.background]="layoutFrozen ? 'lightblue' : null" [attr.aria-pressed]="layoutFrozen"
+      data-testid="threed-freeze-button" (click)="toggleFrozen()" [disabled]="loading || !!error">
+      <i class="flaticon-pin primary" aria-hidden="true"></i>
+    </button>
+    <button type="button" class="btn btn-sm btn-clean btn-icon btn-icon-md" title="Recalculate Layout" aria-label="Recalculate Layout"
+      data-testid="threed-recalculate-button" (click)="openRefreshScreen()" [disabled]="loading || !!error">
+      <i class="flaticon-refresh primary" aria-hidden="true"></i>
+    </button>
+    <button type="button" class="btn btn-sm btn-clean btn-icon btn-icon-md" title="Reset Camera" aria-label="Reset Camera"
+      data-testid="threed-reset-camera-button" (click)="resetCamera()" [disabled]="loading || !!error">
+      <i class="pi pi-undo primary" aria-hidden="true"></i>
+    </button>
+    <button type="button" class="btn btn-sm btn-clean btn-icon btn-icon-md"
+      [title]="cameraRotating ? 'Pause camera rotation' : 'Play camera rotation'"
+      [attr.aria-label]="cameraRotating ? 'Pause camera rotation' : 'Play camera rotation'"
+      [attr.aria-pressed]="cameraRotating" [style.background]="cameraRotating ? 'lightblue' : null"
+      data-testid="threed-play-button" (click)="toggleCameraRotation()" [disabled]="loading || !!error || nodeCount === 0">
+      <i class="pi primary" [class.pi-play]="!cameraRotating" [class.pi-pause]="cameraRotating" aria-hidden="true"></i>
+    </button>
+    <button type="button" class="btn btn-sm btn-clean btn-icon btn-icon-md" title="Zoom in" aria-label="Zoom in"
+      (click)="zoom(0.8)" [disabled]="loading || !!error">
+      <i class="pi pi-plus primary" aria-hidden="true"></i>
+    </button>
+    <button type="button" class="btn btn-sm btn-clean btn-icon btn-icon-md" title="Zoom out" aria-label="Zoom out"
+      (click)="zoom(1.25)" [disabled]="loading || !!error">
+      <i class="pi pi-minus primary" aria-hidden="true"></i>
+    </button>
   </div>
-  <div #graphHost class="three-d-canvas" data-testid="threed-canvas" role="region" tabindex="0"
-    aria-label="Interactive 3D network" aria-describedby="threed-help" (keydown)="onCanvasKeydown($event)"></div>
+  <div class="three-d-stage">
+    <div #graphHost class="three-d-canvas" data-testid="threed-canvas" role="region" tabindex="0"
+      aria-label="Interactive 3D network" aria-describedby="threed-help" (keydown)="onCanvasKeydown($event)"></div>
+    <svg #orientationIndicator class="three-d-compass" data-testid="threed-orientation"
+      [class.three-d-compass-hidden]="loading || !!error || nodeCount === 0"
+      viewBox="0 0 100 100" role="img" aria-label="3D orientation: red X axis, green Y axis, blue Z axis">
+      <title>3D orientation</title>
+      <desc>World axes follow the camera orientation. Dashed arrows point away from you. An end-on axis is a dot toward you or a ring away from you.</desc>
+      <circle cx="50" cy="50" r="2" fill="#64748b"></circle>
+      <g data-axis="x" class="three-d-axis-x">
+        <line x1="50" y1="50" x2="80" y2="50"></line>
+        <path></path><circle r="4" visibility="hidden"></circle>
+        <text x="91" y="50">X</text>
+      </g>
+      <g data-axis="y" class="three-d-axis-y">
+        <line x1="50" y1="50" x2="50" y2="20"></line>
+        <path></path><circle r="4" visibility="hidden"></circle>
+        <text x="50" y="9">Y</text>
+      </g>
+      <g data-axis="z" class="three-d-axis-z">
+        <line x1="50" y1="50" x2="50" y2="50"></line>
+        <path></path><circle r="4" visibility="hidden"></circle>
+        <text x="62" y="62">Z</text>
+      </g>
+    </svg>
+  </div>
   @if (loading) {
     <div class="three-d-message" role="status">Loading 3D Network…</div>
   } @else if (error) {
@@ -24,38 +81,98 @@
   }
   <div class="three-d-footer">
     <span data-testid="threed-counts">{{ nodeCount | number }} nodes · {{ linkCount | number }} links</span>
-    <span id="threed-help">Drag to rotate · Right-drag to pan · Scroll to zoom · Click to select · Shift-click to add · +/− to zoom · F to fit</span>
+    <span id="threed-help">Drag to rotate freely · Right-drag to pan · Scroll to zoom · Click to select · Shift-click to add · +/− to zoom · F to fit</span>
   </div>
 </div>
 
 @if (viewActive) {
   <p-dialog data-testid="threed-settings-dialog" [(visible)]="settingsOpen" header="3D Network Settings" appendTo="body" [style]="{width: '430px', maxWidth: '95vw'}">
-    <fieldset>
-      <legend>Nodes</legend>
-      <label for="threed-node-tooltip">Tooltip</label>
-      <select id="threed-node-tooltip" class="form-control form-control-sm" [(ngModel)]="settings.nodeTooltipField" (ngModelChange)="changeSettings()">
-        @for (field of nodeFields; track field.value) { <option [value]="field.value">{{ field.label }}</option> }
-      </select>
-      <label for="threed-node-size-field">Size By</label>
-      <select id="threed-node-size-field" class="form-control form-control-sm" [(ngModel)]="settings.nodeSizeField" (ngModelChange)="changeSettings()">
-        @for (field of sizeFields; track field.value) { <option [value]="field.value">{{ field.label }}</option> }
-      </select>
-      <label for="threed-node-size">Size: {{ settings.nodeSize }}</label>
-      <input id="threed-node-size" type="range" class="custom-range" min="0.1" max="20" step="0.1" [(ngModel)]="settings.nodeSize" (ngModelChange)="changeSettings()">
-    </fieldset>
-    <fieldset>
-      <legend>Links</legend>
-      <label for="threed-link-tooltip">Tooltip</label>
-      <select id="threed-link-tooltip" class="form-control form-control-sm" [(ngModel)]="settings.linkTooltipField" (ngModelChange)="changeSettings()">
-        @for (field of linkFields; track field.value) { <option [value]="field.value">{{ field.label }}</option> }
-      </select>
-      <label for="threed-link-width">Width: {{ settings.linkWidth }}</label>
-      <input id="threed-link-width" type="range" class="custom-range" min="0" max="20" step="0.1" [(ngModel)]="settings.linkWidth" (ngModelChange)="changeSettings()">
-      <label for="threed-link-transparency">Transparency: {{ settings.linkTransparency | percent }}</label>
-      <input id="threed-link-transparency" type="range" class="custom-range" min="0" max="1" step="0.01" [(ngModel)]="settings.linkTransparency" (ngModelChange)="changeSettings()">
-    </fieldset>
-    <p>Colors, background, distance threshold, and filtering follow the global settings.</p>
-    <button type="button" class="btn btn-sm btn-primary" (click)="openGlobalColors()">Global Settings</button>
+    <div class="three-d-settings">
+      <tabset class="tab-container tabbable-line">
+        <tab heading="{{'Nodes' | localize}}" [active]="true" customClass="m-tabs__item">
+          <p-accordion [value]="null" [multiple]="true">
+            <p-accordion-panel value="threed-node-tooltips" style="color:#495057">
+              <p-accordion-header>Tooltips</p-accordion-header>
+              <p-accordion-content>
+                <div class="form-group row" title="What data should be displayed when you hover over a node?">
+                  <div class="col-4"><label id="threed-node-tooltip-label" for="threed-node-tooltip">Tooltip</label></div>
+                  <div class="col-8">
+                    <p-select inputId="threed-node-tooltip" ariaLabelledBy="threed-node-tooltip-label" [options]="nodeFields" optionLabel="label" optionValue="value"
+                      appendTo="body" class="width-percent-100" [(ngModel)]="settings.nodeTooltipField" (ngModelChange)="changeSettings()"></p-select>
+                  </div>
+                </div>
+              </p-accordion-content>
+            </p-accordion-panel>
+            <p-accordion-panel value="threed-node-sizes" style="color:#495057">
+              <p-accordion-header>Sizes</p-accordion-header>
+              <p-accordion-content>
+                <div class="form-group row" title="Which variable should determine the size of the node?">
+                  <div class="col-4"><label id="threed-node-size-field-label" for="threed-node-size-field">Size By</label></div>
+                  <div class="col-8">
+                    <p-select inputId="threed-node-size-field" ariaLabelledBy="threed-node-size-field-label" [options]="sizeFields" optionLabel="label" optionValue="value"
+                      appendTo="body" class="width-percent-100" [(ngModel)]="settings.nodeSizeField" (ngModelChange)="changeSettings()"></p-select>
+                  </div>
+                </div>
+                <div class="form-group row" title="How big should the nodes be?">
+                  <div class="col-4"><label for="threed-node-size">Size: {{ settings.nodeSize }}</label></div>
+                  <div class="col-8">
+                    <input id="threed-node-size" type="range" class="custom-range" min="0.1" max="20" step="0.1" [(ngModel)]="settings.nodeSize" (ngModelChange)="changeSettings()">
+                  </div>
+                </div>
+              </p-accordion-content>
+            </p-accordion-panel>
+            <p-accordion-panel value="threed-node-colors" style="color:#495057">
+              <p-accordion-header>Colors</p-accordion-header>
+              <p-accordion-content>
+                <button pButton type="button" class="ui-button-raised" (click)="openGlobalColors()"
+                  [style]="{'background-color': '#2196f3', 'border': '1px solid #2196f3'}"><span class="p-button-label">Show Colors</span></button>
+              </p-accordion-content>
+            </p-accordion-panel>
+          </p-accordion>
+        </tab>
+        <tab heading="{{'Links' | localize}}" customClass="m-tabs__item">
+          <p-accordion [value]="null" [multiple]="true">
+            <p-accordion-panel value="threed-link-tooltips" style="color:#495057">
+              <p-accordion-header>Tooltips</p-accordion-header>
+              <p-accordion-content>
+                <div class="form-group row" title="What data should be displayed when you hover over a link?">
+                  <div class="col-4"><label id="threed-link-tooltip-label" for="threed-link-tooltip">Tooltip</label></div>
+                  <div class="col-8">
+                    <p-select inputId="threed-link-tooltip" ariaLabelledBy="threed-link-tooltip-label" [options]="linkFields" optionLabel="label" optionValue="value"
+                      appendTo="body" class="width-percent-100" [(ngModel)]="settings.linkTooltipField" (ngModelChange)="changeSettings()"></p-select>
+                  </div>
+                </div>
+              </p-accordion-content>
+            </p-accordion-panel>
+            <p-accordion-panel value="threed-link-sizes" style="color:#495057">
+              <p-accordion-header>Sizes</p-accordion-header>
+              <p-accordion-content>
+                <div class="form-group row" title="How thick should the links be?">
+                  <div class="col-4"><label for="threed-link-width">Width: {{ settings.linkWidth }}</label></div>
+                  <div class="col-8">
+                    <input id="threed-link-width" type="range" class="custom-range" min="0" max="20" step="0.1" [(ngModel)]="settings.linkWidth" (ngModelChange)="changeSettings()">
+                  </div>
+                </div>
+                <div class="form-group row" title="How transparent should the links be?">
+                  <div class="col-4"><label for="threed-link-transparency">Transparency: {{ settings.linkTransparency | percent }}</label></div>
+                  <div class="col-8">
+                    <input id="threed-link-transparency" type="range" class="custom-range" min="0" max="1" step="0.01" [(ngModel)]="settings.linkTransparency" (ngModelChange)="changeSettings()">
+                  </div>
+                </div>
+              </p-accordion-content>
+            </p-accordion-panel>
+            <p-accordion-panel value="threed-link-colors" style="color:#495057">
+              <p-accordion-header>Colors</p-accordion-header>
+              <p-accordion-content>
+                <button pButton type="button" class="ui-button-raised" (click)="openGlobalColors()"
+                  [style]="{'background-color': '#2196f3', 'border': '1px solid #2196f3'}"><span class="p-button-label">Show Colors</span></button>
+              </p-accordion-content>
+            </p-accordion-panel>
+          </p-accordion>
+        </tab>
+      </tabset>
+      <p class="three-d-settings-note">Colors, background, distance threshold, and filtering follow the global settings.</p>
+    </div>
   </p-dialog>
 
   <p-dialog data-testid="threed-export-dialog" [(visible)]="exportOpen" header="Export 3D Network" appendTo="body" [style]="{width: '400px', maxWidth: '95vw'}">
