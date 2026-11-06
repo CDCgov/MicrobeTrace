@@ -411,6 +411,39 @@ describe('Sigma settings parity', () => {
           'dashed edge layer is below the node overlay',
         ).to.be.greaterThan(0);
       });
+
+      cy.window().then(win => {
+        const adapter = (win as any).commonService.visuals.twoD.sigmaRenderer as any;
+        const renderer = adapter.getRenderer();
+        const graph = adapter.getDisplayGraph();
+        const canvas = $edgeOverlay[0] as HTMLCanvasElement;
+        const context = canvas.getContext('2d', { willReadFrequently: true })!;
+        const scaleX = canvas.width / canvas.clientWidth;
+        const scaleY = canvas.height / canvas.clientHeight;
+
+        graph.forEachNode((nodeId: string, attributes: any) => {
+          const displayData = renderer.getNodeDisplayData(nodeId);
+          if (!displayData || displayData.visibility === 'hidden') return;
+          const point = renderer.graphToViewport({ x: attributes.x, y: attributes.y });
+          const radius = Math.max(0, adapter.getOverlayNodeRadius(nodeId, attributes) - 1);
+          const samples = [
+            [point.x, point.y],
+            [point.x + radius * 0.7, point.y],
+            [point.x - radius * 0.7, point.y],
+            [point.x, point.y + radius * 0.7],
+            [point.x, point.y - radius * 0.7],
+          ];
+          samples.forEach(([x, y]) => {
+            const alpha = context.getImageData(
+              Math.max(0, Math.min(canvas.width - 1, Math.round(x * scaleX))),
+              Math.max(0, Math.min(canvas.height - 1, Math.round(y * scaleY))),
+              1,
+              1,
+            ).data[3];
+            expect(alpha, `dashed overlay alpha inside node ${nodeId}`).to.equal(0);
+          });
+        });
+      });
     });
   });
 
