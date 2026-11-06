@@ -1,5 +1,5 @@
 import {
-  buildThreeDGraph, normalizeThreeDViewState, readThreeDSettings, threeDNodeId, writeThreeDSettings,
+  buildThreeDGraph, ensureThreeDShapeMapping, normalizeThreeDViewState, readThreeDSettings, threeDNodeId, writeThreeDSettings,
 } from './three-d-network.model';
 
 describe('3D network data and saved state', () => {
@@ -103,6 +103,7 @@ describe('3D network data and saved state', () => {
     };
     const widgets: Record<string, any> = JSON.parse(JSON.stringify(independentWidgets));
     writeThreeDSettings(widgets, {
+      ...settings,
       nodeSize: 9, nodeSizeField: 'degree', nodeTooltipField: 'ID',
       linkWidth: 2.7, linkTransparency: 0.65, linkTooltipField: 'source',
     });
@@ -116,6 +117,62 @@ describe('3D network data and saved state', () => {
     expect(normalizeThreeDViewState(JSON.parse(JSON.stringify(state)))).toEqual(state);
     expect(state.layoutFrozen).toBe(true);
     expect(state.positions.A.z).toBe(3);
+  });
+
+  it('round-trips independent shape defaults and per-field category assignments', () => {
+    const parsed = readThreeDSettings({
+      '3DNet-node-shape': 'cone', '3DNet-node-shape-variable': 'group',
+      '3DNet-node-shape-mappings': { group: { A: 'cube', B: 'diamond' }, status: { active: 'cylinder' } },
+      'node-symbol': 'triangle', 'node-symbol-variable': 'State',
+    });
+    const widgets = { 'node-symbol': 'triangle', 'node-symbol-variable': 'State' };
+    writeThreeDSettings(widgets, parsed);
+    expect(readThreeDSettings(JSON.parse(JSON.stringify(widgets)))).toEqual(parsed);
+    expect(widgets['node-symbol']).toBe('triangle');
+    expect(widgets['node-symbol-variable']).toBe('State');
+  });
+
+  it('preserves category shapes through filtering, input reordering, and added categories', () => {
+    const shaped = { ...readThreeDSettings({}), nodeShapeField: 'group' };
+    const nodes = [{ _id: 'A', group: 'z' }, { _id: 'B', group: 'a' }];
+    ensureThreeDShapeMapping(nodes, shaped);
+    const first = buildThreeDGraph(nodes, [], shaped, color, color);
+    const filtered = buildThreeDGraph([nodes[0]], [], shaped, color, color);
+    expect(filtered.nodes[0].shape).toBe(first.nodes[0].shape);
+    ensureThreeDShapeMapping([...nodes].reverse(), shaped);
+    const original = { ...shaped.nodeShapeMappings.group };
+    ensureThreeDShapeMapping([...nodes, { _id: 'C', group: '0' }], shaped);
+    expect(shaped.nodeShapeMappings.group.z).toBe(original.z);
+    expect(shaped.nodeShapeMappings.group.a).toBe(original.a);
+    shaped.nodeShapeMappings.group.z = 'pyramid';
+    expect(buildThreeDGraph(nodes, [], shaped, color, color).nodes[0].shape).toBe('pyramid');
+  });
+
+  it('applies uniform shapes and uses category mappings without replacing physics nodes', () => {
+    const shaped = { ...readThreeDSettings({}), nodeShape: 'cube' as const };
+    const nodes = [{ _id: 'A', group: 'one' }, { _id: 'B', group: 'two' }];
+    const first = buildThreeDGraph(nodes, [], shaped, color, color);
+    expect(first.nodes.map(node => node.shape)).toEqual(['cube', 'cube']);
+    first.nodes[0].x = 123;
+    const categorized = { ...shaped, nodeShapeField: 'group' };
+    ensureThreeDShapeMapping(nodes, categorized);
+    const updated = buildThreeDGraph(nodes, [], categorized, color, color, new Map(first.nodes.map(node => [node.id, node])));
+    expect(updated.nodes[0]).toBe(first.nodes[0]);
+    expect(updated.nodes[0].x).toBe(123);
+    expect(updated.nodes[0].shape).not.toBe(updated.nodes[1].shape);
+  });
+
+  it('rejects invalid saved shapes and safely maps empty and prototype-like category keys', () => {
+    const mappings = JSON.parse('{"__proto__":{"__proto__":"cube","bad":"unknown"}}');
+    const shaped = readThreeDSettings({ '3DNet-node-shape': 'bad', '3DNet-node-shape-variable': '__proto__', '3DNet-node-shape-mappings': mappings });
+    expect(shaped.nodeShape).toBe('sphere');
+    expect(Object.getPrototypeOf(shaped.nodeShapeMappings)).toBeNull();
+    expect(Object.getPrototypeOf(shaped.nodeShapeMappings['__proto__'])).toBeNull();
+    expect(shaped.nodeShapeMappings['__proto__']['__proto__']).toBe('cube');
+    expect(shaped.nodeShapeMappings['__proto__'].bad).toBeUndefined();
+    const groups = { ...readThreeDSettings({}), nodeShapeField: 'group' };
+    ensureThreeDShapeMapping([{ group: 0 }, { group: false }, { group: null }, { group: '  ' }], groups);
+    expect(Object.keys(groups.nodeShapeMappings.group).sort()).toEqual(['0', 'false', 'null']);
   });
 
   it('loads an older camera without roll using the upright orientation', () => {

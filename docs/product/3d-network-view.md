@@ -14,7 +14,9 @@ Open **View > 3D Network** to explore the same visible network in three dimensio
 
 ## Settings and filtering
 
-The settings dialog controls node size, sizing by a numeric field, node/link tooltips, link width, and link transparency. Nodes use spheres. Colors and background follow global settings; selected nodes use the shared selection color. Threshold, nearest-neighbor, cluster, subset, and timeline filters use the existing shared network rules. Only links with two visible endpoints are rendered.
+The settings dialog controls node shapes, node size, sizing by a numeric field, node/link tooltips, link width, and link transparency. Under **Nodes > Shapes and Sizes**, choose a uniform **Shape**, or choose a **Shape By** field to assign shapes by category. Available shapes are sphere, cube, cone, cylinder, diamond (octahedron), and square pyramid. The category key lets you edit each assignment; shapes repeat beyond six categories. Assignments are saved per field and stay stable while filtering. These controls use independent 3D settings and do not change 2D shape assignments.
+
+Shapes share a common enclosing radius, and **Size By** scales their volume. Geometries and materials are reused between nodes and released when the view closes. Colors and background follow global settings; selected nodes use the shared selection color. Threshold, nearest-neighbor, cluster, subset, and timeline filters use the existing shared network rules. Only links with two visible endpoints are rendered.
 
 The Classic `3DNet-*` widget names are retained for imported styles and sessions. Legacy layout names `3d_network` and `3dnetwork` restore the new pane. Older sessions without 3D camera state receive a new layout.
 
@@ -30,7 +32,7 @@ Session files and local session links store a versioned `session.meta.threeDView
 
 3D is registered as its own component and does not inherit from or call `TwoDComponent`. Its appearance controls write only `3DNet-*` settings; 2D node labels, tooltips, sizing, and link appearance retain their existing keys. Its camera and coordinates live in `threeDViewState`, separately from 2D's `rendererViewState`. Shared data, colors, filtering, and selection remain intentional application-wide behavior. Unit tests check both directions of appearance-setting isolation.
 
-Node dragging/pinning, custom node shapes, persistent labels, cluster surfaces, and video export are follow-up work. The default view renders all visible links. See the measured graph-size recommendations below.
+Node dragging/pinning, imported custom shape models, persistent labels, cluster surfaces, and video export are follow-up work. The default view renders all visible links. See the measured graph-size recommendations below.
 
 ## Validation
 

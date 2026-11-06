@@ -104,8 +104,41 @@
               </p-accordion-content>
             </p-accordion-panel>
             <p-accordion-panel value="threed-node-sizes" style="color:#495057">
-              <p-accordion-header>Sizes</p-accordion-header>
+              <p-accordion-header>Shapes and Sizes</p-accordion-header>
               <p-accordion-content>
+                <div class="form-group row" title="Choose a field to assign 3D shapes by category.">
+                  <div class="col-4"><label id="threed-node-shape-field-label" for="threed-node-shape-field">Shape By</label></div>
+                  <div class="col-8">
+                    <p-select inputId="threed-node-shape-field" ariaLabelledBy="threed-node-shape-field-label" [options]="nodeFields" optionLabel="label" optionValue="value"
+                      appendTo="body" class="width-percent-100" [(ngModel)]="settings.nodeShapeField" (ngModelChange)="changeShapeField()"></p-select>
+                  </div>
+                </div>
+                @if (settings.nodeShapeField === 'None') {
+                  <div class="form-group row" title="Choose the shape used for all nodes.">
+                    <div class="col-4"><label id="threed-node-shape-label" for="threed-node-shape">Shape</label></div>
+                    <div class="col-8">
+                      <p-select inputId="threed-node-shape" ariaLabelledBy="threed-node-shape-label" [options]="shapeOptions" optionLabel="label" optionValue="value"
+                        appendTo="body" class="width-percent-100" [(ngModel)]="settings.nodeShape" (ngModelChange)="changeSettings()"></p-select>
+                    </div>
+                  </div>
+                } @else {
+                  <p-table class="three-d-shape-key" data-testid="threed-shape-key" [value]="shapeCategories" [rows]="6"
+                    [paginator]="shapeCategories.length > 6" [first]="shapeCategoryFirst" (onPage)="shapeCategoryFirst = $event.first"
+                    [tableStyle]="{'table-layout': 'fixed', width: '100%'}">
+                    <ng-template #header><tr><th scope="col">Value (nodes)</th><th scope="col">3D shape</th></tr></ng-template>
+                    <ng-template #body let-category>
+                      <tr>
+                        <td>{{ category.label }} ({{ category.count | number }})</td>
+                        <td>
+                          <p-select [ariaLabel]="'Shape for ' + category.label" [options]="shapeOptions" optionLabel="label" optionValue="value"
+                            appendTo="body" class="width-percent-100" [ngModel]="settings.nodeShapeMappings[settings.nodeShapeField][category.key]"
+                            (ngModelChange)="setCategoryShape(category.key, $event)"></p-select>
+                        </td>
+                      </tr>
+                    </ng-template>
+                  </p-table>
+                  @if (shapeCategories.length > 6) { <p class="three-d-settings-note">Shapes repeat when there are more than six categories.</p> }
+                }
                 <div class="form-group row" title="Which variable should determine the size of the node?">
                   <div class="col-4"><label id="threed-node-size-field-label" for="threed-node-size-field">Size By</label></div>
                   <div class="col-8">

@@ -12,6 +12,9 @@ export interface ThreeDViewState {
 }
 
 export interface ThreeDSettings {
+  nodeShape: ThreeDNodeShape;
+  nodeShapeField: string;
+  nodeShapeMappings: Record<string, Record<string, ThreeDNodeShape>>;
   nodeSize: number;
   nodeSizeField: string;
   nodeTooltipField: string;
@@ -22,6 +25,7 @@ export interface ThreeDSettings {
 
 export interface ThreeDNode {
   id: string;
+  shape: ThreeDNodeShape;
   color: string;
   value: number;
   tooltip: string;
@@ -34,6 +38,50 @@ export interface ThreeDNode {
   vx?: number;
   vy?: number;
   vz?: number;
+}
+
+export type ThreeDNodeShape = 'sphere' | 'cube' | 'cone' | 'cylinder' | 'diamond' | 'pyramid';
+
+export const THREE_D_NODE_SHAPES: Array<{ label: string; value: ThreeDNodeShape }> = [
+  { label: 'Sphere', value: 'sphere' }, { label: 'Cube', value: 'cube' },
+  { label: 'Cone', value: 'cone' }, { label: 'Cylinder', value: 'cylinder' },
+  { label: 'Diamond', value: 'diamond' }, { label: 'Square pyramid', value: 'pyramid' },
+];
+
+function validShape(value: unknown): value is ThreeDNodeShape {
+  return THREE_D_NODE_SHAPES.some(shape => shape.value === value);
+}
+
+export function threeDShapeCategory(value: unknown): string {
+  if (value == null || typeof value === 'number' && Number.isNaN(value)) return 'null';
+  const text = String(value).trim();
+  return text && text.toLowerCase() !== 'nan' ? text : 'null';
+}
+
+function readShapeMappings(value: any): ThreeDSettings['nodeShapeMappings'] {
+  const mappings: ThreeDSettings['nodeShapeMappings'] = Object.create(null);
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return mappings;
+  Object.entries(value).forEach(([field, entries]) => {
+    if (!entries || typeof entries !== 'object' || Array.isArray(entries)) return;
+    const mapping: Record<string, ThreeDNodeShape> = Object.create(null);
+    Object.entries(entries).forEach(([key, shape]) => { if (validShape(shape)) mapping[key] = shape; });
+    mappings[field] = mapping;
+  });
+  return mappings;
+}
+
+/** Assign from the complete dataset, so filtering cannot reshuffle category shapes. */
+export function ensureThreeDShapeMapping(nodes: any[], settings: ThreeDSettings): void {
+  const field = settings.nodeShapeField;
+  if (field === 'None') return;
+  const mapping = settings.nodeShapeMappings[field] ?? (settings.nodeShapeMappings[field] = Object.create(null));
+  const categories = [...new Set(nodes.map(node => threeDShapeCategory(node[field])))].sort();
+  let index = Object.keys(mapping).length;
+  categories.forEach(category => {
+    if (!Object.prototype.hasOwnProperty.call(mapping, category)) {
+      mapping[category] = THREE_D_NODE_SHAPES[index++ % THREE_D_NODE_SHAPES.length].value;
+    }
+  });
 }
 
 export interface ThreeDLink {
@@ -87,6 +135,9 @@ function bounded(value: any, fallback: number, min: number, max: number): number
 // Retain Classic's widget names so style/session imports keep their 3D settings.
 export function readThreeDSettings(widgets: Record<string, any>): ThreeDSettings {
   return {
+    nodeShape: validShape(widgets['3DNet-node-shape']) ? widgets['3DNet-node-shape'] : 'sphere',
+    nodeShapeField: String(widgets['3DNet-node-shape-variable'] ?? 'None'),
+    nodeShapeMappings: readShapeMappings(widgets['3DNet-node-shape-mappings']),
     nodeSize: bounded(widgets['3DNet-node-radius'], 4, 0.1, 20),
     nodeSizeField: String(widgets['3DNet-node-radius-variable'] ?? 'None'),
     nodeTooltipField: String(widgets['3DNet-node-tooltip-variable'] ?? '_id'),
@@ -97,6 +148,9 @@ export function readThreeDSettings(widgets: Record<string, any>): ThreeDSettings
 }
 
 export function writeThreeDSettings(widgets: Record<string, any>, settings: ThreeDSettings): void {
+  widgets['3DNet-node-shape'] = settings.nodeShape;
+  widgets['3DNet-node-shape-variable'] = settings.nodeShapeField;
+  widgets['3DNet-node-shape-mappings'] = readShapeMappings(settings.nodeShapeMappings);
   widgets['3DNet-node-radius'] = settings.nodeSize;
   widgets['3DNet-node-radius-variable'] = settings.nodeSizeField;
   widgets['3DNet-node-tooltip-variable'] = settings.nodeTooltipField;
@@ -129,6 +183,10 @@ export function buildThreeDGraph(
     ids.add(id);
     const node = previousNodes.get(id) ?? { id, ...positions.get(id) } as ThreeDNode;
     const rawValue = settings.nodeSizeField === 'None' ? 1 : Number(source[settings.nodeSizeField]);
+    const mapping = settings.nodeShapeMappings[settings.nodeShapeField];
+    const category = threeDShapeCategory(source[settings.nodeShapeField]);
+    node.shape = settings.nodeShapeField !== 'None' && mapping && Object.prototype.hasOwnProperty.call(mapping, category)
+      ? mapping[category] : settings.nodeShape;
     node.color = nodeColor(source);
     node.value = Number.isFinite(rawValue) && rawValue > 0 ? rawValue : 1;
     node.tooltip = tooltip(source, settings.nodeTooltipField);

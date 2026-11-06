@@ -11,7 +11,8 @@ import { ExportService } from '@app/contactTraceCommonServices/export.service';
 import { MicobeTraceNextPluginEvents } from '@app/helperClasses/interfaces';
 import { ThreeDNetworkRenderer } from './three-d-network-renderer.adapter';
 import {
-  buildThreeDGraph, normalizeThreeDViewState, readThreeDSettings, ThreeDSettings,
+  buildThreeDGraph, ensureThreeDShapeMapping, normalizeThreeDViewState, readThreeDSettings, ThreeDSettings,
+  THREE_D_NODE_SHAPES, ThreeDNodeShape, threeDShapeCategory,
   ThreeDViewState, threeDNodeId, writeThreeDSettings,
 } from './three-d-network.model';
 
@@ -45,6 +46,9 @@ export class ThreeDComponent extends BaseComponentDirective implements OnInit, A
   nodeFields: Array<{ label: string; value: string }> = [];
   linkFields: Array<{ label: string; value: string }> = [];
   sizeFields: Array<{ label: string; value: string }> = [];
+  shapeOptions = THREE_D_NODE_SHAPES;
+  shapeCategories: Array<{ key: string; label: string; count: number }> = [];
+  shapeCategoryFirst = 0;
 
   private renderer: ThreeDNetworkRenderer | null = null;
   private destroy$ = new Subject<void>();
@@ -177,7 +181,9 @@ export class ThreeDComponent extends BaseComponentDirective implements OnInit, A
     const start = performance.now();
     const session = this.commonService.session;
     this.settings = readThreeDSettings(session.style.widgets);
+    ensureThreeDShapeMapping(session.data.nodes, this.settings);
     writeThreeDSettings(session.style.widgets, this.settings);
+    if (this.settingsOpen) this.rebuildShapeCategories();
     if (this.needsRestore || this.sourceNodes !== session.data.nodes
       || this.persistedState !== ((session.meta as any).threeDViewState ?? null)) {
       const state = normalizeThreeDViewState((session.meta as any).threeDViewState);
@@ -228,6 +234,27 @@ export class ThreeDComponent extends BaseComponentDirective implements OnInit, A
         && Number.isFinite(Number(value))) numericFields.add(field);
     }));
     this.sizeFields = this.nodeFields.filter(field => field.value === 'None' || numericFields.has(field.value));
+    this.rebuildShapeCategories();
+  }
+
+  private rebuildShapeCategories(): void {
+    const counts = new Map<string, number>();
+    if (this.settings.nodeShapeField !== 'None') this.commonService.session.data.nodes.forEach(node => {
+      const key = threeDShapeCategory(node[this.settings.nodeShapeField]);
+      counts.set(key, (counts.get(key) ?? 0) + 1);
+    });
+    this.shapeCategories = [...counts].sort(([a], [b]) => a.localeCompare(b))
+      .map(([key, count]) => ({ key, label: key === 'null' ? '(Empty)' : key, count }));
+  }
+
+  setCategoryShape(category: string, shape: ThreeDNodeShape): void {
+    this.settings.nodeShapeMappings[this.settings.nodeShapeField][category] = shape;
+    this.changeSettings();
+  }
+
+  changeShapeField(): void {
+    this.shapeCategoryFirst = 0;
+    this.changeSettings();
   }
 
   selectNode(id: string | null, event: Pick<MouseEvent, 'shiftKey' | 'ctrlKey' | 'metaKey'>): void {
@@ -270,6 +297,8 @@ export class ThreeDComponent extends BaseComponentDirective implements OnInit, A
   }
 
   changeSettings(): void {
+    ensureThreeDShapeMapping(this.commonService.session.data.nodes, this.settings);
+    this.rebuildShapeCategories();
     writeThreeDSettings(this.commonService.session.style.widgets, this.settings);
     this.requestUpdate();
   }

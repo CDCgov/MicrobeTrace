@@ -1,5 +1,6 @@
 import type { ForceGraph3DInstance } from '3d-force-graph';
 import { ThreeDOrientationIndicator } from './three-d-orientation-indicator';
+import { ThreeDNodeObjects } from './three-d-node-objects';
 import {
   finiteThreeDPoint, ThreeDGraphData, ThreeDLink, ThreeDNode, ThreeDPoint,
   ThreeDSettings, ThreeDViewState,
@@ -31,6 +32,7 @@ export class ThreeDNetworkRenderer {
   private rotating = false;
   private visible = true;
   private orientation: ThreeDOrientationIndicator | null = null;
+  private nodeObjects: ThreeDNodeObjects;
   private contextLost: (event: Event) => void;
 
   static async create(
@@ -40,10 +42,10 @@ export class ThreeDNetworkRenderer {
     onContextLost: () => void,
     onRotationChange: (playing: boolean) => void = () => {},
   ): Promise<ThreeDNetworkRenderer> {
-    const { default: ForceGraph3D } = await import('3d-force-graph');
+    const [{ default: ForceGraph3D }, three] = await Promise.all([import('3d-force-graph'), import('three')]);
     return new ThreeDNetworkRenderer(new ForceGraph3D(host, {
       controlType: 'trackball', rendererConfig: { antialias: true, preserveDrawingBuffer: true },
-    }) as ForceGraph3DInstance<ThreeDNode, ThreeDLink>, onSelect, onStateChange, onContextLost, onRotationChange);
+    }) as ForceGraph3DInstance<ThreeDNode, ThreeDLink>, onSelect, onStateChange, onContextLost, onRotationChange, three);
   }
 
   private constructor(
@@ -52,10 +54,13 @@ export class ThreeDNetworkRenderer {
     onStateChange: () => void,
     onContextLost: () => void,
     private onRotationChange: (playing: boolean) => void,
+    three: typeof import('three'),
   ) {
     this.graph = graph;
+    this.nodeObjects = new ThreeDNodeObjects(three);
     this.graph.enableNodeDrag(false).showNavInfo(false)
       .nodeId('id').nodeOpacity(1).nodeResolution(8)
+      .nodeThreeObject(node => this.nodeObjects.create(node))
       .nodeLabel(node => this.label(node.tooltip)).linkLabel(link => this.label(link.tooltip))
       .onNodeClick((node, event) => onSelect(node.id, event))
       .onBackgroundClick(event => onSelect(null, event))
@@ -98,6 +103,7 @@ export class ThreeDNetworkRenderer {
 
   setData(data: ThreeDGraphData, settings: ThreeDSettings, background: string): void {
     this.capturePositions();
+    this.nodeObjects.sync(data.nodes, settings.nodeSize);
     const topologyChanged = data.nodes.length !== this.data.nodes.length || data.links.length !== this.data.links.length
       || data.nodes.some((node, i) => node.id !== this.data.nodes[i]?.id)
       || data.links.some((link, i) => link.key !== this.data.links[i]?.key);
@@ -292,6 +298,7 @@ export class ThreeDNetworkRenderer {
     this.canvas.removeEventListener('webglcontextlost', this.contextLost);
     this.graph.onNodeClick(() => {}).onBackgroundClick(() => {}).onEngineStop(() => {});
     this.graph._destructor();
+    this.nodeObjects.destroy();
     renderer.forceContextLoss();
     this.graph = null;
     this.cameraChanged = null;
