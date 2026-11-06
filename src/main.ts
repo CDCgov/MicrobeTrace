@@ -6,6 +6,9 @@ import { AppModule } from './app/app.module';
 import { environment } from './environments/environment';
 import { describeError, reportRuntimeError } from './app/runtime-security/runtime-error.store';
 import { installWindowRuntimeHardening } from './app/runtime-security/window-runtime-hardening';
+import { uiColor } from './app/ui-theme';
+
+document.documentElement.setAttribute('data-ui-color', uiColor);
 
 if (environment.production) {
   enableProdMode();

@@ -1,0 +1,139 @@
+// App-owned accents use these variables with their original blue as fallback.
+// Scope Bootstrap overrides to the opted-in instance as its CSS is loaded via CDN.
+html[data-ui-color='orange'] {
+  --mt-primary: #fb923c;
+  --mt-primary-dark: #f97316;
+  --mt-action: #fb923c;
+  --mt-active-tab: #fb923c;
+  --mt-on-primary: #431407;
+  --mt-link: #c2410c;
+  --mt-link-hover: #9a3412;
+  --mt-highlight: #fff7ed;
+  --mt-focus: #fdba74;
+  --mt-focus-shadow: rgb(194 65 12 / 25%);
+}
+
+html[data-ui-color='red'] {
+  --mt-primary: #dc2626;
+  --mt-primary-dark: #b91c1c;
+  --mt-action: #dc2626;
+  --mt-active-tab: #dc2626;
+  --mt-on-primary: #ffffff;
+  --mt-link: #b91c1c;
+  --mt-link-hover: #991b1b;
+  --mt-highlight: #fef2f2;
+  --mt-focus: #fca5a5;
+  --mt-focus-shadow: rgb(185 28 28 / 25%);
+}
+
+html[data-ui-color='yellow'] {
+  --mt-primary: #fde047;
+  --mt-primary-dark: #facc15;
+  --mt-action: #fde047;
+  --mt-active-tab: #fde047;
+  --mt-on-primary: #422006;
+  --mt-link: #854d0e;
+  --mt-link-hover: #713f12;
+  --mt-highlight: #fefce8;
+  --mt-focus: #fde047;
+  --mt-focus-shadow: rgb(133 77 14 / 25%);
+}
+
+html[data-ui-color='green'] {
+  --mt-primary: #166534;
+  --mt-primary-dark: #14532d;
+  --mt-action: #166534;
+  --mt-active-tab: #166534;
+  --mt-on-primary: #ffffff;
+  --mt-link: #166534;
+  --mt-link-hover: #14532d;
+  --mt-highlight: #f0fdf4;
+  --mt-focus: #86efac;
+  --mt-focus-shadow: rgb(22 101 52 / 25%);
+}
+
+html[data-ui-color='purple'] {
+  --mt-primary: #a219c1;
+  --mt-primary-dark: #452661;
+  --mt-action: #a219c1;
+  --mt-active-tab: #a219c1;
+  --mt-on-primary: #ffffff;
+  --mt-link: #a219c1;
+  --mt-link-hover: #452661;
+  --mt-highlight: #faf5ff;
+  --mt-focus: #d8b4fe;
+  --mt-focus-shadow: rgb(162 25 193 / 25%);
+}
+
+html[data-ui-color='purple'],
+html[data-ui-color='green'],
+html[data-ui-color='yellow'],
+html[data-ui-color='orange'],
+html[data-ui-color='red'] {
+  --primary: var(--mt-primary);
+
+  #top-toolbar,
+  #top-toolbar .navbar-item,
+  #top-toolbar .navbar-logo,
+  #top-toolbar .nav-label,
+  #top-toolbar label {
+    color: var(--mt-on-primary) !important;
+  }
+
+  a:not(.btn):not(.navbar-logo) { color: var(--mt-link); }
+  a:not(.btn):not(.navbar-logo):hover { color: var(--mt-link-hover); }
+
+  .btn-primary {
+    color: var(--mt-on-primary);
+    background-color: var(--mt-action);
+    border-color: var(--mt-action);
+  }
+
+  .btn-primary:hover,
+  .btn-primary:focus,
+  .btn-primary:not(:disabled):not(.disabled):active {
+    background-color: var(--mt-primary-dark);
+    border-color: var(--mt-primary-dark);
+  }
+
+  .btn-primary:disabled,
+  .btn-primary.disabled {
+    background-color: var(--mt-action);
+    border-color: var(--mt-action);
+  }
+
+  .btn-primary:focus,
+  .btn-primary:not(:disabled):not(.disabled):active:focus,
+  .form-control:focus,
+  .custom-select:focus {
+    border-color: var(--mt-focus);
+    box-shadow: 0 0 0 .2rem var(--mt-focus-shadow);
+  }
+
+  .btn-link,
+  .nav-link,
+  .page-link { color: var(--mt-link); }
+
+  .text-primary { color: var(--mt-primary) !important; }
+  .bg-primary { background-color: var(--mt-primary) !important; }
+  .border-primary { border-color: var(--mt-primary) !important; }
+
+  .dropdown-item.active,
+  .dropdown-item:active,
+  .nav-pills .nav-link.active,
+  .page-item.active .page-link {
+    color: var(--mt-on-primary);
+    background-color: var(--mt-action);
+    border-color: var(--mt-action);
+  }
+
+  input[type='checkbox'],
+  input[type='radio'],
+  input[type='range'],
+  progress { accent-color: var(--mt-primary); }
+
+  .custom-control-input:checked ~ .custom-control-label::before {
+    background-color: var(--mt-action);
+    border-color: var(--mt-action);
+  }
+}
