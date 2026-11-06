@@ -5,7 +5,7 @@ import { CommonModule } from '@angular/common';
 import { AppRoutingModule } from './app-routing.module';
 import { RouterModule, ExtraOptions } from '@angular/router';
 
-import Lara from '@primeuix/themes/lara';
+import { appThemePreset } from './ui-theme';
 import { providePrimeNG } from 'primeng/config';
 import { primeUiLicenseKey } from '../environments/primeui-license.generated';
 
@@ -184,7 +184,7 @@ export class TestedComponent {
         CommonModule], providers: [
           providePrimeNG({
             theme: {
-                preset: Lara,
+                preset: appThemePreset,
                 options: {darkModeSelector: false || 'none'}
             },
             license: primeUiLicenseKey,
