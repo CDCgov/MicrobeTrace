@@ -164,9 +164,23 @@
         >
         <ng-template #header>
           <div style="display: flex; justify-content: space-between; width: 100%;">
-            <span>Link Color Table</span>
+            <span>{{ getColorKeyTitle('link') }}</span>
             <span style="overflow: visible; position: relative;">
-              <button title="Settings" class="btn btn-sm btn-clean btn-icon btn-icon-md" style="float:left" (click)="toggleColorTableSettings('link-color')"><i class="pi pi-cog"></i></button>
+              @if (!isContinuousColorScale('link')) {
+                <button title="Settings" class="btn btn-sm btn-clean btn-icon btn-icon-md" style="float:left" (click)="toggleColorTableSettings('link-color')"><i class="pi pi-cog"></i></button>
+              }
+              @if (isContinuousColorScale('link')) {
+                <button
+                  type="button"
+                  title="Edit link color ramp"
+                  aria-label="Edit link color ramp"
+                  data-testid="floating-link-color-ramp-edit"
+                  class="btn btn-sm btn-clean btn-icon btn-icon-md"
+                  style="float:left"
+                  (click)="openContinuousColorEditor('link', $event)">
+                  <i class="pi pi-palette" aria-hidden="true"></i>
+                </button>
+              }
               <button [title]="getKeyTableDockButtonTitle('link-color')" class="btn btn-sm btn-clean btn-icon btn-icon-md" style="float:left" (click)="toggleKeyTableDocking('link-color')"><i [className]="isKeyTableDocked('link-color') ? 'pi pi-window-minimize' : 'pi pi-window-maximize'"></i></button>
               <div id="linkColorTableSettings" class="dropdown-menu" style="display: none;">
                 <button id="linkColorCounts" class="dropdown-item" (click)="toggleColorTableColumns('link-color', 'tableCounts')">
@@ -182,7 +196,17 @@
           </div>
         </ng-template>
         <div style="max-height: 50vh">
-          <style-key-table
+          @if (isContinuousColorScale('link')) {
+            <div id="link-color-legend">
+              <continuous-color-ramp
+                controlId="link-color-legend-ramp"
+                [label]="getColorLegendLabel('link')"
+                [resolved]="getResolvedVariableColorScale('link')"
+                [config]="getVariableColorConfig('link')">
+              </continuous-color-ramp>
+            </div>
+          } @else {
+            <style-key-table
             tableId="link-color-table"
             tableKey="link-color"
             controlType="color"
@@ -200,7 +224,8 @@
             (colorChange)="onLinkColorTableColorChange($event)"
             (alphaRequest)="onLinkColorAlphaRequested($event)"
             (segmentAlphaChange)="onLinkColorSegmentAlphaChange($event)">
-          </style-key-table>
+            </style-key-table>
+          }
         </div>
       </p-dialog>
 
@@ -214,9 +239,23 @@
         >
         <ng-template #header>
           <div style="display: flex; justify-content: space-between; width: 100%;">
-            <span>Node Color Table</span>
+            <span>{{ getColorKeyTitle('node') }}</span>
             <span style="overflow: visible; position: relative;">
-              <button title="Settings" class="btn btn-sm btn-clean btn-icon btn-icon-md" style="float:left" (click)="toggleColorTableSettings('node-color')"><i class="pi pi-cog"></i></button>
+              @if (!isContinuousColorScale('node')) {
+                <button title="Settings" class="btn btn-sm btn-clean btn-icon btn-icon-md" style="float:left" (click)="toggleColorTableSettings('node-color')"><i class="pi pi-cog"></i></button>
+              }
+              @if (isContinuousColorScale('node')) {
+                <button
+                  type="button"
+                  title="Edit node color ramp"
+                  aria-label="Edit node color ramp"
+                  data-testid="floating-node-color-ramp-edit"
+                  class="btn btn-sm btn-clean btn-icon btn-icon-md"
+                  style="float:left"
+                  (click)="openContinuousColorEditor('node', $event)">
+                  <i class="pi pi-palette" aria-hidden="true"></i>
+                </button>
+              }
               <button [title]="getKeyTableDockButtonTitle('node-color')" class="btn btn-sm btn-clean btn-icon btn-icon-md" style="float:left" (click)="toggleKeyTableDocking('node-color')"><i [className]="isKeyTableDocked('node-color') ? 'pi pi-window-minimize' : 'pi pi-window-maximize'"></i></button>
               <div id="nodeColorTableSettings" class="dropdown-menu" style="display: none;">
                 <button id="nodeColorCounts" class="dropdown-item" (click)="toggleColorTableColumns('node-color', 'tableCounts')">
@@ -232,7 +271,17 @@
           </div>
         </ng-template>
         <div style="max-height: 50vh">
-          <style-key-table
+          @if (isContinuousColorScale('node')) {
+            <div id="node-color-legend">
+              <continuous-color-ramp
+                controlId="node-color-legend-ramp"
+                [label]="getColorLegendLabel('node')"
+                [resolved]="getResolvedVariableColorScale('node')"
+                [config]="getVariableColorConfig('node')">
+              </continuous-color-ramp>
+            </div>
+          } @else {
+            <style-key-table
             tableId="node-color-table"
             tableKey="node-color"
             controlType="color"
@@ -251,6 +300,7 @@
             (alphaRequest)="onNodeColorAlphaRequested($event)"
             (segmentAlphaChange)="onNodeColorSegmentAlphaChange($event)">
           </style-key-table>
+          }
         </div>
       </p-dialog>
 
@@ -380,7 +430,7 @@
                 <div class="form-group row" title="By what metric would you like to measure distance?">
                   <div class="col-4">Distance Metric</div>
                   <div class="col-8">
-                    <select id="default-distance-metric" class="form-control form-control-sm mr-5" [(ngModel)]="SelectedDistanceMetricVariable" (ngModelChange)="onDistanceMetricChanged()">
+                    <select id="default-distance-metric" class="form-control form-control-sm" [(ngModel)]="SelectedDistanceMetricVariable" (ngModelChange)="onDistanceMetricChanged()">
                       <option value="tn93">TN93</option>
                       <option value="snps">SNPs</option>
                       <option value="mlst">MLST</option>
@@ -433,72 +483,6 @@
                   </div>
                   <div class="col-8">
                     <input type="number" id="cluster-minimum-size" data-testid="filter-minimum-cluster-size" class="form-control form-control-sm" min="1" value="1" step="1" [ngModel]="SelectedClusterMinimumSizeVariable" (ngModelChange)="onMinimumClusterSizeChanged($event)">
-                  </div>
-                </div>
-                <div id="network-subset-filtering" class="network-subset-filtering" data-testid="network-subset-filtering">
-                  <hr>
-                  @if (isNetworkSubsetFilterActive()) {
-                    <div id="network-subset-active" class="alert alert-info py-2" data-testid="network-subset-active">
-                      <strong>Subset active:</strong> {{ getNetworkSubsetFilterLabel() }}
-                    </div>
-                  }
-                  <div class="form-group row" title="Show only nodes that match this field and value.">
-                    <div class="col-4"><label for="network-subset-node-field">Subset Nodes</label></div>
-                    <div class="col-8">
-                      <select id="network-subset-node-field" data-testid="network-subset-node-field" class="form-control form-control-sm" [ngModel]="SelectedNetworkSubsetNodeField" (ngModelChange)="onNetworkSubsetNodeFieldChanged($event)">
-                        @for (field of NetworkSubsetNodeFieldList; track field.value) {
-                          <option [value]="field.value">{{ field.label }}</option>
-                        }
-                      </select>
-                    </div>
-                    <div class="col-8 offset-4 mt-2">
-                      <select id="network-subset-node-operator" data-testid="network-subset-node-operator" class="form-control form-control-sm" [(ngModel)]="SelectedNetworkSubsetNodeOperator">
-                        @for (operator of NetworkSubsetOperatorTypes; track operator.value) {
-                          <option [value]="operator.value">{{ operator.label }}</option>
-                        }
-                      </select>
-                    </div>
-                    <div class="col-8 offset-4 mt-2">
-                      <input id="network-subset-node-value" data-testid="network-subset-node-value" type="text" class="form-control form-control-sm" placeholder="Value" list="network-subset-node-value-options" [ngModel]="SelectedNetworkSubsetNodeValue" (ngModelChange)="onNetworkSubsetNodeValueChanged($event)">
-                      <datalist id="network-subset-node-value-options" data-testid="network-subset-node-value-options">
-                        @for (option of NetworkSubsetNodeValueOptions; track option) {
-                          <option [value]="option"></option>
-                        }
-                      </datalist>
-                    </div>
-                  </div>
-                  <div class="form-group row" title="Show only links that match this field and value.">
-                    <div class="col-4"><label for="network-subset-link-field">Subset Links</label></div>
-                    <div class="col-8">
-                      <select id="network-subset-link-field" data-testid="network-subset-link-field" class="form-control form-control-sm" [ngModel]="SelectedNetworkSubsetLinkField" (ngModelChange)="onNetworkSubsetLinkFieldChanged($event)">
-                        @for (field of NetworkSubsetLinkFieldList; track field.value) {
-                          <option [value]="field.value">{{ field.label }}</option>
-                        }
-                      </select>
-                    </div>
-                    <div class="col-8 offset-4 mt-2">
-                      <select id="network-subset-link-operator" data-testid="network-subset-link-operator" class="form-control form-control-sm" [(ngModel)]="SelectedNetworkSubsetLinkOperator">
-                        @for (operator of NetworkSubsetOperatorTypes; track operator.value) {
-                          <option [value]="operator.value">{{ operator.label }}</option>
-                        }
-                      </select>
-                    </div>
-                    <div class="col-8 offset-4 mt-2">
-                      <input id="network-subset-link-value" data-testid="network-subset-link-value" type="text" class="form-control form-control-sm" placeholder="Value" list="network-subset-link-value-options" [ngModel]="SelectedNetworkSubsetLinkValue" (ngModelChange)="onNetworkSubsetLinkValueChanged($event)">
-                      <datalist id="network-subset-link-value-options" data-testid="network-subset-link-value-options">
-                        @for (option of NetworkSubsetLinkValueOptions; track option) {
-                          <option [value]="option"></option>
-                        }
-                      </datalist>
-                    </div>
-                  </div>
-                  <div class="form-group row">
-                    <div class="col-8 offset-4">
-                      <div class="d-flex">
-                        <button type="button" id="network-subset-apply" data-testid="network-subset-apply" class="btn btn-primary btn-sm flex-fill mr-2" (click)="applyNetworkSubsetFilter()">Apply Subset</button>
-                        <button type="button" id="network-subset-clear" data-testid="network-subset-clear" class="btn btn-light btn-sm flex-fill" (click)="clearNetworkSubsetFilter()">Clear</button>
-                      </div>
-                    </div>
                   </div>
                 </div>
                 <div id="filtering-wrapper">
@@ -862,6 +846,85 @@
                     }
                   </div>
                   }
+                <div id="network-subset-filtering" class="network-subset-filtering" data-testid="network-subset-filtering">
+                  @if (isNetworkSubsetFilterActive()) {
+                    <div id="network-subset-active" class="alert alert-info py-2" data-testid="network-subset-active">
+                      <strong>Subset active:</strong> {{ getNetworkSubsetFilterLabel() }}
+                    </div>
+                  }
+                  <p-accordion [(value)]="filteringSubsetAccordionPanels" [multiple]="true">
+                    <p-accordion-panel value="nodes">
+                      <p-accordion-header>Subset Nodes</p-accordion-header>
+                      <p-accordion-content>
+                  <div class="form-group row" title="Show only nodes that match this field and value.">
+                    <div class="col-4"><label for="network-subset-node-field">Field</label></div>
+                    <div class="col-8">
+                      <select id="network-subset-node-field" data-testid="network-subset-node-field" class="form-control form-control-sm" [ngModel]="SelectedNetworkSubsetNodeField" (ngModelChange)="onNetworkSubsetNodeFieldChanged($event)">
+                        @for (field of NetworkSubsetNodeFieldList; track field.value) {
+                          <option [value]="field.value">{{ field.label }}</option>
+                        }
+                      </select>
+                    </div>
+                    <div class="col-8 offset-4 mt-2">
+                      <label class="sr-only" for="network-subset-node-operator">Node subset condition</label>
+                      <select id="network-subset-node-operator" data-testid="network-subset-node-operator" class="form-control form-control-sm" [(ngModel)]="SelectedNetworkSubsetNodeOperator">
+                        @for (operator of NetworkSubsetOperatorTypes; track operator.value) {
+                          <option [value]="operator.value">{{ operator.label }}</option>
+                        }
+                      </select>
+                    </div>
+                    <div class="col-8 offset-4 mt-2">
+                      <label class="sr-only" for="network-subset-node-value">Node subset value</label>
+                      <input id="network-subset-node-value" data-testid="network-subset-node-value" type="text" class="form-control form-control-sm" placeholder="Value" list="network-subset-node-value-options" [ngModel]="SelectedNetworkSubsetNodeValue" (ngModelChange)="onNetworkSubsetNodeValueChanged($event)">
+                      <datalist id="network-subset-node-value-options" data-testid="network-subset-node-value-options">
+                        @for (option of NetworkSubsetNodeValueOptions; track option) {
+                          <option [value]="option"></option>
+                        }
+                      </datalist>
+                    </div>
+                  </div>
+                      </p-accordion-content>
+                    </p-accordion-panel>
+                    <p-accordion-panel value="links">
+                      <p-accordion-header>Subset Links</p-accordion-header>
+                      <p-accordion-content>
+                  <div class="form-group row" title="Show only links that match this field and value.">
+                    <div class="col-4"><label for="network-subset-link-field">Field</label></div>
+                    <div class="col-8">
+                      <select id="network-subset-link-field" data-testid="network-subset-link-field" class="form-control form-control-sm" [ngModel]="SelectedNetworkSubsetLinkField" (ngModelChange)="onNetworkSubsetLinkFieldChanged($event)">
+                        @for (field of NetworkSubsetLinkFieldList; track field.value) {
+                          <option [value]="field.value">{{ field.label }}</option>
+                        }
+                      </select>
+                    </div>
+                    <div class="col-8 offset-4 mt-2">
+                      <label class="sr-only" for="network-subset-link-operator">Link subset condition</label>
+                      <select id="network-subset-link-operator" data-testid="network-subset-link-operator" class="form-control form-control-sm" [(ngModel)]="SelectedNetworkSubsetLinkOperator">
+                        @for (operator of NetworkSubsetOperatorTypes; track operator.value) {
+                          <option [value]="operator.value">{{ operator.label }}</option>
+                        }
+                      </select>
+                    </div>
+                    <div class="col-8 offset-4 mt-2">
+                      <label class="sr-only" for="network-subset-link-value">Link subset value</label>
+                      <input id="network-subset-link-value" data-testid="network-subset-link-value" type="text" class="form-control form-control-sm" placeholder="Value" list="network-subset-link-value-options" [ngModel]="SelectedNetworkSubsetLinkValue" (ngModelChange)="onNetworkSubsetLinkValueChanged($event)">
+                      <datalist id="network-subset-link-value-options" data-testid="network-subset-link-value-options">
+                        @for (option of NetworkSubsetLinkValueOptions; track option) {
+                          <option [value]="option"></option>
+                        }
+                      </datalist>
+                    </div>
+                  </div>
+                      </p-accordion-content>
+                    </p-accordion-panel>
+                  </p-accordion>
+                  @if (filteringSubsetAccordionPanels.length > 0 || isNetworkSubsetFilterActive()) {
+                    <div class="network-subset-actions">
+                      <button type="button" id="network-subset-apply" data-testid="network-subset-apply" class="btn btn-primary btn-sm" (click)="applyNetworkSubsetFilter()">Apply Subset</button>
+                      <button type="button" id="network-subset-clear" data-testid="network-subset-clear" class="btn btn-light btn-sm" (click)="clearNetworkSubsetFilter()">Clear</button>
+                    </div>
+                  }
+                </div>
                   <div class="form-group row" title="Click to reveal all hidden elements of the network.">
                     <div class="col-4"><label for="reveal-all">Reveal</label></div>
                     <div class="col-8">
@@ -887,6 +950,13 @@
               <tab heading="{{'Styling' | localize}}" customClass="m-tabs__item" style='width: 100%; height: 100%;'>
 
                 <div id="style-config" role="tabpanel" aria-labelledby="style-tab">
+                  <p-accordion
+                    [(value)]="stylingAccordionPanels"
+                    [multiple]="true"
+                    styleClass="global-styling-accordion">
+                    <p-accordion-panel value="node-color" style="color:#495057">
+                      <p-accordion-header>Node Color</p-accordion-header>
+                      <p-accordion-content>
                   <div class="form-group row" title="By what variable nodes be colored?">
                     <div class="col-5"><label for="node-color-variable">Color Nodes By</label></div>
                     <div class="col-7">
@@ -895,6 +965,31 @@
                   </div>
 
                   @if (SelectedColorNodesByVariable !== 'None') {
+                    <div class="form-group row" title="Choose automatic, categorical, or continuous numeric coloring.">
+                      <div class="col-5"><label for="node-color-scale-mode">Node Color Scale</label></div>
+                      <div class="col-7">
+                        <p-select
+                          id="node-color-scale-mode"
+                          data-testid="node-color-scale-mode"
+                          class="width-percent-100"
+                          appendTo="body"
+                          [options]="getColorScaleModeOptions('node')"
+                          [ngModel]="getVariableColorConfig('node').mode"
+                          (ngModelChange)="onVariableColorModeChanged('node', $event)">
+                        </p-select>
+                      </div>
+                    </div>
+                    @if (isContinuousColorScale('node')) {
+                      <continuous-color-ramp
+                        id="node-continuous-color-editor"
+                        data-testid="node-continuous-color-editor"
+                        controlId="node-continuous-color-editor"
+                        [editable]="true"
+                        [resolved]="getResolvedVariableColorScale('node')"
+                        [config]="getVariableColorConfig('node')"
+                        (configChange)="onVariableColorConfigChanged('node', $event)">
+                      </continuous-color-ramp>
+                    }
                     <div class="form-group row" title="Show mixed values as hollow, multi-color rings. Add inline weights such as 2a:70/3a:30; counts, decimals, and percentages are normalized automatically.">
                       <div class="col-5"><label for="node-mixed-colors-enabled">Mixed Values</label></div>
                       <div class="col-7 mixed-values-toggle">
@@ -909,7 +1004,7 @@
                     }
                   }
 
-                  <div id="node-color-assignment-row" class="form-group row" title="Apply reusable colors and select the node variable declared by the file.">
+                  <div id="node-color-assignment-row" class="form-group row" title="Apply reusable category colors or continuous ramp stops and select the node variable declared by the file.">
                     <div class="col-5">Apply Color Assignment File
                       <a title="Click for more information" class="btn btn-sm" style="float:right; padding-left: 0px;" href="https://github.com/CDCgov/MicrobeTrace/wiki/Color-Assignment-File" target="_blank"><i class="pi pi-info-circle"></i></a>
                     </div>
@@ -918,9 +1013,9 @@
                         type="file"
                         id="node-color-assignment-file"
                         data-testid="node-color-assignment-file"
-                        class="d-none"
+                        class="global-styling-file-input"
+                        aria-label="Apply node color assignment file"
                         (change)="onApplyNodeColorAssignments($event)">
-                      <label class="custom-file-label" for="node-color-assignment-file">Choose File</label>
                     </div>
                   </div>
                   @if (nodeColorAssignmentStatus) {
@@ -944,12 +1039,18 @@
                   }
                   @if (hasNodeColorVariableSelected()) {
                     <div id="node-color-table-row" class="form-group row" title="Should MicrobeTrace display the table of colors?">
-                      <div class="col-5"><label>Node Color Table</label></div>
+                      <div class="col-5"><label>{{ getColorKeyTitle('node') }}</label></div>
                       <div class="col-7">
                         <p-select-button [options]="TableVisualizationOptions" [allowEmpty]="false" fluid [(ngModel)]="SelectedNodeColorTableTypesVariable" (onChange)="onNodeColorTableChanged()"></p-select-button>
                       </div>
                     </div>
                   }
+                      </p-accordion-content>
+                    </p-accordion-panel>
+
+                    <p-accordion-panel value="node-shape" style="color:#495057">
+                      <p-accordion-header>Node Shape</p-accordion-header>
+                      <p-accordion-content>
                   <div class="form-group row" title="Which variable should determine node shape?">
                     <div class="col-5"><label for="node-symbol-variable">Shape By</label></div>
                     <div class="col-7">
@@ -998,6 +1099,12 @@
                       </div>
                     </div>
                   }
+                      </p-accordion-content>
+                    </p-accordion-panel>
+
+                    <p-accordion-panel value="link-color" style="color:#495057">
+                      <p-accordion-header>Link Color</p-accordion-header>
+                      <p-accordion-content>
                   <div class="form-group row" title="By what variable should links be colored?">
                     <div class="col-5"><label for="link-color-variable">Color Links By</label></div>
                     <div class="col-7">
@@ -1005,8 +1112,59 @@
                     </div>
                   </div>
                   @if (SelectedColorLinksByVariable !== 'None') {
+                    <div class="form-group row" title="Choose automatic, categorical, or continuous numeric coloring.">
+                      <div class="col-5"><label for="link-color-scale-mode">Link Color Scale</label></div>
+                      <div class="col-7">
+                        <p-select
+                          id="link-color-scale-mode"
+                          data-testid="link-color-scale-mode"
+                          class="width-percent-100"
+                          appendTo="body"
+                          [options]="getColorScaleModeOptions('link')"
+                          [ngModel]="getVariableColorConfig('link').mode"
+                          (ngModelChange)="onVariableColorModeChanged('link', $event)">
+                        </p-select>
+                      </div>
+                    </div>
+                    @if (isContinuousColorScale('link')) {
+                      <continuous-color-ramp
+                        id="link-continuous-color-editor"
+                        data-testid="link-continuous-color-editor"
+                        controlId="link-continuous-color-editor"
+                        [editable]="true"
+                        [resolved]="getResolvedVariableColorScale('link')"
+                        [config]="getVariableColorConfig('link')"
+                        (configChange)="onVariableColorConfigChanged('link', $event)">
+                      </continuous-color-ramp>
+                    }
+                  }
+                  <div id="link-color-assignment-row" class="form-group row" title="Apply reusable category colors or continuous ramp stops and select the link variable declared by the file.">
+                    <div class="col-5">Apply Link Color Assignment File
+                      <a title="Click for more information" class="btn btn-sm" style="float:right; padding-left: 0px;" href="https://github.com/CDCgov/MicrobeTrace/wiki/Color-Assignment-File" target="_blank"><i class="pi pi-info-circle"></i></a>
+                    </div>
+                    <div class="col-7">
+                      <input
+                        type="file"
+                        id="link-color-assignment-file"
+                        data-testid="link-color-assignment-file"
+                        class="global-styling-file-input"
+                        aria-label="Apply link color assignment file"
+                        (change)="onApplyLinkColorAssignments($event)">
+                    </div>
+                  </div>
+                  @if (linkColorAssignmentStatus) {
+                    <div
+                      id="link-color-assignment-status"
+                      data-testid="link-color-assignment-status"
+                      class="node-color-assignment-status"
+                      [ngClass]="'node-color-assignment-status--' + linkColorAssignmentStatus.kind"
+                      [attr.role]="linkColorAssignmentStatus.kind === 'error' ? 'alert' : 'status'">
+                      {{ linkColorAssignmentStatus.message }}
+                    </div>
+                  }
+                  @if (SelectedColorLinksByVariable !== 'None') {
                     <div id="link-color-table-row"  class="form-group row" title="Should MicrobeTrace display the table of colors?">
-                      <div class="col-5"><label>Link Color Table</label></div>
+                      <div class="col-5"><label>{{ getColorKeyTitle('link') }}</label></div>
                       <div class="col-7">
                         <p-select-button [options]="TableVisualizationOptions" [allowEmpty]="false" fluid [(ngModel)]="SelectedLinkColorTableTypesVariable" (onChange)="onLinkColorTableChanged()"></p-select-button>
                       </div>
@@ -1021,6 +1179,9 @@
                       </div>
                     </div>
                   }
+                      </p-accordion-content>
+                    </p-accordion-panel>
+                  </p-accordion>
 
                   <!-- Hidden for now 5/19/26; to be removed if not needed-->
                   <!--div class="form-group row" title="Open a docked view for the node color, link color, and node shape key tables.">
@@ -1030,24 +1191,42 @@
                     </div>
                   </div-->
 
-                  <div class="form-group row" title="What color should denote selection?">
-                    <div class="col-5"><label for="selected-color">Selected</label></div>
-                    <div class="col-7">
-                      <input type="color" id="selected-color" class="form-control form-control-sm" value="#ff8300" [(ngModel)]="SelectedColorVariable" (ngModelChange)="onSelectedColorChanged()">
+                  <div class="global-styling-settings">
+                  <div class="global-styling-color-row" title="What color should denote selection?">
+                    <label for="selected-color">Selected node/link</label>
+                    <div class="global-styling-color-control">
+                      <input type="color" id="selected-color" value="#ff8300" [(ngModel)]="SelectedColorVariable" (ngModelChange)="onSelectedColorChanged()">
+                      <span class="global-styling-color-value" aria-hidden="true">{{ SelectedColorVariable }}</span>
                     </div>
                   </div>
-                  <div class="form-group row" title="What color should the background be?">
-                    <div class="col-5"><label for="background-color">Background</label></div>
-                    <div class="col-7">
-                      <input type="color" id="background-color" class="form-control form-control-sm" value="#ffffff" [(ngModel)]="SelectedBackgroundColorVariable" (ngModelChange)="onBackgroundChanged()">
+                  <div class="global-styling-color-row" title="What color should the background be?">
+                    <label for="background-color">Background</label>
+                    <div class="global-styling-color-control">
+                      <input type="color" id="background-color" value="#ffffff" [(ngModel)]="SelectedBackgroundColorVariable" (ngModelChange)="onBackgroundChanged()">
+                      <span class="global-styling-color-value" aria-hidden="true">{{ SelectedBackgroundColorVariable }}</span>
                     </div>
                   </div>
-                  <div class="form-group row" title="Load an existing MicrobeTrace style file">
-                    <div class="col-3 padding-right-5">Apply Style</div>
-                    <div class="col-9">
-                      <input type="file" id="apply-style" class="d-none" accept=".style" [(ngModel)]="SelectedApplyStyleVariable" (change)="onApplyStyle($event)">
-                      <label class="custom-file-label" for="apply-style">Choose MicrobeTrace Style File</label>
+                  <div class="global-styling-file-row" title="Load an existing MicrobeTrace style file">
+                    <label for="apply-style">Apply Style</label>
+                    <input type="file" id="apply-style" class="global-styling-file-input" accept=".style" [(ngModel)]="SelectedApplyStyleVariable" (change)="onApplyStyle($event)">
+                  </div>
+                  @if (styleFileStatus) {
+                    <div
+                      id="style-file-status"
+                      data-testid="style-file-status"
+                      class="style-file-status"
+                      [ngClass]="'style-file-status--' + styleFileStatus.kind"
+                      [attr.role]="styleFileStatus.kind === 'error' ? 'alert' : 'status'">
+                      <div>{{ styleFileStatus.message }}</div>
+                      @if (styleFileStatus.details.length) {
+                        <ul class="style-file-status__details">
+                          @for (detail of styleFileStatus.details; track detail) {
+                            <li>{{ detail }}</li>
+                          }
+                        </ul>
+                      }
                     </div>
+                  }
                   </div>
                 </div>
               </tab>
@@ -1090,11 +1269,9 @@
         </div>
       </div>
 
-      <div class="modal-footer">
-        <div class="btn-group" data-toggle="buttons">
-          <button type="button" class="btn btn-primary" (click)="GlobalSettingsDialogSettings.setVisibility(false)">Done</button>
-        </div>
-      </div>
+      <ng-template #footer>
+        <button type="button" class="btn btn-primary" (click)="GlobalSettingsDialogSettings.setVisibility(false)">Done</button>
+      </ng-template>
     </p-dialog><!-- /.modal -->
 
 
@@ -1192,11 +1369,11 @@
           <div class="flex align-items-center row">
             <div class="col-5">
               <input type="checkbox" id="checkbox1" [(ngModel)]="exportTables['node-color']" [disabled]="SelectedColorNodesByVariable=='None'" style="margin-left: 10px;"/>
-              <label for="checkbox1" [class.disabled]="SelectedColorNodesByVariable=='None'">Node Color Table</label>
+              <label for="checkbox1" [class.disabled]="SelectedColorNodesByVariable=='None'">{{ getColorKeyTitle('node') }}</label>
             </div>
             <div class="col-5">
               <input type="checkbox" id="checkbox2" [(ngModel)]="exportTables['link-color']" [disabled]="SelectedColorLinksByVariable=='None'" style="margin-left: 10px;"/>
-              <label for="checkbox2" [class.disabled]="SelectedColorLinksByVariable=='None'">Link Color Table</label>
+              <label for="checkbox2" [class.disabled]="SelectedColorLinksByVariable=='None'">{{ getColorKeyTitle('link') }}</label>
             </div>
             <div class="col-5">
               <input type="checkbox" id="checkbox3" [(ngModel)]="exportTables['node-symbol']" [disabled]="commonService.session.style.widgets['node-symbol-variable']=='None'" style="margin-left: 10px;"/>

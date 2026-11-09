@@ -2,6 +2,7 @@ import { Injectable } from '@angular/core';
 import * as Papa from 'papaparse';
 
 export type NodeColorAssignmentFormat = 'itol-colorstrip' | 'delimited-table';
+export type ColorAssignmentMode = 'categorical' | 'continuous';
 
 export interface NodeColorAssignmentParseIssue {
   line: number;
@@ -11,6 +12,7 @@ export interface NodeColorAssignmentParseIssue {
 export interface ParsedNodeColorAssignments {
   format: NodeColorAssignmentFormat;
   datasetLabel?: string;
+  mode?: ColorAssignmentMode;
   assignments: Record<string, string>;
   rowCount: number;
   duplicateCount: number;
@@ -246,6 +248,7 @@ export class ColorAssignmentService {
     return {
       format: 'itol-colorstrip',
       datasetLabel,
+      mode: 'categorical',
       assignments,
       rowCount,
       duplicateCount,
@@ -322,6 +325,7 @@ export class ColorAssignmentService {
     const headers = (rows[0] || []).map(header => String(header ?? '').trim());
     const normalizedHeaders = headers.map(header => header.toLocaleLowerCase());
     const colorIndex = normalizedHeaders.indexOf('color');
+    const modeIndex = normalizedHeaders.indexOf('mode');
     const valueIndex = 0;
 
     if (colorIndex < 0) {
@@ -339,6 +343,43 @@ export class ColorAssignmentService {
       throw new NodeColorAssignmentParseError(issues);
     }
 
+    const declaredModes = rows
+      .slice(1)
+      .map((row, rowIndex) => ({
+        line: rowIndex + 2,
+        value: modeIndex < 0 ? '' : String(row[modeIndex] ?? '').trim().toLocaleLowerCase()
+      }))
+      .filter(entry => !!entry.value);
+    let mode: ColorAssignmentMode | undefined;
+
+    if (modeIndex >= 0) {
+      if (!declaredModes.length) {
+        issues.push({ line: 1, message: 'The "mode" column must declare "categorical" or "continuous".' });
+      } else {
+        declaredModes.forEach(entry => {
+          if (entry.value !== 'categorical' && entry.value !== 'continuous') {
+            issues.push({
+              line: entry.line,
+              message: `"${entry.value}" is not a valid color-assignment mode; expected "categorical" or "continuous".`
+            });
+          }
+        });
+
+        const validModes = declaredModes
+          .map(entry => entry.value)
+          .filter((value): value is ColorAssignmentMode => value === 'categorical' || value === 'continuous');
+        if (new Set(validModes).size > 1) {
+          issues.push({ line: 1, message: 'All populated "mode" cells must declare the same mode.' });
+        } else {
+          mode = validModes[0];
+        }
+      }
+    }
+
+    if (issues.length) {
+      throw new NodeColorAssignmentParseError(issues);
+    }
+
     const assignments = this.createAssignmentRecord();
     let rowCount = 0;
     let duplicateCount = 0;
@@ -346,10 +387,10 @@ export class ColorAssignmentService {
     rows.slice(1).forEach((row, rowIndex) => {
       const line = rowIndex + 2;
       rowCount++;
-      const value = String(row[valueIndex] ?? '').trim();
+      const rawValue = String(row[valueIndex] ?? '').trim();
       const rawColor = String(row[colorIndex] ?? '').trim();
 
-      if (!value || !rawColor) {
+      if (!rawValue || !rawColor) {
         issues.push({ line, message: 'Both the value and color fields are required.' });
         return;
       }
@@ -358,6 +399,16 @@ export class ColorAssignmentService {
       if (!color) {
         issues.push({ line, message: `"${rawColor}" is not a valid #RGB or #RRGGBB color.` });
         return;
+      }
+
+      let value = rawValue;
+      if (mode === 'continuous') {
+        const numericValue = Number(rawValue);
+        if (!Number.isFinite(numericValue) || !/^[+-]?(?:\d+\.?\d*|\.\d+)(?:e[+-]?\d+)?$/i.test(rawValue)) {
+          issues.push({ line, message: `"${rawValue}" is not a finite numeric color-stop value.` });
+          return;
+        }
+        value = String(numericValue);
       }
 
       const duplicateResult = this.addAssignment(assignments, value, color, line, issues);
@@ -370,8 +421,15 @@ export class ColorAssignmentService {
       throw new NodeColorAssignmentParseError(issues);
     }
 
+    if (mode === 'continuous' && Object.keys(assignments).length < 2) {
+      throw new NodeColorAssignmentParseError([
+        { line: 1, message: 'A continuous color ramp requires at least two distinct numeric stops.' }
+      ]);
+    }
+
     return {
       format: 'delimited-table',
+      mode,
       assignments,
       rowCount,
       duplicateCount,
