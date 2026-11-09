@@ -476,6 +476,30 @@ describe('EmbedHandoffService', () => {
         expect(result.files[0].format).toBe('matrix');
     });
 
+    it('accepts and infers MAPLE sparse alignments', async () => {
+        seedValidHandoff({
+            files: [
+                {
+                    name: 'syrup-result.maple',
+                    kind: 'auto',
+                    contents: '>REF\nAACCGG\n>sample-a\n>sample-b\nT\t2\n',
+                },
+            ],
+        });
+
+        const result = await service.consumePendingHandoffFromUrl();
+
+        expect(result.status).toBe('success');
+        if (result.status !== 'success') {
+            fail('Expected a successful handoff result.');
+            return;
+        }
+
+        expect(result.files[0].format).toBe('maple');
+        expect(result.files[0].extension).toBe('maple');
+        expect(result.files[0].type).toBe('text/x-maple');
+    });
+
     it('rejects full session payloads', async () => {
         seedValidHandoff({ session: { files: [] } });
 

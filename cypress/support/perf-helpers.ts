@@ -9,7 +9,7 @@ import {
 } from './journey-helpers';
 
 type DistanceMetric = 'tn93' | 'snps';
-type FileDatatype = 'link' | 'node' | 'matrix' | 'fasta' | 'newick' | 'MT/other';
+type FileDatatype = 'link' | 'node' | 'matrix' | 'fasta' | 'maple' | 'newick' | 'MT/other';
 type DefaultView = '2D Network' | 'Table' | 'Map' | 'Phylogenetic Tree' | 'Alignment View';
 
 export type PerformanceFileLoadSpec = {

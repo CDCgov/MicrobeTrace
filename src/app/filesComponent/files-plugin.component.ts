@@ -32,6 +32,7 @@ import { GraphMLService } from '@app/contactTraceCommonServices/graphml.service'
 import { clampNegativeBranchLengthsToZero } from '@app/workers/phylogenetic-tree-utils';
 import { findRecommendedThresholdIndex } from '@app/contactTraceCommonServices/threshold-analysis';
 import { FEATURE_FLAGS } from '@app/feature-flags';
+import { looksLikeMapleAlignment, parseMapleAlignment } from '@app/helperClasses/maple-format';
 
 interface FileTableOption {
   label: string;
@@ -147,6 +148,7 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
     { label: 'Node', value: 'node' },
     { label: 'Matrix', value: 'matrix' },
     { label: 'FASTA', value: 'fasta' },
+    { label: 'MAPLE', value: 'maple' },
     { label: 'Newick', value: 'newick' },
     { label: 'Auspice', value: 'auspice' },
     { label: 'GeoJSON', value: 'geojson' },
@@ -1559,7 +1561,7 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
   }
 
   /**
-   * Processes all files in following order (auspice, newick, matrix, link, node, fasta).
+   * Processes all files in following order (auspice, newick, matrix, link, node, MAPLE, FASTA).
    * Adds/Updates nodes and links. After processing all files, calls processData.
    */
   creatLaunchSequences(loadGeneration: number = this.commonService.getDataLoadGeneration()) {
@@ -1581,12 +1583,12 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
 
     // GeoJSON location files are merged in processData() after node-producing inputs
     // have populated session.data.nodes.
-    const hierarchy = ['geojson', 'auspice', 'newick', 'matrix', 'network', 'graphml', 'link', 'node', 'fasta'];
+    const hierarchy = ['geojson', 'auspice', 'newick', 'matrix', 'network', 'graphml', 'link', 'node', 'maple', 'fasta'];
     this.commonService.session.files.sort((a, b) => hierarchy.indexOf(a.format) - hierarchy.indexOf(b.format));
 
 
     this.commonService.session.meta.anySequences = this.commonService.session.files.some(file => (
-      file.format === "fasta" ||
+      file.format === "fasta" || file.format === "maple" ||
       (file.format === "node" && !!file.field2 && file.field2 !== "None")
     ));
 
@@ -1684,15 +1686,26 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
         if(this.commonService.debugMode) {
           console.log(this.commonService.session);
         }
-      } else if (file.format === 'fasta') {
+      } else if (file.format === 'fasta' || file.format === 'maple') {
 
-        this.showMessage(`Parsing ${file.name} as FASTA...`);
+        const sequenceFormat = file.format === 'maple' ? 'MAPLE' : 'FASTA';
+        this.showMessage(`Parsing ${file.name} as ${sequenceFormat}...`);
         let newNodes = 0;
         const parseStart = Date.now();
-        this.commonService.parseFASTA(file.contents).then(seqs => {
+        const parseSequences = file.format === 'maple'
+          ? Promise.resolve().then(() => {
+              const parsed = parseMapleAlignment(file.contents);
+              if (!this.commonService.session.data.reference) {
+                this.commonService.session.data.reference = parsed.reference;
+              }
+              return parsed.sequences;
+            })
+          : this.commonService.parseFASTA(file.contents);
+
+        parseSequences.then(seqs => {
           if (!isCurrentLoad()) return;
 
-          this.commonService.recordPerformanceTiming('ingestion', 'parseFasta', parseStart, {
+          this.commonService.recordPerformanceTiming('ingestion', file.format === 'maple' ? 'parseMaple' : 'parseFasta', parseStart, {
             file: file.name,
             sequences: seqs.length,
             bytes: typeof file.contents === 'string' ? file.contents.length : null
@@ -1708,15 +1721,19 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
               origin: origin
             }, check);
           }
-          this.commonService.recordPerformanceTiming('ingestion', 'mergeFastaNodes', mergeStart, {
+          this.commonService.recordPerformanceTiming('ingestion', file.format === 'maple' ? 'mergeMapleNodes' : 'mergeFastaNodes', mergeStart, {
             file: file.name,
             newNodes,
             totalSequences: seqs.length
           });
 
-          console.log('FASTA Merge time:', (Date.now() - start).toLocaleString(), 'ms');
-          this.showMessage(` - Parsed ${newNodes} New, ${seqs.length} Total Nodes from FASTA.`);
+          console.log(`${sequenceFormat} Merge time:`, (Date.now() - start).toLocaleString(), 'ms');
+          this.showMessage(` - Parsed ${newNodes} New, ${seqs.length} Total Nodes from ${sequenceFormat}.`);
           if (fileNum === nFiles) this.processData(loadGeneration);
+        }).catch(error => {
+          console.error(`Unable to parse ${sequenceFormat} file ${file.name}:`, error);
+          this.showMessage(` - Unable to parse ${file.name} as ${sequenceFormat}: ${error?.message || error}`);
+          this.commonService.session.network.isFullyLoaded = false;
         });
 
       } else if (file.format === 'network' || file.format === 'graphml') {
@@ -2862,13 +2879,13 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
   private inferTabularFileFormat(
     file: any,
     headers: any[] = [],
-    hints: { isFasta?: boolean; isNewick?: boolean; isAuspice?: boolean; isNetworkDocument?: boolean; isNetworkXml?: boolean } = {}
+    hints: { isFasta?: boolean; isMaple?: boolean; isNewick?: boolean; isAuspice?: boolean; isNetworkDocument?: boolean; isNetworkXml?: boolean } = {}
   ): string {
     const explicitFormat = String(file?.format ?? '').toLowerCase();
     if (explicitFormat === 'network' || explicitFormat === 'graphml') {
       return 'network';
     }
-    const knownFormats = ['link', 'node', 'matrix', 'fasta', 'newick', 'auspice', 'geojson'];
+    const knownFormats = ['link', 'node', 'matrix', 'fasta', 'maple', 'newick', 'auspice', 'geojson'];
     if (knownFormats.includes(explicitFormat)) {
       return explicitFormat;
     }
@@ -2881,6 +2898,9 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
     }
     if (hints.isFasta) {
       return 'fasta';
+    }
+    if (hints.isMaple) {
+      return 'maple';
     }
     if (hints.isNewick) {
       return 'newick';
@@ -2940,7 +2960,8 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
 
     //debugger;
     const extension = file.extension ? file.extension : this.commonService.filterXSS(file.name).split('.').pop().toLowerCase();
-    const isFasta = extension.indexOf('fas') > -1;
+    const isFasta = ['fa', 'faa', 'fasta', 'fas', 'fna'].includes(extension);
+    const isMaple = extension === 'maple' || looksLikeMapleAlignment(file.contents);
     const isNewick = extension.indexOf('nwk') > -1 || extension.indexOf('newick') > -1;
     // Some network formats are uploaded as generic XML/JSON/text, so detect by
     // extension first and then by document shape.
@@ -2963,7 +2984,7 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
       }
     }
 
-    const tableFormatHints = { isFasta, isNewick, isAuspice, isNetworkDocument };
+    const tableFormatHints = { isFasta, isMaple, isNewick, isAuspice, isNetworkDocument };
     if (isXL) {
       try {
         const workbook = XLSX.read(file.contents, { type: 'array', cellDates: true, dateNF: 'mm/dd/yyyy' });
@@ -3047,6 +3068,15 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
 
         this.nodeEdgeCheck();
 
+    } else if (isMaple) {
+      try {
+        parseMapleAlignment(file.contents);
+        addTableTile(["id", "seq"], this);
+        this.nodeEdgeCheck();
+      } catch (error) {
+        console.error('Unable to read MAPLE file: ', file.name, error);
+        addTableTile(["id", "seq"], this);
+      }
     } else if (isFasta) {
       //let that = this;
       this.commonService.parseFASTA(file.contents).then((output) => {
@@ -3232,19 +3262,24 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
   }
 
   /**
-   * Async function that reads sequencing data from fasta files or from csv/excel files with sequence data
+   * Async function that reads sequencing data from FASTA/MAPLE files or from csv/excel files with sequence data
    * 
    * @returns An array of sequencing objects [{id, seq},]
    */
   async readFastas() {
-    const fastas = this.commonService.session.files.filter(f => this.commonService.includes(f.extension, 'fas'));
+    const fastas = this.commonService.session.files.filter(f => f.format === 'fasta');
+    const maples = this.commonService.session.files.filter(f => f.format === 'maple');
     const nodeFilesWithSeqs = this.commonService.session.files.filter(f => f.format === "node" && !!f.field2 && f.field2 != "None" && f.field2 != "");
-    if (fastas.length === 0 && nodeFilesWithSeqs.length === 0) return [];
+    if (fastas.length === 0 && maples.length === 0 && nodeFilesWithSeqs.length === 0) return [];
     let data = [];
     for (let i = 0; i < fastas.length; i++) {
       let fasta = fastas[i];
       let nodes = await this.commonService.parseFASTA(fasta.contents);
       data = data.concat(nodes);
+    }
+
+    for (let i = 0; i < maples.length; i++) {
+      data = data.concat(parseMapleAlignment(maples[i].contents).sequences);
     }
     
     for(let j = 0; j < nodeFilesWithSeqs.length; j++){

@@ -14,6 +14,44 @@ The integration has three parts:
 2. Your button calls `MicrobeTraceEmbed.open(...)` or `MicrobeTraceEmbed.attachButton(...)` from a user click.
 3. MicrobeTrace validates the payload, stores it as a one-time handoff, and launches the dataset.
 
+### Cross-origin-isolated WebAssembly applications
+
+The SDK's popup handshake intentionally uses `window.opener`. A page served with
+`Cross-Origin-Opener-Policy: same-origin` is placed in a separate browsing-context
+group from the cross-origin MicrobeTrace receiver, so the browser severs that
+opener relationship. This applies to threaded WebAssembly applications that use
+COOP plus `Cross-Origin-Embedder-Policy` to obtain `crossOriginIsolated`.
+
+Do not relax the analysis page's isolation headers just for this integration.
+Instead, add a small, same-origin export bridge:
+
+1. The isolated analysis page authorizes the export and writes the handoff options
+   to same-origin IndexedDB under a cryptographically random, short-lived key.
+2. It opens a same-origin route such as `/microbetrace-export.html#<key>`.
+3. Serve only that bridge route without COOP/COEP isolation headers (COOP
+   `unsafe-none`, and no COEP). A browsing-context-group switch may discard the
+   original opener; the bridge does not depend on it because it reads IndexedDB.
+4. The bridge reads and validates the record, displays the dataset summary, and
+   requires a second user click on **Open in MicrobeTrace**.
+5. That click calls `MicrobeTraceEmbed.open(...)`. The non-isolated bridge can
+   retain the cross-origin opener relationship required by the receiver.
+6. Delete the IndexedDB record after success or error, and expire abandoned
+   records after a short TTL.
+
+```text
+isolated Syrup page --same-origin IndexedDB key--> non-isolated export bridge
+                                                       |
+                                                       | user click + SDK
+                                                       v
+                                              MicrobeTrace receiver
+```
+
+The bridge must share the analysis application's exact scheme, host, and port so
+it can read the same IndexedDB database. Route-specific headers are therefore a
+deployment requirement. `same-origin-allow-popups` and browser-specific isolation
+features may be useful in controlled environments, but they are not the primary
+cross-browser design for this integration.
+
 ## Prerequisites
 
 - Your webapp origin must be allowlisted by the MicrobeTrace team.
@@ -321,7 +359,7 @@ Fields:
   - Required.
 - `kind`
   - Optional.
-  - Allowed explicit values: `node`, `link`, `matrix`, `fasta`, `newick`, `auspice`
+  - Allowed explicit values: `node`, `link`, `matrix`, `fasta`, `maple`, `newick`, `auspice`
   - You may omit it, or set it to `auto`, and let MicrobeTrace infer it.
 - `mimeType`
   - Optional but recommended.
@@ -344,6 +382,9 @@ Current detection rules:
 
 - Auspice
   - JSON object with `meta` and `tree`
+- MAPLE sparse alignment
+  - `.maple` extension
+  - or a reference record followed by sample records containing reference-delta rows
 - FASTA
   - text starting with `>`
   - or FASTA-style extension such as `fa`, `fas`, `fasta`, `fna`
@@ -398,8 +439,54 @@ MicrobeTrace currently supports these import families through the embed handoff:
 - Link or edge list
 - Distance matrix
 - FASTA
+- MAPLE sparse alignment
 - Newick
 - Auspice JSON
+
+### Sending MAPLE output from Syrup
+
+MAPLE is the preferred alignment handoff when Syrup already has reference-relative
+output. It avoids serializing a complete aligned sequence for every sample:
+
+```js
+await MicrobeTraceEmbed.open({
+  partnerId: 'syrup',
+  files: [
+    {
+      name: 'syrup-alignment.maple',
+      kind: 'maple',
+      mimeType: 'text/x-maple',
+      contents: [
+        '>reference',
+        'AACCGGTT',
+        '>sample-a',
+        '>sample-b',
+        'T\t2',
+        'N\t5\t2'
+      ].join('\n')
+    },
+    {
+      name: 'syrup-tree.nwk',
+      kind: 'newick',
+      mimeType: 'text/plain',
+      contents: '(sample-a:0.0,sample-b:0.1);'
+    }
+  ],
+  launch: {
+    datasetName: 'Syrup analysis',
+    defaultView: 'Phylogenetic Tree'
+  }
+});
+```
+
+The first MAPLE record is the reference sequence. Each subsequent header is a
+sample, followed by zero or more rows in the form
+`symbol<TAB>1-based-position[<TAB>run-length]`. A sample with no delta rows is
+identical to the reference. MicrobeTrace currently expands valid MAPLE records
+into its aligned-sequence pipeline in the browser, so transport and handoff
+storage remain sparse while downstream SNP, TN93, tree, and alignment operations
+continue to use the existing sequence model. To prevent accidental browser-memory
+exhaustion, imports that would expand beyond 250 million aligned bases are rejected.
 
 The partner handoff does not allow:
 

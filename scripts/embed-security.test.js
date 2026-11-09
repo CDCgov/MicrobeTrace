@@ -300,6 +300,32 @@ test('receiver continues to reject full session payloads', async () => {
   assert.match(errorMessage.message.message, /Full session imports/);
 });
 
+test('receiver accepts MAPLE sparse alignment handoffs', async () => {
+  const context = createReceiverContext();
+
+  await waitForReceiverReady(context);
+  vm.runInContext(`__listeners.message({
+    source: opener,
+    origin: 'http://localhost:4200',
+    data: {
+      type: 'MT_HANDOFF_TRANSFER',
+      version: 1,
+      partnerId: 'local-dev',
+      nonce: 'nonce-test',
+      files: [{
+        name: 'syrup-result.maple',
+        kind: 'auto',
+        mimeType: 'text/x-maple',
+        contents: '>REF\\nAACCGG\\n>sample-a\\n>sample-b\\nT\\t2\\n'
+      }]
+    }
+  })`, context);
+  await settle();
+
+  const storedRecord = context.__store.get('handoff:handoff-test-id');
+  assert.equal(storedRecord.files[0].kind, 'maple');
+});
+
 test('partner allowlist validator rejects shared origins', () => {
   const errors = validatePartnerAllowlist({
     version: 1,

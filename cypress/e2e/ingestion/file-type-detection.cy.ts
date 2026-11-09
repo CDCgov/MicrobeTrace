@@ -2,6 +2,7 @@
 
 describe('File Type Detection', () => {
   const metadataFile = 'CaseMetadata.csv';
+  const mapleFile = 'simple-alignment.maple';
 
   beforeEach(() => {
     cy.visit('/?skipEula=1&skipDemoSession=1');
@@ -36,6 +37,25 @@ describe('File Type Detection', () => {
       expect(win.commonService.session.data.links).to.have.length(0);
       expect(node.Lineage).to.equal('A');
       expect(node['Risk Factor']).to.equal('Healthcare');
+    });
+  });
+
+  it('auto-detects and expands MAPLE sparse alignments', () => {
+    cy.attach_file('#fileDropRef', mapleFile, 'text/x-maple');
+
+    cy.contains('#file-table .file-table-row', mapleFile, { timeout: 20000 }).as('mapleRow');
+    cy.get('@mapleRow').find('input[data-type="maple"]').should('be.checked');
+
+    cy.get('#launch').click({ force: true });
+
+    cy.window({ timeout: 30000 }).should((win) => {
+      const commonService = (win as any).commonService;
+      const byId = new Map(commonService.session.data.nodes.map((node: any) => [node._id, node.seq]));
+
+      expect(byId.get('sample-a')).to.equal('AACCGGTT');
+      expect(byId.get('sample-b')).to.equal('ATCCNNTT');
+      expect(byId.get('sample-c')).to.equal('AA---GTT');
+      expect(commonService.session.files[0].format).to.equal('maple');
     });
   });
 });

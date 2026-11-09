@@ -2,4 +2,4 @@
 
 This folder contains documentation for external integration points.
 
-- `partner-embed-integration.md`: partner embed handoff and integration guidance.
+- `partner-embed-integration.md`: partner embed handoff, MAPLE input, and cross-origin-isolated WebAssembly integration guidance.

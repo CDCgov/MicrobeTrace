@@ -1,7 +1,7 @@
 (function () {
   'use strict';
 
-  var ALLOWED_KINDS = new Set(['node', 'link', 'matrix', 'fasta', 'newick', 'auspice']);
+  var ALLOWED_KINDS = new Set(['node', 'link', 'matrix', 'fasta', 'maple', 'newick', 'auspice']);
   var ALLOWED_DEFAULT_VIEWS = new Set([
     '2D Network',
     'Epi Curve',
@@ -208,6 +208,9 @@
       if (trimmed.charAt(0) === '{' || trimmed.charAt(0) === '[') {
         return 'json';
       }
+      if (looksLikeMapleText(trimmed)) {
+        return 'maple';
+      }
       if (trimmed.charAt(0) === '>') {
         return 'fasta';
       }
@@ -243,6 +246,35 @@
 
   function looksLikeFastaText(contents) {
     return typeof contents === 'string' && contents.trim().charAt(0) === '>';
+  }
+
+  function looksLikeMapleText(contents) {
+    if (typeof contents !== 'string') {
+      return false;
+    }
+
+    var lines = contents.replace(/^\uFEFF/, '').split(/\r?\n/).map(function (line) {
+      return line.trim();
+    }).filter(Boolean);
+
+    if (lines.length < 3 || lines[0].charAt(0) !== '>' || !/^[ACGTRYSWKMBDHVN-]+$/i.test(lines[1])) {
+      return false;
+    }
+
+    var secondHeaderIndex = -1;
+    for (var index = 2; index < lines.length; index++) {
+      if (lines[index].charAt(0) === '>') {
+        secondHeaderIndex = index;
+        break;
+      }
+    }
+
+    if (secondHeaderIndex < 0) {
+      return false;
+    }
+
+    var afterSecondHeader = lines[secondHeaderIndex + 1];
+    return !afterSecondHeader || afterSecondHeader.charAt(0) === '>' || /^[ACGTRYSWKMBDHVN-]\s+\d+(?:\s+\d+)?$/i.test(afterSecondHeader);
   }
 
   function looksLikeNewickText(contents) {
@@ -301,6 +333,10 @@
 
     if (looksLikeAuspicePayload(file.contents)) {
       return 'auspice';
+    }
+
+    if (looksLikeMapleText(file.contents) || /^maple$/i.test(extension)) {
+      return 'maple';
     }
 
     if (looksLikeFastaText(file.contents) || /^(fa|faa|fasta|fas|fna)$/i.test(extension)) {

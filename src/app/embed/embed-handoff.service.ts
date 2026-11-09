@@ -27,6 +27,7 @@ import {
     ImportedEmbedFile,
     StoredEmbedHandoffV1,
 } from './embed-handoff.types';
+import { looksLikeMapleAlignment } from '@app/helperClasses/maple-format';
 
 const FORBIDDEN_OBJECT_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
 const ALLOWED_KINDS = new Set<string>(EMBED_HANDOFF_ALLOWED_KINDS);
@@ -34,6 +35,7 @@ const NODE_FILE_NAME_HINT = /(node|metadata|attribute|sample|case)/i;
 const LINK_FILE_NAME_HINT = /(link|edge|network|pair)/i;
 const MATRIX_FILE_NAME_HINT = /(matrix|distance|dist)/i;
 const FASTA_EXTENSION_PATTERN = /^(?:fa|faa|fasta|fas|fna)$/i;
+const MAPLE_EXTENSION_PATTERN = /^maple$/i;
 const NEWICK_EXTENSION_PATTERN = /^(?:nwk|newick|tree|tre)$/i;
 const LINK_SOURCE_HEADERS = ['source', 'src', 'from'];
 const LINK_TARGET_HEADERS = ['target', 'tgt', 'to'];
@@ -638,6 +640,10 @@ export class EmbedHandoffService {
                 return 'json';
             }
 
+            if (looksLikeMapleAlignment(trimmed)) {
+                return 'maple';
+            }
+
             if (trimmed.startsWith('>')) {
                 return 'fasta';
             }
@@ -685,6 +691,8 @@ export class EmbedHandoffService {
         switch (kind) {
             case 'fasta':
                 return 'text/x-fasta';
+            case 'maple':
+                return 'text/x-maple';
             case 'newick':
                 return 'text/plain';
             default:
@@ -840,6 +848,10 @@ export class EmbedHandoffService {
 
         if (this.looksLikeAuspicePayload(contents)) {
             return 'auspice';
+        }
+
+        if (MAPLE_EXTENSION_PATTERN.test(extension) || looksLikeMapleAlignment(contents) || /maple/i.test(name)) {
+            return 'maple';
         }
 
         if (FASTA_EXTENSION_PATTERN.test(extension) || this.looksLikeFastaText(contents) || /fasta/i.test(name)) {

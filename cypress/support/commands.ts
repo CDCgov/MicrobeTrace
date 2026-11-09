@@ -5,7 +5,7 @@ import { byTestId, testIds } from './selectors';
 
 type FileLoadOptions = {
   name: string;
-  datatype: 'link' | 'node' | 'matrix' | 'fasta' | 'newick' | 'network' | 'MT/other';
+  datatype: 'link' | 'node' | 'matrix' | 'fasta' | 'maple' | 'newick' | 'network' | 'MT/other';
   field1?: string;
   field2?: string;
   field3?: string;
@@ -81,7 +81,7 @@ export const getMimeTypeFromFilename = (name: string): string => {
   if (ext === 'cx' || ext === 'cx2') return 'application/json';
   if (ext === 'dot' || ext === 'gv') return 'text/vnd.graphviz';
   if (ext === 'gml') return 'text/plain';
-  if (ext === 'fasta' || ext === 'fas' || ext === 'fa' || ext === 'nwk' || ext === 'newick') {
+  if (ext === 'fasta' || ext === 'fas' || ext === 'fa' || ext === 'maple' || ext === 'nwk' || ext === 'newick') {
     return 'text/plain';
   }
   if (ext === 'xlsx') return 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';

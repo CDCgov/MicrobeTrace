@@ -5,7 +5,7 @@ export const EMBED_HANDOFF_TTL_MS = 15 * 60 * 1000;
 export const EMBED_HANDOFF_MAX_FILES = 10;
 export const EMBED_HANDOFF_MAX_FILE_BYTES = 20 * 1024 * 1024;
 export const EMBED_HANDOFF_MAX_TOTAL_BYTES = 50 * 1024 * 1024;
-export const EMBED_HANDOFF_ALLOWED_KINDS = ['node', 'link', 'matrix', 'fasta', 'newick', 'auspice'] as const;
+export const EMBED_HANDOFF_ALLOWED_KINDS = ['node', 'link', 'matrix', 'fasta', 'maple', 'newick', 'auspice'] as const;
 export const EMBED_HANDOFF_ALLOWED_DEFAULT_VIEWS = [
     '2D Network',
     'Epi Curve',
