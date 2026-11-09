@@ -1,5 +1,6 @@
 import type { Core } from 'cytoscape';
 import {
+  expandAccordionTabByHeader,
   goToTransmissionChainView,
   openGlobalFilteringTab,
   openGlobalStylingTab,
@@ -168,6 +169,7 @@ describe('Transmission Chain Explorer global filtering and styling', () => {
       ['link', 'Exposure', 'high'],
     ]) {
       openGlobalFilteringTab();
+      expandAccordionTabByHeader('#network-subset-filtering', kind === 'node' ? 'Subset Nodes' : 'Subset Links');
       cy.get(`#network-subset-${kind}-field`).select(field);
       cy.get(`#network-subset-${kind}-operator`).select('equals');
       cy.get(`#network-subset-${kind}-value`).clear().type(value);

@@ -435,6 +435,7 @@ export class MicrobeTraceNextHomeComponent extends AppComponentBase implements A
     linkColorAssignmentStatus: ColorAssignmentStatus | null = null;
     styleFileStatus: StyleFileStatus | null = null;
     stylingAccordionPanels: string[] = [];
+    filteringSubsetAccordionPanels: string[] = [];
 
 
     activeTabNdx = null;
@@ -4927,8 +4928,8 @@ ${warnings.join('\n')}`,
         $("#filtering-wrapper").slideDown();
         this.commonService.updateNetworkVisuals(false, true);
 
-        this.GlobalSettingsLinkColorDialogSettings.isVisible = true;
-        this.GlobalSettingsNodeColorDialogSettings.isVisible = true;
+        this.applyKeyTableDisplayMode('node-color', true);
+        this.applyKeyTableDisplayMode('link-color', true);
         this.refreshThresholdStabilityPanel();
 
     };
@@ -6193,7 +6194,11 @@ ${warnings.join('\n')}`,
     }
 
     private getGlobalSettingsDialogBaseStyle(): Record<string, string> {
-        return { 'z-index': String(this.GlobalSettingsDialogBaseZIndex) };
+        return {
+            'z-index': String(this.GlobalSettingsDialogBaseZIndex),
+            width: '580px',
+            'max-width': 'calc(100vw - 32px)'
+        };
     }
 
     private getGlobalSettingsDialogPlacementStyle(top: number, left: number): Record<string, string> {
