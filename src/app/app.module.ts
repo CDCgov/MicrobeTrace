@@ -5,7 +5,7 @@ import { CommonModule } from '@angular/common';
 import { AppRoutingModule } from './app-routing.module';
 import { RouterModule, ExtraOptions } from '@angular/router';
 
-import Lara from '@primeuix/themes/lara';
+import { appThemePreset } from './ui-theme';
 import { providePrimeNG } from 'primeng/config';
 import { primeUiLicenseKey } from '../environments/primeui-license.generated';
 
@@ -50,6 +50,7 @@ import { FilesComponent } from './filesComponent/files-plugin.component';
 import { PhylogeneticComponent } from './visualizationComponents/PhylogeneticComponent/phylogenetic-plugin.component';
 import { TimelineComponent } from './visualizationComponents/TimelineComponent/timeline-component.component';
 import { TwoDComponent } from './visualizationComponents/TwoDComponent/twoD-plugin.component';
+import { TransmissionChainExplorerComponent } from './visualizationComponents/TransmissionChainExplorerComponent/transmission-chain-explorer.component';
 import { TableComponent } from './visualizationComponents/TableComponent/table-plugin-component';
 import { NetworkStatisticsComponent } from './visualizationComponents/NetworkStatisticsComponent/network-statistics-plugin.component';
 import { MapComponent } from './visualizationComponents/MapComponent/map-plugin.component';
@@ -84,6 +85,7 @@ import { WaterfallComponent } from './visualizationComponents/WaterfallComponent
 import { SankeyComponent } from './visualizationComponents/SankeyComponent/sankey.component';
 import { KeyTablesComponent } from './visualizationComponents/KeyTablesComponent/key-tables.component';
 import { StyleKeyTableComponent } from './visualizationComponents/KeyTablesComponent/style-key-table.component';
+import { UpdatesDialogComponent } from './updates/updates-dialog.component';
 import * as PlotlyJS from 'plotly.js-dist-min';
 import { PlotlyModule } from 'angular-plotly.js';
 import { GlobalErrorHandler } from './runtime-security/global-error-handler';
@@ -113,6 +115,7 @@ export class TestedComponent {
         MicrobeTraceNextHomeComponent,
         FilesComponent,
         TwoDComponent,
+        TransmissionChainExplorerComponent,
         TableComponent,
         NetworkStatisticsComponent,
         GoldenLayoutHostComponent,
@@ -132,6 +135,7 @@ export class TestedComponent {
         SankeyComponent,
         KeyTablesComponent,
         StyleKeyTableComponent,
+        UpdatesDialogComponent,
     ],
     exports: [
         SelectButtonModule
@@ -180,7 +184,7 @@ export class TestedComponent {
         CommonModule], providers: [
           providePrimeNG({
             theme: {
-                preset: Lara,
+                preset: appThemePreset,
                 options: {darkModeSelector: false || 'none'}
             },
             license: primeUiLicenseKey,

@@ -28,6 +28,7 @@ import {
     type ThresholdSweepSummary
 } from './threshold-analysis';
 import * as tn93 from 'tn93';
+import { normalizeHIVTraceNetwork } from './hivtrace-import';
 
 interface SequencePairwiseLinkGuardrails {
     warningThreshold: number;
@@ -118,6 +119,7 @@ export class CommonService extends AppComponentBase implements OnInit {
 
     private readonly restorableDashboardViews = new Set<string>([
         '2D Network',
+        'Transmission Chain Explorer',
         'Map',
         'Table',
         'Network Statistics',
@@ -131,6 +133,21 @@ export class CommonService extends AppComponentBase implements OnInit {
         'Bubble',
         'Sankey',
         'Waterfall'
+    ]);
+
+    private readonly missingTimelineDateTokens = new Set([
+        '',
+        '0',
+        '0.0',
+        'na',
+        'n/a',
+        'nan',
+        'none',
+        'null',
+        'undefined',
+        'unknown',
+        'not available',
+        'invalid date'
     ]);
 
     private readonly legacyViewNameMap: { [key: string]: string } = {
@@ -309,13 +326,22 @@ export class CommonService extends AppComponentBase implements OnInit {
         const displayedValue = this.toDisplayedDistanceValue(numericValue, linkField);
         const usePercentageDisplay = this.tn93PercentageDisplayEnabled(linkField);
         const includeSuffix = options.includeSuffix !== false;
+        const isWholeDisplayedValue = Math.abs(displayedValue - Math.round(displayedValue)) < 1e-9;
+        const smallValueDecimals = displayedValue !== 0 && Math.abs(displayedValue) < 0.01
+            ? Math.min(12, Math.max(3, 2 - Math.floor(Math.log10(Math.abs(displayedValue)))))
+            : 3;
         const decimals = options.decimals !== undefined && Number.isFinite(Number(options.decimals))
             ? Math.max(0, Math.floor(Number(options.decimals)))
             : normalizedField === 'distance'
-                ? (String(this.session?.style?.widgets?.['default-distance-metric'] || '').toLowerCase() === 'snps' ? 0 : 3)
+                ? (
+                    String(this.session?.style?.widgets?.['default-distance-metric'] || '').toLowerCase() === 'snps'
+                    && isWholeDisplayedValue
+                        ? 0
+                        : smallValueDecimals
+                )
                 : this.isTN93DisplayField(linkField)
-                    ? 3
-                    : (Math.abs(displayedValue - Math.round(displayedValue)) < 1e-9 ? 0 : 3);
+                    ? smallValueDecimals
+                    : (isWholeDisplayedValue ? 0 : 3);
 
         if (decimals === 0) {
             const formattedValue = Math.round(displayedValue).toLocaleString();
@@ -514,7 +540,8 @@ export class CommonService extends AppComponentBase implements OnInit {
             'link-label-decimal-length' : 3,
             'link-label-size': 16,
             'link-length': 50,
-            'link-opacity': 0,
+            'link-opacity': 1,
+            'link-opacity-override-enabled': false,
             'link-show-nn': false,
             'link-sort-variable': 'distance',
             'link-threshold': 16,
@@ -530,7 +557,7 @@ export class CommonService extends AppComponentBase implements OnInit {
             'map-auto-expand-selected': true,
             'map-collapsing-on': true,
             'map-counties-show': false,
-            'map-countries-show': false,
+            'map-countries-show': true,
             'map-field-lat': 'None',
             'map-field-lon': 'None',
             'map-field-tract': 'None',
@@ -560,6 +587,8 @@ export class CommonService extends AppComponentBase implements OnInit {
             'network-link-strength': 0.124,
             'network-node-collapse-enabled': false,
             'network-node-collapse-threshold': 0,
+            'network-layout': 'force-directed',
+            'network-edge-detail-mode': 'overview',
             'node-charge': 200,
             'node-border-width' : 2.0,
             'node-color': '#1f77b4',
@@ -622,6 +651,8 @@ export class CommonService extends AppComponentBase implements OnInit {
             'tree-animation-on': true,
             'tree-bootstrap-custom-replicates': 100,
             'tree-bootstrap-decimal-length': 1,
+            'tree-bootstrap-label-show': true,
+            'tree-bootstrap-label-size': 12,
             'tree-bootstrap-support-threshold': 0,
             'tree-bootstrap-stop-when-stable': false,
             'tree-branch-distances-hide': true,
@@ -675,6 +706,12 @@ export class CommonService extends AppComponentBase implements OnInit {
                 readyTime: Date.now(),
                 startTime: 0,
                 anySequences: false,
+                smartLaunchRecommendation: null as {
+                    generation: number;
+                    metric: string;
+                    threshold: number;
+                    hardLimit: number;
+                } | null,
                 performance: {}
             },
             network: {
@@ -757,7 +794,7 @@ export class CommonService extends AppComponentBase implements OnInit {
              * these functions are replaced with one from the d3 package usind d3.scaleOrdinal(...).domain(...)
              */
             style: {
-                linkAlphaMap: () => 1 - this.session.style.widgets['link-opacity'],
+                linkAlphaMap: () => Number(this.session.style.linkAlphas?.[0] ?? 1),
                 linkColorMap: () => this.session.style.widgets['link-color'],
                 nodeMixedColorInvalidWeightCount: 0,
                 nodeAlphaMap: () => 1,
@@ -1302,9 +1339,14 @@ export class CommonService extends AppComponentBase implements OnInit {
             return false;
         }
 
+        if (typeof value === 'number' && value === 0) {
+            return false;
+        }
+
         if (typeof value === 'string') {
             const trimmed = value.trim();
-            if (trimmed === '' || trimmed.toLowerCase() === 'null') {
+            const normalized = trimmed.toLowerCase();
+            if (this.missingTimelineDateTokens.has(normalized)) {
                 return false;
             }
         }
@@ -2587,8 +2629,10 @@ export class CommonService extends AppComponentBase implements OnInit {
         const nodes = microbeData.nodes.map((node) => ({
           ...node, // Spread existing properties
           id: node._id, // Ensure the id property is set correctly
-          group: node.cluster,
-          color: this.getColorByIndex(node.index), // Add or override the color property
+          group: node.isCollapsedAggregate ? node.group : node.cluster,
+          color: node.color ?? (Number.isInteger(node.index) && node.index >= 0
+            ? this.getColorByIndex(node.index)
+            : this.session.style.widgets['node-color']), // Add or override the color property
           label: (this.session.style.widgets['node-label-variable'] === 'None') ? '' : node.label, // Ensure label is defined
             nodeSize: node.nodeSize ?? 20, // Default node size
             borderWidth: node.borderWidth ?? this.session.style.widgets['node-border-width'] ?? 1 // Default border width
@@ -2813,6 +2857,9 @@ export class CommonService extends AppComponentBase implements OnInit {
         this.session.style = oldSession.style;
         this.ensureNodeColorAssignmentState(this.session.style);
 
+        if (oldSession.meta?.rendererViewState) {
+            (this.session.meta as any).rendererViewState = oldSession.meta.rendererViewState;
+        }
         this.session.meta.startTime = Date.now();
 
 
@@ -2969,12 +3016,31 @@ export class CommonService extends AppComponentBase implements OnInit {
         if(this.debugMode) {
             console.log('---- applying style: ', style);
         }
+        const sourceWidgets = style?.widgets || {};
+        const hasExplicitLinkOpacityOverride = Object.prototype.hasOwnProperty.call(
+            sourceWidgets,
+            'link-opacity-override-enabled'
+        );
+        const legacyLinkOpacityValue = Number(sourceWidgets['link-opacity']);
+        const legacyLinkOpacityOverride = !hasExplicitLinkOpacityOverride
+            && Number.isFinite(legacyLinkOpacityValue)
+            && legacyLinkOpacityValue !== 0;
         this.ensureNodeColorAssignmentState(style);
         this.session.style = style;
         this.session.style.widgets = Object.assign({},
             this.defaultWidgets(),
             style.widgets
         );
+        if (legacyLinkOpacityOverride) {
+            // Sessions written before the explicit flag only changed the
+            // non-zero slider value when the user requested a global alpha.
+            this.session.style.widgets['link-opacity-override-enabled'] = true;
+        } else if (!hasExplicitLinkOpacityOverride) {
+            // Legacy sessions used zero as the untouched slider value even
+            // though their links rendered fully opaque. Normalize that old
+            // sentinel so the control reflects the rendered network.
+            this.session.style.widgets['link-opacity'] = 1;
+        }
 
         // if(this.debugMode) {
             console.log('creating link/node/polygon colorMap style: ', style);
@@ -3036,33 +3102,43 @@ export class CommonService extends AppComponentBase implements OnInit {
       console.log("Running applyHIVTrace");
         this.resetData();
         this.session.meta.startTime = Date.now();
-        hivtrace["trace_results"]["Nodes"].forEach(node => {
-          let newNode = {
-            _id: node.id,
-            origin: "HIVTRACE Import",
-          }
-          if (Object.prototype.hasOwnProperty.call(node, "patient_attributes")){ 
-            console.log("had patient_attributes");
-            newNode = JSON.parse(JSON.stringify(node.patient_attributes));
-            Object.keys(
-                hivtrace["trace_results"]["Nodes"][0]["patient_attributes"]
-            ).forEach(key => {
-                if (!this.session.data.nodeFields.includes(key))
-                    this.session.data.nodeFields.push(key);
-            });
-          }
+        const normalized = normalizeHIVTraceNetwork(hivtrace);
+        normalized.nodes.forEach(node => {
+          const patientAttributes = node.patient_attributes
+            && typeof node.patient_attributes === 'object'
+            && !Array.isArray(node.patient_attributes)
+              ? JSON.parse(JSON.stringify(node.patient_attributes))
+              : {};
+          const nodeMetadata = Object.keys(node).reduce((metadata, key) => {
+            if (key !== 'id' && key !== 'patient_attributes') {
+              metadata[key] = node[key];
+            }
+            return metadata;
+          }, {});
+          const newNode = Object.assign({}, nodeMetadata, patientAttributes, {
+            _id: '' + node.id,
+            origin: ["HIVTRACE Import"]
+          });
+
+          Object.keys(newNode).forEach(key => {
+            if (key !== 'id' && key !== '_id' && key !== 'origin'
+                && !this.session.data.nodeFields.includes(key)) {
+              this.session.data.nodeFields.push(key);
+            }
+          });
           this.addNode(newNode, false);
         });
         this.processData();
-        let n = hivtrace["trace_results"]["Edges"].length;
+        let n = normalized.edges.length;
         let metric = this.session.style.widgets['default-distance-metric'];
         for (let i = 0; i < n; i++) {
-            const link = hivtrace["trace_results"]["Edges"][i];
+            const link = normalized.edges[i];
             const newLink = {
                 source: "" + link.sequences[0],
                 target: "" + link.sequences[1],
                 origin: ["HIVTRACE Import"],
-                visible: true
+                visible: true,
+                directed: Boolean(link.directed)
             };
             newLink[metric] = parseFloat(link.length);
             newLink["distance"] = newLink[metric];
@@ -3555,6 +3631,8 @@ align(params): Promise<any> {
     } else {
       this.session.warnings.push(warning);
     }
+
+    this.store.triggerWarningsChanged();
   }
 
   // Compute links using a fresh links worker
@@ -4278,6 +4356,49 @@ align(params): Promise<any> {
         return out;
     };
 
+    private getTopologyItemId(item: any): string {
+        if (item && typeof item === 'object') {
+            return String(item._id ?? item.id ?? '');
+        }
+
+        return String(item ?? '');
+    }
+
+    getVisibleTopologySummary(filterLinksByVisibleNodes: boolean = this.session.style.widgets["timeline-date-field"] !== 'None') {
+        const nodes = this.getVisibleNodes();
+        let links = this.getVisibleLinks();
+
+        if (filterLinksByVisibleNodes) {
+            const visibleNodeIds = new Set(nodes.map(node => this.getTopologyItemId(node)));
+            links = links.filter(link =>
+                visibleNodeIds.has(this.getTopologyItemId(link.source)) &&
+                visibleNodeIds.has(this.getTopologyItemId(link.target))
+            );
+        }
+
+        const metric = this.session.style.widgets["link-sort-variable"];
+        const summary = buildVisibleClusterSummary(
+            nodes,
+            links.map(link => ({
+                ...link,
+                source: this.getTopologyItemId(link.source),
+                target: this.getTopologyItemId(link.target),
+                visible: true,
+            })),
+            metric
+        );
+
+        return {
+            nodes,
+            links,
+            nodeCount: nodes.length,
+            selectedNodeCount: nodes.filter(node => node.selected).length,
+            linkCount: links.length,
+            clusterCount: summary.clusterCount,
+            singletonCount: summary.singletonCount,
+        };
+    }
+
     /**
      * updates the network statistics table with number of visible nodes, visible links, clusters, and selected links
      * @returns undefined
@@ -4319,7 +4440,7 @@ align(params): Promise<any> {
             clusterCount = timelineSummary.clusterCount;
             singletons = timelineSummary.singletonCount;
         }
-        $("#numberOfSelectedNodes").text(vnodes.filter(d => d.selected).length.toLocaleString());
+        $("#numberOfSelectedNodes").text(vnodes.filter(node => node.selected).length.toLocaleString());
         $("#numberOfNodes").text(vnodes.length.toLocaleString());
         $("#numberOfVisibleLinks").text(linkCount.toLocaleString());
         $("#numberOfSingletonNodes").text(singletons.toLocaleString());
@@ -4406,7 +4527,7 @@ align(params): Promise<any> {
 
         if (linkColorVariable == "None") {
             this.temp.style.linkColorMap = () => this.session.style.widgets["link-color"];
-            this.temp.style.linkAlphaMap = () => 1 - this.session.style.widgets["link-opacity"];
+            this.temp.style.linkAlphaMap = () => Number(this.session.style.linkAlphas?.[0] ?? 1);
             return [];
         }
 
@@ -4482,7 +4603,7 @@ align(params): Promise<any> {
         }
 
         // If this.session.style.widgets['polygons-color-show', we need 
-        let polygonGroups: {key: string, values: []}[] = this.temp.polygonGroups || [];
+        let polygonGroups: { key: string; index?: number; values: any[] }[] = this.temp.polygonGroups || [];
         let polygonColors = this.session.style.polygonColors;
 
         if (!polygonColors || polygonColors.length === 0) {
@@ -4490,20 +4611,33 @@ align(params): Promise<any> {
         }
         const polygonAlphas = this.session.style.polygonAlphas;
 
-        // If polygonGroups length is 0 but polygons-color-show is true, we need to create the groups via going through the visible nodes, and grouping them by cluster id in the format { key: clusterId, values: [nodeId1, nodeId2, ...] }
+        // If polygonGroups length is 0 but polygons-color-show is true, rebuild
+        // them from the active grouping field. This path is renderer-neutral and
+        // also supports session/style initialization before a graph is mounted.
         if (polygonGroups.length === 0 && this.session.style.widgets['polygons-color-show']) {
-            // Create the groups by going through visible nodes, and creating the keys of the group by the unique values of node['polygon-foci']
-            const groupMap = new Map();
+            const groupingField = String(this.session.style.widgets['polygons-foci'] || '').trim();
+            const groupMap = new Map<string, any[]>();
             this.getVisibleNodes().forEach(node => {
-                const polygonFoci = node['polygon-foci'];
-                if (!groupMap.has(polygonFoci)) {
-                    groupMap.set(polygonFoci, []);
+                const rawValue = groupingField && groupingField !== 'None'
+                    ? node[groupingField]
+                    : null;
+                const firstValue = Array.isArray(rawValue) ? rawValue[0] : rawValue;
+                const group = firstValue === undefined || firstValue === null
+                    ? ''
+                    : String(firstValue).trim();
+                if (!group || group.toLowerCase() === 'null') {
+                    return;
                 }
-                groupMap.get(polygonFoci).push(node);
+
+                if (!groupMap.has(group)) {
+                    groupMap.set(group, []);
+                }
+                groupMap.get(group)?.push(node);
             });
-            polygonGroups = Array.from(groupMap.entries()).map(([key, values]) => ({
+            polygonGroups = Array.from(groupMap.entries()).map(([key, values], index) => ({
                 key,
-                values: values.map(node => node.id)
+                index,
+                values: values.map(node => node._id ?? node.id)
             }));
 
             this.temp.polygonGroups = polygonGroups;

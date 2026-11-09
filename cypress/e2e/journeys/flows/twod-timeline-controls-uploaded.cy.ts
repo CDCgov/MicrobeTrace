@@ -361,11 +361,7 @@ describe('Journey Flow - 2D uploaded timeline controls', () => {
       expect(targetNodeId, 'captured recolored 2D node id').not.to.equal('');
     });
 
-    cy.contains('#global-settings-modal .nav-link', 'Timeline').click({ force: true });
-    cy.get('#global-settings-modal #timeline-config').should('exist');
-    cy.get('#node-timeline-variable').click({ force: true });
-    clickVisiblePrimeOption('None');
-    cy.closeGlobalSettings();
+    setTimelineField('None');
 
     cy.window()
       .its('commonService.session.style.widgets')
@@ -454,11 +450,7 @@ describe('Journey Flow - 2D uploaded timeline controls', () => {
       expect(targetLinkId, 'captured recolored 2D link id').not.to.equal('');
     });
 
-    cy.contains('#global-settings-modal .nav-link', 'Timeline').click({ force: true });
-    cy.get('#global-settings-modal #timeline-config').should('exist');
-    cy.get('#node-timeline-variable').click({ force: true });
-    clickVisiblePrimeOption('None');
-    cy.closeGlobalSettings();
+    setTimelineField('None');
 
     cy.window()
       .its('commonService.session.style.widgets')

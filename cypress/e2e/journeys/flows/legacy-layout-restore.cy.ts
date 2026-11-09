@@ -5,11 +5,20 @@ import { visitAppAndAcceptEula, waitForProcessingDialogToClear } from '../../../
 const expectedLegacyLayoutViews = ['2D Network', 'Map', 'Table'];
 
 const loadOutbreakNormSession = () => {
-  cy.get('body').then(($body) => {
-    const uploadSelector = $body.find('#fileDropRef').length ? '#fileDropRef' : '#data-files1';
+  cy.readFile('src/outbreaknorm.microbetrace', 'utf8').then((contents: string) => {
+    const session = JSON.parse(contents);
+    session.style.widgets['map-basemap-show'] = false;
+    session.style.widgets['map-satellite-show'] = false;
 
-    cy.get(uploadSelector, { timeout: 15000 })
-      .selectFile('src/outbreaknorm.microbetrace', { force: true });
+    cy.get('body').then(($body) => {
+      const uploadSelector = $body.find('#fileDropRef').length ? '#fileDropRef' : '#data-files1';
+
+      cy.get(uploadSelector, { timeout: 15000 }).selectFile({
+        contents: Cypress.Buffer.from(JSON.stringify(session)),
+        fileName: 'outbreaknorm.microbetrace',
+        mimeType: 'application/json',
+      }, { force: true });
+    });
   });
 
   waitForProcessingDialogToClear(60000);

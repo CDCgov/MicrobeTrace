@@ -163,7 +163,7 @@ const selectGeoJSONLabelField = (field: 'None' | 'name'): void => {
     .should('equal', field);
 };
 
-const assertFloorplanBackgroundOverlay = (): void => {
+const assertFloorplanBackgroundOverDefaultOfflineMap = (): void => {
   cy.window({ timeout: 15000 }).should((win: unknown) => {
     const typedWindow = win as WinWithMap;
     const mapView = typedWindow.commonService.visuals.gisMap;
@@ -171,17 +171,18 @@ const assertFloorplanBackgroundOverlay = (): void => {
 
     expect(widgets['map-floorplan-background-mode'], 'custom map mode').to.equal('Overlay');
     expect(widgets['map-user-geojson-show'], 'user GeoJSON widget').to.equal(true);
-    expect(widgets['map-basemap-show'], 'basemap preserved under overlay').to.equal(true);
+    expect(widgets['map-basemap-show'], 'online basemap remains hidden').to.equal(false);
+    expect(widgets['map-states-show'], 'default offline states layer preserved').to.equal(true);
     expect(mapView.lmap.hasLayer(mapView.layers.userGeoJSON), 'user GeoJSON overlay visible').to.equal(true);
-    expect(mapView.lmap.hasLayer(mapView.layers.basemap), 'basemap visible under overlay').to.equal(true);
+    expect(mapView.lmap.hasLayer(mapView.layers.states), 'default offline states layer visible').to.equal(true);
 
     const customPane = mapView.lmap.getPane('map-custom-background');
     const linkPane = mapView.lmap.getPane('map-network-links');
-    const tilePane = mapView.lmap.getPane('tilePane');
+    const offlinePane = mapView.lmap.getPane('overlayPane');
     const markerPane = mapView.lmap.getPane('markerPane');
     const paneZIndex = (pane: HTMLElement) => Number(typedWindow.getComputedStyle(pane).zIndex);
 
-    expect(paneZIndex(customPane), 'custom map above basemap tiles').to.be.greaterThan(paneZIndex(tilePane));
+    expect(paneZIndex(customPane), 'custom map above offline map').to.be.greaterThan(paneZIndex(offlinePane));
     expect(paneZIndex(customPane), 'custom map below links').to.be.lessThan(paneZIndex(linkPane));
     expect(paneZIndex(customPane), 'custom map below nodes').to.be.lessThan(paneZIndex(markerPane));
   });
@@ -422,7 +423,7 @@ describe('Journey Flow - Map custom floorplan GeoJSON and manual positions', () 
     assertCustomGeoJSONLabels();
 
     setFloorplanLayer('Overlay');
-    assertFloorplanBackgroundOverlay();
+    assertFloorplanBackgroundOverDefaultOfflineMap();
     cy.get('@mapSettings')
       .find('#map-user-geojson-color')
       .invoke('val', customGeoJSONColor)

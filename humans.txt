@@ -1,17 +1,18 @@
 /* TEAM */
-  Chief Developer: Tony Boyles <tony@ephemer.ai>
+  Chief Developer: Evan Moscoso
 
-  Algorithms Guru: Sergey Kniazev
+  Project Manager: Omar Al Naimi
 
-  Project Manager: Ells Campbell
-
-  Head Writer: Anupama Shankar
+  Communications and collaborations: Anupama Shankar
 
   Fearless Leader: Bill Switzer
   
-  Bioinformatician: Frank Ambrosio
+  Bioinformatician: David Cowan
+  Bioinformatician: Guppy Stott
+  Data Analytics: Roxy Cintron
 
-  Retired Developers: Jay Kim (Miss you, dude!)
+
+  
 
 /* SITE */
   Doctype: HTML5

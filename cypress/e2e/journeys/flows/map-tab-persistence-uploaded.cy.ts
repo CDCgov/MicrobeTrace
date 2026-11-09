@@ -83,7 +83,7 @@ describe('Journey Flow - Map tab persistence on uploaded data', () => {
     });
 
     closeMapTab();
-    goToMapView();
+    goToMapView({ preserveOnlineLayers: true });
     assertMapReady();
 
     cy.window().its('commonService.session.style.widgets.map-field-zipcode').should('equal', 'Zip_code');

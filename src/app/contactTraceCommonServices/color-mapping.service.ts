@@ -917,8 +917,7 @@ export class ColorMappingService {
       : d3.schemePaired;
     const candidatePalette = linkColors.filter((color): color is string => typeof color === 'string');
     const uniqueCandidatePalette = Array.from(new Set(candidatePalette));
-    const needsDefaultPalette = uniqueCandidatePalette.length <= 1 ||
-      (!hasLinkColorsTableForVariable && uniqueCandidatePalette.length < distinctValues.length);
+    const needsDefaultPalette = uniqueCandidatePalette.length < distinctValues.length;
     const basePalette = needsDefaultPalette ? defaultLinkPalette : uniqueCandidatePalette;
     const fallbackPalette = basePalette.length ? basePalette : ['#a6cee3'];
     const colorsByKey = new Map<string, string>();

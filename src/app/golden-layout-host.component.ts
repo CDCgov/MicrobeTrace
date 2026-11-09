@@ -14,6 +14,7 @@ import { TimelineComponent } from './visualizationComponents/TimelineComponent/t
 import { TableComponent } from './visualizationComponents/TableComponent/table-plugin-component';
 import { NetworkStatisticsComponent } from './visualizationComponents/NetworkStatisticsComponent/network-statistics-plugin.component';
 import { TwoDComponent } from './visualizationComponents/TwoDComponent/twoD-plugin.component';
+import { TransmissionChainExplorerComponent } from './visualizationComponents/TransmissionChainExplorerComponent/transmission-chain-explorer.component';
 import { AlignmentViewComponent } from './visualizationComponents/AlignmentViewComponent/alignment-view-plugin-component';
 import { CrosstabComponent } from './visualizationComponents/CrosstabComponent/crosstab-plugin.component';
 import { AggregateComponent } from './visualizationComponents/AggregateComponent/aggregate.component';
@@ -72,6 +73,7 @@ export class GoldenLayoutHostComponent implements OnDestroy {
 
     this.goldenLayoutComponentService.registerComponentType(FilesComponent.componentTypeName, FilesComponent);
     this.goldenLayoutComponentService.registerComponentType(TwoDComponent.componentTypeName, TwoDComponent);
+    this.goldenLayoutComponentService.registerComponentType(TransmissionChainExplorerComponent.componentTypeName, TransmissionChainExplorerComponent);
     this.goldenLayoutComponentService.registerComponentType(TableComponent.componentTypeName, TableComponent);
     this.goldenLayoutComponentService.registerComponentType(NetworkStatisticsComponent.componentTypeName, NetworkStatisticsComponent);
     this.goldenLayoutComponentService.registerComponentType(MapComponent.componentTypeName, MapComponent);
@@ -150,7 +152,15 @@ export class GoldenLayoutHostComponent implements OnDestroy {
   
     if (container) {
       const componentItem = container.parent;
-      this._goldenLayout.focusComponent(componentItem);
+      const stack = componentItem?.parent as any;
+      if (stack && typeof stack.setActiveComponentItem === 'function') {
+        // Golden Layout's focusComponent() only assigns keyboard focus; it does
+        // not reveal an inactive component in a stack. Activate the stack item
+        // first so views selected from MicrobeTrace's View menu become visible.
+        stack.setActiveComponentItem(componentItem, true);
+      } else {
+        this._goldenLayout.focusComponent(componentItem);
+      }
     }
 
     return container;

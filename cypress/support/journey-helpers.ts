@@ -45,6 +45,13 @@ function buildJourneyUrl(options: JourneyVisitOptions = {}): string {
   const skipDemoSession = options.skipDemoSession ?? true;
   const skipEula = options.skipEula ?? true;
 
+  // The established journey suite contains renderer-specific Cytoscape
+  // assertions. Keep those compatibility contracts explicit while dedicated
+  // Sigma/default-renderer contracts exercise the production path.
+  if (!Object.prototype.hasOwnProperty.call(options.extraQuery || {}, 'renderer')) {
+    params.set('renderer', 'cytoscape-canvas');
+  }
+
   if (skipDemoSession) {
     params.set('skipDemoSession', '1');
   }
@@ -99,8 +106,15 @@ export function visitAppAndAcceptEula(options: JourneyVisitOptions = {}): void {
 
   if (!resolvedOptions.skipDemoSession) {
     cy.window({ timeout: 120000 })
-      .its('commonService.session.network.isFullyLoaded')
-      .should('equal', true);
+      .should((win: any) => {
+        const service = win.commonService;
+        expect(service?.session.network.isFullyLoaded, 'sample data loaded').to.equal(true);
+        // The saved session can report loaded before its default layout opens.
+        // Wait for the initial network render so that launch cannot replace a
+        // view the test opens next.
+        expect(service.demoNetworkRendered, 'sample network completed its first render').to.equal(true);
+        expect(service.session.network.rendering, 'sample network render finished').to.equal(false);
+      });
   }
 
   cy.get('body').then(($body) => {
@@ -185,7 +199,7 @@ export function installSaveAsCaptureHook(): void {
         reader.readAsDataURL(blob);
       };
 
-      if (content instanceof Blob) {
+      if (content instanceof w.Blob || Object.prototype.toString.call(content) === '[object Blob]') {
         persistBlob(content);
         return;
       }
@@ -516,13 +530,19 @@ export function expandAccordionTabByHeader(containerAlias: string, headerText: s
   
   
   function assertGroupsRendered(minParents = 1): void {
-    cy.window()
-      .its('cytoscapeInstance')
-      .should((cyInst: any) => {
-        expect(cyInst, 'cytoscapeInstance').to.exist;
-        const parents = cyInst.nodes('.parent').length;
-        expect(parents, 'parent groups rendered').to.be.greaterThan(minParents - 1);
-      });
+    cy.window().should((win: any) => {
+      const twoD = win.commonService?.visuals?.twoD;
+      if (twoD?.sigmaActive) {
+        const hulls = (twoD.sigmaRenderer as any)?.groupHulls || [];
+        expect(hulls.length, 'Sigma group hulls rendered').to.be.greaterThan(minParents - 1);
+        return;
+      }
+
+      const cyInst = win.cytoscapeInstance;
+      expect(cyInst, 'cytoscapeInstance').to.exist;
+      const parents = cyInst.nodes('.parent').length;
+      expect(parents, 'parent groups rendered').to.be.greaterThan(minParents - 1);
+    });
   }
   
 
@@ -677,16 +697,52 @@ export function launchAndWaitForProcessing(timeout = 60000): void {
     .should('equal', true);
 }
 
-export function goTo2DNetworkView(): void {
+export function goTo2DNetworkView(timeout = 30000): void {
   cy.get(byTestId(testIds.appViewMenuButton), { timeout: 15000 }).click({ force: true });
   cy.get(byTestId(testIds.appViewMenuTwoD), { timeout: 15000 }).click({ force: true });
 
-  assertTwoDNetworkReady();
+  assertTwoDNetworkReady(timeout);
+}
+
+export function goToTransmissionChainView(): void {
+  const ensureTabExists = (attemptsRemaining: number): void => {
+    cy.get('body', { timeout: 15000 }).then(($body) => {
+      const existingTab = $body.find('.lm_tab[title="Transmission Chain Explorer"]');
+      if (existingTab.length) return;
+
+      expect(attemptsRemaining, 'attempts remaining to open Transmission Chain Explorer').to.be.greaterThan(0);
+      cy.get(byTestId(testIds.appViewMenuButton)).click({ force: true });
+      cy.get(byTestId(testIds.appViewMenuTransmissionChain)).click({ force: true });
+      cy.wait(250, { log: false });
+      ensureTabExists(attemptsRemaining - 1);
+    });
+  };
+
+  ensureTabExists(3);
+
+  cy.get('.lm_tab[title="Transmission Chain Explorer"]', { timeout: 15000 })
+    .trigger('click', { button: 0 });
+
+  assertTransmissionChainReady();
 }
 
 export function assertTwoDNetworkReady(timeout = 30000): void {
-  cy.get('#cy', { timeout }).should('be.visible');
-  cy.window({ timeout }).should('have.property', 'cytoscapeInstance');
+  cy.get('#cy, [data-testid="sigma-network"]', { timeout }).should('be.visible');
+  cy.window({ timeout }).should((win: any) => {
+    const twoD = win.commonService?.visuals?.twoD;
+    expect(twoD, '2D component instance').to.exist;
+    expect(
+      twoD?.sigmaRenderer || twoD?.cy || win.cytoscapeInstance,
+      'active 2D renderer handle',
+    ).to.exist;
+  });
+}
+
+export function assertTransmissionChainReady(timeout = 30000): void {
+  cy.get('#transmission-chain-cy', { timeout }).should('be.visible');
+  cy.window({ timeout })
+    .its('commonService.visuals.transmissionChain.cy')
+    .should('exist');
 }
 
 export function assertPhyloTreeReady(timeout = 30000): void {
@@ -796,7 +852,46 @@ export function goToPhyloTreeView(timeout = 30000): void {
   assertPhyloTreeReady(timeout);
 }
 
-export function goToMapView(): void {
+type MapViewNavigationOptions = {
+  preserveOnlineLayers?: boolean;
+};
+
+type OfflineMapLayerOptions = {
+  surviveLaunchReset?: boolean;
+};
+
+/**
+ * Prevent routine Map tests from contacting external basemap providers.
+ * Call this before the Map component is created so MapLibre/Leaflet cannot
+ * begin loading a style or tiles from a previously enabled online layer.
+ */
+export function useOfflineMapLayers(options: OfflineMapLayerOptions = {}): void {
+  cy.window().then((win: unknown) => {
+    const commonService = (win as WinWithMT).commonService;
+    const disableOnlineLayers = (widgets: Record<string, any>) => {
+      widgets['map-basemap-show'] = false;
+      widgets['map-satellite-show'] = false;
+    };
+
+    disableOnlineLayers(commonService.session.style.widgets);
+
+    if (options.surviveLaunchReset) {
+      const originalSessionSkeleton = commonService.sessionSkeleton;
+      commonService.sessionSkeleton = () => {
+        const session = originalSessionSkeleton();
+        disableOnlineLayers(session.style.widgets);
+        commonService.sessionSkeleton = originalSessionSkeleton;
+        return session;
+      };
+    }
+  });
+}
+
+export function goToMapView(options: MapViewNavigationOptions = {}): void {
+  if (!options.preserveOnlineLayers) {
+    useOfflineMapLayers();
+  }
+
   cy.get(byTestId(testIds.appViewMenuButton), { timeout: 15000 }).click({ force: true });
   cy.contains('button[mat-menu-item]', 'Map', { timeout: 15000 }).click({ force: true });
 
@@ -835,6 +930,7 @@ export function goToAggregateView(): void {
   cy.get(byTestId(testIds.appViewMenuButton), { timeout: 15000 }).click({ force: true });
   cy.get(byTestId(testIds.appViewMenuAggregate), { timeout: 15000 }).click({ force: true });
 
+  cy.get('.lm_tab[title="Aggregate"]', { timeout: 15000 }).should('have.class', 'lm_active');
   assertAggregateReady();
 }
 
@@ -962,14 +1058,14 @@ export function ensureCrosstabView(): void {
   });
 }
 
-export function ensureTwoDNetworkView(): void {
+export function ensureTwoDNetworkView(timeout = 30000): void {
   cy.get('body', { timeout: 15000 }).then(($body) => {
-    if ($body.find('#cy:visible').length) {
-      assertTwoDNetworkReady();
+    if ($body.find('#cy:visible, [data-testid="sigma-network"]:visible').length) {
+      assertTwoDNetworkReady(timeout);
       return;
     }
 
-    goTo2DNetworkView();
+    goTo2DNetworkView(timeout);
   });
 }
 

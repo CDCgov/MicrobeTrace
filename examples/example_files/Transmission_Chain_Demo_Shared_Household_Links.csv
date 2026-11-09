@@ -1,0 +1,11 @@
+source,target,relationship,household_id
+A01,A02,shared household,HH-01
+A03,A04,shared household,HH-02
+A05,A06,shared household,HH-03
+A07,A08,shared household,HH-04
+A09,A10,shared household,HH-05
+B01,B02,shared household,HH-06
+B03,B04,shared household,HH-07
+C01,C02,shared household,HH-08
+A02,A03,shared household,HH-09
+A08,A09,shared household,HH-10
