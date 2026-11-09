@@ -116,3 +116,125 @@ $custom-theme: mat.m2-define-light-theme((
   density: 0,
 ));
 @include mat.all-component-themes($custom-theme);
+
+// Keep Material controls, including overlays appended to body, in the same
+// startup palette as the rest of the interface.
+html[data-ui-color='orange'] {
+  $orange-primary: mat.m2-define-palette((
+    50: #fff7ed,
+    100: #ffedd5,
+    200: #fed7aa,
+    300: #fdba74,
+    400: #fb923c,
+    500: #f97316,
+    600: #ea580c,
+    700: #c2410c,
+    800: #9a3412,
+    900: #7c2d12,
+    contrast: (
+      50: #000000, 100: #000000, 200: #000000, 300: #000000,
+      400: #000000, 500: #000000, 600: #000000,
+      700: #ffffff, 800: #ffffff, 900: #ffffff,
+    ),
+  ), 400, 100, 500);
+  $orange-theme: mat.m2-define-light-theme((
+    color: (primary: $orange-primary, accent: $pink-palette, warn: $custom-theme-warn),
+  ));
+  @include mat.all-component-colors($orange-theme);
+}
+
+html[data-ui-color='red'] {
+  $red-ui-primary: mat.m2-define-palette((
+    50: #fef2f2,
+    100: #fee2e2,
+    200: #fecaca,
+    300: #fca5a5,
+    400: #f87171,
+    500: #ef4444,
+    600: #dc2626,
+    700: #b91c1c,
+    800: #991b1b,
+    900: #7f1d1d,
+    contrast: (
+      50: #000000, 100: #000000, 200: #000000, 300: #000000,
+      400: #000000, 500: #000000,
+      600: #ffffff, 700: #ffffff, 800: #ffffff, 900: #ffffff,
+    ),
+  ), 600, 100, 700);
+  $red-ui-theme: mat.m2-define-light-theme((
+    color: (primary: $red-ui-primary, accent: $pink-palette, warn: $custom-theme-warn),
+  ));
+  @include mat.all-component-colors($red-ui-theme);
+}
+
+html[data-ui-color='yellow'] {
+  $yellow-ui-primary: mat.m2-define-palette((
+    50: #fefce8,
+    100: #fef9c3,
+    200: #fef08a,
+    300: #fde047,
+    400: #facc15,
+    500: #eab308,
+    600: #ca8a04,
+    700: #a16207,
+    800: #854d0e,
+    900: #713f12,
+    contrast: (
+      50: #000000, 100: #000000, 200: #000000, 300: #000000,
+      400: #000000, 500: #000000, 600: #000000,
+      700: #ffffff, 800: #ffffff, 900: #ffffff,
+    ),
+  ), 300, 100, 400);
+  $yellow-ui-theme: mat.m2-define-light-theme((
+    color: (primary: $yellow-ui-primary, accent: $pink-palette, warn: $custom-theme-warn),
+  ));
+  @include mat.all-component-colors($yellow-ui-theme);
+}
+
+html[data-ui-color='green'] {
+  $green-ui-primary: mat.m2-define-palette((
+    50: #f0fdf4,
+    100: #dcfce7,
+    200: #bbf7d0,
+    300: #86efac,
+    400: #4ade80,
+    500: #22c55e,
+    600: #16a34a,
+    700: #15803d,
+    800: #166534,
+    900: #14532d,
+    contrast: (
+      50: #000000, 100: #000000, 200: #000000, 300: #000000,
+      400: #000000, 500: #000000, 600: #000000,
+      700: #ffffff, 800: #ffffff, 900: #ffffff,
+    ),
+  ), 800, 100, 900);
+  $green-ui-theme: mat.m2-define-light-theme((
+    color: (primary: $green-ui-primary, accent: $pink-palette, warn: $custom-theme-warn),
+  ));
+  @include mat.all-component-colors($green-ui-theme);
+}
+
+html[data-ui-color='purple'] {
+  $purple-ui-primary: mat.m2-define-palette((
+    50: #faf5ff,
+    100: #f3e8ff,
+    200: #e9d5ff,
+    300: #d8b4fe,
+    400: #a219c1,
+    500: #452661,
+    600: #3e2057,
+    700: #391d50,
+    800: #321b47,
+    900: #251334,
+    contrast: (
+      50: #000000, 100: #000000, 200: #000000, 300: #000000,
+      400: #ffffff, 500: #ffffff, 600: #ffffff,
+      700: #ffffff, 800: #ffffff, 900: #ffffff,
+    ),
+  ), 400, 100, 500);
+  $purple-ui-theme: mat.m2-define-light-theme((
+    color: (primary: $purple-ui-primary, accent: $pink-palette, warn: $custom-theme-warn),
+  ));
+  @include mat.all-component-colors($purple-ui-theme);
+}

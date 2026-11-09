@@ -58,6 +58,7 @@ const sigmaNodeBoundaryDistance = (
 export function clipSigmaEdgeSegment(
   source: SigmaEdgeClipEndpoint,
   target: SigmaEdgeClipEndpoint,
+  strokeWidth = 0,
 ): { source: SigmaViewportPoint; target: SigmaViewportPoint } | null {
   const deltaX = target.x - source.x;
   const deltaY = target.y - source.y;
@@ -65,18 +66,22 @@ export function clipSigmaEdgeSegment(
   if (!Number.isFinite(length) || length <= Number.EPSILON) return null;
   const directionX = deltaX / length;
   const directionY = deltaY / length;
+  // The path is clipped by its center line. Leave another half stroke width
+  // beyond each glyph boundary so a thick dashed stroke cannot bleed back
+  // over the node even with a butt line cap.
+  const strokeClearance = Math.max(0, Number(strokeWidth) || 0) / 2;
   const sourceOffset = sigmaNodeBoundaryDistance(
     source.shape,
     source.radius,
     directionX,
     directionY,
-  );
+  ) + strokeClearance;
   const targetOffset = sigmaNodeBoundaryDistance(
     target.shape,
     target.radius,
     -directionX,
     -directionY,
-  );
+  ) + strokeClearance;
   if (sourceOffset + targetOffset >= length) return null;
   return {
     source: {
@@ -2154,6 +2159,8 @@ export class SigmaNetworkRendererAdapter {
       Boolean(this.displayGraph.getEdgeAttribute(edgeId, 'overlayDashColor'))
     ));
     this.edgeOverlayLayer.dataset.duoLinkCount = String(overlayEdges.length);
+    if (overlayEdges.length === 0) return;
+    let maxOverlayStrokeWidth = 0;
 
     // Cytoscape represented a two-origin link as a solid edge for the first
     // origin with a dashed edge for the second. Keep one resident Sigma edge
@@ -2181,6 +2188,7 @@ export class SigmaNetworkRendererAdapter {
         this.renderer!.getSetting('minEdgeThickness'),
         this.renderer!.scaleSize(edgeSize),
       ) / 2;
+      maxOverlayStrokeWidth = Math.max(maxOverlayStrokeWidth, context.lineWidth);
       context.lineCap = 'butt';
       context.setLineDash([10, 10]);
       context.lineDashOffset = 5;
@@ -2200,6 +2208,7 @@ export class SigmaNetworkRendererAdapter {
             radius: this.getOverlayNodeRadius(targetId, target),
             shape: target.shape,
           },
+          context.lineWidth,
         );
         if (!clipped) {
           context.restore();
@@ -2211,18 +2220,49 @@ export class SigmaNetworkRendererAdapter {
       context.stroke();
       context.restore();
     });
+
+    // This Canvas must stay above the WebGL stage so the second origin is
+    // visible over the primary edge. Punch every rendered node out of the
+    // transparent layer so crossings are occluded exactly like solid links.
+    this.maskEdgeOverlayUnderNodes(context, width, height, maxOverlayStrokeWidth / 2);
+  }
+
+  private maskEdgeOverlayUnderNodes(
+    context: CanvasRenderingContext2D,
+    width: number,
+    height: number,
+    strokeClearance: number,
+  ): void {
+    if (!this.renderer) return;
+    context.save();
+    context.globalCompositeOperation = 'destination-out';
+    context.globalAlpha = 1;
+    context.fillStyle = '#000000';
+    this.displayGraph.forEachNode((nodeId, attributes: SigmaNodeAttributes) => {
+      const displayData = this.renderer!.getNodeDisplayData(nodeId);
+      if (!displayData || displayData.visibility === 'hidden') return;
+      const point = this.renderer!.graphToViewport({
+        x: Number(attributes.x),
+        y: Number(attributes.y),
+      });
+      const radius = this.getOverlayNodeRadius(nodeId, attributes) + strokeClearance;
+      if (
+        point.x + radius < 0 || point.x - radius > width ||
+        point.y + radius < 0 || point.y - radius > height
+      ) return;
+
+      traceSigmaNodeOutline(context, attributes.shape, point.x, point.y, radius);
+      context.fill();
+    });
+    context.restore();
   }
 
   private getOverlayNodeRadius(nodeId: string, attributes: SigmaNodeAttributes): number {
     if (!this.renderer) return 0;
-    const emphasized = this.selectedNodeIds.has(nodeId)
-      || this.hoveredNodeId === nodeId
-      || this.keyboardFocusedNodeId === nodeId;
-    const emphasisScale = emphasized ? 1.35 : 1;
-    const featureScale = attributes.iconVectorData || attributes.imageDataUri
-      ? 1
-      : Number(attributes.mtFeatureScale || 1);
-    const radius = this.renderer.scaleSize(Number(attributes.size) * featureScale) * emphasisScale;
+    // Read the post-reducer display size so clipping stays aligned with the
+    // node Sigma actually paints (including feature and interaction scaling).
+    const displaySize = this.renderer.getNodeDisplayData(nodeId)?.size;
+    const radius = this.renderer.scaleSize(Number(displaySize ?? attributes.size));
     return radius + Math.max(0, Number(attributes.borderWidth) || 0) / 2;
   }
 

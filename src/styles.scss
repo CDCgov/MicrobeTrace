@@ -1,5 +1,6 @@
 @use "goldenlayout-base.css";
 @use "themes/goldenlayout-light-theme.scss";
+@use "themes/ui-accent";
 
 // Custom Theming for Angular Material
 // For more information: https://material.angular.io/guide/theming
@@ -244,7 +245,7 @@ HistogramComponent .ui-dropdown {
 
 /** Main Page **/
 .m-subheader {
-    background-image: linear-gradient(#005DAA, #003E80);
+    background-image: linear-gradient(var(--mt-primary, #005DAA), var(--mt-primary-dark, #003E80));
 }
 
 .m-subheader__title{
@@ -259,7 +260,7 @@ body { margin: 0; font-family: Roboto, "Helvetica Neue", sans-serif; }
 
 
 .nav-bar{
-    background-image: linear-gradient(#005DAA, #003E80) !important;
+    background-image: linear-gradient(var(--mt-primary, #005DAA), var(--mt-primary-dark, #003E80)) !important;
 }
 
 .microbe-font {
@@ -316,8 +317,8 @@ body { margin: 0; font-family: Roboto, "Helvetica Neue", sans-serif; }
 }
 
 body .ui-tabview.ui-tabview-top .ui-tabview-nav li.ui-state-active, body .ui-tabview.ui-tabview-bottom .ui-tabview-nav li.ui-state-active, body .ui-tabview.ui-tabview-left .ui-tabview-nav li.ui-state-active, body .ui-tabview.ui-tabview-right .ui-tabview-nav li.ui-state-active {
-    background-color: #005daa !important;
-    border: 1px solid #005daa !important;
+    background-color: var(--mt-primary, #005daa) !important;
+    border: 1px solid var(--mt-primary, #005daa) !important;
   }
 
   #overlay {
@@ -500,8 +501,8 @@ body .ui-tabview.ui-tabview-top .ui-tabview-nav li.ui-state-active, body .ui-tab
 }
 
 .lm_tab.lm_active {
-   background: #007ADA !important;
-   color: white !important;
+   background: var(--mt-active-tab, #007ADA) !important;
+   color: var(--mt-on-primary, white) !important;
 }
 
 .lm_tab {
@@ -527,7 +528,7 @@ body .ui-tabview.ui-tabview-top .ui-tabview-nav li.ui-state-active, body .ui-tab
 }
 
 .primary {
-    color: #005DAA;
+    color: var(--mt-primary, #005DAA);
 }
 
 .p-dropdown {

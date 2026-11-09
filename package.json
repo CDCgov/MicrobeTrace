@@ -5,7 +5,7 @@
     "postinstall": "node scripts/patch-html2canvas-chrome-custom-properties.js",
     "ng": "ng",
     "prestart": "node scripts/generate-primeui-license.js",
-    "start": "ng serve -c development",
+    "start": "node scripts/start-dev.js",
     "demo:partner-embed": "node scripts/serve-partner-embed-demo.js",
     "prestart:local-cypress": "node scripts/generate-primeui-license.js",
     "start:local-cypress": "ng serve -c development --host 127.0.0.1 --port 4210 --watch=false --live-reload=false",
