@@ -209,7 +209,9 @@ Cypress.Commands.add('openGlobalSettings', () => {
     .should('be.visible')
     .closest('.p-dialog')
     .within(() => {
-      cy.contains('.nav-link', 'Timeline', { timeout: 15000 }).should('be.visible');
+      cy.contains('.nav-link', 'Timeline', { timeout: 15000 })
+        .scrollIntoView()
+        .should('be.visible');
     });
   expandVisibleGlobalStylingAccordions();
 });

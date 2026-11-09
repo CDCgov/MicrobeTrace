@@ -1160,7 +1160,7 @@ label.disabled {
 
 .threshold-stability-panel__current {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: minmax(0, 1.7fr) minmax(0, 1.2fr) repeat(2, minmax(0, 1fr));
   gap: 8px;
   margin: 10px 0 8px;
 }
@@ -1283,7 +1283,7 @@ label.disabled {
   }
 
   .threshold-stability-panel__current {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 165px), 1fr));
   }
 
   .threshold-stability-region {
