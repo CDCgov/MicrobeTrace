@@ -3,6 +3,7 @@
 describe('File Type Detection', () => {
   const metadataFile = 'CaseMetadata.csv';
   const mapleFile = 'simple-alignment.maple';
+  const moltenFile = 'molten-distances.tsv';
 
   beforeEach(() => {
     cy.visit('/?skipEula=1&skipDemoSession=1');
@@ -56,6 +57,35 @@ describe('File Type Detection', () => {
       expect(byId.get('sample-b')).to.equal('ATCCNNTT');
       expect(byId.get('sample-c')).to.equal('AA---GTT');
       expect(commonService.session.files[0].format).to.equal('maple');
+    });
+  });
+
+  it('auto-detects Molten TSV distances and normalizes them as undirected links', () => {
+    cy.attach_file('#fileDropRef', moltenFile, 'text/tab-separated-values');
+
+    cy.contains('#file-table .file-table-row', moltenFile, { timeout: 20000 }).as('moltenRow');
+    cy.get('@moltenRow').find('input[data-type="link"]').should('be.checked');
+    cy.get(`[id="file-${moltenFile}-field-1"]`).should('have.value', 'sequence_1');
+    cy.get(`[id="file-${moltenFile}-field-2"]`).should('have.value', 'sequence_2');
+    cy.get(`[id="file-${moltenFile}-field-3"]`).should('have.value', 'distance');
+
+    cy.get('#launch').click({ force: true });
+
+    cy.window({ timeout: 30000 }).should((win) => {
+      const commonService = (win as any).commonService;
+      const nodeIds = commonService.session.data.nodes.map((node: any) => node._id).sort();
+      const links = commonService.session.data.links;
+      const linkKeys = links.map((link: any) => [link.source, link.target].sort().join('--')).sort();
+
+      expect(nodeIds).to.deep.equal(['sample-a', 'sample-b', 'sample-c']);
+      expect(linkKeys).to.deep.equal(['sample-a--sample-b', 'sample-b--sample-c']);
+      expect(links.map((link: any) => Number(link.distance)).sort()).to.deep.equal([1, 2]);
+      expect(commonService.session.files[0]).to.include({
+        format: 'link',
+        field1: 'sequence_1',
+        field2: 'sequence_2',
+        field3: 'distance',
+      });
     });
   });
 });

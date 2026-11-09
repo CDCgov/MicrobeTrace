@@ -1,0 +1,6 @@
+sequence_1	sequence_2	distance
+sample-a	sample-a	0
+sample-a	sample-b	1
+sample-b	sample-a	1
+sample-b	sample-c	2
+sample-c	sample-b	2

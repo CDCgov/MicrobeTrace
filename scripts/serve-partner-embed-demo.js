@@ -18,6 +18,20 @@ const contentTypes = new Map([
   ['.txt', 'text/plain; charset=utf-8']
 ]);
 
+const isolatedPaths = new Set(['/isolated.html', '/isolated-export.js']);
+
+function getRouteHeaders(pathname) {
+  if (!isolatedPaths.has(pathname)) {
+    return {};
+  }
+
+  return {
+    'Cross-Origin-Opener-Policy': 'same-origin',
+    'Cross-Origin-Embedder-Policy': 'require-corp',
+    'Cross-Origin-Resource-Policy': 'same-origin'
+  };
+}
+
 function send(response, status, body, headers = {}) {
   response.writeHead(status, {
     'Cache-Control': 'no-store',
@@ -64,7 +78,8 @@ const server = http.createServer((request, response) => {
     }
 
     const headers = {
-      'Content-Type': contentTypes.get(path.extname(filePath).toLowerCase()) || 'application/octet-stream'
+      'Content-Type': contentTypes.get(path.extname(filePath).toLowerCase()) || 'application/octet-stream',
+      ...getRouteHeaders(url.pathname)
     };
 
     if (request.method === 'HEAD') {
@@ -81,7 +96,11 @@ const server = http.createServer((request, response) => {
   });
 });
 
-server.listen(port, host, () => {
-  console.log(`Partner embed demo available at http://${host}:${port}`);
-  console.log('Start MicrobeTrace separately with: npm start');
-});
+if (require.main === module) {
+  server.listen(port, host, () => {
+    console.log(`Partner embed demo available at http://${host}:${port}`);
+    console.log('Start MicrobeTrace separately with: npm start');
+  });
+}
+
+module.exports = { getRouteHeaders };

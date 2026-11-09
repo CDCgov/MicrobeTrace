@@ -500,6 +500,35 @@ describe('EmbedHandoffService', () => {
         expect(result.files[0].type).toBe('text/x-maple');
     });
 
+    it('infers Molten TSV distances as a mapped link file', async () => {
+        seedValidHandoff({
+            files: [
+                {
+                    name: 'molten-distances.tsv',
+                    kind: 'auto',
+                    contents: 'sequence_1\tsequence_2\tdistance\nsample-a\tsample-b\t1\n',
+                },
+            ],
+        });
+
+        const result = await service.consumePendingHandoffFromUrl();
+
+        expect(result.status).toBe('success');
+        if (result.status !== 'success') {
+            fail('Expected a successful handoff result.');
+            return;
+        }
+
+        expect(result.files[0]).toEqual(jasmine.objectContaining({
+            format: 'link',
+            extension: 'tsv',
+            type: 'text/tab-separated-values',
+            field1: 'sequence_1',
+            field2: 'sequence_2',
+            field3: 'distance',
+        }));
+    });
+
     it('rejects full session payloads', async () => {
         seedValidHandoff({ session: { files: [] } });
 

@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="icon" href="data:,">
+  <title>Isolated Partner Page | MicrobeTrace Bridge Demo</title>
+  <style>
+    body { color: #172033; font: 16px/1.5 system-ui, sans-serif; margin: 0; }
+    main { margin: 0 auto; max-width: 760px; padding: 48px 28px; }
+    .panel { background: #f5f7fa; border: 1px solid #d5dbe5; border-radius: 8px; padding: 22px; }
+    button { background: #245f9d; border: 0; border-radius: 6px; color: white; cursor: pointer; font: inherit; font-weight: 700; padding: 11px 16px; }
+    button:disabled { cursor: wait; opacity: 0.6; }
+    code { background: #e8edf3; border-radius: 4px; padding: 2px 5px; }
+    #isolation-state[data-ready="true"] { color: #147447; font-weight: 700; }
+    #isolation-state[data-ready="false"] { color: #b42318; font-weight: 700; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Cross-origin-isolated analysis page</h1>
+    <p>
+      This simulates a threaded WebAssembly application. It never calls the
+      MicrobeTrace SDK directly because COOP would sever the receiver's opener.
+    </p>
+    <section class="panel">
+      <p>Isolation: <span id="isolation-state">checking…</span></p>
+      <p>Payload: <code>bridge-tree.nwk</code> containing three leaves.</p>
+      <button id="stage-export" type="button">Open export bridge</button>
+      <p id="status" role="status">Ready.</p>
+    </section>
+  </main>
+  <script src="./isolated-export.js"></script>
+</body>
+</html>

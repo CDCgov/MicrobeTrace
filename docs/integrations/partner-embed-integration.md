@@ -52,6 +52,11 @@ deployment requirement. `same-origin-allow-popups` and browser-specific isolatio
 features may be useful in controlled environments, but they are not the primary
 cross-browser design for this integration.
 
+A runnable reference implementation is included at
+`examples/partner-embed-demo/isolated.html`. The local partner demo server applies
+the isolation headers only to that analysis page and its script; the accompanying
+`microbetrace-export.html` bridge is deliberately non-isolated.
+
 ## Prerequisites
 
 - Your webapp origin must be allowlisted by the MicrobeTrace team.
@@ -396,6 +401,7 @@ Current detection rules:
   - or matrix-like filenames such as `distance-matrix.csv`
 - Link list
   - headers like `source/target`, `src/tgt`, or `from/to`
+  - Molten-style headers `sequence_1/sequence_2/distance` in CSV or TSV
   - or link-like filenames such as `links.csv`
 - Node list
   - tabular data with headers like `id` or `seq`
@@ -442,6 +448,27 @@ MicrobeTrace currently supports these import families through the embed handoff:
 - MAPLE sparse alignment
 - Newick
 - Auspice JSON
+
+Molten pairwise-distance output is represented as an ordinary `link` file rather
+than a separate handoff kind. MicrobeTrace recognizes `sequence_1`, `sequence_2`,
+and `distance`, accepts CSV or TSV delimiters, ignores diagonal rows, and merges
+reciprocal pairs into one undirected link. Partners may use auto-detection or send
+the mapping explicitly:
+
+```js
+{
+  name: 'molten-distances.tsv',
+  kind: 'link',
+  mimeType: 'text/tab-separated-values',
+  contents: moltenTsv,
+  options: {
+    extension: 'tsv',
+    field1: 'sequence_1',
+    field2: 'sequence_2',
+    field3: 'distance'
+  }
+}
+```
 
 ### Sending MAPLE output from Syrup
 

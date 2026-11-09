@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="icon" href="data:,">
+  <title>Continue to MicrobeTrace</title>
+  <style>
+    body { color: #172033; font: 16px/1.5 system-ui, sans-serif; margin: 0; }
+    main { margin: 0 auto; max-width: 680px; padding: 48px 28px; }
+    .panel { background: #f5f7fa; border: 1px solid #d5dbe5; border-radius: 8px; padding: 22px; }
+    button { background: #245f9d; border: 0; border-radius: 6px; color: white; cursor: pointer; font: inherit; font-weight: 700; padding: 11px 16px; }
+    button:disabled { cursor: wait; opacity: 0.6; }
+    code { background: #e8edf3; border-radius: 4px; padding: 2px 5px; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Continue to MicrobeTrace</h1>
+    <p>This route is intentionally not cross-origin isolated.</p>
+    <section class="panel">
+      <p>Isolation: <code id="isolation-state"></code></p>
+      <p id="summary">Reading the staged export…</p>
+      <button id="continue" type="button" disabled>Continue to MicrobeTrace</button>
+      <p id="status" role="status"></p>
+    </section>
+  </main>
+  <script src="http://localhost:4200/assets/embed/microbetrace-embed.js"></script>
+  <script src="./microbetrace-export.js"></script>
+</body>
+</html>

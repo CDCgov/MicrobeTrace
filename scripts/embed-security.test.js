@@ -5,10 +5,26 @@ const test = require('node:test');
 const vm = require('node:vm');
 const { TextEncoder } = require('node:util');
 const { validatePartnerAllowlist } = require('./validate-partner-allowlist');
+const { getRouteHeaders } = require('./serve-partner-embed-demo');
 
 const repoRoot = path.resolve(__dirname, '..');
 const sdkCode = fs.readFileSync(path.join(repoRoot, 'src/assets/embed/microbetrace-embed.js'), 'utf8');
 const receiverCode = fs.readFileSync(path.join(repoRoot, 'src/assets/embed/receiver.js'), 'utf8');
+
+test('isolated partner demo limits COOP and COEP to the analysis route', () => {
+  assert.deepEqual(getRouteHeaders('/isolated.html'), {
+    'Cross-Origin-Opener-Policy': 'same-origin',
+    'Cross-Origin-Embedder-Policy': 'require-corp',
+    'Cross-Origin-Resource-Policy': 'same-origin',
+  });
+  assert.deepEqual(getRouteHeaders('/isolated-export.js'), {
+    'Cross-Origin-Opener-Policy': 'same-origin',
+    'Cross-Origin-Embedder-Policy': 'require-corp',
+    'Cross-Origin-Resource-Policy': 'same-origin',
+  });
+  assert.deepEqual(getRouteHeaders('/microbetrace-export.html'), {});
+  assert.deepEqual(getRouteHeaders('/microbetrace-export.js'), {});
+});
 
 test('SDK fails closed without Web Crypto', () => {
   const context = createSdkContext({ crypto: undefined });

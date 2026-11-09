@@ -32,13 +32,13 @@ import { looksLikeMapleAlignment } from '@app/helperClasses/maple-format';
 const FORBIDDEN_OBJECT_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
 const ALLOWED_KINDS = new Set<string>(EMBED_HANDOFF_ALLOWED_KINDS);
 const NODE_FILE_NAME_HINT = /(node|metadata|attribute|sample|case)/i;
-const LINK_FILE_NAME_HINT = /(link|edge|network|pair)/i;
+const LINK_FILE_NAME_HINT = /(link|edge|network|pair|molten)/i;
 const MATRIX_FILE_NAME_HINT = /(matrix|distance|dist)/i;
 const FASTA_EXTENSION_PATTERN = /^(?:fa|faa|fasta|fas|fna)$/i;
 const MAPLE_EXTENSION_PATTERN = /^maple$/i;
 const NEWICK_EXTENSION_PATTERN = /^(?:nwk|newick|tree|tre)$/i;
-const LINK_SOURCE_HEADERS = ['source', 'src', 'from'];
-const LINK_TARGET_HEADERS = ['target', 'tgt', 'to'];
+const LINK_SOURCE_HEADERS = ['source', 'src', 'from', 'sequence1', 'seq1', 'sample1'];
+const LINK_TARGET_HEADERS = ['target', 'tgt', 'to', 'sequence2', 'seq2', 'sample2'];
 const NODE_ID_HEADERS = ['id', 'sampleid', 'sample_id', 'nodeid', 'node_id'];
 const NODE_SEQUENCE_HEADERS = ['seq', 'sequence'];
 const ALLOWED_DEFAULT_VIEWS = new Set<string>(EMBED_HANDOFF_ALLOWED_DEFAULT_VIEWS);
@@ -688,6 +688,10 @@ export class EmbedHandoffService {
             return 'application/vnd.ms-excel';
         }
 
+        if (extension === 'tsv') {
+            return 'text/tab-separated-values';
+        }
+
         switch (kind) {
             case 'fasta':
                 return 'text/x-fasta';
@@ -900,18 +904,23 @@ export class EmbedHandoffService {
         }
 
         if (index === 0) {
-            return this.firstHeaderMatch(headers, ['SOURCE', 'Source', 'source']) || first;
+            return this.firstHeaderMatch(headers, LINK_SOURCE_HEADERS) || first;
         }
 
         if (index === 1) {
-            return this.firstHeaderMatch(headers, ['TARGET', 'Target', 'target']) || second;
+            return this.firstHeaderMatch(headers, LINK_TARGET_HEADERS) || second;
         }
 
-        return this.firstHeaderMatch(headers, ['length', 'Length', 'distance', 'Distance', 'snps', 'SNPs', 'tn93', 'TN93']) || 'None';
+        return this.firstHeaderMatch(headers, ['length', 'distance', 'dist', 'snps', 'snpdistance', 'geneticdistance', 'tn93']) || 'None';
     }
 
     private firstHeaderMatch(headers: string[], preferred: string[]): string | undefined {
-        return preferred.find(header => headers.includes(header));
+        const preferredSignals = new Set(preferred.map(header => this.normalizeHeaderSignal(header)));
+        return headers.find(header => preferredSignals.has(this.normalizeHeaderSignal(header)));
+    }
+
+    private normalizeHeaderSignal(header: string): string {
+        return String(header ?? '').trim().toLowerCase().replace(/[^a-z0-9]/g, '');
     }
 
     private measureBytes(contents: string | ArrayBuffer | Record<string, unknown>): number {
@@ -1064,7 +1073,7 @@ export class EmbedHandoffService {
     }
 
     private looksLikeLink(headers: string[], fileName: string): boolean {
-        const normalizedHeaders = headers.map(header => header.trim().toLowerCase()).filter(Boolean);
+        const normalizedHeaders = headers.map(header => this.normalizeHeaderSignal(header)).filter(Boolean);
         const hasSource = LINK_SOURCE_HEADERS.some(header => normalizedHeaders.includes(header));
         const hasTarget = LINK_TARGET_HEADERS.some(header => normalizedHeaders.includes(header));
 

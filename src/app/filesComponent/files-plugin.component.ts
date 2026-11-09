@@ -458,11 +458,13 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
       return;
     }
 
-    const sourceHeaders = type === 'node' ? ['ID', 'Id', 'id'] : ['SOURCE', 'Source', 'source'];
+    const sourceHeaders = type === 'node'
+      ? ['id']
+      : ['source', 'src', 'from', 'sequence1', 'seq1', 'sample1'];
     const targetHeaders = type === 'node'
-      ? ['SEQUENCE', 'SEQ', 'Sequence', 'sequence', 'seq']
-      : ['TARGET', 'Target', 'target'];
-    const distanceHeaders = ['length', 'Length', 'distance', 'Distance', 'snps', 'SNPs', 'tn93', 'TN93'];
+      ? ['sequence', 'seq']
+      : ['target', 'tgt', 'to', 'sequence2', 'seq2', 'sample2'];
+    const distanceHeaders = ['length', 'distance', 'dist', 'snps', 'snpdistance', 'geneticdistance', 'tn93'];
     const explicitSelections = [row.file?.field1, row.file?.field2, row.file?.field3];
     [sourceHeaders, targetHeaders, distanceHeaders].forEach((list, index) => {
       const existingSelection = explicitSelections[index];
@@ -473,11 +475,9 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
 
       let selectedValue = 'None';
 
-      list.forEach(title => {
-        if (this.commonService.includes(row.headers, title)) {
-          selectedValue = title;
-        }
-      });
+      const normalizedOptions = new Set(list.map(title => this.normalizeFileTypeSignal(title)));
+      const matchedHeader = row.headers.find(header => normalizedOptions.has(this.normalizeFileTypeSignal(header)));
+      if (matchedHeader) selectedValue = matchedHeader;
 
       if (selectedValue === 'None' &&
         !(index === 1 && type === 'node') &&
@@ -2913,15 +2913,15 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
     const fileNameIncludes = (signals: string[]) => signals.some(signal => normalizedFileName.includes(this.normalizeFileTypeSignal(signal)));
 
     const hasLinkHeaders = hasHeaderPair(
-      ['source', 'src', 'from', 'id1', 'node1', 'nodea', 'sample1', 'case1'],
-      ['target', 'dst', 'to', 'id2', 'node2', 'nodeb', 'sample2', 'case2']
+      ['source', 'src', 'from', 'id1', 'node1', 'nodea', 'sample1', 'case1', 'sequence1', 'seq1'],
+      ['target', 'dst', 'to', 'id2', 'node2', 'nodeb', 'sample2', 'case2', 'sequence2', 'seq2']
     );
 
     if (hasLinkHeaders) {
       return 'link';
     }
 
-    if (fileNameIncludes(['link', 'links', 'linklist', 'edge', 'edges', 'edgelist', 'contacttracing', 'contacttrace'])) {
+    if (fileNameIncludes(['link', 'links', 'linklist', 'edge', 'edges', 'edgelist', 'contacttracing', 'contacttrace', 'molten'])) {
       return 'link';
     }
 
