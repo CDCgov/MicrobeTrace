@@ -1,0 +1,37 @@
+source,target,ContactType,Setting,ContactDate,ContactMinutes,ProximityMeters,GeneticDistanceSNP,distance,EstimatedTransmissionProbability,InvestigationConfidence,Notes
+RB-2026-001,RB-2026-002,Clinical care,Hospital,2026-01-02,95,1.2,1,1,0.91,0.85,Shared treatment team
+RB-2026-001,RB-2026-003,Clinical care,Hospital,2026-01-02,45,1.8,1,1,0.82,0.85,Patient transfer
+RB-2026-002,RB-2026-004,Clinical care,Long-term care,2026-01-03,120,1.0,2,2,0.88,0.85,Bedside assessment
+RB-2026-003,RB-2026-004,Roommate,Long-term care,2026-01-04,480,2.3,1,1,0.97,0.85,Shared room
+RB-2026-003,RB-2026-005,Household,Household,2026-01-04,180,0.8,2,2,0.85,0.85,Weekend family visit
+RB-2026-004,RB-2026-006,Household,Household,2026-01-05,210,1.1,2,2,0.79,0.85,Family contact
+RB-2026-005,RB-2026-006,Workplace,Clinic,2026-01-06,75,2.5,1,1,0.74,0.85,Shared reception shift
+RB-2026-005,RB-2026-007,Household,Household,2026-01-07,360,0.6,2,2,0.93,0.85,Parent-child contact
+RB-2026-006,RB-2026-008,Household,Household,2026-01-08,300,0.7,2,2,0.90,0.85,Parent-child contact
+RB-2026-007,RB-2026-008,School,Household,2026-01-09,240,1.4,1,1,0.81,0.85,Siblings
+RB-2026-006,RB-2026-009,Community,Transit,2026-01-12,25,unknown,6,6,0.28,0.85,Reported bus exposure
+RB-2026-009,RB-2026-010,Workplace,Distribution hub,2026-01-15,160,1.5,1,1,0.89,0.85,Shared loading bay
+RB-2026-009,RB-2026-011,Workplace,Distribution hub,2026-01-16,135,2.0,1,1,0.84,0.85,Shared loading bay
+RB-2026-010,RB-2026-012,Workplace,Distribution hub,2026-01-17,55,2.8,2,2,0.66,0.85,Break room contact
+RB-2026-011,RB-2026-012,Household,Household,2026-01-18,420,0.5,1,1,0.95,0.85,Partners
+RB-2026-011,RB-2026-013,School,Primary school,2026-01-19,35,3.2,2,2,0.58,0.85,School pickup
+RB-2026-012,RB-2026-014,Household,Household,2026-01-20,300,0.7,2,2,0.92,0.85,Parent-child contact
+RB-2026-013,RB-2026-014,School,Primary school,2026-01-21,180,1.1,1,1,0.86,0.85,Same classroom
+RB-2026-013,RB-2026-015,School,Primary school,2026-01-22,90,2.1,2,2,0.72,0.85,Classroom instruction
+RB-2026-014,RB-2026-016,School,Primary school,2026-01-23,70,2.4,2,2,0.69,0.85,Classroom instruction
+RB-2026-015,RB-2026-016,Household,Household,2026-01-24,240,0.9,1,1,0.90,0.85,Partners
+RB-2026-012,RB-2026-017,Community,Restaurant,2026-01-30,15,unknown,9,9,0.12,0.85,Unconfirmed shared venue
+RB-2026-017,RB-2026-018,Clinical care,Hospital,2026-02-01,110,1.3,1,1,0.87,0.85,Emergency department
+RB-2026-017,RB-2026-019,Clinical care,Hospital,2026-02-02,150,1.0,2,2,0.90,0.85,Inpatient care
+RB-2026-018,RB-2026-020,Household,Household,2026-02-03,360,0.6,2,2,0.94,0.85,Family contact
+RB-2026-019,RB-2026-021,Clinical care,Dialysis center,2026-02-04,130,1.7,2,2,0.83,0.85,Patient transport
+RB-2026-020,RB-2026-022,Household,Household,2026-02-05,280,0.8,2,2,0.91,0.85,Family contact
+RB-2026-021,RB-2026-022,Clinical care,Dialysis center,2026-02-06,200,1.4,1,1,0.89,0.85,Adjacent stations
+RB-2026-021,RB-2026-023,Clinical care,Dialysis center,2026-02-07,165,1.9,2,2,0.80,0.85,Shared care team
+RB-2026-022,RB-2026-024,Household,Household,2026-02-08,320,0.7,2,2,0.92,0.85,Family contact
+RB-2026-023,RB-2026-024,Clinical care,Dialysis center,2026-02-10,85,2.2,1,1,0.71,0.85,Waiting room overlap
+RB-2026-005,RB-2026-010,Community,Community event,2026-01-13,5,unknown,8,8,0.08,0.85,Brief outdoor encounter
+RB-2026-008,RB-2026-013,Community,Youth program,2026-01-18,,4.5,5,5,0.31,0.85,Duration unavailable
+RB-2026-016,RB-2026-018,Community,Restaurant,2026-01-29,40,3.8,7,7,0.19,0.85,Possible shared venue
+RB-2026-020,RB-2026-023,Clinical care,Hospital,2026-02-06,60,2.6,3,3,0.55,0.85,Outpatient follow-up
+RB-2026-004,RB-2026-009,Community,Transit,2026-01-11,20,5.5,11,11,0.05,,Low-confidence contact

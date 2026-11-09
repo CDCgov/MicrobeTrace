@@ -12,7 +12,7 @@
     <section class="key-table-card" [hidden]="!isTableDocked('node-color')" [class.key-table-card--collapsed]="nodeTableCollapsed">
       <div class="key-table-card__header">
         <div class="key-table-card__identity">
-          <h5>Node Colors</h5>
+          <h5>{{ nodeColorContinuous ? 'Node Color Legend' : 'Node Colors' }}</h5>
           <span class="key-table-card__scope">Global</span>
         </div>
         <div class="key-table-card__controls">
@@ -23,6 +23,7 @@
             [ngModel]="selectedNodeColorBy"
             (onChange)="onNodeColorByChange($event.value)">
           </p-select>
+          @if (!nodeColorContinuous) {
           <div class="key-table-card__menu-anchor">
             <button
               type="button"
@@ -46,6 +47,18 @@
               </button>
             </div>
           </div>
+          }
+          @if (nodeColorContinuous) {
+          <button
+            type="button"
+            title="Edit node color ramp"
+            aria-label="Edit node color ramp"
+            data-testid="key-tables-node-color-ramp-edit"
+            class="btn btn-sm btn-clean btn-icon btn-icon-md key-table-card__settings-trigger"
+            (click)="openContinuousColorEditor('node', $event)">
+            <i class="pi pi-palette" aria-hidden="true"></i>
+          </button>
+          }
           <button
             type="button"
             [title]="getTableDockButtonTitle('node-color')"
@@ -77,7 +90,17 @@
         </p>
       </div>
       <div class="key-table-card__table" [hidden]="nodeTableCollapsed || !hasNodeColorTable">
-        <style-key-table
+        @if (nodeColorContinuous) {
+          <div id="key-tables-node-legend">
+            <continuous-color-ramp
+              controlId="key-tables-node-ramp"
+              [label]="nodeColorLegendLabel"
+              [resolved]="nodeColorScale"
+              [config]="nodeColorScaleConfig">
+            </continuous-color-ramp>
+          </div>
+        } @else {
+          <style-key-table
           tableId="key-tables-node-table"
           tableKey="node-color"
           controlType="color"
@@ -96,13 +119,14 @@
           (alphaRequest)="onNodeColorAlphaRequested($event)"
           (segmentAlphaChange)="onNodeColorSegmentAlphaChange($event)">
         </style-key-table>
+        }
       </div>
     </section>
 
     <section class="key-table-card" [hidden]="!isTableDocked('link-color')" [class.key-table-card--collapsed]="linkTableCollapsed">
       <div class="key-table-card__header">
         <div class="key-table-card__identity">
-          <h5>Link Colors</h5>
+          <h5>{{ linkColorContinuous ? 'Link Color Legend' : 'Link Colors' }}</h5>
           <span class="key-table-card__scope">Global</span>
         </div>
         <div class="key-table-card__controls">
@@ -113,6 +137,7 @@
             [ngModel]="selectedLinkColorBy"
             (onChange)="onLinkColorByChange($event.value)">
           </p-select>
+          @if (!linkColorContinuous) {
           <div class="key-table-card__menu-anchor">
             <button
               type="button"
@@ -136,6 +161,18 @@
               </button>
             </div>
           </div>
+          }
+          @if (linkColorContinuous) {
+          <button
+            type="button"
+            title="Edit link color ramp"
+            aria-label="Edit link color ramp"
+            data-testid="key-tables-link-color-ramp-edit"
+            class="btn btn-sm btn-clean btn-icon btn-icon-md key-table-card__settings-trigger"
+            (click)="openContinuousColorEditor('link', $event)">
+            <i class="pi pi-palette" aria-hidden="true"></i>
+          </button>
+          }
           <button
             type="button"
             [title]="getTableDockButtonTitle('link-color')"
@@ -167,7 +204,17 @@
         </p>
       </div>
       <div class="key-table-card__table" [hidden]="linkTableCollapsed || !hasLinkColorTable">
-        <style-key-table
+        @if (linkColorContinuous) {
+          <div id="key-tables-link-legend">
+            <continuous-color-ramp
+              controlId="key-tables-link-ramp"
+              [label]="linkColorLegendLabel"
+              [resolved]="linkColorScale"
+              [config]="linkColorScaleConfig">
+            </continuous-color-ramp>
+          </div>
+        } @else {
+          <style-key-table
           tableId="key-tables-link-table"
           tableKey="link-color"
           controlType="color"
@@ -185,7 +232,8 @@
           (colorChange)="onLinkColorTableColorChange($event)"
           (alphaRequest)="onLinkColorAlphaRequested($event)"
           (segmentAlphaChange)="onLinkColorSegmentAlphaChange($event)">
-        </style-key-table>
+          </style-key-table>
+        }
       </div>
     </section>
 

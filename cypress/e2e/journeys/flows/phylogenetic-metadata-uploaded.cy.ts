@@ -618,6 +618,7 @@ describe('Journey Flow - Phylogenetic Tree metadata-backed controls', () => {
     const expectedSelectedStroke = normalizeColor(hexToRgbString(selectedColor));
 
     openGlobalStylingTab();
+    cy.get('#selected-color').scrollIntoView().should('be.visible');
     setColorInputValue('#selected-color', selectedColor);
 
     cy.window().its('commonService.session.style.widgets.selected-color').should('equal', selectedColor);
@@ -646,6 +647,7 @@ describe('Journey Flow - Phylogenetic Tree metadata-backed controls', () => {
 
     openGlobalStylingTab();
     selectPrimeOption('#node-color-variable', 'Cluster');
+    selectPrimeOption('#node-color-scale-mode', 'Categorical');
 
     cy.window()
       .its('commonService.session.style.widgets.node-color-variable')
