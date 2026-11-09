@@ -220,12 +220,14 @@ export class ExportService {
       .trim();
   }
 
-  private getShapeExportData(cellValue: string): { shapeKey: string, label: string } | null {
+  private getShapeExportData(cellValue: string): { shapeKey: string, label: string, previewSrc?: string } | null {
     if (cellValue.startsWith(this.nodeShapeExportPrefix)) {
-      const [, shapeKey = '', label = ''] = cellValue.split('|');
+      const [, shapeKey = '', label = '', preview = ''] = cellValue.split('|');
+      const previewSrc = decodeURIComponent(preview);
       return {
         shapeKey: decodeURIComponent(shapeKey),
-        label: decodeURIComponent(label)
+        label: decodeURIComponent(label),
+        previewSrc: previewSrc.startsWith('data:image/svg+xml') ? previewSrc : undefined
       };
     }
 
@@ -301,7 +303,7 @@ export class ExportService {
   }
 
   private extractShapeCellValue(cell: HTMLTableCellElement): string | null {
-    const shapeSelector = cell.querySelector('p-dropdown, p-treeselect');
+    const shapeSelector = cell.querySelector('p-dropdown, p-treeselect, p-tree-select, .shape-tree-value');
     if (!shapeSelector) {
       return null;
     }
@@ -314,7 +316,9 @@ export class ExportService {
         .replace(/\s+/g, ' ')
         .trim();
 
-      return `${this.nodeShapeExportPrefix}${encodeURIComponent(shapeKey)}|${encodeURIComponent(label)}`;
+      const customPreview = shapePreview.getAttribute('data-shape-preview-src');
+      return `${this.nodeShapeExportPrefix}${encodeURIComponent(shapeKey)}|${encodeURIComponent(label)}`
+        + (customPreview ? `|${encodeURIComponent(customPreview)}` : '');
     }
 
     const shapeAnchor = shapeSelector.querySelector('a');
@@ -359,7 +363,7 @@ export class ExportService {
 
     const label = this.escapeSVGText(shapeData.label);
     const iconTop = baselineY - 16;
-    const previewUri = this.escapeSVGText(getNodeShapePreviewDataUri(shapeData.shapeKey));
+    const previewUri = this.escapeSVGText(shapeData.previewSrc ?? getNodeShapePreviewDataUri(shapeData.shapeKey));
 
     return `<g font-family="Roboto, 'Helvetica Neue', sans-serif" font-size="16" fill="black">
       <image href="${previewUri}" x="${x}" y="${iconTop}" width="16" height="16" preserveAspectRatio="xMidYMid meet"></image>

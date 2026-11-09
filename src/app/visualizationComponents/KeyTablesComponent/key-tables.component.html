@@ -192,7 +192,7 @@
       <div class="key-table-card__header">
         <div class="key-table-card__identity">
           <h5>Node Shapes</h5>
-          <span class="key-table-card__scope">Global</span>
+          <span class="key-table-card__scope">2D Shapes</span>
         </div>
         <div class="key-table-card__controls">
           <p-select
@@ -297,6 +297,10 @@
         }
       </div>
     </section>
+
+    @if (threeD?.shapeLegend?.mode === 'Dock') {
+      <three-d-shape-legend [model]="threeD.shapeLegend" tableId="threed-docked-shape-table" (change)="threeD.changeShapeLegend($event)"></three-d-shape-legend>
+    }
 
     <section class="key-table-card" [hidden]="!showPolygonColorTableCard" [class.key-table-card--collapsed]="polygonTableCollapsed">
       <div class="key-table-card__header">

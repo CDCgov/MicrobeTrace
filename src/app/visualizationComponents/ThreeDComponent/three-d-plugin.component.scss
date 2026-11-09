@@ -26,8 +26,7 @@
 label { display: block; margin-top: 10px; }
 .three-d-settings label { margin-top: 0; }
 .three-d-settings-note { margin: 12px 0 0; font-size: 14px; }
-.three-d-shape-key { display: block; margin-bottom: 16px; }
-.three-d-shape-key td { overflow-wrap: anywhere; }
+.three-d-export-key { position: fixed; left: -10000px; top: 0; width: 540px; pointer-events: none; }
 input[type='range'] { width: 100%; }
 .three-d-check { display: flex; gap: 8px; align-items: center; }
 

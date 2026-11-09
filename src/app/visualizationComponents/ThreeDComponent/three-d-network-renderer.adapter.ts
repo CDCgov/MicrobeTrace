@@ -1,6 +1,11 @@
 import type { ForceGraph3DInstance } from '3d-force-graph';
 import { ThreeDOrientationIndicator } from './three-d-orientation-indicator';
-import { ThreeDNodeObjects } from './three-d-node-objects';
+import { ThreeDNodeObjects, type ThreeDNodeFrameClasses } from './three-d-node-objects';
+import { ThreeDLinkOverlays } from './three-d-link-overlays';
+import { ThreeDLinkArrows } from './three-d-link-arrows';
+import { labelWorldHeight, ThreeDTextSprites } from './three-d-text-sprites';
+import type * as Three from 'three';
+import { color as parseColor } from 'd3-color';
 import {
   finiteThreeDPoint, ThreeDGraphData, ThreeDLink, ThreeDNode, ThreeDPoint,
   ThreeDSettings, ThreeDViewState,
@@ -34,6 +39,15 @@ export class ThreeDNetworkRenderer {
   private orientation: ThreeDOrientationIndicator | null = null;
   private nodeObjects: ThreeDNodeObjects;
   private contextLost: (event: Event) => void;
+  private settings?: ThreeDSettings;
+  private linkLabels: ThreeDTextSprites;
+  private linkOverlays: ThreeDLinkOverlays;
+  private linkArrows: ThreeDLinkArrows;
+  private hovered: string | null = null;
+  private neighborhood: Set<string> | null = null;
+  private customLinkSignature = '';
+  private linkObjects = new Map<string, Three.Group>();
+  private linkWidthAccessor = (link: ThreeDLink) => link.width ?? this.settings?.linkWidth ?? 1.6;
 
   static async create(
     host: HTMLElement,
@@ -42,10 +56,14 @@ export class ThreeDNetworkRenderer {
     onContextLost: () => void,
     onRotationChange: (playing: boolean) => void = () => {},
   ): Promise<ThreeDNetworkRenderer> {
-    const [{ default: ForceGraph3D }, three] = await Promise.all([import('3d-force-graph'), import('three')]);
+    const [{ default: ForceGraph3D }, three, { LineSegments2 }, { LineSegmentsGeometry }, { LineMaterial }] = await Promise.all([
+      import('3d-force-graph'), import('three'), import('three/addons/lines/LineSegments2.js'),
+      import('three/addons/lines/LineSegmentsGeometry.js'), import('three/addons/lines/LineMaterial.js'),
+    ]);
     return new ThreeDNetworkRenderer(new ForceGraph3D(host, {
       controlType: 'trackball', rendererConfig: { antialias: true, preserveDrawingBuffer: true },
-    }) as ForceGraph3DInstance<ThreeDNode, ThreeDLink>, onSelect, onStateChange, onContextLost, onRotationChange, three);
+    }) as ForceGraph3DInstance<ThreeDNode, ThreeDLink>, onSelect, onStateChange, onContextLost, onRotationChange, three,
+    { LineSegments2, LineSegmentsGeometry, LineMaterial });
   }
 
   private constructor(
@@ -54,15 +72,20 @@ export class ThreeDNetworkRenderer {
     onStateChange: () => void,
     onContextLost: () => void,
     private onRotationChange: (playing: boolean) => void,
-    three: typeof import('three'),
+    private three: typeof import('three'),
+    frameClasses: ThreeDNodeFrameClasses,
   ) {
     this.graph = graph;
-    this.nodeObjects = new ThreeDNodeObjects(three);
+    this.nodeObjects = new ThreeDNodeObjects(three, frameClasses);
+    this.linkLabels = new ThreeDTextSprites(three);
+    this.linkOverlays = new ThreeDLinkOverlays(three);
+    this.linkArrows = new ThreeDLinkArrows(three);
     this.graph.enableNodeDrag(false).showNavInfo(false)
       .nodeId('id').nodeOpacity(1).nodeResolution(8)
       .nodeThreeObject(node => this.nodeObjects.create(node))
       .nodeLabel(node => this.label(node.tooltip)).linkLabel(link => this.label(link.tooltip))
       .onNodeClick((node, event) => onSelect(node.id, event))
+      .onNodeHover(node => { this.hovered = node?.id ?? null; if (this.settings?.highlightNeighbors) this.updateHighlight(); })
       .onBackgroundClick(event => onSelect(null, event))
       .warmupTicks(0).cooldownTicks(150).cooldownTime(6000)
       .onEngineStop(() => {
@@ -71,9 +94,10 @@ export class ThreeDNetworkRenderer {
           this.fitOnSettle = false;
           this.fit();
         }
+        this.updateLabelScales();
         onStateChange();
       });
-    this.cameraChanged = () => { this.orientation?.update(this.graph.camera()); onStateChange(); };
+    this.cameraChanged = () => { this.orientation?.update(this.graph.camera()); this.updateLabelScales(); onStateChange(); };
     this.cameraInteractionStarted = () => { this.fitOnSettle = false; this.setCameraRotating(false); };
     this.controls.addEventListener('change', this.cameraChanged);
     this.controls.addEventListener('start', this.cameraInteractionStarted);
@@ -103,7 +127,9 @@ export class ThreeDNetworkRenderer {
 
   setData(data: ThreeDGraphData, settings: ThreeDSettings, background: string): void {
     this.capturePositions();
-    this.nodeObjects.sync(data.nodes, settings.nodeSize);
+    const lengthChanged = this.settings && this.settings.linkLength !== settings.linkLength;
+    this.settings = { ...settings };
+    this.graph.camera().updateMatrixWorld();
     const topologyChanged = data.nodes.length !== this.data.nodes.length || data.links.length !== this.data.links.length
       || data.nodes.some((node, i) => node.id !== this.data.nodes[i]?.id)
       || data.links.some((link, i) => link.key !== this.data.links[i]?.key);
@@ -120,12 +146,85 @@ export class ThreeDNetworkRenderer {
       if (!data.nodes.length) this.setCameraRotating(false);
     } else {
       // Keep the force engine's resolved link objects; only their display properties change.
-      data.links.forEach((link, i) => Object.assign(this.data.links[i], { color: link.color, tooltip: link.tooltip }));
+      data.links.forEach((link, i) => Object.assign(this.data.links[i], { color: link.color, overlayColor: link.overlayColor, tooltip: link.tooltip, width: link.width, label: link.label,
+        targetArrow: link.targetArrow, sourceArrow: link.sourceArrow }));
     }
-    this.graph.nodeColor(node => node.color).nodeVal(node => node.value)
+    const customLinkSignature = JSON.stringify([settings.linkLabelSize, data.links.map(link => [link.label, Boolean(link.overlayColor), Boolean(link.sourceArrow), Boolean(link.targetArrow)])]);
+    const linkIds = new Set(data.links.filter(link => link.label || link.overlayColor || link.sourceArrow || link.targetArrow).map(link => link.key));
+    this.linkObjects.forEach((_, key) => { if (!linkIds.has(key)) this.linkObjects.delete(key); });
+    if (customLinkSignature !== this.customLinkSignature) {
+      this.customLinkSignature = customLinkSignature;
+      this.graph.linkThreeObjectExtend(true).linkThreeObject(link => {
+        if (!link.label && !link.overlayColor && !link.sourceArrow && !link.targetArrow) return null;
+        const group = new this.three.Group();
+        this.linkObjects.set(link.key, group);
+        this.scaleLinkLabel(group, link.label);
+        this.linkOverlays.create(group, link);
+        this.linkArrows.create(group, link);
+        return group;
+      }).linkPositionUpdate((object, { start, end }, link) => {
+        if (object) {
+          object.position.set((start.x + end.x) / 2, (start.y + end.y) / 2, (start.z + end.z) / 2);
+          this.scaleLinkLabel(object, link.label || '');
+          this.linkOverlays.position(link, start, end);
+          this.linkArrows.position(link, start, end);
+        }
+      });
+      this.linkLabels.retain(data.links.map(link => link.label || ''));
+    }
+    this.graph.nodeColor(node => node.color).nodeVal(node => node.radius == null ? node.value : Math.pow(node.radius / settings.nodeSize, 3))
       .nodeRelSize(settings.nodeSize).linkColor(link => link.color)
-      .linkWidth(settings.linkWidth).linkOpacity(1 - settings.linkTransparency)
+      .linkWidth(this.linkWidthAccessor).linkOpacity(1)
+      .linkDirectionalArrowLength(0)
       .backgroundColor(background);
+    this.graph.d3Force('link')?.distance(settings.linkLength);
+    if (lengthChanged && !this.frozen) this.graph.d3ReheatSimulation();
+    this.updateHighlight();
+  }
+
+  private scaleLinkLabel(object: Three.Object3D, text: string): void {
+    if (!this.settings || !text) return;
+    this.linkLabels.update(object, 'link-label', text, labelWorldHeight({ camera: this.graph.camera(), height: this.graph.height() }, object.position, this.settings.linkLabelSize));
+  }
+
+  private updateLabelScales(): void {
+    if (!this.settings || this.settings.nodeLabelField === 'None' && this.settings.linkLabelField === 'None') return;
+    this.graph.camera().updateMatrixWorld();
+    this.nodeObjects.updateLabels({ camera: this.graph.camera(), height: this.graph.height() });
+    this.data.links.forEach(link => {
+      const object = this.linkObjects.get(link.key);
+      if (object) this.scaleLinkLabel(object, link.label || '');
+    });
+  }
+
+  private updateHighlight(): void {
+    if (!this.settings) return;
+    this.neighborhood = this.settings.highlightNeighbors && this.hovered && this.data.nodes.some(node => node.id === this.hovered)
+      ? new Set([this.hovered]) : null;
+    if (this.neighborhood) this.data.links.forEach(link => {
+      const source = typeof link.source === 'string' ? link.source : link.source.id;
+      const target = typeof link.target === 'string' ? link.target : link.target.id;
+      if (source === this.hovered) this.neighborhood.add(target);
+      if (target === this.hovered) this.neighborhood.add(source);
+    });
+    const dimmed = new Set(this.data.nodes.filter(node => this.neighborhood && !this.neighborhood.has(node.id)).map(node => node.id));
+    this.nodeObjects.sync(this.data.nodes, this.settings.nodeSize, this.settings, dimmed, { camera: this.graph.camera(), height: this.graph.height() });
+    const dimmedLinks = new Set(this.neighborhood ? this.data.links.filter(link => {
+      const source = typeof link.source === 'string' ? link.source : link.source.id;
+      const target = typeof link.target === 'string' ? link.target : link.target.id;
+      return source !== this.hovered && target !== this.hovered;
+    }).map(link => link.key) : []);
+    this.linkOverlays.sync(this.data.links, dimmedLinks);
+    this.linkArrows.sync(this.data.links, dimmedLinks);
+    this.graph.linkColor(link => {
+      const source = typeof link.source === 'string' ? link.source : link.source.id;
+      const target = typeof link.target === 'string' ? link.target : link.target.id;
+      if (!this.neighborhood || source === this.hovered || target === this.hovered) return link.color;
+      const color = parseColor(link.color);
+      if (!color) return link.color;
+      color.opacity *= 0.12;
+      return color.formatRgb();
+    });
   }
 
   restore(state: ThreeDViewState | null): void {
@@ -170,6 +269,7 @@ export class ThreeDNetworkRenderer {
   resize(width: number, height: number): void {
     if (width <= 0 || height <= 0) return;
     this.graph.width(Math.round(width)).height(Math.round(height));
+    this.updateLabelScales();
     if (this.resizeFrame !== null) cancelAnimationFrame(this.resizeFrame);
     // Trackball maps pointer positions using the canvas bounds, which change when docked.
     this.resizeFrame = requestAnimationFrame(() => {
@@ -296,9 +396,13 @@ export class ThreeDNetworkRenderer {
     this.controls.removeEventListener('change', this.cameraChanged);
     this.controls.removeEventListener('start', this.cameraInteractionStarted);
     this.canvas.removeEventListener('webglcontextlost', this.contextLost);
-    this.graph.onNodeClick(() => {}).onBackgroundClick(() => {}).onEngineStop(() => {});
+    this.graph.onNodeClick(() => {}).onNodeHover(() => {}).onBackgroundClick(() => {}).onEngineStop(() => {});
     this.graph._destructor();
     this.nodeObjects.destroy();
+    this.linkLabels.destroy();
+    this.linkOverlays.destroy();
+    this.linkArrows.destroy();
+    this.linkObjects.clear();
     renderer.forceContextLoss();
     this.graph = null;
     this.cameraChanged = null;

@@ -86,19 +86,31 @@
 </div>
 
 @if (viewActive) {
-  <p-dialog data-testid="threed-settings-dialog" [(visible)]="settingsOpen" header="3D Network Settings" appendTo="body" [style]="{width: '430px', maxWidth: '95vw'}">
+  <p-dialog data-testid="threed-settings-dialog" [(visible)]="settingsOpen" header="3D Network Settings" appendTo="body" styleClass="network-settings-dialog">
     <div class="three-d-settings">
       <tabset class="tab-container tabbable-line">
         <tab heading="{{'Nodes' | localize}}" [active]="true" customClass="m-tabs__item">
           <p-accordion [value]="null" [multiple]="true">
             <p-accordion-panel value="threed-node-tooltips" style="color:#495057">
-              <p-accordion-header>Tooltips</p-accordion-header>
+              <p-accordion-header>Labels and Tooltips</p-accordion-header>
               <p-accordion-content>
+                <div class="form-group row" title="What field should be displayed as a label for the node?">
+                  <div class="col-4"><label for="threed-node-label">Label</label></div>
+                  <div class="col-8"><p-select inputId="threed-node-label" ariaLabel="Node Label" [options]="nodeFields" optionLabel="label" optionValue="value" appendTo="body" class="width-percent-100" [(ngModel)]="settings.nodeLabelField" (ngModelChange)="changeSettings()"></p-select></div>
+                </div>
+                <div class="form-group row" title="How big should node labels be?">
+                  <div class="col-4"><label for="threed-node-label-size">Label Size</label></div>
+                  <div class="col-8"><input id="threed-node-label-size" type="range" class="custom-range" min="6" max="72" [(ngModel)]="settings.nodeLabelSize" (ngModelChange)="changeSettings()"></div>
+                </div>
+                <div class="form-group row" title="Where should the label appear relative to the node?">
+                  <div class="col-4"><label for="threed-node-label-orientation">Orientation</label></div>
+                  <div class="col-8"><p-select inputId="threed-node-label-orientation" ariaLabel="Node Label Orientation" [options]="orientationOptions" appendTo="body" class="width-percent-100" [(ngModel)]="settings.nodeLabelOrientation" (ngModelChange)="changeSettings()"></p-select></div>
+                </div>
                 <div class="form-group row" title="What data should be displayed when you hover over a node?">
                   <div class="col-4"><label id="threed-node-tooltip-label" for="threed-node-tooltip">Tooltip</label></div>
                   <div class="col-8">
-                    <p-select inputId="threed-node-tooltip" ariaLabelledBy="threed-node-tooltip-label" [options]="nodeFields" optionLabel="label" optionValue="value"
-                      appendTo="body" class="width-percent-100" [(ngModel)]="settings.nodeTooltipField" (ngModelChange)="changeSettings()"></p-select>
+                    <p-multi-select inputId="threed-node-tooltip" ariaLabelledBy="threed-node-tooltip-label" [options]="nodeFields.slice(1)" optionLabel="label" optionValue="value"
+                      appendTo="body" [showToggleAll]="false" [showHeader]="false" class="width-percent-100" [(ngModel)]="settings.nodeTooltipFields" (ngModelChange)="changeSettings()"></p-multi-select>
                   </div>
                 </div>
               </p-accordion-content>
@@ -106,39 +118,14 @@
             <p-accordion-panel value="threed-node-sizes" style="color:#495057">
               <p-accordion-header>Shapes and Sizes</p-accordion-header>
               <p-accordion-content>
-                <div class="form-group row" title="Choose a field to assign 3D shapes by category.">
-                  <div class="col-4"><label id="threed-node-shape-field-label" for="threed-node-shape-field">Shape By</label></div>
-                  <div class="col-8">
-                    <p-select inputId="threed-node-shape-field" ariaLabelledBy="threed-node-shape-field-label" [options]="nodeFields" optionLabel="label" optionValue="value"
-                      appendTo="body" class="width-percent-100" [(ngModel)]="settings.nodeShapeField" (ngModelChange)="changeShapeField()"></p-select>
-                  </div>
+                <div class="form-group row" title="Configure 3D node shapes and category assignments.">
+                  <div class="col-4"><label>Shape</label></div>
+                  <div class="col-8"><button pButton type="button" class="ui-button-raised width-percent-100" (click)="openShapes($event)" [style]="{'background-color':'#2196f3','border':'1px solid #2196f3'}"><span class="p-button-label">Show Shapes</span></button></div>
                 </div>
-                @if (settings.nodeShapeField === 'None') {
-                  <div class="form-group row" title="Choose the shape used for all nodes.">
-                    <div class="col-4"><label id="threed-node-shape-label" for="threed-node-shape">Shape</label></div>
-                    <div class="col-8">
-                      <p-select inputId="threed-node-shape" ariaLabelledBy="threed-node-shape-label" [options]="shapeOptions" optionLabel="label" optionValue="value"
-                        appendTo="body" class="width-percent-100" [(ngModel)]="settings.nodeShape" (ngModelChange)="changeSettings()"></p-select>
-                    </div>
-                  </div>
-                } @else {
-                  <p-table class="three-d-shape-key" data-testid="threed-shape-key" [value]="shapeCategories" [rows]="6"
-                    [paginator]="shapeCategories.length > 6" [first]="shapeCategoryFirst" (onPage)="shapeCategoryFirst = $event.first"
-                    [tableStyle]="{'table-layout': 'fixed', width: '100%'}">
-                    <ng-template #header><tr><th scope="col">Value (nodes)</th><th scope="col">3D shape</th></tr></ng-template>
-                    <ng-template #body let-category>
-                      <tr>
-                        <td>{{ category.label }} ({{ category.count | number }})</td>
-                        <td>
-                          <p-select [ariaLabel]="'Shape for ' + category.label" [options]="shapeOptions" optionLabel="label" optionValue="value"
-                            appendTo="body" class="width-percent-100" [ngModel]="settings.nodeShapeMappings[settings.nodeShapeField][category.key]"
-                            (ngModelChange)="setCategoryShape(category.key, $event)"></p-select>
-                        </td>
-                      </tr>
-                    </ng-template>
-                  </p-table>
-                  @if (shapeCategories.length > 6) { <p class="three-d-settings-note">Shapes repeat when there are more than six categories.</p> }
-                }
+                <div class="form-group row" title="Choose where to display the 3D node shape table.">
+                  <div class="col-4"><label>Shape Table</label></div>
+                  <div class="col-8"><p-select-button ariaLabel="3D Shape Table" [options]="tableModes" [allowEmpty]="false" fluid [ngModel]="shapeLegend.mode" (ngModelChange)="changeShapeLegend({type:'mode',value:$event})"></p-select-button></div>
+                </div>
                 <div class="form-group row" title="Which variable should determine the size of the node?">
                   <div class="col-4"><label id="threed-node-size-field-label" for="threed-node-size-field">Size By</label></div>
                   <div class="col-8">
@@ -146,19 +133,29 @@
                       appendTo="body" class="width-percent-100" [(ngModel)]="settings.nodeSizeField" (ngModelChange)="changeSettings()"></p-select>
                   </div>
                 </div>
+                @if (settings.nodeSizeField !== 'None') {
+                  <div class="form-group row"><div class="col-4"><label for="threed-node-size-max">Max Size</label></div><div class="col-8"><input id="threed-node-size-max" type="range" class="custom-range" min="0.1" max="20" step="0.1" [(ngModel)]="settings.nodeSizeMax" (ngModelChange)="changeSettings()"></div></div>
+                  <div class="form-group row"><div class="col-4"><label for="threed-node-size-min">Min Size</label></div><div class="col-8"><input id="threed-node-size-min" type="range" class="custom-range" min="0.1" max="20" step="0.1" [(ngModel)]="settings.nodeSizeMin" (ngModelChange)="changeSettings()"></div></div>
+                } @else {
                 <div class="form-group row" title="How big should the nodes be?">
-                  <div class="col-4"><label for="threed-node-size">Size: {{ settings.nodeSize }}</label></div>
+                  <div class="col-4"><label for="threed-node-size">Size</label></div>
                   <div class="col-8">
                     <input id="threed-node-size" type="range" class="custom-range" min="0.1" max="20" step="0.1" [(ngModel)]="settings.nodeSize" (ngModelChange)="changeSettings()">
                   </div>
+                </div>
+                }
+                <div class="form-group row" title="Width in pixels of the 3D shape's frame edges. Set to 0 to hide the frame.">
+                  <div class="col-4"><label for="threed-node-border-width">Border Width</label></div>
+                  <div class="col-8"><input id="threed-node-border-width" class="form-control form-control-sm" type="number" min="0" max="10" step="0.1" [(ngModel)]="settings.nodeBorderWidth" (ngModelChange)="changeSettings()"></div>
                 </div>
               </p-accordion-content>
             </p-accordion-panel>
             <p-accordion-panel value="threed-node-colors" style="color:#495057">
               <p-accordion-header>Colors</p-accordion-header>
               <p-accordion-content>
-                <button pButton type="button" class="ui-button-raised" (click)="openGlobalColors()"
+                <button pButton type="button" class="ui-button-raised" (click)="openGlobalColors($event)"
                   [style]="{'background-color': '#2196f3', 'border': '1px solid #2196f3'}"><span class="p-button-label">Show Colors</span></button>
+                <p class="three-d-settings-note">Mixed-color rings are available in 2D Network. 3D nodes use a solid color.</p>
               </p-accordion-content>
             </p-accordion-panel>
           </p-accordion>
@@ -166,56 +163,98 @@
         <tab heading="{{'Links' | localize}}" customClass="m-tabs__item">
           <p-accordion [value]="null" [multiple]="true">
             <p-accordion-panel value="threed-link-tooltips" style="color:#495057">
-              <p-accordion-header>Tooltips</p-accordion-header>
+              <p-accordion-header>Labels and Tooltips</p-accordion-header>
               <p-accordion-content>
                 <div class="form-group row" title="What data should be displayed when you hover over a link?">
                   <div class="col-4"><label id="threed-link-tooltip-label" for="threed-link-tooltip">Tooltip</label></div>
                   <div class="col-8">
-                    <p-select inputId="threed-link-tooltip" ariaLabelledBy="threed-link-tooltip-label" [options]="linkFields" optionLabel="label" optionValue="value"
-                      appendTo="body" class="width-percent-100" [(ngModel)]="settings.linkTooltipField" (ngModelChange)="changeSettings()"></p-select>
+                    <p-multi-select inputId="threed-link-tooltip" ariaLabelledBy="threed-link-tooltip-label" [options]="linkFields.slice(1)" optionLabel="label" optionValue="value"
+                      appendTo="body" [showToggleAll]="false" [showHeader]="false" class="width-percent-100" [(ngModel)]="settings.linkTooltipFields" (ngModelChange)="changeSettings()"></p-multi-select>
                   </div>
                 </div>
+                <div class="form-group row"><div class="col-4"><label>Label</label></div><div class="col-8"><p-select ariaLabel="Link Label" [options]="linkFields" optionLabel="label" optionValue="value" appendTo="body" class="width-percent-100" [(ngModel)]="settings.linkLabelField" (ngModelChange)="changeSettings()"></p-select></div></div>
+                <div class="form-group row"><div class="col-4"><label for="threed-link-label-size">Label Size</label></div><div class="col-8"><input id="threed-link-label-size" type="range" class="custom-range" min="6" max="72" [(ngModel)]="settings.linkLabelSize" (ngModelChange)="changeSettings()"></div></div>
+                <div class="form-group row"><div class="col-4"><label for="threed-link-decimals">Decimal Length</label></div><div class="col-8"><input id="threed-link-decimals" class="form-control form-control-sm" type="number" min="0" max="6" step="1" [(ngModel)]="settings.linkLabelDecimals" (ngModelChange)="changeSettings()"></div></div>
               </p-accordion-content>
             </p-accordion-panel>
             <p-accordion-panel value="threed-link-sizes" style="color:#495057">
-              <p-accordion-header>Sizes</p-accordion-header>
+              <p-accordion-header>Shapes and Sizes</p-accordion-header>
               <p-accordion-content>
+                <div class="form-group row" title="How transparent should the links be? Move right to make links more transparent.">
+                  <div class="col-4"><label for="threed-link-transparency">Transparency</label></div>
+                  <div class="col-8"><input id="threed-link-transparency" type="range" class="custom-range" min="0" max="1" step="0.01" [(ngModel)]="linkTransparency" (ngModelChange)="changeSettings()"></div>
+                </div>
+                <div class="form-group row"><div class="col-4"></div><div class="col-8"><button type="button" class="btn btn-sm btn-light" [disabled]="!settings.linkOpacityOverride" (click)="useLegendTransparency()">Use legend transparency</button></div></div>
+                <div class="form-group row"><div class="col-4"><label>Width By</label></div><div class="col-8"><p-select ariaLabel="Width By" [options]="linkSizeFields" optionLabel="label" optionValue="value" appendTo="body" class="width-percent-100" [(ngModel)]="settings.linkWidthField" (ngModelChange)="changeSettings()"></p-select></div></div>
+                @if (settings.linkWidthField !== 'None') {
+                  <div class="form-group row"><div class="col-4"><label for="threed-link-width-max">Max Width</label></div><div class="col-8"><input id="threed-link-width-max" type="range" class="custom-range" min="0.3" max="30" step="0.3" [(ngModel)]="settings.linkWidthMax" (ngModelChange)="changeSettings()"></div></div>
+                  <div class="form-group row"><div class="col-4"><label for="threed-link-width-min">Min Width</label></div><div class="col-8"><input id="threed-link-width-min" type="range" class="custom-range" min="0.3" max="20" step="0.3" [(ngModel)]="settings.linkWidthMin" (ngModelChange)="changeSettings()"></div></div>
+                  <div class="form-group row"><div class="col-4"><label>Reciprocal</label></div><div class="col-8"><p-select-button ariaLabel="Reciprocal Width" [options]="reciprocalOptions" [allowEmpty]="false" fluid [(ngModel)]="settings.linkWidthReciprocal" (ngModelChange)="changeSettings()"></p-select-button></div></div>
+                } @else {
                 <div class="form-group row" title="How thick should the links be?">
-                  <div class="col-4"><label for="threed-link-width">Width: {{ settings.linkWidth }}</label></div>
+                  <div class="col-4"><label for="threed-link-width">Width</label></div>
                   <div class="col-8">
-                    <input id="threed-link-width" type="range" class="custom-range" min="0" max="20" step="0.1" [(ngModel)]="settings.linkWidth" (ngModelChange)="changeSettings()">
+                    <input id="threed-link-width" type="range" class="custom-range" min="0.3" max="30" step="0.3" [(ngModel)]="settings.linkWidth" (ngModelChange)="changeSettings()">
                   </div>
                 </div>
-                <div class="form-group row" title="How transparent should the links be?">
-                  <div class="col-4"><label for="threed-link-transparency">Transparency: {{ settings.linkTransparency | percent }}</label></div>
-                  <div class="col-8">
-                    <input id="threed-link-transparency" type="range" class="custom-range" min="0" max="1" step="0.01" [(ngModel)]="settings.linkTransparency" (ngModelChange)="changeSettings()">
-                  </div>
-                </div>
+                }
+                <div class="form-group row" title="How long should links be? Disabled when the layout is frozen."><div class="col-4"><label for="threed-link-length">Length</label></div><div class="col-8"><input id="threed-link-length" type="range" class="custom-range" min="20" max="170" [disabled]="layoutFrozen" [(ngModel)]="settings.linkLength" (change)="changeSettings()"></div></div>
+                <div class="form-group row"><div class="col-4"><label>Arrows</label></div><div class="col-8"><p-select-button ariaLabel="Link Arrows" [options]="hideShowOptions" [allowEmpty]="false" fluid [(ngModel)]="settings.linkArrows" (ngModelChange)="changeSettings()"></p-select-button></div></div>
+                @if (settings.linkArrows) {
+                  <div class="form-group row" title="Show reverse arrowheads on links marked as bidirectional."><div class="col-4"><label>Bidirectional</label></div><div class="col-8"><p-select-button ariaLabel="Bidirectional Link Arrows" [options]="hideShowOptions" [allowEmpty]="false" fluid [(ngModel)]="settings.linkBidirectional" (ngModelChange)="changeSettings()"></p-select-button></div></div>
+                }
               </p-accordion-content>
             </p-accordion-panel>
             <p-accordion-panel value="threed-link-colors" style="color:#495057">
               <p-accordion-header>Colors</p-accordion-header>
               <p-accordion-content>
-                <button pButton type="button" class="ui-button-raised" (click)="openGlobalColors()"
+                <button pButton type="button" class="ui-button-raised" (click)="openGlobalColors($event)"
                   [style]="{'background-color': '#2196f3', 'border': '1px solid #2196f3'}"><span class="p-button-label">Show Colors</span></button>
               </p-accordion-content>
             </p-accordion-panel>
           </p-accordion>
+        </tab>
+        <tab heading="{{'Network' | localize}}" customClass="m-tabs__item">
+          <p-accordion [value]="null" [multiple]="true"><p-accordion-panel value="threed-network-display" style="color:#495057">
+            <p-accordion-header>Display</p-accordion-header><p-accordion-content>
+              <div class="form-group row" title="Highlight a node's neighbors when hovering over it."><div class="col-4"><label>Neighbors</label></div><div class="col-8"><p-select-button ariaLabel="Highlight Neighbors" [options]="neighborOptions" [allowEmpty]="false" fluid [(ngModel)]="settings.highlightNeighbors" (ngModelChange)="changeSettings()"></p-select-button></div></div>
+            </p-accordion-content>
+          </p-accordion-panel></p-accordion>
         </tab>
       </tabset>
       <p class="three-d-settings-note">Colors, background, distance threshold, and filtering follow the global settings.</p>
     </div>
   </p-dialog>
 
+  <p-dialog header="3D Shape Settings" styleClass="threed-shape-settings-dialog" appendTo="body" [visible]="shapeLegend.mode === 'Show'" (onShow)="positionShapeDialog()" (visibleChange)="!$event && changeShapeLegend({type:'mode',value:'Hide'})" [style]="shapeDialogStyle">
+    <three-d-shape-legend [model]="shapeLegend" tableId="threed-floating-shape-table" (change)="changeShapeLegend($event)"></three-d-shape-legend>
+  </p-dialog>
+
   <p-dialog data-testid="threed-export-dialog" [(visible)]="exportOpen" header="Export 3D Network" appendTo="body" [style]="{width: '400px', maxWidth: '95vw'}">
     <label for="threed-export-filename">Filename</label>
     <input id="threed-export-filename" class="form-control form-control-sm" [(ngModel)]="exportFilename">
+    <label>File type</label><p-select ariaLabel="3D Export File Type" [options]="exportFiletypes" [(ngModel)]="exportFiletype" appendTo="body" class="width-percent-100"></p-select>
     <label for="threed-export-scale">Image scale</label>
     <input id="threed-export-scale" class="form-control form-control-sm" type="number" min="1" max="5" step="0.5" [(ngModel)]="exportScale">
     <label class="three-d-check"><input type="checkbox" [(ngModel)]="exportNodeTable"> Include node color key</label>
     <label class="three-d-check"><input type="checkbox" [(ngModel)]="exportLinkTable"> Include link color key</label>
+    <label class="three-d-check"><input type="checkbox" [(ngModel)]="exportShapeTable" [disabled]="settings.nodeShapeField === 'None'"> Include 3D node shape key</label>
+    <p class="three-d-settings-note">Export scope: visible network ({{nodeCount | number}} nodes, {{linkCount | number}} links)</p>
     @if (exportError) { <p role="alert">{{ exportError }}</p> }
-    <button type="button" class="btn btn-primary btn-sm" data-testid="threed-export-confirm" (click)="exportImage()">Export PNG</button>
+    <button type="button" class="btn btn-light btn-sm" (click)="exportOpen=false">Cancel</button>
+    <button type="button" class="btn btn-primary btn-sm" data-testid="threed-export-confirm" (click)="exportImage()">Export {{exportFiletype | uppercase}}</button>
   </p-dialog>
 }
+
+<div #shapeExportTable class="three-d-export-key" aria-hidden="true" inert>
+  @if (exportShapeTable) {
+    <table id="threed-export-shape-table">
+      <tr><th>{{shapeLegend.headers.value}}</th>@if (shapeLegend.showCounts) {<th>{{shapeLegend.headers.count}}</th>}@if (shapeLegend.showFrequencies) {<th>{{shapeLegend.headers.frequency}}</th>}<th>Shape</th></tr>
+      @for (row of shapeLegend.rows; track row.trackKey) {
+        <tr><td>{{row.displayName}}</td>@if (shapeLegend.showCounts) {<td>{{row.count}}</td>}@if (shapeLegend.showFrequencies) {<td>{{row.frequency}}</td>}
+          <td><span class="shape-tree-value"><img [attr.data-shape-key]="row.shapeKey" [attr.data-shape-preview-src]="shapePreview(row.shapeKey)" [src]="shapePreview(row.shapeKey)" width="22" height="22" alt="">{{shapeLabel(row.shapeKey)}}</span></td>
+        </tr>
+      }
+    </table>
+  }
+</div>

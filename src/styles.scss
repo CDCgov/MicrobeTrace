@@ -198,6 +198,15 @@ body.swal2-height-auto {
     display: none;
   }
 
+.network-settings-dialog {
+  width: 430px;
+  max-width: 95vw;
+  .form-group > .col-4 { overflow-wrap: normal; }
+  @media (max-width: 480px) {
+    .form-group > .col-4, .form-group > .col-8 { flex: 0 0 100%; max-width: 100%; }
+  }
+}
+
 .three-dee-node-tooltip {
     color:#333333;
     background:#f5f5f5;

@@ -260,6 +260,7 @@ export interface StyleKeyTableShapePanelRequest {
                                             <img
                                                 class="style-key-table__shape-preview"
                                                 [attr.data-shape-key]="node.data.key"
+                                                [attr.data-shape-preview-src]="getCustomShapePreviewSrc(node.data.key)"
                                                 [src]="getShapePreviewSrc(node.data.key)"
                                                 alt=""
                                                 aria-hidden="true">
@@ -476,6 +477,7 @@ export class StyleKeyTableComponent {
     @Input() editable = true;
     @Input() rows: StyleKeyTableRow[] = [];
     @Input() shapeOptions: TreeNode<any>[] = [];
+    @Input() shapePreview = getNodeShapePreviewDataUri;
 
     @Output() columnNameChange = new EventEmitter<StyleKeyTableColumnNameChange>();
     @Output() rowNameChange = new EventEmitter<StyleKeyTableRowNameChange>();
@@ -507,9 +509,13 @@ export class StyleKeyTableComponent {
             return cachedPreviewSrc;
         }
 
-        const previewSrc = getNodeShapePreviewDataUri(key);
+        const previewSrc = this.shapePreview(key);
         this.shapePreviewSrcCache.set(key, previewSrc);
         return previewSrc;
+    }
+
+    getCustomShapePreviewSrc(shapeKey: string): string | null {
+        return this.shapePreview === getNodeShapePreviewDataUri ? null : this.getShapePreviewSrc(shapeKey);
     }
 
     onEditableKeydown(event: KeyboardEvent): void {

@@ -10,9 +10,13 @@ import { CommonStoreService } from '@app/contactTraceCommonServices/common-store
 import { ExportService } from '@app/contactTraceCommonServices/export.service';
 import { MicobeTraceNextPluginEvents } from '@app/helperClasses/interfaces';
 import { ThreeDNetworkRenderer } from './three-d-network-renderer.adapter';
+import { color as parseColor } from 'd3-color';
+import { createGlobalSettingsDialogRequest, DialogRectSnapshot, GlobalSettingsDialogRequest } from '@app/helperClasses/globalSettingsDialogRequest';
+import { ThreeDShapeLegendChange, ThreeDShapeLegendModel } from './three-d-shape-legend.component';
+import { THREE_D_SHAPE_TREE, threeDShapePreview } from './three-d-shape-previews';
 import {
   buildThreeDGraph, ensureThreeDShapeMapping, normalizeThreeDViewState, readThreeDSettings, ThreeDSettings,
-  THREE_D_NODE_SHAPES, ThreeDNodeShape, threeDShapeCategory,
+  THREE_D_NODE_SHAPES, ThreeDLinkColors, ThreeDNodeShape, threeDShapeCategory,
   ThreeDViewState, threeDNodeId, writeThreeDSettings,
 } from './three-d-network.model';
 
@@ -24,9 +28,10 @@ import {
   standalone: false,
 })
 export class ThreeDComponent extends BaseComponentDirective implements OnInit, AfterViewInit, OnDestroy, MicobeTraceNextPluginEvents {
-  @Output() DisplayGlobalSettingsDialogEvent = new EventEmitter();
+  @Output() DisplayGlobalSettingsDialogEvent = new EventEmitter<GlobalSettingsDialogRequest>();
   @ViewChild('graphHost', { static: true }) graphHost: ElementRef<HTMLDivElement>;
   @ViewChild('orientationIndicator', { static: true }) orientationIndicator: ElementRef<SVGSVGElement>;
+  @ViewChild('shapeExportTable', { static: true }) shapeExportTable: ElementRef<HTMLDivElement>;
 
   settings: ThreeDSettings = readThreeDSettings({});
   settingsOpen = false;
@@ -35,6 +40,10 @@ export class ThreeDComponent extends BaseComponentDirective implements OnInit, A
   exportScale = 1;
   exportNodeTable = false;
   exportLinkTable = false;
+  exportShapeTable = false;
+  exportFiletype = 'png';
+  exportQuality = 0.92;
+  exportFiletypes = ['png', 'jpeg', 'webp'];
   viewActive = true;
   loading = true;
   error = '';
@@ -46,9 +55,21 @@ export class ThreeDComponent extends BaseComponentDirective implements OnInit, A
   nodeFields: Array<{ label: string; value: string }> = [];
   linkFields: Array<{ label: string; value: string }> = [];
   sizeFields: Array<{ label: string; value: string }> = [];
-  shapeOptions = THREE_D_NODE_SHAPES;
+  linkSizeFields: Array<{ label: string; value: string }> = [];
+  orientationOptions = ['Middle', 'Top', 'Bottom', 'Left', 'Right'];
+  hideShowOptions = [{ label: 'Hide', value: false }, { label: 'Show', value: true }];
+  tableModes = ['Show', 'Dock', 'Hide'];
+  reciprocalOptions = [{ label: 'Reciprocal', value: true }, { label: 'Non-Reciprocal', value: false }];
+  neighborOptions = [{ label: 'Normal', value: false }, { label: 'Highlighted', value: true }];
+  shapePreview = threeDShapePreview;
+  shapeDialogStyle: Record<string, string> = { width: '540px', maxWidth: '95vw' };
+  private shapeDialogSource?: DialogRectSnapshot;
+  shapeLegend: ThreeDShapeLegendModel = {
+    fields: [], field: 'None', uniformShape: THREE_D_SHAPE_TREE[0], rows: [],
+    headers: { value: 'Value', count: 'Count', frequency: 'Frequency' },
+    mode: 'Dock', collapsed: false, showCounts: true, showFrequencies: false,
+  };
   shapeCategories: Array<{ key: string; label: string; count: number }> = [];
-  shapeCategoryFirst = 0;
 
   private renderer: ThreeDNetworkRenderer | null = null;
   private destroy$ = new Subject<void>();
@@ -167,7 +188,14 @@ export class ThreeDComponent extends BaseComponentDirective implements OnInit, A
   }
 
   requestUpdate(): void {
-    if (this.destroyed || !this.viewActive || this.error || this.updateFrame !== null) return;
+    if (this.destroyed || this.updateFrame !== null) return;
+    if (!this.viewActive || this.error) {
+      this.settings = readThreeDSettings(this.commonService.session.style.widgets);
+      ensureThreeDShapeMapping(this.commonService.session.data.nodes, this.settings);
+      this.rebuildFields();
+      this.cdref.markForCheck();
+      return;
+    }
     this.zone.runOutsideAngular(() => {
       this.updateFrame = requestAnimationFrame(() => {
         this.updateFrame = null;
@@ -183,7 +211,8 @@ export class ThreeDComponent extends BaseComponentDirective implements OnInit, A
     this.settings = readThreeDSettings(session.style.widgets);
     ensureThreeDShapeMapping(session.data.nodes, this.settings);
     writeThreeDSettings(session.style.widgets, this.settings);
-    if (this.settingsOpen) this.rebuildShapeCategories();
+    if (!this.nodeFields.length || this.sourceNodes !== session.data.nodes) this.rebuildFields();
+    else this.rebuildShapeCategories();
     if (this.needsRestore || this.sourceNodes !== session.data.nodes
       || this.persistedState !== ((session.meta as any).threeDViewState ?? null)) {
       const state = normalizeThreeDViewState((session.meta as any).threeDViewState);
@@ -196,9 +225,12 @@ export class ThreeDComponent extends BaseComponentDirective implements OnInit, A
     const data = buildThreeDGraph(
       this.commonService.getVisibleNodes(), this.commonService.getVisibleLinksForCurrentTimeline(),
       this.settings,
-      node => node.selected ? session.style.widgets['selected-color'] || '#ff6600'
-        : this.commonService.getNodeFillStyle(node).color,
-      link => this.getLinkColor(link),
+      node => {
+        if (node.selected) return session.style.widgets['selected-color'] || '#ff6600';
+        const fill = this.commonService.getNodeFillStyle(node);
+        return this.colorWithAlpha(fill.color, fill.alpha);
+      },
+      link => this.getLinkColors(link),
       this.renderer.nodes, this.renderer.savedPositions,
     );
     this.renderer.setData(data, this.settings, session.style.widgets['background-color'] || '#ffffff');
@@ -210,52 +242,149 @@ export class ThreeDComponent extends BaseComponentDirective implements OnInit, A
       if (this.viewActive && session.data.nodes.length) this.store.setNetworkRendered(true);
       this.cdref.markForCheck();
     });
+    if (this.nodeCount && this.shapeLegend.mode === 'Dock' && !this.commonService.visuals.keyTables) {
+      this.commonService.visuals.microbeTrace.ensureDockedKeyTablesViewVisible(false);
+    }
+  }
+
+  private getLinkColors(link: any): ThreeDLinkColors {
+    const field = this.commonService.session.style.widgets['link-color-variable'];
+    const origins = link[field] ?? link.origin ?? link.Origin;
+    if (String(field).toLowerCase() === 'origin' && Array.isArray(origins) && origins.length) {
+      // Match the two origins represented by the shared Duo-Link legend and 2D view.
+      return {
+        color: this.getLinkColor({ ...link, [field]: [origins[0]] }),
+        ...(origins.length > 1 ? { overlayColor: this.getLinkColor({ ...link, [field]: [origins[1]] }) } : {}),
+      };
+    }
+    return { color: this.getLinkColor(link) };
   }
 
   private getLinkColor(link: any): string {
     const widgets = this.commonService.session.style.widgets;
     const field = widgets['link-color-variable'];
-    if (!field || field === 'None') return widgets['link-color'] || '#999999';
+    if (!field || field === 'None') return this.colorWithAlpha(widgets['link-color'] || '#999999', 1 - this.settings.linkTransparency);
     const value = String(field).toLowerCase() === 'origin' && Array.isArray(link[field])
       ? link[field].length > 1 ? 'Duo-Link' : this.commonService.normalizeStyleCategoryValue(link[field][0])
       : this.commonService.normalizeStyleCategoryValue(link[field]);
-    return this.commonService.temp.style.linkColorMap(value) || widgets['link-color'] || '#999999';
+    const alpha = this.settings.linkOpacityOverride ? 1 - this.settings.linkTransparency
+      : this.commonService.temp.style.linkAlphaMap?.(value) ?? 1;
+    return this.colorWithAlpha(this.commonService.temp.style.linkColorMap(value) || widgets['link-color'] || '#999999', alpha);
   }
+
+  private colorWithAlpha(value: string, alpha: number): string {
+    const color = parseColor(value);
+    if (!color) return value;
+    color.opacity *= Number.isFinite(Number(alpha)) ? Math.max(0, Math.min(1, Number(alpha))) : 1;
+    return color.formatRgb();
+  }
+
+  get linkTransparency(): number { return this.settings.linkTransparency; }
+  set linkTransparency(value: number) { this.settings.linkTransparency = Number(value); this.settings.linkOpacityOverride = true; }
+  useLegendTransparency(): void { this.settings.linkTransparency = 0; this.settings.linkOpacityOverride = false; this.changeSettings(); }
 
   private rebuildFields(): void {
     const data = this.commonService.session.data;
-    const option = (field: string) => ({ label: field === '_id' ? 'ID' : this.commonService.titleize(field), value: field });
-    this.nodeFields = [{ label: 'None', value: 'None' }, ...Array.from(new Set(['_id', ...(data.nodeFields || [])]))
-      .filter((field: string) => !['seq', 'index', 'x', 'y', 'z', 'vx', 'vy', 'vz'].includes(field)).map(option)];
-    this.linkFields = [{ label: 'None', value: 'None' }, ...(data.linkFields || []).map(option)];
+    const option = (field: string) => ({ label: field === '_id' ? 'ID' : field === 'source_id' ? 'Source ID' : field === 'target_id' ? 'Target ID'
+      : this.commonService.capitalize(field.replace('_', '')), value: field });
+    this.nodeFields = [{ label: 'None', value: 'None' }, ...this.commonService.getStyleableNodeFields().map(option)];
+    this.linkFields = [{ label: 'None', value: 'None' }, ...(data.linkFields || []).map(field => option(field === 'source' ? 'source_id' : field === 'target' ? 'target_id' : field))];
     const numericFields = new Set<string>();
     data.nodes.forEach(node => Object.entries(node).forEach(([field, value]) => {
       if (value != null && value !== '' && typeof value !== 'boolean' && !Array.isArray(value)
         && Number.isFinite(Number(value))) numericFields.add(field);
     }));
     this.sizeFields = this.nodeFields.filter(field => field.value === 'None' || numericFields.has(field.value));
+    const numericLinkFields = new Set<string>();
+    data.links.forEach(link => Object.entries(link).forEach(([field, value]) => {
+      if (value != null && value !== '' && typeof value !== 'boolean' && !Array.isArray(value) && Number.isFinite(Number(value))) numericLinkFields.add(field);
+    }));
+    this.linkSizeFields = this.linkFields.filter(field => field.value === 'None' || numericLinkFields.has(field.value));
     this.rebuildShapeCategories();
   }
 
   private rebuildShapeCategories(): void {
     const counts = new Map<string, number>();
-    if (this.settings.nodeShapeField !== 'None') this.commonService.session.data.nodes.forEach(node => {
+    if (this.settings.nodeShapeField !== 'None') this.commonService.getVisibleNodes().forEach(node => {
       const key = threeDShapeCategory(node[this.settings.nodeShapeField]);
       counts.set(key, (counts.get(key) ?? 0) + 1);
     });
     this.shapeCategories = [...counts].sort(([a], [b]) => a.localeCompare(b))
       .map(([key, count]) => ({ key, label: key === 'null' ? '(Empty)' : key, count }));
+    const state = this.commonService.session.style.widgets['3DNet-node-shape-table-state'] ?? {};
+    const names = state.names?.[this.settings.nodeShapeField] ?? {};
+    const total = this.shapeCategories.reduce((sum, category) => sum + category.count, 0);
+    const rows = this.shapeCategories.map(category => {
+      const shape = this.settings.nodeShapeMappings[this.settings.nodeShapeField]?.[category.key] ?? this.settings.nodeShape;
+      return { rawValue: category.key, trackKey: `3d-shape-${category.key}`,
+        displayName: Object.prototype.hasOwnProperty.call(names, category.key) ? String(names[category.key]) : category.label,
+        count: category.count, frequency: total ? Number((category.count / total).toFixed(3)) : 0,
+        shapeKey: shape, shapeSelection: THREE_D_SHAPE_TREE.find(option => option.key === shape) };
+    });
+    const sort = ['value', 'count', 'frequency'].includes(state.sort) ? state.sort : 'count';
+    rows.sort((a, b) => (sort === 'value' ? a.displayName.localeCompare(b.displayName, undefined, { numeric: true })
+      : Number(a[sort]) - Number(b[sort])) * (state.descending !== false ? -1 : 1) || a.displayName.localeCompare(b.displayName));
+    this.shapeLegend = {
+      fields: this.nodeFields, field: this.settings.nodeShapeField,
+      uniformShape: THREE_D_SHAPE_TREE.find(option => option.key === this.settings.nodeShape), rows,
+      headers: { value: String(state.headers?.value ?? `Node ${this.nodeFields.find(field => field.value === this.settings.nodeShapeField)?.label ?? 'Value'}`),
+        count: String(state.headers?.count ?? 'Count'), frequency: String(state.headers?.frequency ?? 'Frequency') },
+      mode: ['Show', 'Dock', 'Hide'].includes(state.mode) ? state.mode : this.defaultShapeLegendMode(),
+      collapsed: state.collapsed === true, showCounts: state.counts !== false, showFrequencies: state.frequencies === true,
+    };
   }
 
-  setCategoryShape(category: string, shape: ThreeDNodeShape): void {
-    this.settings.nodeShapeMappings[this.settings.nodeShapeField][category] = shape;
+  changeShapeLegend(change: ThreeDShapeLegendChange): void {
+    const widgets = this.commonService.session.style.widgets;
+    const state = { ...(widgets['3DNet-node-shape-table-state'] ?? {}) };
+    if (change.type === 'field') this.settings.nodeShapeField = change.value || 'None';
+    if (change.type === 'shape' && THREE_D_NODE_SHAPES.some(shape => shape.value === change.value)) {
+      if (change.category !== undefined) this.settings.nodeShapeMappings[this.settings.nodeShapeField][change.category] = change.value as ThreeDNodeShape;
+      else this.settings.nodeShape = change.value as ThreeDNodeShape;
+    }
+    if (change.type === 'mode' && this.tableModes.includes(change.value)) state.mode = change.value;
+    if (change.type === 'counts') state.counts = !this.shapeLegend.showCounts;
+    if (change.type === 'frequencies') state.frequencies = !this.shapeLegend.showFrequencies;
+    if (change.type === 'collapsed') state.collapsed = !this.shapeLegend.collapsed;
+    if (change.type === 'sort') { state.descending = state.sort === change.value ? !state.descending : change.value !== 'value'; state.sort = change.value; }
+    if (change.type === 'columnName') state.headers = { ...state.headers, [change.column]: change.value };
+    if (change.type === 'rowName') state.names = { ...state.names,
+      [this.settings.nodeShapeField]: { ...state.names?.[this.settings.nodeShapeField], [change.category]: change.value } };
+    widgets['3DNet-node-shape-table-state'] = state;
     this.changeSettings();
+    if (change.type === 'mode' && change.value === 'Dock') this.commonService.visuals.microbeTrace.ensureDockedKeyTablesViewVisible(false);
+    this.commonService.visuals.microbeTrace.refreshDockedKeyTablesView();
+    if (change.type === 'mode' && change.value === 'Dock') requestAnimationFrame(() => {
+      document.querySelector('[data-testid="threed-shape-legend"]')?.scrollIntoView({ block: 'nearest' });
+    });
+    this.cdref.markForCheck();
   }
 
-  changeShapeField(): void {
-    this.shapeCategoryFirst = 0;
-    this.changeSettings();
+  openShapes(event: MouseEvent): void {
+    this.shapeDialogSource = createGlobalSettingsDialogRequest('Styling', event).sourceDialogRect;
+    this.shapeDialogStyle = { width: '540px', maxWidth: '95vw' };
+    this.rebuildFields();
+    this.changeShapeLegend({ type: 'mode', value: this.shapeLegend.mode === 'Hide' ? this.defaultShapeLegendMode() : this.shapeLegend.mode });
   }
+
+  private defaultShapeLegendMode(): 'Show' | 'Dock' {
+    const app = this.commonService.visuals.microbeTrace;
+    const modes = [this.commonService.session.style.widgets['node-symbol-table-visible'], app?.SelectedNodeShapeTableTypesVariable,
+      app?.SelectedNodeColorTableTypesVariable, app?.SelectedLinkColorTableTypesVariable];
+    return modes.find(mode => mode === 'Show' || mode === 'Dock') ?? 'Dock';
+  }
+  positionShapeDialog(): void {
+    if (!this.shapeDialogSource) return;
+    requestAnimationFrame(() => {
+      if (this.destroyed || this.shapeLegend.mode !== 'Show') return;
+      const dialog = document.querySelector<HTMLElement>('.threed-shape-settings-dialog');
+      if (!dialog) return;
+      const position = this.commonService.visuals.microbeTrace.getLinkedSettingsDialogPlacement(this.shapeDialogSource, dialog.offsetWidth, dialog.offsetHeight);
+      this.shapeDialogStyle = { ...this.shapeDialogStyle, position: 'fixed', left: `${position.left}px`, top: `${position.top}px`, margin: '0', transform: 'none' };
+      this.cdref.markForCheck();
+    });
+  }
+  shapeLabel(key: string): string { return THREE_D_NODE_SHAPES.find(shape => shape.value === key)?.label ?? key; }
 
   selectNode(id: string | null, event: Pick<MouseEvent, 'shiftKey' | 'ctrlKey' | 'metaKey'>): void {
     const additive = event.shiftKey || event.ctrlKey || event.metaKey;
@@ -297,6 +426,8 @@ export class ThreeDComponent extends BaseComponentDirective implements OnInit, A
   }
 
   changeSettings(): void {
+    this.settings.nodeTooltipField = this.settings.nodeTooltipFields[0] ?? 'None';
+    this.settings.linkTooltipField = this.settings.linkTooltipFields[0] ?? 'None';
     ensureThreeDShapeMapping(this.commonService.session.data.nodes, this.settings);
     this.rebuildShapeCategories();
     writeThreeDSettings(this.commonService.session.style.widgets, this.settings);
@@ -319,7 +450,7 @@ export class ThreeDComponent extends BaseComponentDirective implements OnInit, A
   zoom(factor: number): void { this.renderer?.zoom(factor); this.persistViewState(); }
   openRefreshScreen(): void { this.layoutFrozen = false; this.zone.runOutsideAngular(() => this.renderer?.recalculate()); }
   openSettings(): void { this.rebuildFields(); this.settingsOpen = !this.settingsOpen; }
-  openGlobalColors(): void { this.settingsOpen = false; this.DisplayGlobalSettingsDialogEvent.emit(); }
+  openGlobalColors(event: MouseEvent): void { this.DisplayGlobalSettingsDialogEvent.emit(createGlobalSettingsDialogRequest('Styling', event)); }
   openExport(): void { this.exportError = ''; this.exportOpen = true; }
 
   exportImage(): void {
@@ -329,8 +460,10 @@ export class ThreeDComponent extends BaseComponentDirective implements OnInit, A
       if (!Number.isFinite(scale) || scale < 1 || scale > 5) throw new Error('Choose an image scale between 1 and 5.');
       const canvas = this.renderer.snapshot();
       const bounds = this.graphHost.nativeElement.getBoundingClientRect();
-      this.exportService.setExportOptions({ filename: this.exportFilename || '3d_network', filetype: 'png', scale, quality: 1 });
-      this.exportService.requestRendererRasterExport(canvas, bounds.width, bounds.height, [], this.exportNodeTable, this.exportLinkTable);
+      this.exportService.setExportOptions({ filename: this.exportFilename || '3d_network', filetype: this.exportFiletype, scale, quality: this.exportQuality });
+      const tables = this.exportShapeTable && this.settings.nodeShapeField !== 'None'
+        ? [this.shapeExportTable.nativeElement.querySelector('table')] : [];
+      this.exportService.requestRendererRasterExport(canvas, bounds.width, bounds.height, tables, this.exportNodeTable, this.exportLinkTable);
       this.exportOpen = false;
     } catch (error) {
       this.exportError = error instanceof Error ? error.message : 'The image could not be exported.';
@@ -352,6 +485,7 @@ export class ThreeDComponent extends BaseComponentDirective implements OnInit, A
   applyStyleFileSettings(): void { this.requestUpdate(); }
   onLoadNewData(): void { this.requestUpdate(); }
   onFilterDataChange(): void { this.requestUpdate(); }
+  refreshDistanceDisplayFormat(): void { this.requestUpdate(); }
   onRecallSession(): void { this.needsRestore = true; this.requestUpdate(); }
   loadSettings(): void { this.requestUpdate(); }
 

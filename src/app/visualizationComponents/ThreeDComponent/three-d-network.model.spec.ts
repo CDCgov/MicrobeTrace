@@ -29,6 +29,16 @@ describe('3D network data and saved state', () => {
     expect(data.links[0].key).not.toBe(data.links[1].key);
   });
 
+  it('carries both origin colors into renderer-owned links without changing canonical records', () => {
+    const original = { source: 'A', target: 'B', origin: ['first', 'second'] };
+    const data = buildThreeDGraph([{ _id: 'A' }, { _id: 'B' }], [original], settings, color,
+      () => ({ color: 'rgba(255, 0, 0, 0.3)', overlayColor: 'rgba(0, 0, 255, 0.7)' }));
+    expect(data.links[0].color).toBe('rgba(255, 0, 0, 0.3)');
+    expect(data.links[0].overlayColor).toBe('rgba(0, 0, 255, 0.7)');
+    data.links[0].source = data.nodes[0];
+    expect(original).toEqual({ source: 'A', target: 'B', origin: ['first', 'second'] });
+  });
+
   it('preserves renderer node identity, coordinates, and velocity through filtering and restyling', () => {
     const initial = buildThreeDGraph([{ _id: 'A' }, { _id: 'B' }], [], settings, color, color);
     Object.assign(initial.nodes[0], { x: 12, y: 13, z: 14, vx: 2 });
@@ -61,7 +71,7 @@ describe('3D network data and saved state', () => {
 
   it('keeps tooltip text as data, including markup and missing fields', () => {
     const data = buildThreeDGraph([{ _id: 'A', label: '<img src=x onerror=alert(1)>' }, { _id: 'B' }], [],
-      { ...settings, nodeTooltipField: 'label' }, color, color);
+      { ...settings, nodeTooltipField: 'label', nodeTooltipFields: ['label'] }, color, color);
     expect(data.nodes[0].tooltip).toBe('<img src=x onerror=alert(1)>');
     expect(data.nodes[1].tooltip).toBe('');
   });
@@ -75,6 +85,98 @@ describe('3D network data and saved state', () => {
     const output = {};
     writeThreeDSettings(output, parsed);
     expect(readThreeDSettings(output)).toEqual(parsed);
+  });
+
+  it('reads older single-field tooltips and safely formats multiple fields and object endpoints', () => {
+    const parsed = readThreeDSettings({ '3DNet-node-tooltip-variable': 'label', '3DNet-link-tooltip-variable': 'distance' });
+    expect(parsed.nodeTooltipFields).toEqual(['label']);
+    expect(parsed.linkTooltipFields).toEqual(['distance']);
+    const data = buildThreeDGraph([{ _id: 'A', note: '<b>raw</b>' }, { _id: 'B' }],
+      [{ source: { _id: 'A' }, target: { id: 'B' } }],
+      { ...parsed, nodeTooltipFields: ['_id', 'note'], linkTooltipFields: ['source_id', 'target_id'] }, color, color);
+    expect(data.nodes[0].tooltip).toBe('ID: A\nnote: <b>raw</b>');
+    expect(data.links[0].tooltip).toBe('source id: A\ntarget id: B');
+  });
+
+  it('bounds mapped node radii and link widths, including invalid and reciprocal values', () => {
+    const nodes = [{ _id: 'A', size: 1 }, { _id: 'B', size: 1000 }, { _id: 'C', size: null }];
+    const links = [1, 100, 0].map(distance => ({ source: 'A', target: 'B', distance }));
+    const data = buildThreeDGraph(nodes, links, { ...settings, nodeSizeField: 'size', nodeSizeMin: 2, nodeSizeMax: 8,
+      linkWidthField: 'distance', linkWidthMin: 0.5, linkWidthMax: 4, linkWidthReciprocal: true }, color, color);
+    expect(data.nodes.map(node => node.radius)).toEqual([2, 8, 2]);
+    expect(data.links.map(link => link.width)).toEqual([4, 0.5, 0.5]);
+    expect(nodes[0].size).toBe(1);
+  });
+
+  it('uses shared metric formatting for link labels and tooltips without changing distances', () => {
+    const nodes = [{ _id: 'A' }, { _id: 'B' }];
+    const links = [{ source: 'A', target: 'B', distance: 0.015, hasDistance: true, distanceOrigin: 'sequence', origin: ['sequence'] }];
+    const percentage = readThreeDSettings({ 'default-distance-metric': 'tn93', 'tn93-distance-display-format': 'percentage',
+      '3DNet-link-label-variable': 'distance', '3DNet-link-tooltip-fields': ['source_id', 'distance'] });
+    const graph = buildThreeDGraph(nodes, links, percentage, color, color);
+    expect(graph.links[0].label).toBe('1.500%');
+    expect(graph.links[0].tooltip).toBe('source id: A\ndistance: 1.5%');
+    expect(links[0].distance).toBe(0.015);
+    expect(buildThreeDGraph(nodes, [{ ...links[0], distance: 5 }], { ...percentage, distanceMetric: 'snps' }, color, color).links[0].label).toBe('5');
+    expect(buildThreeDGraph(nodes, links, { ...percentage, distanceDisplayFormat: 'decimal' }, color, color).links[0].label).toBe('0.015');
+  });
+
+  it('omits unavailable distance labels and reports unavailable tooltips', () => {
+    const parsed = { ...settings, linkLabelField: 'distance', linkTooltipFields: ['distance'] };
+    const links = [
+      { source: 'A', target: 'B', distance: 0.015, hasDistance: false },
+      { source: 'A', target: 'B', distance: 0.015, hasDistance: true, distanceOrigin: 'sequence', origin: ['contact'] },
+    ];
+    const graph = buildThreeDGraph([{ _id: 'A' }, { _id: 'B' }], links, parsed, color, color);
+    expect(graph.links.map(link => link.label)).toEqual(['', '']);
+    expect(graph.links.map(link => link.tooltip)).toEqual(['N/A', 'N/A']);
+  });
+
+  it('keeps non-distance labels free of percentage conversion', () => {
+    const parsed = { ...settings, distanceMetric: 'tn93', distanceDisplayFormat: 'percentage', linkLabelField: 'weight' };
+    const graph = buildThreeDGraph([{ _id: 'A' }, { _id: 'B' }], [{ source: 'A', target: 'B', weight: 0.015 }], parsed, color, color);
+    expect(graph.links[0].label).toBe('0.015');
+  });
+
+  it('renders direction flags without adding links or mutating canonical records', () => {
+    const links = [
+      { source: 'A', target: 'B', directed: false, bidirectional: true },
+      { source: 'A', target: 'B', directed: true, bidirectional: false },
+      { source: 'A', target: 'B', directed: 'yes', bidirectional: 'true' },
+    ];
+    const original = JSON.parse(JSON.stringify(links));
+    const nodes = [{ _id: 'A' }, { _id: 'B' }];
+    const arrows = { ...settings, linkArrows: true, linkBidirectional: true };
+    expect(buildThreeDGraph(nodes, links, arrows, color, color).links.map(link => [link.targetArrow, link.sourceArrow]))
+      .toEqual([[false, false], [true, false], [true, true]]);
+    expect(buildThreeDGraph(nodes, links, { ...arrows, linkBidirectional: false }, color, color).links.map(link => link.sourceArrow)).toEqual([false, false, false]);
+    expect(buildThreeDGraph(nodes, links, { ...arrows, linkArrows: false }, color, color).links.map(link => [link.targetArrow, link.sourceArrow]))
+      .toEqual([[false, false], [false, false], [false, false]]);
+    expect(links).toEqual(original);
+  });
+
+  it('keeps 3D arrow switches independent and never overwrites shared distance preferences', () => {
+    const widgets: Record<string, any> = { 'link-directed': true, 'link-bidirectional': true,
+      'default-distance-metric': 'tn93', 'tn93-distance-display-format': 'percentage' };
+    const parsed = readThreeDSettings(widgets);
+    expect(parsed.linkArrows).toBe(false);
+    expect(parsed.linkBidirectional).toBe(false);
+    writeThreeDSettings(widgets, { ...parsed, linkArrows: true, linkBidirectional: true, distanceMetric: 'snps', distanceDisplayFormat: 'decimal' });
+    expect(widgets['link-directed']).toBe(true);
+    expect(widgets['link-bidirectional']).toBe(true);
+    expect(widgets['default-distance-metric']).toBe('tn93');
+    expect(widgets['tn93-distance-display-format']).toBe('percentage');
+    expect(readThreeDSettings(widgets)).toEqual({ ...parsed, linkArrows: true, linkBidirectional: true });
+  });
+
+  it('preserves old transparency appearance while defaulting new sessions to legend alpha', () => {
+    expect(readThreeDSettings({}).linkOpacityOverride).toBe(false);
+    const old = readThreeDSettings({ '3DNet-link-transparency': 0.75 });
+    expect(old.linkOpacityOverride).toBe(true);
+    expect(1 - old.linkTransparency).toBe(0.25);
+    const widgets = {};
+    writeThreeDSettings(widgets, old);
+    expect(readThreeDSettings(widgets)).toEqual(old);
   });
 
   it('does not use 2D appearance settings as 3D settings or defaults', () => {

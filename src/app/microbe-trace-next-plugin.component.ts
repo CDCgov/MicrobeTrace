@@ -5939,6 +5939,10 @@ ${warnings.join('\n')}`,
             });
     }
 
+    public getLinkedSettingsDialogPlacement(sourceRect: DialogRectSnapshot, width: number, height: number): { top: number; left: number } {
+        return this.findBestGlobalSettingsDialogPlacement(sourceRect, width, height);
+    }
+
     private findBestGlobalSettingsDialogPlacement(
         sourceRect: DialogRectSnapshot,
         dialogWidth: number,
@@ -6697,7 +6701,8 @@ ${warnings.join('\n')}`,
 
     private hasAnyDockedKeyTablesContent(): boolean {
         return this.keyTablesController.hasDockedTables()
-            || !!this.commonService.visuals.twoD?.isPolygonColorTableDocked;
+            || !!this.commonService.visuals.twoD?.isPolygonColorTableDocked
+            || this.commonService.visuals.threeD?.shapeLegend?.mode === 'Dock';
     }
 
     private ensureDockedKeyTablesViewOpenIfNeeded(): void {

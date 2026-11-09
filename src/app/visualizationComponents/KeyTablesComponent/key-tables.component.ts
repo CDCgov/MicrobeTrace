@@ -85,6 +85,8 @@ export class KeyTablesComponent extends BaseComponentDirective implements OnInit
         return this.visuals.microbeTrace?.widgets ?? {};
     }
 
+    get threeD() { return this.visuals.threeD; }
+
     get nodeColorFieldOptions() {
         return this.visuals.microbeTrace?.FieldList ?? [];
     }
