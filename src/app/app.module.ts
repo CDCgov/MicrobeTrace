@@ -5,7 +5,7 @@ import { CommonModule } from '@angular/common';
 import { AppRoutingModule } from './app-routing.module';
 import { RouterModule, ExtraOptions } from '@angular/router';
 
-import Lara from '@primeuix/themes/lara';
+import { appThemePreset } from './ui-theme';
 import { providePrimeNG } from 'primeng/config';
 import { primeUiLicenseKey } from '../environments/primeui-license.generated';
 
@@ -52,6 +52,7 @@ import { TimelineComponent } from './visualizationComponents/TimelineComponent/t
 import { TwoDComponent } from './visualizationComponents/TwoDComponent/twoD-plugin.component';
 import { ThreeDComponent } from './visualizationComponents/ThreeDComponent/three-d-plugin.component';
 import { ThreeDShapeLegendComponent } from './visualizationComponents/ThreeDComponent/three-d-shape-legend.component';
+import { TransmissionChainExplorerComponent } from './visualizationComponents/TransmissionChainExplorerComponent/transmission-chain-explorer.component';
 import { TableComponent } from './visualizationComponents/TableComponent/table-plugin-component';
 import { NetworkStatisticsComponent } from './visualizationComponents/NetworkStatisticsComponent/network-statistics-plugin.component';
 import { MapComponent } from './visualizationComponents/MapComponent/map-plugin.component';
@@ -86,6 +87,7 @@ import { WaterfallComponent } from './visualizationComponents/WaterfallComponent
 import { SankeyComponent } from './visualizationComponents/SankeyComponent/sankey.component';
 import { KeyTablesComponent } from './visualizationComponents/KeyTablesComponent/key-tables.component';
 import { StyleKeyTableComponent } from './visualizationComponents/KeyTablesComponent/style-key-table.component';
+import { UpdatesDialogComponent } from './updates/updates-dialog.component';
 import * as PlotlyJS from 'plotly.js-dist-min';
 import { PlotlyModule } from 'angular-plotly.js';
 import { GlobalErrorHandler } from './runtime-security/global-error-handler';
@@ -117,6 +119,7 @@ export class TestedComponent {
         TwoDComponent,
         ThreeDComponent,
         ThreeDShapeLegendComponent,
+        TransmissionChainExplorerComponent,
         TableComponent,
         NetworkStatisticsComponent,
         GoldenLayoutHostComponent,
@@ -136,6 +139,7 @@ export class TestedComponent {
         SankeyComponent,
         KeyTablesComponent,
         StyleKeyTableComponent,
+        UpdatesDialogComponent,
     ],
     exports: [
         SelectButtonModule
@@ -184,7 +188,7 @@ export class TestedComponent {
         CommonModule], providers: [
           providePrimeNG({
             theme: {
-                preset: Lara,
+                preset: appThemePreset,
                 options: {darkModeSelector: false || 'none'}
             },
             license: primeUiLicenseKey,

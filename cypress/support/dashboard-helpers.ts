@@ -104,6 +104,7 @@ type DashboardOpenComponentCountOptions = {
 
 const dashboardPaneSelectors: Record<string, string> = {
   '2D Network': '#cy',
+  'Transmission Chain Explorer': '#transmission-chain-cy',
   Map: '.mapStyle',
   Bubble: byTestId(testIds.bubbleCanvas),
   Table: '.table-wrapper',
@@ -131,6 +132,10 @@ const toErrorMessage = (error: unknown): string => {
 const normalizeViewName = (value: string): string => {
   if (String(value).trim().toLowerCase() === '2d network') {
     return '2D Network';
+  }
+
+  if (String(value).trim().toLowerCase() === 'transmission chain explorer') {
+    return 'Transmission Chain Explorer';
   }
 
   return String(value).trim();
@@ -412,6 +417,12 @@ export function assertDashboardViewReady(viewName: string): void {
           twoD?.sigmaRenderer || twoD?.cy || win.cytoscapeInstance,
           'active 2D renderer handle',
         ).to.exist;
+      });
+      break;
+    case 'Transmission Chain Explorer':
+      cy.get('#transmission-chain-cy', { timeout: 30000 }).should('be.visible');
+      cy.window({ timeout: 30000 }).should((win: any) => {
+        expect(win.commonService?.visuals?.transmissionChain?.cy, 'Transmission Chain cytoscape handle').to.exist;
       });
       break;
     case 'Map':

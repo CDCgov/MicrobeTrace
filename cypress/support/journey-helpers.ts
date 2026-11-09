@@ -106,8 +106,15 @@ export function visitAppAndAcceptEula(options: JourneyVisitOptions = {}): void {
 
   if (!resolvedOptions.skipDemoSession) {
     cy.window({ timeout: 120000 })
-      .its('commonService.session.network.isFullyLoaded')
-      .should('equal', true);
+      .should((win: any) => {
+        const service = win.commonService;
+        expect(service?.session.network.isFullyLoaded, 'sample data loaded').to.equal(true);
+        // The saved session can report loaded before its default layout opens.
+        // Wait for the initial network render so that launch cannot replace a
+        // view the test opens next.
+        expect(service.demoNetworkRendered, 'sample network completed its first render').to.equal(true);
+        expect(service.session.network.rendering, 'sample network render finished').to.equal(false);
+      });
   }
 
   cy.get('body').then(($body) => {
@@ -697,6 +704,28 @@ export function goTo2DNetworkView(timeout = 30000): void {
   assertTwoDNetworkReady(timeout);
 }
 
+export function goToTransmissionChainView(): void {
+  const ensureTabExists = (attemptsRemaining: number): void => {
+    cy.get('body', { timeout: 15000 }).then(($body) => {
+      const existingTab = $body.find('.lm_tab[title="Transmission Chain Explorer"]');
+      if (existingTab.length) return;
+
+      expect(attemptsRemaining, 'attempts remaining to open Transmission Chain Explorer').to.be.greaterThan(0);
+      cy.get(byTestId(testIds.appViewMenuButton)).click({ force: true });
+      cy.get(byTestId(testIds.appViewMenuTransmissionChain)).click({ force: true });
+      cy.wait(250, { log: false });
+      ensureTabExists(attemptsRemaining - 1);
+    });
+  };
+
+  ensureTabExists(3);
+
+  cy.get('.lm_tab[title="Transmission Chain Explorer"]', { timeout: 15000 })
+    .trigger('click', { button: 0 });
+
+  assertTransmissionChainReady();
+}
+
 export function assertTwoDNetworkReady(timeout = 30000): void {
   cy.get('#cy, [data-testid="sigma-network"]', { timeout }).should('be.visible');
   cy.window({ timeout }).should((win: any) => {
@@ -707,6 +736,13 @@ export function assertTwoDNetworkReady(timeout = 30000): void {
       'active 2D renderer handle',
     ).to.exist;
   });
+}
+
+export function assertTransmissionChainReady(timeout = 30000): void {
+  cy.get('#transmission-chain-cy', { timeout }).should('be.visible');
+  cy.window({ timeout })
+    .its('commonService.visuals.transmissionChain.cy')
+    .should('exist');
 }
 
 export function assertPhyloTreeReady(timeout = 30000): void {
@@ -894,6 +930,7 @@ export function goToAggregateView(): void {
   cy.get(byTestId(testIds.appViewMenuButton), { timeout: 15000 }).click({ force: true });
   cy.get(byTestId(testIds.appViewMenuAggregate), { timeout: 15000 }).click({ force: true });
 
+  cy.get('.lm_tab[title="Aggregate"]', { timeout: 15000 }).should('have.class', 'lm_active');
   assertAggregateReady();
 }
 

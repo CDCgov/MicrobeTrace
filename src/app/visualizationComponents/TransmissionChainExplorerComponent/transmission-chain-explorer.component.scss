@@ -1,0 +1,240 @@
+.dialogSize{
+    width: 30vw;
+    height: 150px;
+    min-width: 150px;
+}
+
+.export-scope-label {
+  background: #f5f7fa;
+  border: 1px solid #d9e1ea;
+  color: #39424e;
+  font-size: 12px;
+  line-height: 1.35;
+  margin-bottom: 10px;
+  padding: 6px 8px;
+}
+
+:host {
+  position: absolute;
+  overflow: hidden;
+  z-index: 1 !important;
+  isolation: isolate;
+  --transmission-chain-network-layer: 0;
+  --transmission-chain-control-layer: 1300;
+  padding: 1px;
+
+}
+
+/* Ensure the container is positioned relatively to position the grid overlay correctly */
+.cytoscape-container {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  z-index: var(--transmission-chain-network-layer);
+}
+
+.transmission-chain-container {
+  --transmission-chain-network-layer: 1;
+}
+
+.timeline-axis-overlay,
+.timeline-grid-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: auto;
+  bottom: auto;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 30;
+  overflow: visible;
+}
+
+.timeline-grid-overlay {
+  z-index: 0;
+}
+
+.timeline-axis-overlay.hidden,
+.timeline-grid-overlay.hidden {
+  display: none;
+}
+
+.timeline-axis-baseline {
+  stroke: rgba(70, 70, 70, 0.6);
+  stroke-width: 1;
+}
+
+.timeline-axis-gridline {
+  stroke: rgba(70, 70, 70, 0.18);
+  stroke-width: 1;
+}
+
+.timeline-axis-tickmark {
+  stroke: rgba(70, 70, 70, 0.7);
+  stroke-width: 1;
+}
+
+.timeline-axis-label {
+  fill: #333333;
+  text-anchor: middle;
+  paint-order: stroke;
+  stroke: #ffffff;
+  stroke-width: 3px;
+  stroke-linejoin: round;
+}
+
+.cytoscape-viewport {
+  top: 0;
+  left: 0;
+  z-index: var(--transmission-chain-network-layer);
+}
+
+:host ::ng-deep .cytoscape-viewport > div {
+  z-index: var(--transmission-chain-network-layer) !important;
+}
+
+#transmission-chain-tool-btn-container {
+  background: transparent;
+}
+
+#transmission-chain-tool-btn-container .btn-icon {
+  background-color: #fff !important;
+  border: 1px solid rgba(192, 192, 192, 0.9);
+  border-radius: 4px;
+  position: relative;
+  z-index: 1;
+}
+
+#transmission-chain-tool-btn-container .btn-icon:hover {
+  background-color: #f2f3f8 !important;
+}
+
+#transmission-chain-tool-btn-container .btn-icon[style*="lightblue"] {
+  background-color: lightblue !important;
+}
+
+#transmission-chain-tool-btn-container > span {
+  width: max-content;
+}
+
+#transmission-chain-tool-btn-container {
+  position: absolute;
+}
+
+#transmission-chain-tool-btn-container,
+.view-controls {
+  z-index: var(--transmission-chain-control-layer) !important;
+}
+
+.view-controls {
+  position: relative;
+  z-index: var(--transmission-chain-control-layer) !important;
+}
+
+.display-none {
+  display: none;
+}
+
+#transmission-chain-node-max-radius-row, #transmission-chain-node-min-radius-row {
+  display: none;
+}
+
+::ng-deep {
+  .transmission-chain-link-origin-actions {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+    margin-bottom: 6px;
+  }
+
+  .transmission-chain-link-origin-summary {
+    color: #6c757d;
+    font-size: 12px;
+    line-height: 1;
+  }
+
+  .transmission-chain-link-origin-list {
+    border: 1px solid #ced4da;
+    border-radius: 4px;
+    max-height: 130px;
+    overflow-y: auto;
+    padding: 4px 6px;
+    background: #ffffff;
+  }
+
+  .transmission-chain-link-origin-option {
+    display: flex;
+    align-items: flex-start;
+    gap: 6px;
+    margin: 4px 0;
+    cursor: pointer;
+    font-weight: 400;
+    line-height: 1.25;
+  }
+
+  .transmission-chain-link-origin-option input {
+    flex: 0 0 auto;
+    margin-top: 2px;
+  }
+
+  .transmission-chain-link-origin-option span {
+    overflow-wrap: anywhere;
+  }
+
+  .transmission-chain-link-origin-empty {
+    color: #6c757d;
+    font-size: 12px;
+    padding: 4px 0;
+  }
+}
+
+  /* Button appearance on hover */
+.btn-icon:hover {
+  transform: scale(1.1); /* Slight enlarge on hover */
+  background-color: #eef2f6; /* Subtle background color on hover */
+}
+
+.btn-icon {
+  margin-right: 10px;
+  background-color: #ffffff;
+  box-shadow: 2px 2px 2px rgba(0, 0, 0, 0.2);
+}
+
+.flaticon-settings:before {
+  font-weight: 800 !important;
+}
+
+.flaticon-pin:before {
+  font-weight: 800 !important;
+}
+
+.flaticon-download:before {
+  font-weight: 800 !important;
+}
+
+#transmission-chain-network-export-filename{
+  height: 42px;
+}
+
+#transmission-chain-network-attribute-table {
+  border-spacing: 0;
+  width: 100%;
+  border: 1px solid #ddd;
+}
+
+#transmission-chain-network-attribute-table td, #transmission-chain-network-attribute-table th {
+  text-align: left;
+  padding: 2px;
+  border: 1px solid #ddd;
+}
+
+#transmission-chain-network-attribute-table tr:nth-child(even) {
+  background-color: #f2f2f2;
+}
+
+#transmission-chain-network-attribute-table tr:nth-child(odd) {
+  background-color: #fff;
+}

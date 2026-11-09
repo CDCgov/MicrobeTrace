@@ -1,6 +1,6 @@
 import Graph from 'graphology';
 import Sigma from 'sigma';
-import { extremityArrow, layerPlain, pathLine, pathLoop } from 'sigma/rendering';
+import { extremityArrow, layerFill, layerPlain, pathLine, pathLoop } from 'sigma/rendering';
 import type { EdgePrimitives } from 'sigma/primitives';
 import {
   EMPTY_NETWORK_NODE_VISUAL_FEATURES,
@@ -11,17 +11,16 @@ import {
   drawNetworkNodeFeatureGlyph,
   prepareNetworkFeatureCanvas,
 } from './network-node-feature-overlay';
-import type { NetworkGeographicProjection } from '@app/contactTraceCommonServices/network-geography.model';
-import { drawNetworkGeographicOverlay } from './network-geographic-overlay';
 import type { NetworkRendererViewState } from './network-renderer-view-state';
 import {
   buildSigmaNetworkFeatureAttributes,
   MICROBETRACE_SIGMA_NODE_PRIMITIVES,
   type SigmaNetworkFeatureAttributes,
 } from './sigma-network-node-program';
+import { sigmaPolygonBoundaryDistance, traceSigmaNodeOutline, type SigmaNodeShape } from './sigma-network-node-shapes';
 
 export type SigmaEdgeDetailMode = 'overview' | 'detail' | 'all';
-export type SigmaNodeShape = 'circle' | 'square' | 'triangle' | 'diamond';
+export type { SigmaNodeShape } from './sigma-network-node-shapes';
 
 export interface SigmaEdgeClipEndpoint {
   x: number;
@@ -42,6 +41,8 @@ const sigmaNodeBoundaryDistance = (
   const absY = Math.abs(directionY);
   if (shape === 'square') return safeRadius / Math.max(absX, absY, Number.EPSILON);
   if (shape === 'diamond') return safeRadius / Math.max(absX + absY, Number.EPSILON);
+  const polygonDistance = sigmaPolygonBoundaryDistance(shape, directionX, directionY);
+  if (polygonDistance !== null) return safeRadius * polygonDistance;
   // Sigma's triangle is not radially symmetric. Its circumradius is the safe
   // clipping boundary for every approach angle and prevents an upper overlay
   // stroke from entering the glyph.
@@ -57,6 +58,7 @@ const sigmaNodeBoundaryDistance = (
 export function clipSigmaEdgeSegment(
   source: SigmaEdgeClipEndpoint,
   target: SigmaEdgeClipEndpoint,
+  strokeWidth = 0,
 ): { source: SigmaViewportPoint; target: SigmaViewportPoint } | null {
   const deltaX = target.x - source.x;
   const deltaY = target.y - source.y;
@@ -64,18 +66,22 @@ export function clipSigmaEdgeSegment(
   if (!Number.isFinite(length) || length <= Number.EPSILON) return null;
   const directionX = deltaX / length;
   const directionY = deltaY / length;
+  // The path is clipped by its center line. Leave another half stroke width
+  // beyond each glyph boundary so a thick dashed stroke cannot bleed back
+  // over the node even with a butt line cap.
+  const strokeClearance = Math.max(0, Number(strokeWidth) || 0) / 2;
   const sourceOffset = sigmaNodeBoundaryDistance(
     source.shape,
     source.radius,
     directionX,
     directionY,
-  );
+  ) + strokeClearance;
   const targetOffset = sigmaNodeBoundaryDistance(
     target.shape,
     target.radius,
     -directionX,
     -directionY,
-  );
+  ) + strokeClearance;
   if (sourceOffset + targetOffset >= length) return null;
   return {
     source: {
@@ -169,7 +175,6 @@ export interface SigmaPocGraphData {
   groupLabelSize?: number;
   groupLabelPosition?: 'left' | 'right' | 'above' | 'below' | 'over';
   edgeLabelSize?: number;
-  geographicOverlay?: NetworkGeographicProjection | null;
 }
 
 export interface SigmaPocRenderSummary {
@@ -618,7 +623,6 @@ export class SigmaNetworkRendererAdapter {
     allowSelfLoops: true,
   });
   private renderer: Sigma<SigmaNodeAttributes, SigmaEdgeAttributes> | null = null;
-  private geographicLayer: HTMLCanvasElement | null = null;
   private groupLayer: HTMLCanvasElement | null = null;
   private edgeOverlayLayer: HTMLCanvasElement | null = null;
   private edgeLabelLayer: HTMLCanvasElement | null = null;
@@ -636,7 +640,6 @@ export class SigmaNetworkRendererAdapter {
   private showGroupLabels = true;
   private groupLabelSize = 12;
   private groupLabelPosition: 'left' | 'right' | 'above' | 'below' | 'over' = 'above';
-  private geographicOverlay: NetworkGeographicProjection | null = null;
   private rankedEdges: SigmaRankedEdge[] = [];
   private incidentEdgeIdsByNode = new Map<string, string[]>();
   private projectionTimer: ReturnType<typeof setTimeout> | null = null;
@@ -746,7 +749,7 @@ export class SigmaNetworkRendererAdapter {
         shapeKey: node.shapeKey || node.shape || 'ellipse',
         iconVectorData: node.iconVectorData || null,
         imageDataUri: node.imageDataUri || null,
-        borderColor: node.borderColor || '#111827',
+        borderColor: node.borderColor || '#000000',
         borderWidth: Math.max(0, Number(node.borderWidth) || 0),
         color: node.color || '#2563eb',
         opacity: Number.isFinite(node.opacity) ? node.opacity : 1,
@@ -807,7 +810,6 @@ export class SigmaNetworkRendererAdapter {
     this.groupLabelSize = Math.max(6, Number(data.groupLabelSize) || 12);
     this.groupLabelPosition = data.groupLabelPosition || 'above';
     this.edgeLabelSize = Math.max(6, Number(data.edgeLabelSize) || 12);
-    this.geographicOverlay = data.geographicOverlay || null;
     this.baseEdgeStride = this.resolveBaseEdgeStride(graph.size);
     this.updateEffectiveEdgeStride(this.renderer?.getCamera().getState().ratio || 1);
     this.rebuildEdgeIndexes();
@@ -829,7 +831,6 @@ export class SigmaNetworkRendererAdapter {
     if (priorCamera) this.renderer.getCamera().setState(priorCamera);
     else void this.renderer.getCamera().reset({ duration: 0 });
     this.renderer.refresh();
-    this.drawGeographicOverlay();
     this.drawGroupHulls();
     this.drawEdgeOverlays();
     this.drawNodeFeatures();
@@ -857,8 +858,18 @@ export class SigmaNetworkRendererAdapter {
   }
 
   resize(): void {
-    this.renderer?.resize();
-    this.drawGeographicOverlay();
+    if (!this.renderer) return;
+
+    this.renderer.resize();
+    // Sigma clears its WebGL drawing buffer while resizing. Golden Layout can
+    // finish a dock removal without another camera or graph event, leaving the
+    // WebGL stage blank while Canvas overlays remain visible. Repaint in the
+    // same task so the node and primary-edge layers survive that resize.
+    this.renderer.refresh({
+      partialGraph: { nodes: [], edges: [] },
+      skipIndexation: true,
+      schedule: false,
+    });
     this.drawGroupHulls();
     this.drawEdgeOverlays();
     this.drawNodeFeatures();
@@ -991,7 +1002,6 @@ export class SigmaNetworkRendererAdapter {
     this.detachWebglFailureMonitor();
     this.renderer.kill();
     this.renderer = null;
-    this.geographicLayer = null;
     this.groupLayer = null;
     this.edgeOverlayLayer = null;
     this.edgeLabelLayer = null;
@@ -1004,7 +1014,6 @@ export class SigmaNetworkRendererAdapter {
       this.renderer.setCustomBBox(this.resolveGraphBounds());
       this.renderer.getCamera().setState(priorCamera);
       this.renderer.refresh();
-      this.drawGeographicOverlay();
       this.drawGroupHulls();
       this.drawEdgeOverlays();
       this.drawNodeFeatures();
@@ -1044,7 +1053,6 @@ export class SigmaNetworkRendererAdapter {
     document.removeEventListener('pointercancel', this.handleSelectionPointerUp, true);
     this.renderer?.kill();
     this.renderer = null;
-    this.geographicLayer = null;
     this.groupLayer = null;
     this.edgeOverlayLayer = null;
     this.edgeLabelLayer = null;
@@ -1077,7 +1085,6 @@ export class SigmaNetworkRendererAdapter {
     this.customWebglNodeFeaturesActive = false;
     this.graph.clear();
     this.displayGraph.clear();
-    this.geographicOverlay = null;
     this.callbacks = {};
     this.container.replaceChildren();
     // A retired adapter can remain reachable briefly from browser tooling or
@@ -1113,19 +1120,24 @@ export class SigmaNetworkRendererAdapter {
         stagePadding: 48,
       },
       nodeReducer: (_key, displayData, attributes, state) => {
-        const activeNodeId = this.keyboardFocusedNodeId || (this.highlightNeighbors ? this.hoveredNodeId : null);
         const focused = this.keyboardFocusedNodeId === String(attributes.raw.id);
-        const inActiveNeighborhood = !activeNodeId || this.hoveredNeighborhood.has(String(attributes.raw.id));
+        const inActiveNeighborhood = this.isInActiveNeighborhood(String(attributes.raw.id));
         const selected = this.selectedNodeIds.has(String(attributes.raw.id));
-        const borderWidth = selected
-          ? Math.max(3, Number(attributes.borderWidth) || 0)
-          : Math.max(0, Number(attributes.borderWidth) || 0);
+        const borderWidth = Math.max(0, Number(attributes.borderWidth) || 0);
+        const canvasGlyph = Boolean(attributes.iconVectorData || attributes.imageDataUri);
+        const fillOpacity = inActiveNeighborhood ? Number(attributes.opacity) : 0.12;
+        const nativeOutline = this.customWebglNodeFeaturesActive && !canvasGlyph;
         return {
           ...displayData,
           color: attributes.iconVectorData || attributes.imageDataUri
             ? 'rgba(0,0,0,0)'
-            : selected ? this.selectedColor : String(attributes.color),
-          opacity: inActiveNeighborhood ? Number(attributes.opacity) : 0.12,
+            : String(attributes.color),
+          // The feature shader applies opacity only to the fill, keeping the
+          // border opaque and the same thickness throughout neighbor emphasis.
+          opacity: nativeOutline ? 1 : fillOpacity,
+          mtFillOpacity: fillOpacity,
+          mtBorderWidth: nativeOutline ? borderWidth : 0,
+          mtBorderColor: selected ? this.selectedColor : '#000000',
           size: Number(attributes.size) * Number(attributes.mtFeatureScale || 1) *
             (selected || state.isHovered || focused ? 1.35 : 1),
           shape: attributes.shape,
@@ -1133,22 +1145,16 @@ export class SigmaNetworkRendererAdapter {
           labelSize: attributes.labelSize,
           labelPosition: attributes.labelPosition,
           labelVisibility: selected || state.isHovered || focused ? 'visible' : 'auto',
-          backdropVisibility: !attributes.iconVectorData && (attributes.borderWidth > 0 || selected)
-            ? 'visible'
-            : 'hidden',
+          backdropVisibility: 'hidden',
           backdropArea: 'node',
           backdropColor: 'rgba(0,0,0,0)',
-          // Sigma backdrops default to a 12px black shadow. We use the
-          // backdrop only to reproduce Cytoscape's node border, so explicitly
-          // disable that default or every bordered node gets a dark halo.
+          // Outlines belong to the node shader or glyph canvas. Disable the
+          // generic backdrop, including its default shadow and border.
           backdropShadowColor: 'rgba(0,0,0,0)',
           backdropShadowBlur: 0,
-          // Sigma draws backdrop borders inward. Expanding the backdrop by
-          // half the requested width leaves the outer half visible after the
-          // node is painted, matching a conventional centered node stroke.
-          backdropPadding: borderWidth / 2,
-          backdropBorderColor: selected ? this.selectedColor : attributes.borderColor,
-          backdropBorderWidth: borderWidth,
+          backdropPadding: 0,
+          backdropBorderColor: selected ? this.selectedColor : '#000000',
+          backdropBorderWidth: 0,
           highlighted: selected || state.isHovered || focused,
           zIndex: selected || state.isHovered || focused ? 20 : 1,
         };
@@ -1159,7 +1165,7 @@ export class SigmaNetworkRendererAdapter {
           activeNodeId &&
           (attributes.sourceId === activeNodeId || attributes.targetId === activeNodeId),
         );
-        const incidentToSelection = this.selectedNodeIds.size === 1 && (
+        const incidentToSelection = (
           this.selectedNodeIds.has(String(attributes.sourceId)) ||
           this.selectedNodeIds.has(String(attributes.targetId))
         );
@@ -1191,17 +1197,16 @@ export class SigmaNetworkRendererAdapter {
       // the existing Canvas glyph layer in that case.
       console.warn('Sigma custom renderer programs unavailable; using the base renderer.', error);
       this.container.replaceChildren();
-      this.renderer = new Sigma(this.displayGraph, this.container, rendererOptions);
+      this.renderer = new Sigma(this.displayGraph, this.container, {
+        ...rendererOptions,
+        primitives: {
+          nodes: { shapes: MICROBETRACE_SIGMA_NODE_PRIMITIVES.shapes, layers: [layerFill()] },
+          edges: MICROBETRACE_SIGMA_EDGE_PRIMITIVES,
+        },
+      });
       this.customWebglNodeFeaturesActive = false;
     }
 
-    this.geographicLayer = this.renderer.createCanvas('microbetrace-geography', {
-      beforeLayer: 'stage',
-      style: { pointerEvents: 'none' },
-    });
-    this.geographicLayer.dataset.testid = 'network-geographic-overlay';
-    this.geographicLayer.dataset.renderer = 'sigma';
-    this.geographicLayer.setAttribute('aria-hidden', 'true');
     this.groupLayer = this.renderer.createCanvas('microbetrace-groups', {
       beforeLayer: 'stage',
       style: { pointerEvents: 'none' },
@@ -1243,7 +1248,6 @@ export class SigmaNetworkRendererAdapter {
     // internal mouse layer while rebuilding the display graph.
     this.container.addEventListener('pointerdown', this.handleSelectionPointerDown, true);
     this.renderer.on('afterRender', () => {
-      this.drawGeographicOverlay();
       this.drawGroupHulls();
       this.drawEdgeOverlays();
       this.drawNodeFeatures();
@@ -1666,9 +1670,20 @@ export class SigmaNetworkRendererAdapter {
   private rebuildActiveNeighborhood(): void {
     this.hoveredNeighborhood.clear();
     const activeNodeId = this.keyboardFocusedNodeId || (this.highlightNeighbors ? this.hoveredNodeId : null);
-    if (!activeNodeId || !this.graph.hasNode(activeNodeId)) return;
-    this.hoveredNeighborhood.add(activeNodeId);
-    this.graph.forEachNeighbor(activeNodeId, neighbor => this.hoveredNeighborhood.add(neighbor));
+    const seeds = new Set(this.selectedNodeIds);
+    if (activeNodeId) seeds.add(activeNodeId);
+    seeds.forEach(nodeId => {
+      if (!this.graph.hasNode(nodeId)) return;
+      this.hoveredNeighborhood.add(nodeId);
+      this.graph.forEachNeighbor(nodeId, neighbor => this.hoveredNeighborhood.add(neighbor));
+    });
+  }
+
+  private isInActiveNeighborhood(nodeId: string): boolean {
+    const active = this.keyboardFocusedNodeId || (
+      this.highlightNeighbors && (this.hoveredNodeId || this.selectedNodeIds.size > 0)
+    );
+    return !active || this.hoveredNeighborhood.has(nodeId);
   }
 
   private handleNodeClick(nodeId: string, event: MouseEvent | TouchEvent): void {
@@ -1711,29 +1726,11 @@ export class SigmaNetworkRendererAdapter {
       changedNodeIds,
     );
 
-    const selectionChangesProjection = this.edgeDetailMode !== 'all' &&
-      (previousSelection.size === 1 || this.selectedNodeIds.size === 1);
-    if (selectionChangesProjection) {
-      this.rebuildDisplayGraph();
-    } else if (this.renderer && changedNodeIds.size > 0) {
-      const affectedEdgeIds = new Set<string>();
-      if (previousSelection.size === 1) {
-        previousSelection.forEach(nodeId => {
-          (this.incidentEdgeIdsByNode.get(nodeId) || []).forEach(edgeId => affectedEdgeIds.add(edgeId));
-        });
-      }
-      if (this.selectedNodeIds.size === 1) {
-        this.selectedNodeIds.forEach(nodeId => {
-          (this.incidentEdgeIdsByNode.get(nodeId) || []).forEach(edgeId => affectedEdgeIds.add(edgeId));
-        });
-      }
-      this.renderer.refresh({
-        partialGraph: {
-          nodes: Array.from(changedNodeIds).filter(nodeId => this.displayGraph.hasNode(nodeId)),
-          edges: Array.from(affectedEdgeIds).filter(edgeId => this.displayGraph.hasEdge(edgeId)),
-        },
-        skipIndexation: true,
-      });
+    this.rebuildActiveNeighborhood();
+    if (changedNodeIds.size > 0 && !this.rebuildDisplayGraph()) {
+      // Neighbors can gain or lose emphasis even when the displayed edge set
+      // stays the same (including All links). Reapply both node and edge styles.
+      this.renderer?.refresh();
     }
     this.emitSummary();
   }
@@ -1804,15 +1801,12 @@ export class SigmaNetworkRendererAdapter {
 
   private selectDisplayEdgeIds(): Set<string> {
     if (this.edgeDetailMode === 'all') return new Set(this.rankedEdges.map(edge => edge.id));
-    if (this.highlightNeighbors && this.hoveredNodeId) {
-      return new Set(this.incidentEdgeIdsByNode.get(this.hoveredNodeId) || []);
-    }
-    // A single selected node benefits from seeing every incident link. Multi-
-    // selection is a node-only state: retain the normal viewport projection so
-    // a dense network does not materialize or emphasize thousands of links.
-    if (this.selectedNodeIds.size === 1) {
+    const hoveredNodeId = this.highlightNeighbors ? this.hoveredNodeId : null;
+    if (this.selectedNodeIds.size > 0 || hoveredNodeId) {
       const selectedIncidentEdges = new Set<string>();
-      this.selectedNodeIds.forEach(nodeId => {
+      const seeds = new Set(this.selectedNodeIds);
+      if (hoveredNodeId) seeds.add(hoveredNodeId);
+      seeds.forEach(nodeId => {
         for (const edgeId of this.incidentEdgeIdsByNode.get(nodeId) || []) selectedIncidentEdges.add(edgeId);
       });
       return selectedIncidentEdges;
@@ -2039,6 +2033,7 @@ export class SigmaNetworkRendererAdapter {
         && !attributes.iconVectorData
         && !attributes.imageDataUri
         && !hasNetworkNodeVisualFeatures(attributes.features)
+        && (this.customWebglNodeFeaturesActive || Number(attributes.borderWidth) <= 0)
       ) return;
       const point = this.renderer!.graphToViewport({
         x: Number(attributes.x),
@@ -2056,8 +2051,7 @@ export class SigmaNetworkRendererAdapter {
         point.x < -margin || point.x > width + margin ||
         point.y < -margin || point.y > height + margin
       ) return;
-      const activeNodeId = this.keyboardFocusedNodeId || (this.highlightNeighbors ? this.hoveredNodeId : null);
-      const inActiveNeighborhood = !activeNodeId || this.hoveredNeighborhood.has(nodeId);
+      const inActiveNeighborhood = this.isInActiveNeighborhood(nodeId);
 
       if (attributes.imageDataUri) {
         const image = this.getNodeImage(attributes.imageDataUri);
@@ -2078,9 +2072,9 @@ export class SigmaNetworkRendererAdapter {
           pendingImageCount += 1;
         }
 
-        // Custom shapes carry their regular outline in the SVG. Add only the
-        // interactive selection/focus outline here so it follows live state.
-        if (attributes.iconVectorData && emphasized) {
+        // Draw custom silhouettes separately from their fills, just as native
+        // nodes draw their border separately. Neighbor dimming must not fade it.
+        if (attributes.iconVectorData) {
           const icon = attributes.iconVectorData;
           const outlinePath = this.getIconPath(icon.path);
           const iconScale = Math.min(
@@ -2088,11 +2082,12 @@ export class SigmaNetworkRendererAdapter {
             (baseRadius * 2) / Math.max(1, icon.height),
           );
           context.save();
-          context.globalAlpha = inActiveNeighborhood ? 1 : 0.12;
+          context.globalAlpha = 1;
           applySigmaIconCanvasTransform(context, point, iconScale, icon);
-          context.strokeStyle = selected ? this.selectedColor : '#0ea5e9';
-          context.lineWidth = Math.max(1, 3 / Math.max(iconScale, 0.01));
-          context.stroke(outlinePath);
+          const outlineWidth = Math.max(0, Number(attributes.borderWidth) || 0);
+          context.strokeStyle = selected ? this.selectedColor : '#000000';
+          context.lineWidth = outlineWidth / Math.max(iconScale, 0.001);
+          if (outlineWidth > 0) context.stroke(outlinePath);
           context.restore();
         }
       } else if (attributes.iconVectorData) {
@@ -2103,19 +2098,31 @@ export class SigmaNetworkRendererAdapter {
           (baseRadius * 2) / Math.max(1, icon.width),
           (baseRadius * 2) / Math.max(1, icon.height),
         );
-        const outlineWidth = selected
-          ? Math.max(3, Number(attributes.borderWidth) || 0)
-          : Number(attributes.borderWidth) || 0;
+        const outlineWidth = Math.max(0, Number(attributes.borderWidth) || 0);
         context.save();
         context.globalAlpha = inActiveNeighborhood ? Number(attributes.opacity) : 0.12;
         applySigmaIconCanvasTransform(context, point, iconScale, icon);
         context.fillStyle = String(attributes.color);
         context.fill(fillPath);
         if (outlineWidth > 0) {
-          context.strokeStyle = selected ? this.selectedColor : String(attributes.borderColor);
-          context.lineWidth = Math.max(1, outlineWidth / Math.max(iconScale, 0.01));
+          context.globalAlpha = 1;
+          context.strokeStyle = selected ? this.selectedColor : '#000000';
+          context.lineWidth = outlineWidth / Math.max(iconScale, 0.001);
           context.stroke(outlinePath);
         }
+        context.restore();
+      }
+      if (
+        !attributes.iconVectorData && Number(attributes.borderWidth) > 0
+        && (attributes.imageDataUri || !this.customWebglNodeFeaturesActive)
+      ) {
+        context.save();
+        context.globalAlpha = 1;
+        traceSigmaNodeOutline(context, attributes.shape, point.x, point.y, Math.max(0.5, baseRadius - 0.5));
+        context.strokeStyle = selected ? this.selectedColor : '#000000';
+        context.lineWidth = Number(attributes.borderWidth);
+        context.lineJoin = 'round';
+        context.stroke();
         context.restore();
       }
       if (
@@ -2154,6 +2161,8 @@ export class SigmaNetworkRendererAdapter {
       Boolean(this.displayGraph.getEdgeAttribute(edgeId, 'overlayDashColor'))
     ));
     this.edgeOverlayLayer.dataset.duoLinkCount = String(overlayEdges.length);
+    if (overlayEdges.length === 0) return;
+    let maxOverlayStrokeWidth = 0;
 
     // Cytoscape represented a two-origin link as a solid edge for the first
     // origin with a dashed edge for the second. Keep one resident Sigma edge
@@ -2174,7 +2183,14 @@ export class SigmaNetworkRendererAdapter {
       context.save();
       context.strokeStyle = String(this.displayGraph.getEdgeAttribute(edgeId, 'overlayDashColor'));
       context.globalAlpha = Number(this.displayGraph.getEdgeAttribute(edgeId, 'overlayDashOpacity'));
-      context.lineWidth = Math.max(0.5, Number(this.displayGraph.getEdgeAttribute(edgeId, 'size')));
+      // Match the primary edge's zoom scaling, emphasis, and minimum width.
+      // Sigma's edge shader renders its scaled thickness at half the size.
+      const edgeSize = this.renderer!.getEdgeDisplayData(edgeId)!.size;
+      context.lineWidth = Math.max(
+        this.renderer!.getSetting('minEdgeThickness'),
+        this.renderer!.scaleSize(edgeSize),
+      ) / 2;
+      maxOverlayStrokeWidth = Math.max(maxOverlayStrokeWidth, context.lineWidth);
       context.lineCap = 'butt';
       context.setLineDash([10, 10]);
       context.lineDashOffset = 5;
@@ -2194,6 +2210,7 @@ export class SigmaNetworkRendererAdapter {
             radius: this.getOverlayNodeRadius(targetId, target),
             shape: target.shape,
           },
+          context.lineWidth,
         );
         if (!clipped) {
           context.restore();
@@ -2205,18 +2222,49 @@ export class SigmaNetworkRendererAdapter {
       context.stroke();
       context.restore();
     });
+
+    // This Canvas must stay above the WebGL stage so the second origin is
+    // visible over the primary edge. Punch every rendered node out of the
+    // transparent layer so crossings are occluded exactly like solid links.
+    this.maskEdgeOverlayUnderNodes(context, width, height, maxOverlayStrokeWidth / 2);
+  }
+
+  private maskEdgeOverlayUnderNodes(
+    context: CanvasRenderingContext2D,
+    width: number,
+    height: number,
+    strokeClearance: number,
+  ): void {
+    if (!this.renderer) return;
+    context.save();
+    context.globalCompositeOperation = 'destination-out';
+    context.globalAlpha = 1;
+    context.fillStyle = '#000000';
+    this.displayGraph.forEachNode((nodeId, attributes: SigmaNodeAttributes) => {
+      const displayData = this.renderer!.getNodeDisplayData(nodeId);
+      if (!displayData || displayData.visibility === 'hidden') return;
+      const point = this.renderer!.graphToViewport({
+        x: Number(attributes.x),
+        y: Number(attributes.y),
+      });
+      const radius = this.getOverlayNodeRadius(nodeId, attributes) + strokeClearance;
+      if (
+        point.x + radius < 0 || point.x - radius > width ||
+        point.y + radius < 0 || point.y - radius > height
+      ) return;
+
+      traceSigmaNodeOutline(context, attributes.shape, point.x, point.y, radius);
+      context.fill();
+    });
+    context.restore();
   }
 
   private getOverlayNodeRadius(nodeId: string, attributes: SigmaNodeAttributes): number {
     if (!this.renderer) return 0;
-    const emphasized = this.selectedNodeIds.has(nodeId)
-      || this.hoveredNodeId === nodeId
-      || this.keyboardFocusedNodeId === nodeId;
-    const emphasisScale = emphasized ? 1.35 : 1;
-    const featureScale = attributes.iconVectorData || attributes.imageDataUri
-      ? 1
-      : Number(attributes.mtFeatureScale || 1);
-    const radius = this.renderer.scaleSize(Number(attributes.size) * featureScale) * emphasisScale;
+    // Read the post-reducer display size so clipping stays aligned with the
+    // node Sigma actually paints (including feature and interaction scaling).
+    const displaySize = this.renderer.getNodeDisplayData(nodeId)?.size;
+    const radius = this.renderer.scaleSize(Number(displaySize ?? attributes.size));
     return radius + Math.max(0, Number(attributes.borderWidth) || 0) / 2;
   }
 
@@ -2286,18 +2334,6 @@ export class SigmaNetworkRendererAdapter {
     this.nodeImageCache.set(dataUri, image);
     image.src = dataUri;
     return image;
-  }
-
-  private drawGeographicOverlay(): void {
-    if (!this.renderer || !this.geographicLayer) return;
-    const { width, height } = this.renderer.getDimensions();
-    drawNetworkGeographicOverlay(
-      this.geographicLayer,
-      width,
-      height,
-      this.geographicOverlay,
-      point => this.renderer!.graphToViewport(point),
-    );
   }
 
   private drawGroupHulls(): void {

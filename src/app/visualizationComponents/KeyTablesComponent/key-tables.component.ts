@@ -550,6 +550,11 @@ export class KeyTablesComponent extends BaseComponentDirective implements OnInit
         this.cdref.markForCheck();
     }
 
+    onLinkColorSegmentAlphaChange(change: StyleKeyTableSegmentAlphaChange): void {
+        this.visuals.microbeTrace?.onLinkColorSegmentAlphaChange(change);
+        this.cdref.markForCheck();
+    }
+
     onPolygonColorAlphaRequested(request: StyleKeyTableAlphaRequest): void {
         this.visuals.twoD?.onPolygonColorAlphaRequested(request);
         this.cdref.markForCheck();

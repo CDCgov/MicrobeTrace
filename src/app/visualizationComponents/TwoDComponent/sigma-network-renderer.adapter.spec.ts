@@ -36,6 +36,11 @@ describe('Sigma network renderer adapter', () => {
       { x: 0, y: 0, radius: 10, shape: 'circle' },
       { x: 15, y: 0, radius: 10, shape: 'circle' },
     );
+    const thickStroke = clipSigmaEdgeSegment(
+      { x: 0, y: 0, radius: 10, shape: 'circle' },
+      { x: 100, y: 0, radius: 20, shape: 'circle' },
+      8,
+    );
 
     expect(horizontal).toEqual({
       source: { x: 10, y: 0 },
@@ -46,6 +51,10 @@ describe('Sigma network renderer adapter', () => {
     expect(diagonalSquare!.target.x).toBeCloseTo(90, 6);
     expect(diagonalSquare!.target.y).toBeCloseTo(90, 6);
     expect(covered).toBeNull();
+    expect(thickStroke).toEqual({
+      source: { x: 14, y: 0 },
+      target: { x: 76, y: 0 },
+    });
   });
 
   it('keeps small graph layouts exact while returning safe link copies', () => {
@@ -192,6 +201,22 @@ describe('Sigma network renderer adapter', () => {
 
     adapter.refreshForExport();
 
+    expect(refresh).toHaveBeenCalledOnceWith({
+      partialGraph: { nodes: [], edges: [] },
+      skipIndexation: true,
+      schedule: false,
+    });
+  });
+
+  it('repaints the WebGL drawing buffer synchronously after resizing', () => {
+    const adapter = new SigmaNetworkRendererAdapter(document.createElement('div'), '#ff2d55');
+    const resize = jasmine.createSpy('resize');
+    const refresh = jasmine.createSpy('refresh');
+    (adapter as any).renderer = { resize, refresh };
+
+    adapter.resize();
+
+    expect(resize).toHaveBeenCalledTimes(1);
     expect(refresh).toHaveBeenCalledOnceWith({
       partialGraph: { nodes: [], edges: [] },
       skipIndexation: true,
