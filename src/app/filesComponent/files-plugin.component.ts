@@ -1503,6 +1503,11 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
       this.SelectedAmbiguityResolutionStrategyVariable ??
       this.commonService.session.style.widgets["ambiguity-resolution-strategy"]
     );
+    const ambiguityThresholdOnLaunch = parseFloat(String(
+      $('#ambiguity-threshold').val() ??
+      this.SelectedAmbiguityThresholdVariable ??
+      this.commonService.session.style.widgets["ambiguity-threshold"]
+    ));
     const viewOnLaunch = this.normalizeDefaultView(
       $('#default-view').val() ??
       this.SelectedDefaultViewVariable ??
@@ -1527,6 +1532,8 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
 
     this.commonService.session.style.widgets["default-distance-metric"] = metricOnLaunch;
     this.commonService.session.style.widgets["ambiguity-resolution-strategy"] = ambiguityOnLaunch;
+    this.SelectedAmbiguityThresholdVariable = ambiguityThresholdOnLaunch;
+    this.commonService.session.style.widgets["ambiguity-threshold"] = ambiguityThresholdOnLaunch;
     this.commonService.session.style.widgets["default-view"] = viewOnLaunch;
     this.commonService.GlobalSettingsModel.SelectedDistanceMetricVariable = metricOnLaunch;
     this.store.setMetricChanged(metricOnLaunch);
