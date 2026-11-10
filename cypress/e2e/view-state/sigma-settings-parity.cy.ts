@@ -161,6 +161,13 @@ describe('Sigma settings parity', () => {
   });
 
   it('applies node labels, size, border, tooltip, colors, shapes, selection color, and background live', () => {
+    expectSigmaGraph((_win, _twoD, graph) => {
+      expect(
+        graph.nodes().every((nodeId: string) => graph.getNodeAttribute(nodeId, 'label') === ''),
+        'None keeps Sigma node labels hidden',
+      ).to.equal(true);
+    });
+
     cy.window().then(win => {
       const appWindow = win as any;
       const twoD = appWindow.commonService.visuals.twoD;
