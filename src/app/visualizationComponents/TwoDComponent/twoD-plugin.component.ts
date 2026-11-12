@@ -17,6 +17,7 @@ import { getCustomNodeShapeData, getCustomNodeShapeVectorData, getMixedNodeShape
 import type cytoscape from 'cytoscape';
 import type { Core, Style } from 'cytoscape';
 import { layoutClustersBySize } from './cluster-size-layout';
+import { layoutClusterForces } from './cluster-force-layout';
 import { Subject, Subscription, takeUntil } from 'rxjs';
 //import fcose from 'cytoscape-fcose';
 import * as d3f from 'd3-force';
@@ -147,6 +148,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Aft
     sigmaRecoveryMessage: string | null = null;
     sigmaLoading = false;
     sigmaLoadingMessage = 'Preparing the network';
+    sigmaClusterLayoutSummary: Awaited<ReturnType<typeof layoutClusterForces>> | null = null;
     rendererAccessibleFeatureSummary = 'No renderer feature data is available.';
     rendererAccessibleFeatureItems: Array<{
         id: string;
@@ -168,6 +170,8 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Aft
     private sigmaRenderQueued = false;
     private sigmaRecoveryInProgress = false;
     private readonly sigmaLayoutGroupByNodeId = new Map<string, string>();
+    private readonly sigmaManuallyPositionedNodeIds = new Set<string>();
+    private sigmaLayoutDataGeneration = -1;
     private cytoscapeFactoryPromise: Promise<typeof cytoscape> | null = null;
     private rendererViewStateTimer: ReturnType<typeof setTimeout> | null = null;
     private containerResizeTimer: ReturnType<typeof setTimeout> | null = null;
@@ -1861,6 +1865,11 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Aft
         this.cdref.markForCheck();
 
         try {
+            const dataGeneration = this.commonService.getDataLoadGeneration();
+            if (dataGeneration !== this.sigmaLayoutDataGeneration) {
+                this.sigmaManuallyPositionedNodeIds.clear();
+                this.sigmaLayoutDataGeneration = dataGeneration;
+            }
             let networkData = this.getVisibleNetworkDataForRender(
                 timelineTick || this.isTimelineFilteringActive()
             );
@@ -1872,6 +1881,10 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Aft
 
             networkData.nodes.forEach(node => {
                 node.nodeSize = Number(this.getNodeSize(node));
+                const currentPosition = this.nodePositions.get(this.getNodeId(node));
+                if (currentPosition && !this.widgets['network-geographic-overlay']) {
+                    Object.assign(node, currentPosition, { vx: 0, vy: 0 });
+                }
             });
 
             const groupField = this.getActiveNodeGroupingField();
@@ -1886,24 +1899,53 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Aft
             this.pendingThresholdIncreaseRelayout = false;
             const needsInitialLayout = !this.sigmaRenderer
                 || networkData.nodes.some(node => !this.hasFinitePosition(node));
+            const previousGraph = this.sigmaRenderer?.getGraph();
+            const topologyChanged = previousGraph && !this.isTimelineFilteringActive() && (
+                previousGraph.order !== networkData.nodes.length
+                || previousGraph.size !== networkData.links.length
+                || networkData.nodes.some(node => !previousGraph.hasNode(this.getNodeId(node)))
+            );
 
-            if ((needsInitialLayout || settleMergedClusters)
+            if ((needsInitialLayout || settleMergedClusters || (topologyChanged && !preserveCommittedThresholdLayout))
                 && !this.commonService.session.network.allPinned
                 && !this.widgets['network-geographic-overlay']) {
                 this.sigmaLoadingMessage = 'Computing the network layout';
                 this.cdref.markForCheck();
-                const overviewLayout = assignSigmaOverviewPositions(
+                const preserveCenters = networkData.nodes.every(node => this.nodePositions.has(this.getNodeId(node)));
+                const ticks = networkData.nodes.length > 2500 ? 90 : 180;
+                const geneticEdges = this.getNetworkLayout() === 'force-directed' && (!groupField || groupField === 'cluster')
+                    ? await this.commonService.getClusterMergeLayoutEdges(sigmaGroupingNodes.map(node => this.getNodeId(node)))
+                    : [];
+                if (this.isDestroyed || !this.sigmaActive || !this.commonService.isCurrentDataLoad(dataGeneration)) return;
+                const clusteredLayout = await layoutClusterForces(
                     networkData.nodes,
                     networkData.links,
-                    showGroupHulls ? groupField : null,
-                    Number(this.SelectedLinkLengthVariable) || 50
+                    layoutBackbone,
+                    {
+                        linkLength: Number(this.SelectedLinkLengthVariable) || 50,
+                        nodeRadius: node => this.getNodeCollisionRadius(node),
+                        groupBy: showGroupHulls ? node => this.normalizeGroupingValue(node[groupField]) : undefined,
+                        preserveCenters,
+                        geneticEdges,
+                        anchoredNodeIds: this.sigmaManuallyPositionedNodeIds,
+                        ticks,
+                        runTicks: (simulation, count) => this.runStoppedD3Ticks(
+                            simulation, count, this.getD3TicksPerYield(networkData.nodes, layoutBackbone)
+                        ),
+                    }
                 );
-                if (!overviewLayout.applied) {
+                this.sigmaClusterLayoutSummary = clusteredLayout;
+                const overviewLayout = !clusteredLayout.applied && !preserveCenters
+                    ? assignSigmaOverviewPositions(
+                        networkData.nodes, networkData.links, showGroupHulls ? groupField : null,
+                        Number(this.SelectedLinkLengthVariable) || 50
+                    ) : { applied: false };
+                if (!clusteredLayout.applied && !overviewLayout.applied) {
                     const layout = await this.precomputePositionsWithD3(
                         networkData.nodes,
                         layoutBackbone,
-                        networkData.nodes.length > 2500 ? 90 : 180,
-                        !settleMergedClusters
+                        ticks,
+                        !preserveCenters && !settleMergedClusters
                     );
                     networkData.nodes = layout.nodes;
                 }
@@ -1922,6 +1964,11 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Aft
                     this.sigmaLayoutGroupByNodeId.set(nodeId, String(node._sigmaLayoutGroup));
                 }
             });
+            if (!this.widgets['network-geographic-overlay']) {
+                this.setSigmaNodePositions(new Map(networkData.nodes.map(node => [
+                    this.getNodeId(node), { x: Number(node.x), y: Number(node.y) }
+                ])));
+            }
             if (this.getNetworkLayout() === 'order-by-size'
                 && !this.isTimelineFilteringActive()
                 && !this.commonService.session.network.allPinned
@@ -2028,6 +2075,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Aft
                             this.showContextMenu(node.raw, event);
                         }),
                         onNodePositionChange: (nodeId, position) => this.zone.run(() => {
+                            this.sigmaManuallyPositionedNodeIds.add(nodeId);
                             this.nodePositions.set(nodeId, position);
                             this.commonService.updateNodePosition(nodeId, position);
                         }),
@@ -2102,6 +2150,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Aft
     private refreshSigmaForStyleChange(recomputeLayout = false): boolean {
         if (!this.sigmaActive) return false;
         if (recomputeLayout) {
+            this.captureSigmaNodePositions();
             this.sigmaRenderer?.destroy();
             this.sigmaRenderer = null;
             this.sigmaLayoutGroupByNodeId.clear();
@@ -5950,6 +5999,15 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Aft
         }));
     }
 
+    private captureSigmaNodePositions(): void {
+        if (this.widgets['network-geographic-overlay']) return;
+        const positions = new Map<string, { x: number; y: number }>();
+        this.sigmaRenderer?.getGraph().forEachNode((id, attributes) => {
+            positions.set(id, { x: Number(attributes.x), y: Number(attributes.y) });
+        });
+        this.setSigmaNodePositions(positions);
+    }
+
     private captureForceDirectedLayout(): void {
         const cy = this.cy;
         this.forceDirectedLayoutSnapshot.clear();
@@ -6055,6 +6113,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Aft
         if (this.commonService.session.network.allPinned) return;
 
         if (this.sigmaActive) {
+            this.captureSigmaNodePositions();
             this.sigmaRenderer?.destroy();
             this.sigmaRenderer = null;
             this.sigmaLayoutGroupByNodeId.clear();
@@ -8615,6 +8674,7 @@ scaleLinkWidth() {
         }
         $('#cy').off('contextmenu.twod');
         this.nodePositions.clear();
+        this.sigmaManuallyPositionedNodeIds.clear();
         this.nodeDataById.clear();
         this.sigmaLayoutGroupByNodeId.clear();
         this.collapsedAggregatePositionAnchors = [];

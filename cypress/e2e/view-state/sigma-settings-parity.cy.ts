@@ -148,8 +148,8 @@ describe('Sigma settings parity', () => {
         renderer.getNodeState(nodeId),
       );
       expect(reducedNode.backdropVisibility).to.equal('visible');
-      expect(reducedNode.backdropBorderWidth).to.equal(8);
-      expect(reducedNode.backdropPadding).to.equal(4);
+      expect(reducedNode.backdropBorderWidth).to.be.closeTo(renderer.scaleSize(8), 0.001);
+      expect(reducedNode.backdropPadding).to.be.closeTo(renderer.scaleSize(8) / 2, 0.001);
 
       const composite = await twoD.exportRendererComposite(1, false);
       const pixelsWithBorders = countNodeBorderPixels(composite.canvas);
@@ -157,6 +157,30 @@ describe('Sigma settings parity', () => {
         pixelsWithBorders,
         'dark outline pixels after increasing node border width',
       ).to.be.greaterThan(pixelsWithoutBorders + 500);
+
+      twoD.onNodeBorderWidthChange(2);
+      const view = twoD.getRendererViewState();
+      twoD.setRendererViewState({ ...view, graphUnitsPerPixel: view.graphUnitsPerPixel * 100 });
+      const overviewAttributes = twoD.sigmaRenderer.getGraph().getNodeAttributes(nodeId);
+      const overviewNode = renderer.nodeReducer(
+        nodeId,
+        renderer.getNodeDisplayData(nodeId),
+        overviewAttributes,
+        renderer.getNodeState(nodeId),
+      );
+      expect(overviewAttributes.borderWidth, 'saved border setting').to.equal(2);
+      expect(overviewNode.backdropBorderWidth, 'overview outline leaves the node fill visible')
+        .to.be.lessThan(renderer.scaleSize(overviewAttributes.size) / 2);
+      twoD.setRendererViewState(view);
+      renderer.refresh();
+      const displayedRadius = () => renderer.scaleSize(renderer.nodeReducer(
+        nodeId, renderer.getNodeDisplayData(nodeId), overviewAttributes, renderer.getNodeState(nodeId),
+      ).size);
+      const initialRadius = displayedRadius();
+      twoD.setRendererViewState({ ...view, graphUnitsPerPixel: view.graphUnitsPerPixel / 2 });
+      renderer.refresh();
+      expect(displayedRadius(), 'node grows on the first twofold zoom')
+        .to.be.closeTo(initialRadius * 2, 0.01);
     });
   });
 
@@ -213,8 +237,8 @@ describe('Sigma settings parity', () => {
       // Custom vector shapes draw their own exact outline; the generic Sigma
       // backdrop is deliberately hidden so it cannot add a circular border.
       expect(reducedNode.backdropVisibility).to.equal('hidden');
-      expect(reducedNode.backdropBorderWidth).to.equal(5);
-      expect(reducedNode.backdropPadding).to.equal(2.5);
+      expect(reducedNode.backdropBorderWidth).to.be.closeTo(renderer.scaleSize(5), 0.001);
+      expect(reducedNode.backdropPadding).to.be.closeTo(renderer.scaleSize(5) / 2, 0.001);
       expect(reducedNode.backdropShadowColor).to.equal('rgba(0,0,0,0)');
       expect(reducedNode.backdropShadowBlur).to.equal(0);
     });
@@ -563,6 +587,49 @@ describe('Sigma settings parity', () => {
         .to.equal(graph.getNodeAttribute(nonNeighborId, 'opacity'));
       adapter.handleNodeHover(null, new win.MouseEvent('mouseout'));
       expect(adapter.container.style.cursor, 'stage cursor after leaving node').to.equal('');
+    });
+  });
+
+  it('renders group fills at the configured opacity with solid borders, including light green', () => {
+    cy.window().then(win => {
+      const commonService = (win as any).commonService;
+      const twoD = commonService.visuals.twoD;
+      [...commonService.session.data.nodes, ...commonService.session.data.nodeFilteredValues]
+        .forEach((node: any) => { node.SigmaOpacityGroup = 'All nodes'; });
+      twoD.widgets['polygons-foci'] = 'SigmaOpacityGroup';
+      twoD.widgets['polygons-color-show'] = true;
+      twoD.polygonsToggle(true);
+      twoD.onPolygonLabelShowChange(false);
+    });
+
+    [
+      { color: '#bbccee', opacity: 0.5 },
+      { color: '#b2df8a', opacity: 0.5 },
+      { color: '#b2df8a', opacity: 0.25 },
+      { color: '#b2df8a', opacity: 0.75 },
+    ].forEach(({ color, opacity }) => {
+      cy.window().then(win => {
+        const commonService = (win as any).commonService;
+        commonService.session.style.polygonColors = [color];
+        commonService.session.style.polygonAlphas = [opacity];
+        commonService.createPolygonColorMap();
+        commonService.visuals.twoD.updateGroupNodeColors();
+      });
+
+      expectSigmaGraph((win, twoD) => {
+        expect(twoD.sigmaSummary.groupHullCount, 'one polygon without overlapping fills').to.equal(1);
+        const canvas = win.document.querySelector('[data-testid="network-group-hull-overlay"]') as HTMLCanvasElement;
+        const pixels = canvas.getContext('2d')!.getImageData(0, 0, canvas.width, canvas.height).data;
+        const expectedAlpha = Math.round(opacity * 255);
+        let fillPixels = 0;
+        let borderPixels = 0;
+        for (let index = 3; index < pixels.length; index += 4) {
+          if (Math.abs(pixels[index] - expectedAlpha) <= 1) fillPixels++;
+          if (pixels[index] === 255) borderPixels++;
+        }
+        expect(fillPixels, `${color} fill pixels at ${opacity} opacity`).to.be.greaterThan(100);
+        expect(borderPixels, `${color} opaque border pixels`).to.be.greaterThan(0);
+      });
     });
   });
 

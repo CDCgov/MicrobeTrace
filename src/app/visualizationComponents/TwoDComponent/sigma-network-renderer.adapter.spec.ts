@@ -7,6 +7,23 @@ import {
 } from './sigma-network-renderer.adapter';
 
 describe('Sigma network renderer adapter', () => {
+  it('shrinks hull margins with the graph when zooming out to a large network', () => {
+    const adapter = new SigmaNetworkRendererAdapter(document.createElement('div'), '#ff2d55');
+    let scale = 1;
+    (adapter as any).renderer = {
+      graphToViewport: (point: any) => ({ x: point.x * scale, y: point.y * scale }),
+      scaleSize: (size: number) => size * scale,
+      getGraphToViewportRatio: () => scale,
+    };
+    adapter.getDisplayGraph().addNode('node', { size: 10 } as any);
+    const hull = { center: { x: 0, y: 0 }, points: [{ x: 0, y: 0 }], nodeIds: ['node'] };
+    const normal = (adapter as any).viewportHullPolygon(hull)[0].x;
+    scale = 0.05;
+    const overview = (adapter as any).viewportHullPolygon(hull)[0].x;
+    expect(overview).toBeLessThan(normal * 0.1);
+    expect(overview).toBeGreaterThan(10 * scale);
+  });
+
   it('flips custom SVG paths upright while centering them on the Sigma canvas', () => {
     const context = {
       translate: jasmine.createSpy('translate'),

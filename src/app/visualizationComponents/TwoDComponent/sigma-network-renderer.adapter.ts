@@ -1142,6 +1142,7 @@ export class SigmaNetworkRendererAdapter {
         enableEdgeEvents: true,
         hideEdgesOnMove: false,
         hideLabelsOnMove: true,
+        zoomToSizeRatioFunction: (ratio: number) => ratio,
         labelDensity: 0.55,
         labelGridCellSize: 140,
         labelRenderedSizeThreshold: 6,
@@ -1157,17 +1158,27 @@ export class SigmaNetworkRendererAdapter {
         const focused = this.keyboardFocusedNodeId === String(attributes.raw.id);
         const inActiveNeighborhood = !activeNodeId || this.hoveredNeighborhood.has(String(attributes.raw.id));
         const selected = this.selectedNodeIds.has(String(attributes.raw.id));
-        const borderWidth = selected
-          ? Math.max(3, Number(attributes.borderWidth) || 0)
-          : Math.max(0, Number(attributes.borderWidth) || 0);
+        // Backdrop widths are screen pixels, unlike node sizes. Scale the
+        // outline with the node so it cannot hide the fill in an overview.
+        const scaledBorderWidth = this.renderer?.scaleSize(Math.max(0, Number(attributes.borderWidth) || 0))
+          ?? Math.max(0, Number(attributes.borderWidth) || 0);
+        const borderWidth = selected ? Math.max(3, scaledBorderWidth) : scaledBorderWidth;
+        const nodeSize = Number(attributes.size) * Number(attributes.mtFeatureScale || 1) *
+          (selected || state.isHovered || focused ? 1.35 : 1);
+        // Set the minimum at the overview camera, then let it grow with zoom.
+        // Reapplying a fixed screen-pixel floor at each zoom causes a plateau.
+        const overviewSizeScale = this.renderer
+          ? this.renderer.scaleSize(1) * this.renderer.getCamera().ratio : 1;
+        const visibleNodeSize = !attributes.iconVectorData && !attributes.imageDataUri
+          ? Math.max(nodeSize, 1 / (overviewSizeScale || 1))
+          : nodeSize;
         return {
           ...displayData,
           color: attributes.iconVectorData || attributes.imageDataUri
             ? 'rgba(0,0,0,0)'
             : selected ? this.selectedColor : String(attributes.color),
           opacity: inActiveNeighborhood ? Number(attributes.opacity) : 0.12,
-          size: Number(attributes.size) * Number(attributes.mtFeatureScale || 1) *
-            (selected || state.isHovered || focused ? 1.35 : 1),
+          size: visibleNodeSize,
           shape: attributes.shape,
           label: inActiveNeighborhood ? String(attributes.label) : null,
           labelSize: attributes.labelSize,
@@ -1553,7 +1564,8 @@ export class SigmaNetworkRendererAdapter {
         Number(this.displayGraph.getNodeAttribute(nodeId, 'size')),
       ));
     }, 0);
-    const padding = Math.max(14, largestNodeRadius + 8);
+    // Keep the margin in graph space so overview hulls do not swallow nearby clusters.
+    const padding = largestNodeRadius + Math.min(8, 8 * this.renderer.getGraphToViewportRatio());
 
     if (viewportPoints.length === 1) {
       const point = viewportPoints[0];
@@ -2443,10 +2455,11 @@ export class SigmaNetworkRendererAdapter {
       for (let index = 1; index < expanded.length; index++) context.lineTo(expanded[index].x, expanded[index].y);
       context.closePath();
       const groupOpacity = Math.max(0, Math.min(1, Number(group.opacity)));
-      context.globalAlpha = groupOpacity * 0.18;
+      // The color table already supplies the fill alpha; do not dim it again.
+      context.globalAlpha = groupOpacity;
       context.fillStyle = group.color;
       context.fill();
-      context.globalAlpha = groupOpacity * 0.65;
+      context.globalAlpha = 1;
       context.strokeStyle = group.color;
       context.lineWidth = 1.5;
       context.stroke();

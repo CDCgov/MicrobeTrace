@@ -28,6 +28,7 @@ import {
     type ThresholdSweepSummary
 } from './threshold-analysis';
 import * as tn93 from 'tn93';
+import type { ClusterGeneticEdge } from '../visualizationComponents/TwoDComponent/cluster-merge-layout';
 
 interface SequencePairwiseLinkGuardrails {
     warningThreshold: number;
@@ -784,6 +785,11 @@ export class CommonService extends AppComponentBase implements OnInit {
     temp: any = this.tempSkeleton();
     session = this.sessionSkeleton();
     private dataLoadGeneration = 0;
+    private clusterMergeTreeCache: {
+        generation: number;
+        newick: string;
+        edges: Promise<ClusterGeneticEdge[]>;
+    } | null = null;
 
     public clampStyleAlpha(value: any, fallback = 1): number {
         const numericValue = Number(value);
@@ -4188,6 +4194,60 @@ align(params): Promise<any> {
             nodes: nodes.map(node => JSON.parse(JSON.stringify(node))),
             links: links.map(link => JSON.parse(JSON.stringify(link))),
         };
+    }
+
+    /** Genetic look-ahead for cluster positioning, independent of the displayed threshold.
+     * Epi links and missing distances never supply layout attraction. A tree MST
+     * preserves the closest-pair merge hierarchy without materializing all pairs.
+     */
+    async getClusterMergeLayoutEdges(visibleNodeIds: readonly string[]): Promise<ClusterGeneticEdge[]> {
+        const metric = String(this.session.style.widgets['link-sort-variable'] || 'distance');
+        const allowed = new Set(visibleNodeIds);
+        const cohort = this.getThresholdSensitivityCohort(false);
+        const edges: ClusterGeneticEdge[] = [];
+        for (const link of cohort.links) {
+            if (link.hasDistance !== true) continue;
+            const raw = link[metric];
+            if ((typeof raw !== 'number' && typeof raw !== 'string') || String(raw).trim() === '') continue;
+            const distance = Number(raw);
+            const source = this.getLinkEndpointId(link.source);
+            const target = this.getLinkEndpointId(link.target);
+            if (Number.isFinite(distance) && distance >= 0 && allowed.has(source) && allowed.has(target)) {
+                edges.push({ source, target, distance });
+            }
+        }
+        const newick = this.session.data.newickString;
+        if (metric !== 'distance' || !this.hasNewickBackedDistanceSource(newick)
+            || this.session.style.widgets['link-show-nn'] || this.resolveNetworkSubsetFilter().linkRuleActive) return edges;
+
+        const leafNames = this.workerComputeService.getPatristicLeafNames().map(name => this.filterXSS(name));
+        // A full-tree MST need not be an MST of a filtered subset. Use only the
+        // measured cohort links in that case rather than infer missing relationships.
+        if (!leafNames.length || leafNames.some(id => !allowed.has(id))) return edges;
+        const generation = this.getDataLoadGeneration();
+        const cached = this.getAnalysisCache().patristicDistanceCache[metric] as StoredDistanceEdgeCache | undefined;
+        if (cached && this.storedDistanceCacheMatchesCurrentNodes(cached)) {
+            return edges.concat(cached.sortedEdges.map(edge => ({
+                source: edge.sourceId, target: edge.targetId, distance: edge.value,
+            })));
+        }
+        if (!this.clusterMergeTreeCache || this.clusterMergeTreeCache.generation !== generation
+            || this.clusterMergeTreeCache.newick !== newick) {
+            this.clusterMergeTreeCache = {
+                generation, newick,
+                edges: this.workerComputeService.collectPatristicDistanceAnalysisEdges(this.session, { maxPairs: 0 })
+                    .then(result => result.edges.map(edge => ({
+                        source: leafNames[edge.sourceIndex], target: leafNames[edge.targetIndex], distance: edge.value,
+                    })))
+                    .catch(error => {
+                        console.warn('Using available genetic links for cluster positioning; tree merge distances are unavailable.', error);
+                        return [];
+                    }),
+            };
+        }
+        const treeEdges = await this.clusterMergeTreeCache.edges;
+        if (!this.isCurrentDataLoad(generation) || this.session.data.newickString !== newick) return [];
+        return edges.concat(treeEdges);
     }
 
     /** Applies a committed link threshold through the shared visibility path. */

@@ -243,7 +243,21 @@ TWO_D_RENDERER_CASES.forEach(({ label, mode }) => describe('2D Network - Cluster
       assertOrderedNonOverlappingRows(rows);
     });
 
-    cy.viewport(800, 720);
+    if (mode === 'sigma') {
+      cy.window().then((win: any) => {
+        // The cluster-first layout can make the sample more compact. Choose a
+        // width that fits two components but cannot fit all three on one row.
+        const spacing = Math.max(48, Number(win.commonService.session.style.widgets['node-radius'] || 20) * 3);
+        const row = getRenderedComponentRows(win, spacing)[0];
+        const firstTwo = { ...row, components: row.components.slice(0, 2) };
+        const targetWidth = (getRowLayoutWidth(row, spacing) + getRowLayoutWidth(firstTwo, spacing)) / 2;
+        const container = win.document.querySelector('[data-testid="sigma-network"]');
+        const widthRatio = (targetWidth * 0.75 + 60) / container.getBoundingClientRect().width;
+        cy.viewport(Math.floor(win.innerWidth * widthRatio), 720);
+      });
+    } else {
+      cy.viewport(800, 720);
+    }
     cy.window().should((win: any) => {
       const spacing = Math.max(
         48,
@@ -343,13 +357,12 @@ TWO_D_RENDERER_CASES.forEach(({ label, mode }) => describe('2D Network - Cluster
     });
   });
 
-  it('settles merged components only after a threshold increase', () => {
+  it('keeps components compact and separate when the threshold merges or splits them', () => {
     selectOrderByClusterSizeLayout();
     cy.closeSettingsPane('2D Network Settings');
 
     cy.window().then((win: any) => {
       cy.spy(win.commonService.visuals.twoD as any, '_partialUpdate').as('thresholdLayoutRefresh');
-      cy.spy(win.commonService.visuals.twoD as any, 'precomputePositionsWithD3').as('thresholdLayoutSettle');
     });
 
     openGlobalFilteringTab();
@@ -366,17 +379,19 @@ TWO_D_RENDERER_CASES.forEach(({ label, mode }) => describe('2D Network - Cluster
       ).to.be.lessThan(275);
     });
 
-    if (mode === 'sigma') cy.get('@thresholdLayoutSettle').its('callCount').should('equal', 1);
-    else cy.get('@thresholdLayoutRefresh').its('callCount').should('equal', 2);
+    if (mode !== 'sigma') cy.get('@thresholdLayoutRefresh').its('callCount').should('equal', 2);
 
     cy.get('@thresholdLayoutRefresh').then((refreshSpy: any) => refreshSpy.resetHistory());
-    cy.get('@thresholdLayoutSettle').then((settleSpy: any) => settleSpy.resetHistory());
     openGlobalFilteringTab();
     setGlobalLinkThreshold(16);
     cy.closeGlobalSettings();
 
-    if (mode === 'sigma') cy.get('@thresholdLayoutSettle').should('not.have.been.called');
-    else cy.get('@thresholdLayoutRefresh').its('callCount').should('equal', 1);
+    cy.window().should((win: any) => {
+      const components = getRenderedComponentBounds(win, 48).sort((left, right) => left.size - right.size);
+      expect(components.map(component => component.size), 'split component sizes').to.deep.equal([2, 12, 19]);
+      assertOrderedNonOverlappingRows(getRenderedComponentRows(win, 48));
+    });
+    if (mode !== 'sigma') cy.get('@thresholdLayoutRefresh').its('callCount').should('equal', 1);
   });
 
   it('disables layout changes while all nodes are pinned', () => {
