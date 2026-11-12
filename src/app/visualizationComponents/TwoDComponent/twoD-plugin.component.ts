@@ -1,4 +1,4 @@
-import { Injector, Component, Output, OnChanges, SimpleChange, EventEmitter, OnInit, ViewChild, ElementRef, ChangeDetectorRef, OnDestroy, Inject, ChangeDetectionStrategy } from '@angular/core';
+import { Injector, Component, Output, OnChanges, SimpleChange, EventEmitter, OnInit, AfterViewInit, ViewChild, ElementRef, ChangeDetectorRef, OnDestroy, Inject, ChangeDetectionStrategy } from '@angular/core';
 import { AppComponentBase } from '@shared/common/app-component-base';
 import { EventManager } from '@angular/platform-browser';
 import { CommonService } from '../../contactTraceCommonServices/common.service';
@@ -33,6 +33,15 @@ import {
 } from '../KeyTablesComponent/style-key-table.component';
 import { showColorTransparencyPicker } from '../KeyTablesComponent/color-transparency-picker';
 import { buildThresholdConnectedComponents } from '@app/contactTraceCommonServices/threshold-analysis';
+import {
+    buildThresholdSensitivityModel,
+    buildThresholdStabilityReport,
+    compareThresholds,
+    nearestThresholdOptionIndex,
+    type ThresholdSensitivityComparison,
+    type ThresholdSensitivityModel,
+    type ThresholdStabilityReport
+} from '@app/contactTraceCommonServices/threshold-sensitivity';
 import { buildPieChartSlicesWithSegmentedFills, buildPieChartSvgDataUri, getCollapsedAggregateBorderWidth, getCollapsedAggregateMinimumRenderedSize, PieChartSlice } from '@app/contactTraceCommonServices/pie-chart-utils';
 import { buildCanonicalNodeColorCounts } from '@app/contactTraceCommonServices/color-mapping.service';
 import {
@@ -58,6 +67,10 @@ import {
     assignSigmaOverviewPositions,
     selectSigmaLayoutBackbone,
     SigmaNetworkRendererAdapter,
+    THRESHOLD_SENSITIVITY_ADDED_COLOR,
+    THRESHOLD_SENSITIVITY_CHANGED_COLOR,
+    THRESHOLD_SENSITIVITY_REMOVED_COLOR,
+    type NetworkThresholdSensitivityOverlay,
     type SigmaEdgeDetailMode,
     type SigmaNodeShape,
     type SigmaPocRenderSummary
@@ -108,7 +121,7 @@ interface TwoDViewportBoundingBox {
     changeDetection: ChangeDetectionStrategy.OnPush,
     standalone: false
 })
-export class TwoDComponent extends BaseComponentDirective implements OnInit, MicobeTraceNextPluginEvents, OnDestroy {
+export class TwoDComponent extends BaseComponentDirective implements OnInit, AfterViewInit, MicobeTraceNextPluginEvents, OnDestroy {
     @Output() DisplayGlobalSettingsDialogEvent = new EventEmitter<GlobalSettingsDialogRequest>();
 
     // Reference to the Cytoscape container
@@ -927,6 +940,25 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
     thresholdSubscription: any;
     threshold: number;
     private pendingThresholdIncreaseRelayout = false;
+    private preserveLayoutForNextThresholdUpdate = false;
+    thresholdSensitivityActive = false;
+    thresholdSensitivityApplying = false;
+    thresholdSensitivityOptions: number[] = [];
+    thresholdSensitivityPreviewIndex = 0;
+    thresholdSensitivityRangeStartIndex = 0;
+    thresholdSensitivityRangeEndIndex = 0;
+    thresholdSensitivityBaseline = 0;
+    thresholdSensitivityMetric = 'distance';
+    thresholdSensitivityDistanceMetric = 'snps';
+    thresholdSensitivityCohortSize = 0;
+    thresholdSensitivityComparison: ThresholdSensitivityComparison | null = null;
+    thresholdSensitivityReport: ThresholdStabilityReport | null = null;
+    thresholdSensitivityOverlayTruncated = false;
+    private thresholdSensitivityModel: ThresholdSensitivityModel | null = null;
+    private thresholdSensitivityFrame: number | null = null;
+    private thresholdSensitivityRequestedPreviewIndex = 0;
+    private thresholdSensitivityFrozenPositions = new Map<string, { x: number; y: number }>();
+    private thresholdSensitivityFrozenViewState: NetworkRendererViewState | null = null;
     networkUpdatedSubscription: any;
     settingsLoadedSubscription: any;
     private styleFileSub: any;
@@ -1846,7 +1878,9 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             const showGroupHulls = Boolean(groupField);
             this.syncSigmaPolygonGroups(sigmaGroupingNodes, groupField);
             const layoutBackbone = selectSigmaLayoutBackbone(networkData.links, 3);
-            const settleMergedClusters = this.pendingThresholdIncreaseRelayout
+            const preserveCommittedThresholdLayout = this.preserveLayoutForNextThresholdUpdate;
+            const settleMergedClusters = !preserveCommittedThresholdLayout
+                && this.pendingThresholdIncreaseRelayout
                 && this.getNetworkLayout() === 'order-by-size'
                 && !this.isTimelineFilteringActive();
             this.pendingThresholdIncreaseRelayout = false;
@@ -1891,6 +1925,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             if (this.getNetworkLayout() === 'order-by-size'
                 && !this.isTimelineFilteringActive()
                 && !this.commonService.session.network.allPinned
+                && !preserveCommittedThresholdLayout
                 && !this.widgets['network-geographic-overlay']) {
                 this.layoutSigmaClusters(networkData.nodes, networkData.links);
             }
@@ -2033,6 +2068,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             this.store.setNetworkUpdated(false);
             this.setNetworkRendering(false);
             this.commonService.demoNetworkRendered = true;
+            if (preserveCommittedThresholdLayout) this.preserveLayoutForNextThresholdUpdate = false;
             this.recordTwoDRenderTiming('twoDSigmaRender', renderStartedAt, {
                 nodes: this.sigmaSummary.residentNodeCount,
                 edges: this.sigmaSummary.residentLinkCount,
@@ -2758,6 +2794,9 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         .pipe(takeUntil(this.destroy$))
         .subscribe(newPruned => {
             console.log('--- TwoD DATA network updated', newPruned);
+            if (newPruned && this.thresholdSensitivityActive && !this.thresholdSensitivityApplying) {
+                this.closeThresholdSensitivity();
+            }
             if (this.data && this.store.settingsLoadedValue && newPruned) {
                 console.log(`TwoD view to be rerendered.  ${this.viewActive ? 'Updating Now' : 'Updating when view is active'}`);
                 if (this.viewActive){
@@ -2789,7 +2828,8 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                 && Number.isFinite(nextThreshold)
                 && nextThreshold !== previousThreshold
             ) {
-                this.pendingThresholdIncreaseRelayout = nextThreshold > previousThreshold;
+                this.pendingThresholdIncreaseRelayout = !this.preserveLayoutForNextThresholdUpdate
+                    && nextThreshold > previousThreshold;
             }
             this.threshold = newThreshold;
             this.syncNodeCollapseControlsFromWidgets();
@@ -2802,6 +2842,231 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         });
         this.InitView();
 
+    }
+
+    openThresholdSensitivity(): void {
+        if (this.thresholdSensitivityActive) {
+            this.closeThresholdSensitivity();
+            return;
+        }
+
+        const cohort = this.commonService.getThresholdSensitivityCohort(false);
+        const metric = String(this.widgets['link-sort-variable'] || 'distance');
+        const baseline = Number(this.widgets['link-threshold']);
+        if (!Number.isFinite(baseline) || cohort.nodes.length === 0) return;
+
+        const model = buildThresholdSensitivityModel(cohort.nodes, cohort.links, metric);
+        if (!this.sigmaActive && this.isCytoscapeUsable(this.cy)) {
+            this.cy.elements().stop();
+            this.thresholdSensitivityFrozenPositions = new Map(
+                this.cy.nodes().map(node => [node.id(), { ...node.position() }]),
+            );
+        } else {
+            this.thresholdSensitivityFrozenPositions.clear();
+        }
+        this.thresholdSensitivityFrozenViewState = this.getRendererViewState();
+        const options = Array.from(new Set([...model.thresholds, baseline])).sort((left, right) => left - right);
+        this.thresholdSensitivityModel = model;
+        this.thresholdSensitivityOptions = options.length ? options : [baseline];
+        this.thresholdSensitivityBaseline = baseline;
+        this.thresholdSensitivityMetric = metric;
+        this.thresholdSensitivityDistanceMetric = String(this.widgets['default-distance-metric'] || 'snps');
+        this.thresholdSensitivityCohortSize = model.nodeIds.length;
+        this.thresholdSensitivityPreviewIndex = nearestThresholdOptionIndex(this.thresholdSensitivityOptions, baseline);
+        this.thresholdSensitivityRequestedPreviewIndex = this.thresholdSensitivityPreviewIndex;
+        this.thresholdSensitivityRangeStartIndex = 0;
+        this.thresholdSensitivityRangeEndIndex = this.thresholdSensitivityOptions.length - 1;
+        this.thresholdSensitivityActive = true;
+        this.refreshThresholdSensitivityReport();
+        this.applyThresholdSensitivityPreview();
+        this.cdref.markForCheck();
+    }
+
+    onThresholdSensitivityPreviewIndexChange(index: number): void {
+        this.thresholdSensitivityRequestedPreviewIndex = Math.max(
+            0,
+            Math.min(this.thresholdSensitivityOptions.length - 1, Number(index) || 0),
+        );
+        if (this.thresholdSensitivityFrame !== null) return;
+        this.thresholdSensitivityFrame = requestAnimationFrame(() => {
+            this.thresholdSensitivityFrame = null;
+            this.thresholdSensitivityPreviewIndex = this.thresholdSensitivityRequestedPreviewIndex;
+            this.applyThresholdSensitivityPreview();
+            this.cdref.markForCheck();
+        });
+    }
+
+    onThresholdSensitivityRangeStartIndexChange(index: number): void {
+        this.thresholdSensitivityRangeStartIndex = Math.max(
+            0,
+            Math.min(Number(index) || 0, this.thresholdSensitivityRangeEndIndex),
+        );
+        this.refreshThresholdSensitivityReport();
+        this.cdref.markForCheck();
+    }
+
+    onThresholdSensitivityRangeEndIndexChange(index: number): void {
+        this.thresholdSensitivityRangeEndIndex = Math.min(
+            this.thresholdSensitivityOptions.length - 1,
+            Math.max(Number(index) || 0, this.thresholdSensitivityRangeStartIndex),
+        );
+        this.refreshThresholdSensitivityReport();
+        this.cdref.markForCheck();
+    }
+
+    private refreshThresholdSensitivityReport(): void {
+        if (!this.thresholdSensitivityModel) return;
+        const rangeMin = this.thresholdSensitivityOptions[this.thresholdSensitivityRangeStartIndex]
+            ?? this.thresholdSensitivityBaseline;
+        const rangeMax = this.thresholdSensitivityOptions[this.thresholdSensitivityRangeEndIndex]
+            ?? this.thresholdSensitivityBaseline;
+        this.thresholdSensitivityReport = buildThresholdStabilityReport(
+            this.thresholdSensitivityModel,
+            this.thresholdSensitivityBaseline,
+            rangeMin,
+            rangeMax,
+        );
+    }
+
+    private applyThresholdSensitivityPreview(): void {
+        const model = this.thresholdSensitivityModel;
+        if (!model || !this.thresholdSensitivityActive) return;
+        const preview = this.thresholdSensitivityOptions[this.thresholdSensitivityPreviewIndex]
+            ?? this.thresholdSensitivityBaseline;
+        const comparison = compareThresholds(model, this.thresholdSensitivityBaseline, preview);
+        this.thresholdSensitivityComparison = comparison;
+        const structural = new Set(comparison.structuralEdgeIds);
+        const changedIds = [
+            ...comparison.structuralEdgeIds,
+            ...comparison.nonStructuralEdgeIds,
+        ];
+        const overlayLimit = 5000;
+        this.thresholdSensitivityOverlayTruncated = changedIds.length > overlayLimit;
+        const added = new Set(comparison.addedEdgeIds);
+        const mergeNodeIds = comparison.transitions
+            .filter(transition => transition.kind === 'merge')
+            .flatMap(transition => transition.affectedNodeIds);
+        const splitNodeIds = comparison.transitions
+            .filter(transition => transition.kind === 'split')
+            .flatMap(transition => transition.affectedNodeIds);
+        const overlay: NetworkThresholdSensitivityOverlay = {
+            baselineThreshold: this.thresholdSensitivityBaseline,
+            previewThreshold: preview,
+            edges: changedIds.slice(0, overlayLimit).flatMap(id => {
+                const edge = model.edgeById.get(id);
+                return edge ? [{
+                    id: edge.id,
+                    sourceId: edge.sourceId,
+                    targetId: edge.targetId,
+                    kind: added.has(id) ? 'added' as const : 'removed' as const,
+                    structural: structural.has(id),
+                    preserveContext: !added.has(id) && this.hasNonGeneticLinkContext(edge.raw),
+                }] : [];
+            }),
+            changedNodeIds: comparison.changedNodeIds,
+            mergeNodeIds: Array.from(new Set(mergeNodeIds)),
+            splitNodeIds: Array.from(new Set(splitNodeIds)),
+            truncated: this.thresholdSensitivityOverlayTruncated,
+        };
+
+        if (this.sigmaActive) this.sigmaRenderer?.setThresholdSensitivityOverlay(overlay);
+        else this.applyCytoscapeThresholdSensitivityOverlay(overlay);
+    }
+
+    private hasNonGeneticLinkContext(link: any): boolean {
+        const origins = (Array.isArray(link?.origin) ? link.origin : [link?.origin])
+            .filter(Boolean)
+            .map(String);
+        const distanceOrigins = this.commonService.getLinkDistanceOrigins(link).map(String);
+        return origins.some(origin => !distanceOrigins.some(distanceOrigin => origin.includes(distanceOrigin)));
+    }
+
+    private clearCytoscapeThresholdSensitivityOverlay(): void {
+        if (!this.isCytoscapeUsable(this.cy)) return;
+        this.cy.batch(() => {
+            this.cy.edges('[thresholdSensitivityTemporary]').remove();
+            this.cy.elements().removeClass(
+                'threshold-sensitivity-added threshold-sensitivity-removed threshold-sensitivity-structural ' +
+                'threshold-sensitivity-changed threshold-sensitivity-merge threshold-sensitivity-split',
+            );
+        });
+    }
+
+    private applyCytoscapeThresholdSensitivityOverlay(overlay: NetworkThresholdSensitivityOverlay): void {
+        if (!this.isCytoscapeUsable(this.cy)) return;
+        this.clearCytoscapeThresholdSensitivityOverlay();
+        const mergeNodes = new Set(overlay.mergeNodeIds);
+        const splitNodes = new Set(overlay.splitNodeIds);
+        this.cy.batch(() => {
+            overlay.edges.forEach(edge => {
+                let cyEdge = this.cy.getElementById(edge.id);
+                if (((!cyEdge || !cyEdge.length) && edge.kind === 'added') || edge.preserveContext) {
+                    const source = this.cy.getElementById(edge.sourceId);
+                    const target = this.cy.getElementById(edge.targetId);
+                    if (!source.length || !target.length) return;
+                    cyEdge = this.cy.add({
+                        group: 'edges',
+                        data: {
+                            id: `threshold-sensitivity-${edge.kind}-${edge.id}`,
+                            source: edge.sourceId,
+                            target: edge.targetId,
+                            thresholdSensitivityTemporary: true,
+                        },
+                    });
+                }
+                if (!cyEdge?.length) return;
+                cyEdge.addClass(edge.kind === 'added'
+                    ? 'threshold-sensitivity-added'
+                    : 'threshold-sensitivity-removed');
+                if (edge.structural) cyEdge.addClass('threshold-sensitivity-structural');
+            });
+            overlay.changedNodeIds.forEach(nodeId => {
+                const node = this.cy.getElementById(nodeId);
+                if (!node.length) return;
+                node.addClass('threshold-sensitivity-changed');
+                if (mergeNodes.has(nodeId)) node.addClass('threshold-sensitivity-merge');
+                if (splitNodes.has(nodeId)) node.addClass('threshold-sensitivity-split');
+            });
+            this.thresholdSensitivityFrozenPositions.forEach((position, nodeId) => {
+                const node = this.cy.getElementById(nodeId);
+                if (node.length) node.position(position);
+            });
+        });
+        if (this.thresholdSensitivityFrozenViewState) {
+            this.setRendererViewState(this.thresholdSensitivityFrozenViewState, false);
+        }
+    }
+
+    closeThresholdSensitivity(): void {
+        if (this.thresholdSensitivityFrame !== null) cancelAnimationFrame(this.thresholdSensitivityFrame);
+        this.thresholdSensitivityFrame = null;
+        this.sigmaRenderer?.setThresholdSensitivityOverlay(null);
+        this.clearCytoscapeThresholdSensitivityOverlay();
+        this.thresholdSensitivityActive = false;
+        this.thresholdSensitivityModel = null;
+        this.thresholdSensitivityComparison = null;
+        this.thresholdSensitivityReport = null;
+        this.thresholdSensitivityOverlayTruncated = false;
+        this.thresholdSensitivityFrozenPositions.clear();
+        this.thresholdSensitivityFrozenViewState = null;
+        this.cdref.markForCheck();
+    }
+
+    async applyThresholdSensitivityThreshold(): Promise<void> {
+        const threshold = this.thresholdSensitivityOptions[this.thresholdSensitivityPreviewIndex];
+        if (!Number.isFinite(threshold) || this.thresholdSensitivityApplying) return;
+        this.thresholdSensitivityApplying = true;
+        this.preserveLayoutForNextThresholdUpdate = true;
+        this.closeThresholdSensitivity();
+        try {
+            await this.commonService.applyLinkThreshold(threshold);
+        } catch (error) {
+            this.preserveLayoutForNextThresholdUpdate = false;
+            console.error('Unable to apply threshold sensitivity preview.', error);
+        } finally {
+            this.thresholdSensitivityApplying = false;
+            this.cdref.markForCheck();
+        }
     }
 
     ngAfterViewInit(): void {
@@ -3194,6 +3459,63 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                     'line-color': 'data(lineSelectedColor)', // Highlight color
                     'width': '3px',
                     'opacity': 1,
+                }
+            },
+            {
+                selector: 'edge.threshold-sensitivity-added',
+                css: {
+                    'line-color': THRESHOLD_SENSITIVITY_ADDED_COLOR,
+                    'opacity': 0.85,
+                    'width': 2.5,
+                    'line-style': 'solid',
+                    'z-index': 40
+                }
+            },
+            {
+                selector: 'edge.threshold-sensitivity-removed',
+                css: {
+                    'line-color': THRESHOLD_SENSITIVITY_REMOVED_COLOR,
+                    'opacity': 0.85,
+                    'width': 2.5,
+                    'line-style': 'dashed',
+                    'line-dash-pattern': [8, 6],
+                    'z-index': 40
+                }
+            },
+            {
+                selector: 'edge.threshold-sensitivity-structural',
+                css: {
+                    'width': 4,
+                    'opacity': 1
+                }
+            },
+            {
+                selector: 'node.threshold-sensitivity-changed',
+                css: {
+                    // @ts-ignore Cytoscape supports node underlays; the bundled typings omit them.
+                    'underlay-color': THRESHOLD_SENSITIVITY_CHANGED_COLOR,
+                    'underlay-opacity': 0.3,
+                    'underlay-padding': 6
+                }
+            },
+            {
+                selector: 'node.threshold-sensitivity-merge',
+                css: {
+                    // @ts-ignore Cytoscape supports node underlays; the bundled typings omit them.
+                    'underlay-color': THRESHOLD_SENSITIVITY_ADDED_COLOR,
+                    'border-color': THRESHOLD_SENSITIVITY_ADDED_COLOR,
+                    'border-width': 4,
+                    'border-style': 'solid'
+                }
+            },
+            {
+                selector: 'node.threshold-sensitivity-split',
+                css: {
+                    // @ts-ignore Cytoscape supports node underlays; the bundled typings omit them.
+                    'underlay-color': THRESHOLD_SENSITIVITY_REMOVED_COLOR,
+                    'border-color': THRESHOLD_SENSITIVITY_REMOVED_COLOR,
+                    'border-width': 4,
+                    'border-style': 'dashed'
                 }
             }
         ];
@@ -3698,6 +4020,9 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
         const nodeId = node.id();
         // This is for REAL user events. It reads the now-updated position from Cytoscape.
         const newPosition = node.position(); 
+        if (this.thresholdSensitivityActive) {
+            this.thresholdSensitivityFrozenPositions.set(nodeId, { ...newPosition });
+        }
         if (node.data('isCollapsedAggregate')) {
             this.nodePositions.set(nodeId, newPosition);
             return;
@@ -8065,7 +8390,19 @@ scaleLinkWidth() {
     this.normalizeNetworkDataForCytoscape(networkData);
 
     const precomputeStart = this.getPerformanceNow();
-    const partialLayout = await this.precomputePositionsWithD3(networkData.nodes, networkData.links, 30, false);
+    const preserveCommittedThresholdLayout = this.preserveLayoutForNextThresholdUpdate;
+    const partialLayout = preserveCommittedThresholdLayout
+        ? {
+            nodes: networkData.nodes.map(node => {
+                const id = this.getNodeId(node);
+                const position = this.nodePositions.get(id) || this.getNodeRenderPosition(node);
+                return { ...node, x: position.x, y: position.y };
+            }),
+            links: networkData.links,
+            tickBatches: 0,
+            ticksPerYield: 0
+        }
+        : await this.precomputePositionsWithD3(networkData.nodes, networkData.links, 30, false);
     const { nodes: laidOutNodes, links: laidOutLinks } = partialLayout;
 
     if (
@@ -8201,7 +8538,10 @@ scaleLinkWidth() {
         //     }
         // });
 
-        if (
+        if (preserveCommittedThresholdLayout) {
+            this.resizeActiveRenderer();
+            this.preserveLayoutForNextThresholdUpdate = false;
+        } else if (
             this.getNetworkLayout() === 'order-by-size'
             && !this.isTimelineFilteringActive()
         ) {
@@ -8245,6 +8585,8 @@ scaleLinkWidth() {
         this.containerShowTimer = null;
         if (this.rerenderTimeout) clearTimeout(this.rerenderTimeout);
         this.rerenderTimeout = null;
+        if (this.thresholdSensitivityFrame !== null) cancelAnimationFrame(this.thresholdSensitivityFrame);
+        this.thresholdSensitivityFrame = null;
         this.pendingPartialUpdate = false;
         this.destroy$.next();
         this.destroy$.complete();

@@ -23,10 +23,19 @@
         [ngClass]="commonService.session.network.allPinned ? 'disabled' : ''">
         <i class="flaticon-refresh primary"></i></a>
     </span>
+    <span style="overflow: visible; position: relative; width: 110px;">
+      <button type="button" title="Explore threshold sensitivity" data-testid="threshold-sensitivity-open"
+        class="btn btn-sm btn-clean btn-icon btn-icon-md" style="float:left"
+        [attr.aria-pressed]="thresholdSensitivityActive"
+        [class.threshold-sensitivity-toolbar-active]="thresholdSensitivityActive"
+        (click)="openThresholdSensitivity()">
+        <i class="pi pi-sliders-h primary" aria-hidden="true"></i>
+      </button>
+    </span>
   }
 </div>
 
-@if (sigmaRequested && sigmaActive) {
+@if (sigmaRequested && sigmaActive && !thresholdSensitivityActive) {
   <div class="network-detail-control" data-testid="network-detail-control">
     <div class="network-detail-control__header">
       <div class="network-detail-control__title">
@@ -117,6 +126,27 @@
           <h3>Interactive network display unavailable</h3>
           <p>{{ sigmaFallbackReason }}</p>
         </section>
+      }
+      @if (thresholdSensitivityActive) {
+        <app-threshold-sensitivity-panel
+          [thresholdOptions]="thresholdSensitivityOptions"
+          [baselineThreshold]="thresholdSensitivityBaseline"
+          [previewIndex]="thresholdSensitivityPreviewIndex"
+          [rangeStartIndex]="thresholdSensitivityRangeStartIndex"
+          [rangeEndIndex]="thresholdSensitivityRangeEndIndex"
+          [comparison]="thresholdSensitivityComparison"
+          [report]="thresholdSensitivityReport"
+          [metric]="thresholdSensitivityMetric"
+          [distanceMetric]="thresholdSensitivityDistanceMetric"
+          [cohortSize]="thresholdSensitivityCohortSize"
+          [applying]="thresholdSensitivityApplying"
+          [overlayTruncated]="thresholdSensitivityOverlayTruncated"
+          (previewIndexChange)="onThresholdSensitivityPreviewIndexChange($event)"
+          (rangeStartIndexChange)="onThresholdSensitivityRangeStartIndexChange($event)"
+          (rangeEndIndexChange)="onThresholdSensitivityRangeEndIndexChange($event)"
+          (applyThreshold)="applyThresholdSensitivityThreshold()"
+          (closePanel)="closeThresholdSensitivity()">
+        </app-threshold-sensitivity-panel>
       }
       <div class="grid-overlay" [class.hidden]="!widgets['network-gridlines-show']"></div>
 

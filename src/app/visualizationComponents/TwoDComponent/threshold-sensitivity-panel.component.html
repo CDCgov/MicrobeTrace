@@ -1,0 +1,121 @@
+<aside class="threshold-sensitivity-panel" data-testid="threshold-sensitivity-panel"
+  aria-label="Threshold sensitivity analysis">
+  <header class="threshold-sensitivity-panel__header">
+    <div>
+      <h2>Threshold sensitivity</h2>
+      <p>{{ cohortSize.toLocaleString() }} nodes · {{ metric }}</p>
+    </div>
+    <button type="button" class="threshold-sensitivity-panel__close" aria-label="Exit without applying"
+      data-testid="threshold-sensitivity-close" (click)="closePanel.emit()">×</button>
+  </header>
+
+  <section class="threshold-sensitivity-panel__thresholds" aria-label="Threshold controls">
+    <div class="threshold-sensitivity-panel__value-row">
+      <span>Baseline <strong>{{ formatThreshold(baselineThreshold) }}</strong></span>
+      <span>Preview <strong data-testid="threshold-sensitivity-preview-value">{{ formatThreshold(previewThreshold) }}</strong></span>
+    </div>
+    <label for="threshold-sensitivity-preview">Preview threshold</label>
+    <input id="threshold-sensitivity-preview" data-testid="threshold-sensitivity-preview" type="range"
+      min="0" [max]="maxIndex" step="1" [value]="previewIndex" (input)="emitPreview($event)">
+    <div class="threshold-sensitivity-panel__range-labels" aria-hidden="true">
+      <span>{{ formatThreshold(thresholdOptions[0]) }}</span>
+      <span>{{ formatThreshold(thresholdOptions[maxIndex]) }}</span>
+    </div>
+  </section>
+
+  @if (comparison) {
+    <section class="threshold-sensitivity-panel__summary" aria-live="polite" data-testid="threshold-sensitivity-summary">
+      <div class="threshold-sensitivity-panel__summary-added"><strong>{{ comparison.addedEdgeIds.length.toLocaleString() }}</strong><span>added links</span></div>
+      <div class="threshold-sensitivity-panel__summary-removed"><strong>{{ comparison.removedEdgeIds.length.toLocaleString() }}</strong><span>removed links</span></div>
+      <div><strong>{{ comparison.preview.clusterCount.toLocaleString() }}</strong><span>clusters</span></div>
+      <div><strong>{{ comparison.preview.singletonCount.toLocaleString() }}</strong><span>singletons</span></div>
+      <div><strong>{{ comparison.changedNodeIds.length.toLocaleString() }}</strong><span>changed nodes</span></div>
+      <div><strong>{{ comparison.transitions.length.toLocaleString() }}</strong><span>merges / splits</span></div>
+    </section>
+    <div class="threshold-sensitivity-panel__legend" role="list" aria-label="Threshold change colors and patterns">
+      <span role="listitem">
+        <i class="threshold-sensitivity-panel__legend-line threshold-sensitivity-panel__legend-line--added" aria-hidden="true"></i>
+        Added links / nodes in merges
+      </span>
+      <span role="listitem">
+        <i class="threshold-sensitivity-panel__legend-line threshold-sensitivity-panel__legend-line--removed" aria-hidden="true"></i>
+        Removed links / nodes in splits
+      </span>
+    </div>
+  }
+
+  @if (comparison?.transitions?.length) {
+    <section class="threshold-sensitivity-panel__transitions" data-testid="threshold-sensitivity-transitions">
+      <h3>Changes from baseline</h3>
+      <p class="threshold-sensitivity-panel__help">
+        Comparing baseline {{ formatThreshold(baselineThreshold) }} with preview {{ formatThreshold(previewThreshold) }}.
+      </p>
+      <ul>
+        @for (transition of comparison.transitions; track $index) {
+          <li>
+            @if (transition.kind === 'merge') {
+              <strong>{{ transition.affectedNodeIds.length }} {{ transition.affectedNodeIds.length === 1 ? 'node' : 'nodes' }} joined together</strong>
+              <span>
+                They were in {{ transition.beforeComponentNodeIds.length }} separate groups at baseline and form one cluster at preview.
+              </span>
+            } @else {
+              <strong>{{ transition.affectedNodeIds.length }} {{ transition.affectedNodeIds.length === 1 ? 'node' : 'nodes' }} split apart</strong>
+              <span>
+                They formed one cluster at baseline and are in {{ transition.afterComponentNodeIds.length }} separate groups at preview.
+              </span>
+            }
+          </li>
+        }
+      </ul>
+      <p class="threshold-sensitivity-panel__help">A group can be a cluster or a single node.</p>
+    </section>
+  }
+
+  <section class="threshold-sensitivity-panel__range" aria-label="Stability range"
+    data-testid="threshold-sensitivity-range">
+    <h3>Stability range</h3>
+    <label for="threshold-sensitivity-range-start">Range start: {{ formatThreshold(thresholdOptions[rangeStartIndex]) }}</label>
+    <input id="threshold-sensitivity-range-start" data-testid="threshold-sensitivity-range-start" type="range"
+      min="0" [max]="maxIndex" step="1" [value]="rangeStartIndex" (input)="emitRangeStart($event)">
+    <label for="threshold-sensitivity-range-end">Range end: {{ formatThreshold(thresholdOptions[rangeEndIndex]) }}</label>
+    <input id="threshold-sensitivity-range-end" data-testid="threshold-sensitivity-range-end" type="range"
+      min="0" [max]="maxIndex" step="1" [value]="rangeEndIndex" (input)="emitRangeEnd($event)">
+
+    @if (report) {
+      <p class="threshold-sensitivity-panel__chart-title">Clusters across this threshold range</p>
+      <svg class="threshold-sensitivity-panel__chart" viewBox="0 0 260 58" role="img"
+        aria-label="Cluster count across the selected threshold range">
+        <line x1="0" y1="52" x2="260" y2="52"></line>
+        <polyline [attr.points]="chartPoints"></polyline>
+      </svg>
+      <div class="threshold-sensitivity-panel__range-labels" aria-hidden="true">
+        <span>{{ formatThreshold(thresholdOptions[rangeStartIndex]) }}</span>
+        <span>Threshold</span>
+        <span>{{ formatThreshold(thresholdOptions[rangeEndIndex]) }}</span>
+      </div>
+      <p class="threshold-sensitivity-panel__help">
+        A higher line means more separate clusters; a falling line means clusters are merging.
+      </p>
+      <div class="threshold-sensitivity-panel__stability" data-testid="threshold-sensitivity-stability">
+        <p><strong>{{ (report.stableNodeShare * 100).toFixed(1) }}%</strong> of baseline-clustered nodes keep their exact membership.</p>
+        <p><strong>{{ report.stableClusterCount }}</strong> stable clusters · <strong>{{ report.changingClusterCount }}</strong> changing</p>
+        <p><strong>{{ report.structuralEventThresholdCount }}</strong> structural event thresholds</p>
+      </div>
+    }
+  </section>
+
+  @if (overlayTruncated) {
+    <p class="threshold-sensitivity-panel__warning" role="status">
+      The report is complete; the network overlay shows the first 5,000 changed links for responsiveness.
+    </p>
+  }
+
+  <footer>
+    <button type="button" class="btn btn-sm btn-outline-secondary" data-testid="threshold-sensitivity-cancel"
+      [disabled]="applying" (click)="closePanel.emit()">Exit without applying</button>
+    <button type="button" class="btn btn-sm btn-primary" data-testid="threshold-sensitivity-apply"
+      [disabled]="applying" (click)="applyThreshold.emit()">
+      {{ applying ? 'Applying…' : 'Apply threshold' }}
+    </button>
+  </footer>
+</aside>

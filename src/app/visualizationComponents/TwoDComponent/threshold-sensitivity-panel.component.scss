@@ -1,0 +1,107 @@
+:host {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  z-index: 20;
+  width: min(350px, calc(100% - 24px));
+  max-height: calc(100% - 24px);
+}
+
+.threshold-sensitivity-panel {
+  display: grid;
+  gap: 14px;
+  max-height: inherit;
+  overflow: auto;
+  padding: 15px;
+  border: 1px solid #cbd5e1;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.98);
+  box-shadow: 0 12px 32px rgba(15, 23, 42, 0.2);
+  color: #1e293b;
+}
+
+.threshold-sensitivity-panel__header,
+.threshold-sensitivity-panel__value-row,
+footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+h2, h3, p { margin: 0; }
+h2 { font-size: 17px; }
+h3 { margin-bottom: 7px; font-size: 13px; }
+.threshold-sensitivity-panel__header p { margin-top: 3px; color: #64748b; font-size: 11px; }
+.threshold-sensitivity-panel__close { border: 0; background: transparent; color: #475569; font-size: 25px; line-height: 1; }
+
+.threshold-sensitivity-panel__thresholds,
+.threshold-sensitivity-panel__range {
+  display: grid;
+  gap: 6px;
+}
+
+label, .threshold-sensitivity-panel__value-row { font-size: 11px; }
+input[type='range'] { width: 100%; accent-color: #2563eb; }
+.threshold-sensitivity-panel__range-labels { display: flex; justify-content: space-between; color: #64748b; font-size: 10px; }
+
+.threshold-sensitivity-panel__summary {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 7px;
+}
+
+.threshold-sensitivity-panel__summary div {
+  display: grid;
+  gap: 1px;
+  padding: 7px;
+  border-radius: 7px;
+  background: #f1f5f9;
+}
+
+.threshold-sensitivity-panel__summary strong { font-size: 16px; }
+.threshold-sensitivity-panel__summary span { color: #64748b; font-size: 10px; }
+.threshold-sensitivity-panel__summary-added strong { color: #087f5b; }
+.threshold-sensitivity-panel__summary-removed strong { color: #c92a2a; }
+
+.threshold-sensitivity-panel__legend {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 7px;
+  color: #334155;
+  font-size: 10px;
+}
+
+.threshold-sensitivity-panel__legend span { display: flex; align-items: center; gap: 6px; line-height: 1.25; }
+.threshold-sensitivity-panel__legend-line { flex: 0 0 26px; border-top: 3px solid; }
+.threshold-sensitivity-panel__legend-line--added { border-color: #087f5b; }
+.threshold-sensitivity-panel__legend-line--removed { border-color: #c92a2a; border-top-style: dashed; }
+
+.threshold-sensitivity-panel__chart {
+  width: 100%;
+  height: 58px;
+  background: #f8fafc;
+}
+.threshold-sensitivity-panel__chart-title { margin-top: 3px; font-size: 11px; font-weight: 600; }
+.threshold-sensitivity-panel__chart line { stroke: #cbd5e1; stroke-width: 1; }
+.threshold-sensitivity-panel__chart polyline { fill: none; stroke: #2563eb; stroke-width: 2; }
+.threshold-sensitivity-panel__help { color: #64748b; font-size: 10px; line-height: 1.35; }
+.threshold-sensitivity-panel__stability { display: grid; gap: 3px; font-size: 11px; }
+.threshold-sensitivity-panel__transitions { display: grid; gap: 7px; }
+.threshold-sensitivity-panel__transitions h3 { margin-bottom: 0; }
+.threshold-sensitivity-panel__transitions ul { display: grid; gap: 7px; margin: 0; padding: 0; list-style: none; }
+.threshold-sensitivity-panel__transitions li {
+  display: grid;
+  gap: 2px;
+  padding: 8px;
+  border-left: 3px solid #2563eb;
+  border-radius: 0 7px 7px 0;
+  background: #f8fafc;
+  font-size: 11px;
+}
+.threshold-sensitivity-panel__transitions li span { color: #475569; line-height: 1.35; }
+.threshold-sensitivity-panel__warning { padding: 8px; border-radius: 6px; background: #fff7ed; color: #9a3412; font-size: 11px; }
+
+@media (max-width: 680px) {
+  :host { top: auto; bottom: 8px; right: 8px; width: calc(100% - 16px); max-height: 58%; }
+}

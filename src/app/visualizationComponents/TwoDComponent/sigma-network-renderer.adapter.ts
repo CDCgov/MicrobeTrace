@@ -181,6 +181,29 @@ export interface SigmaPocRenderSummary {
   edgeStride: number;
 }
 
+export interface NetworkThresholdSensitivityOverlayEdge {
+  id: string;
+  sourceId: string;
+  targetId: string;
+  kind: 'added' | 'removed';
+  structural: boolean;
+  preserveContext?: boolean;
+}
+
+export const THRESHOLD_SENSITIVITY_ADDED_COLOR = '#087f5b';
+export const THRESHOLD_SENSITIVITY_REMOVED_COLOR = '#c92a2a';
+export const THRESHOLD_SENSITIVITY_CHANGED_COLOR = '#b45309';
+
+export interface NetworkThresholdSensitivityOverlay {
+  baselineThreshold: number;
+  previewThreshold: number;
+  edges: NetworkThresholdSensitivityOverlayEdge[];
+  changedNodeIds: string[];
+  mergeNodeIds: string[];
+  splitNodeIds: string[];
+  truncated?: boolean;
+}
+
 export interface SigmaPocCallbacks {
   onNodeSelectionChange?: (
     selectedNodeIds: ReadonlySet<string>,
@@ -621,6 +644,7 @@ export class SigmaNetworkRendererAdapter {
   private geographicLayer: HTMLCanvasElement | null = null;
   private groupLayer: HTMLCanvasElement | null = null;
   private edgeOverlayLayer: HTMLCanvasElement | null = null;
+  private thresholdSensitivityLayer: HTMLCanvasElement | null = null;
   private edgeLabelLayer: HTMLCanvasElement | null = null;
   private featureLayer: HTMLCanvasElement | null = null;
   private selectionLayer: HTMLCanvasElement | null = null;
@@ -659,6 +683,8 @@ export class SigmaNetworkRendererAdapter {
   private hoveredEdgeId: string | null = null;
   private iconPathCache = new Map<string, Path2D>();
   private nodeImageCache = new Map<string, HTMLImageElement>();
+  private thresholdSensitivityOverlay: NetworkThresholdSensitivityOverlay | null = null;
+  private thresholdSensitivityRemovedEdgeIds = new Set<string>();
 
   private readonly handleWebglContextLost = (event: Event): void => {
     event.preventDefault();
@@ -832,6 +858,7 @@ export class SigmaNetworkRendererAdapter {
     this.drawGeographicOverlay();
     this.drawGroupHulls();
     this.drawEdgeOverlays();
+    this.drawThresholdSensitivityOverlay();
     this.drawNodeFeatures();
     this.drawEdgeLabels();
     this.emitSummary();
@@ -861,6 +888,7 @@ export class SigmaNetworkRendererAdapter {
     this.drawGeographicOverlay();
     this.drawGroupHulls();
     this.drawEdgeOverlays();
+    this.drawThresholdSensitivityOverlay();
     this.drawNodeFeatures();
     this.drawEdgeLabels();
     this.drawSelectionBox();
@@ -878,6 +906,17 @@ export class SigmaNetworkRendererAdapter {
     this.rebuildActiveNeighborhood();
     if (changed && this.renderer && this.rebuildDisplayGraph()) return;
     this.renderer?.refresh();
+  }
+
+  setThresholdSensitivityOverlay(overlay: NetworkThresholdSensitivityOverlay | null): void {
+    this.thresholdSensitivityOverlay = overlay;
+    this.thresholdSensitivityRemovedEdgeIds = new Set(
+      overlay?.edges
+        .filter(edge => edge.kind === 'removed' && !edge.preserveContext)
+        .map(edge => edge.id) || [],
+    );
+    this.renderer?.refresh();
+    this.drawThresholdSensitivityOverlay();
   }
 
   getGraph(): Graph<SigmaNodeAttributes, SigmaEdgeAttributes> {
@@ -994,6 +1033,7 @@ export class SigmaNetworkRendererAdapter {
     this.geographicLayer = null;
     this.groupLayer = null;
     this.edgeOverlayLayer = null;
+    this.thresholdSensitivityLayer = null;
     this.edgeLabelLayer = null;
     this.featureLayer = null;
     this.selectionLayer = null;
@@ -1007,6 +1047,7 @@ export class SigmaNetworkRendererAdapter {
       this.drawGeographicOverlay();
       this.drawGroupHulls();
       this.drawEdgeOverlays();
+      this.drawThresholdSensitivityOverlay();
       this.drawNodeFeatures();
       this.drawEdgeLabels();
       return this.hasActiveWebglContext();
@@ -1047,6 +1088,7 @@ export class SigmaNetworkRendererAdapter {
     this.geographicLayer = null;
     this.groupLayer = null;
     this.edgeOverlayLayer = null;
+    this.thresholdSensitivityLayer = null;
     this.edgeLabelLayer = null;
     this.featureLayer = null;
     this.selectionLayer = null;
@@ -1161,11 +1203,14 @@ export class SigmaNetworkRendererAdapter {
           this.selectedNodeIds.has(String(attributes.sourceId)) ||
           this.selectedNodeIds.has(String(attributes.targetId))
         );
+        const removedBySensitivity = this.thresholdSensitivityRemovedEdgeIds.has(String(attributes.raw.id));
         return {
           ...displayData,
           visibility: 'visible',
           color: incidentToHover || incidentToSelection ? this.selectedColor : String(attributes.color),
-          opacity: incidentToHover || incidentToSelection ? 0.9 : Number(attributes.opacity),
+          opacity: removedBySensitivity
+            ? 0.04
+            : incidentToHover || incidentToSelection ? 0.9 : Number(attributes.opacity),
           size: Number(attributes.size) * (incidentToHover || incidentToSelection || state.isHovered ? 1.75 : 1),
           head: attributes.head,
           tail: attributes.tail,
@@ -1216,8 +1261,15 @@ export class SigmaNetworkRendererAdapter {
     this.edgeOverlayLayer.dataset.testid = 'network-edge-overlay';
     this.edgeOverlayLayer.dataset.renderer = 'sigma';
     this.edgeOverlayLayer.setAttribute('aria-hidden', 'true');
-    this.edgeLabelLayer = this.renderer.createCanvas('microbetrace-edge-labels', {
+    this.thresholdSensitivityLayer = this.renderer.createCanvas('microbetrace-threshold-sensitivity', {
       afterLayer: 'microbetrace-edge-overlays',
+      style: { pointerEvents: 'none' },
+    });
+    this.thresholdSensitivityLayer.dataset.testid = 'network-threshold-sensitivity-overlay';
+    this.thresholdSensitivityLayer.dataset.renderer = 'sigma';
+    this.thresholdSensitivityLayer.setAttribute('aria-hidden', 'true');
+    this.edgeLabelLayer = this.renderer.createCanvas('microbetrace-edge-labels', {
+      afterLayer: 'microbetrace-threshold-sensitivity',
       style: { pointerEvents: 'none' },
     });
     this.edgeLabelLayer.dataset.testid = 'network-edge-label-overlay';
@@ -1244,6 +1296,7 @@ export class SigmaNetworkRendererAdapter {
       this.drawGeographicOverlay();
       this.drawGroupHulls();
       this.drawEdgeOverlays();
+      this.drawThresholdSensitivityOverlay();
       this.drawNodeFeatures();
       this.drawEdgeLabels();
     });
@@ -2200,6 +2253,82 @@ export class SigmaNetworkRendererAdapter {
         context.moveTo(clipped.source.x, clipped.source.y);
         context.lineTo(clipped.target.x, clipped.target.y);
       }
+      context.stroke();
+      context.restore();
+    });
+  }
+
+  private drawThresholdSensitivityOverlay(): void {
+    if (!this.renderer || !this.thresholdSensitivityLayer) return;
+    const prepared = this.prepareOverlayCanvas(this.thresholdSensitivityLayer);
+    if (!prepared) return;
+    const { context, width, height } = prepared;
+    const overlay = this.thresholdSensitivityOverlay;
+    this.thresholdSensitivityLayer.dataset.active = String(Boolean(overlay));
+    this.thresholdSensitivityLayer.dataset.changedEdgeCount = String(overlay?.edges.length || 0);
+    this.thresholdSensitivityLayer.dataset.changedNodeCount = String(overlay?.changedNodeIds.length || 0);
+    this.thresholdSensitivityLayer.dataset.truncated = String(Boolean(overlay?.truncated));
+    if (!overlay) return;
+
+    const drawEdge = (edge: NetworkThresholdSensitivityOverlayEdge) => {
+      if (!this.graph.hasNode(edge.sourceId) || !this.graph.hasNode(edge.targetId)) return;
+      const source = this.graph.getNodeAttributes(edge.sourceId);
+      const target = this.graph.getNodeAttributes(edge.targetId);
+      const sourcePoint = this.renderer!.graphToViewport({ x: Number(source.x), y: Number(source.y) });
+      const targetPoint = this.renderer!.graphToViewport({ x: Number(target.x), y: Number(target.y) });
+      if (
+        (sourcePoint.x < 0 && targetPoint.x < 0) ||
+        (sourcePoint.x > width && targetPoint.x > width) ||
+        (sourcePoint.y < 0 && targetPoint.y < 0) ||
+        (sourcePoint.y > height && targetPoint.y > height)
+      ) return;
+      const clipped = clipSigmaEdgeSegment(
+        {
+          ...sourcePoint,
+          radius: this.getOverlayNodeRadius(edge.sourceId, source),
+          shape: source.shape,
+        },
+        {
+          ...targetPoint,
+          radius: this.getOverlayNodeRadius(edge.targetId, target),
+          shape: target.shape,
+        },
+      );
+      if (!clipped) return;
+      context.save();
+      context.strokeStyle = edge.kind === 'added'
+        ? THRESHOLD_SENSITIVITY_ADDED_COLOR
+        : THRESHOLD_SENSITIVITY_REMOVED_COLOR;
+      context.globalAlpha = edge.structural ? 0.96 : 0.72;
+      context.lineWidth = edge.structural ? 3.5 : 2;
+      context.lineCap = 'round';
+      context.setLineDash(edge.kind === 'removed' ? [8, 6] : []);
+      context.beginPath();
+      context.moveTo(clipped.source.x, clipped.source.y);
+      context.lineTo(clipped.target.x, clipped.target.y);
+      context.stroke();
+      context.restore();
+    };
+    overlay.edges.forEach(drawEdge);
+
+    const mergeNodes = new Set(overlay.mergeNodeIds);
+    const splitNodes = new Set(overlay.splitNodeIds);
+    overlay.changedNodeIds.forEach(nodeId => {
+      if (!this.graph.hasNode(nodeId)) return;
+      const node = this.graph.getNodeAttributes(nodeId);
+      const point = this.renderer!.graphToViewport({ x: Number(node.x), y: Number(node.y) });
+      const radius = this.getOverlayNodeRadius(nodeId, node) + 5;
+      context.save();
+      context.beginPath();
+      context.arc(point.x, point.y, radius, 0, Math.PI * 2);
+      const isMerge = mergeNodes.has(nodeId);
+      const isSplit = splitNodes.has(nodeId);
+      context.strokeStyle = isMerge
+        ? THRESHOLD_SENSITIVITY_ADDED_COLOR
+        : isSplit ? THRESHOLD_SENSITIVITY_REMOVED_COLOR : THRESHOLD_SENSITIVITY_CHANGED_COLOR;
+      context.globalAlpha = 0.88;
+      context.lineWidth = isMerge || isSplit ? 3 : 2.5;
+      context.setLineDash(isMerge ? [] : isSplit ? [7, 4] : [2, 3]);
       context.stroke();
       context.restore();
     });

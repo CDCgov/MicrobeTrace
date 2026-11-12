@@ -4149,6 +4149,61 @@ align(params): Promise<any> {
         return out;
     };
 
+    /**
+     * Returns the fixed node/link cohort used by threshold-sensitivity analysis.
+     * Unlike getVisibleNodes(), this deliberately ignores minimum-cluster-size
+     * visibility while retaining the active subset and timeline gates.
+     */
+    getThresholdSensitivityCohort(copy = false): { nodes: any[]; links: any[] } {
+        const resolvedSubsetFilter = this.resolveNetworkSubsetFilter();
+        const dateField = this.session.style.widgets["timeline-date-field"];
+        const hasTimelineStart = this.hasValidTimelineDateValue(this.session.state.timeStart);
+        const hasTimelineEnd = this.hasValidTimelineDateValue(this.session.state.timeEnd);
+        const timelineStart = hasTimelineStart ? moment(this.session.state.timeStart).toDate() : null;
+        const timelineEnd = hasTimelineEnd ? moment(this.session.state.timeEnd).toDate() : null;
+
+        const nodes = (this.session.data.nodeFilteredValues || [])
+            .filter(node => this.nodePassesNetworkSubset(node, resolvedSubsetFilter))
+            .filter(node => {
+                if (dateField === 'None' || !timelineEnd) return true;
+                const rawDateValue = node[dateField];
+                if (!this.hasValidTimelineDateValue(rawDateValue)) return true;
+                const nodeDate = moment(rawDateValue).toDate();
+                return timelineEnd >= nodeDate && (!timelineStart || timelineStart <= nodeDate);
+            });
+        const nodeIds = new Set(nodes.map(node => this.getNetworkSubsetNodeId(node)));
+        const metric = String(this.session.style.widgets["link-sort-variable"] || 'distance');
+        const nearestNeighborOnly = Boolean(this.session.style.widgets["link-show-nn"]);
+        const links = (this.session.data.links || []).filter((link, index) => {
+            if (!this.linkPassesNetworkSubset(link, index, resolvedSubsetFilter)) return false;
+            if (!nodeIds.has(this.getLinkEndpointId(link.source)) || !nodeIds.has(this.getLinkEndpointId(link.target))) {
+                return false;
+            }
+            if (link.hasDistance !== true || !Number.isFinite(Number(link[metric]))) return false;
+            return !nearestNeighborOnly || Boolean(link.nn);
+        });
+
+        if (!copy) return { nodes, links };
+        return {
+            nodes: nodes.map(node => JSON.parse(JSON.stringify(node))),
+            links: links.map(link => JSON.parse(JSON.stringify(link))),
+        };
+    }
+
+    /** Applies a committed link threshold through the shared visibility path. */
+    async applyLinkThreshold(threshold: number): Promise<void> {
+        const parsedThreshold = Number(threshold);
+        if (!Number.isFinite(parsedThreshold)) return;
+
+        this.session.style.widgets["link-threshold"] = parsedThreshold;
+        this.GlobalSettingsModel.SelectedLinkThresholdVariable = parsedThreshold;
+        this.session.style.widgets["mst-computed"] = false;
+        this.store.setLinkThreshold(parsedThreshold);
+        await this.ensurePatristicEdgesForThreshold(parsedThreshold);
+        this.setLinkVisibility(false, false);
+        this.updateNetworkVisuals(false, true);
+    }
+
     private buildNonTimelineVisibleClusterSummary() {
         const nodes = this.getNetworkSubsetBaseNodes(this.session.data.nodeFilteredValues || []);
         const metric = this.session.style.widgets["link-sort-variable"];

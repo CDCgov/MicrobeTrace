@@ -199,6 +199,49 @@ describe('Sigma network renderer adapter', () => {
     });
   });
 
+  it('updates sensitivity emphasis without rebuilding either Graphology graph', () => {
+    const adapter = new SigmaNetworkRendererAdapter(document.createElement('div'), '#ff2d55');
+    const residentGraph = adapter.getGraph();
+    const displayGraph = adapter.getDisplayGraph();
+    const refresh = jasmine.createSpy('refresh');
+    (adapter as any).renderer = { refresh };
+
+    adapter.setThresholdSensitivityOverlay({
+      baselineThreshold: 1,
+      previewThreshold: 2,
+      edges: [{ id: 'a-b', sourceId: 'a', targetId: 'b', kind: 'removed', structural: true }],
+      changedNodeIds: ['a', 'b'],
+      mergeNodeIds: [],
+      splitNodeIds: ['a', 'b'],
+    });
+
+    expect(adapter.getGraph()).toBe(residentGraph);
+    expect(adapter.getDisplayGraph()).toBe(displayGraph);
+    expect((adapter as any).thresholdSensitivityRemovedEdgeIds).toEqual(new Set(['a-b']));
+    expect(refresh).toHaveBeenCalledTimes(1);
+
+    adapter.setThresholdSensitivityOverlay({
+      baselineThreshold: 1,
+      previewThreshold: 0,
+      edges: [{
+        id: 'a-b',
+        sourceId: 'a',
+        targetId: 'b',
+        kind: 'removed',
+        structural: true,
+        preserveContext: true,
+      }],
+      changedNodeIds: ['a', 'b'],
+      mergeNodeIds: [],
+      splitNodeIds: ['a', 'b'],
+    });
+    expect((adapter as any).thresholdSensitivityRemovedEdgeIds.size).toBe(0);
+
+    adapter.setThresholdSensitivityOverlay(null);
+    expect((adapter as any).thresholdSensitivityRemovedEdgeIds.size).toBe(0);
+    expect(refresh).toHaveBeenCalledTimes(3);
+  });
+
   it('only projects a hovered neighborhood when neighbor highlighting is enabled', () => {
     const adapter = new SigmaNetworkRendererAdapter(document.createElement('div'), '#ff2d55');
     const graph = adapter.getGraph() as any;
