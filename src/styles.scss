@@ -563,6 +563,11 @@ body .ui-tabview.ui-tabview-top .ui-tabview-nav li.ui-state-active, body .ui-tab
     font-size: 16px !important;
 }
 
+// Collapsed PrimeNG contents stay mounted; clip their scroll overflow as well.
+.p-accordioncontent[data-p-active='false'] {
+    overflow: hidden;
+}
+
 .threshold-input-length {
     max-width: 60px;;
 }

@@ -51,7 +51,7 @@
       <div class="view-controls">
         @if (viewActive) {
           <p-dialog id="sankey-settings-pane" data-testid="sankey-settings-dialog" [(visible)]="SankeyExportDialogSettings.isVisible"
-            [contentStyle]="{'overflow': 'visible'}" header="Sankey Chart Settings" appendTo="body">
+            [contentStyle]="{'overflow': 'auto'}" header="Sankey Chart Settings" appendTo="body">
             <tabset class="tab-container tabbable-line">
               <tab heading="{{'Variables' | localize}}" [active]="true" customClass="m-tabs__item" style="width: 400px; padding: 10px 10px 0px 10px;">
                 <div>
