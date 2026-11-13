@@ -56,6 +56,19 @@ describe('layoutSparseDisconnectedComponents', () => {
       singletonPositions.map(singleton => Math.hypot(linked.x - singleton.x, linked.y - singleton.y))
     )));
     expect(closestSingletonToCluster).toBeGreaterThan(20);
+
+    const linkedTop = Math.min(...Array.from(linkedNodeIds, id => {
+      const node = nodes.find(candidate => candidate.id === id)!;
+      const position = result.positions.get(id)!;
+      return position.y + node.minY - node.y;
+    }));
+    const singletonBottom = Math.max(...nodes
+      .filter(node => !linkedNodeIds.has(node.id))
+      .map(node => {
+        const position = result.positions.get(node.id)!;
+        return position.y + node.maxY - node.y;
+      }));
+    expect(linkedTop - singletonBottom).toBeGreaterThanOrEqual(48);
   });
 
   it('leaves ordinary multi-cluster networks on the force-directed layout path', () => {
