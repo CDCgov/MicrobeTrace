@@ -16,7 +16,7 @@ The integration has three parts:
 
 ### Cross-origin-isolated WebAssembly applications
 
-The SDK's popup handshake intentionally uses `window.opener`. A page served with
+The SDK's receiver handshake intentionally uses `window.opener`. A page served with
 `Cross-Origin-Opener-Policy: same-origin` is placed in a separate browsing-context
 group from the cross-origin MicrobeTrace receiver, so the browser severs that
 opener relationship. This applies to threaded WebAssembly applications that use
@@ -60,7 +60,7 @@ the isolation headers only to that analysis page and its script; the accompanyin
 ## Prerequisites
 
 - Your webapp origin must be allowlisted by the MicrobeTrace team.
-- Your users must trigger the popup from a real click or tap. Browsers will block background popup attempts.
+- Your users must trigger the new tab or popup from a real click or tap. Browsers will block background open attempts.
 - Your data must fit within the partner handoff limits.
 - Use the official SDK entry point instead of linking directly to the receiver page. The SDK passes your origin to the receiver so the `postMessage` handshake can use explicit target origins.
 - If you pass `target`, it must be a hardcoded, approved MicrobeTrace deployment URL. Never derive it from a query string, form field, or other user-controlled value.
@@ -169,7 +169,7 @@ Use this checklist before handing the integration to your users:
 - Add explicit `kind` or `options.field1/field2/field3` when your data shape is unusual.
 - Use `launch` only for the curated launch defaults documented below. Do not send MicrobeTrace session JSON or raw `session.style.widgets`.
 - Test one successful launch on a real browser before release.
-- Test denial cases: unauthorized user, expired session, disabled export role, disallowed origin, oversized payload, and popup blocked.
+- Test denial cases: unauthorized user, expired session, disabled export role, disallowed origin, oversized payload, and a blocked tab or popup.
 
 ## API
 
@@ -193,6 +193,11 @@ Optional fields:
 - `allowedTargetOrigins`
   - Exact target origins allowed when a reviewed self-hosted SDK copy must send to a different MicrobeTrace deployment.
   - Example: `['https://microbetrace.cdc.gov']`
+- `openMode`
+  - Controls how the receiver is presented: `tab` or `popup`.
+  - Defaults to `tab`, which normally opens a full-size browser tab. Browsers and user preferences retain final control over whether a new browsing context appears as a tab or window.
+  - Set `openMode: 'popup'` to request the legacy 960×720 popup window.
+  - Do not add `noopener`; the validated handoff protocol intentionally requires `window.opener` for its `postMessage` exchange.
 - `metadata.datasetName`
   - Legacy dataset display name. If `launch.datasetName` is also supplied, MicrobeTrace uses `launch.datasetName` for this handoff launch.
 - `metadata.sourceApp`
@@ -565,9 +570,9 @@ When the button is embedded in a CDC application where the user is already authe
 | `postMessage` misuse | The receiver accepts messages only from exact allowlisted origins and validates `partnerId`, nonce, schema, size limits, and file kinds. The SDK ignores responses from unexpected windows, origins, partner IDs, or nonces. | Do not wrap the SDK with wildcard, suffix, substring, or user-controlled origin checks. Validate any partner-side message handling as untrusted input. | A compromised allowlisted origin can still send any data available in that origin's authenticated context. |
 | Overbroad or shared-origin allowlist | `npm run verify:embed-security` validates exact origins, rejects wildcards and paths, rejects shared origins across partner IDs, and limits localhost to `local-dev`. | Use dedicated origins for apps with different trust levels or export rights. Avoid hosting unrelated apps with different security boundaries on the same scheme/host/port. | Browser origins do not enforce path-level trust boundaries; apps sharing an origin share this integration trust. |
 | Third-party script supply chain | The SDK is a small static asset served from the MicrobeTrace deployment and defaults to same-origin target inference to reduce configuration mistakes. | Load the SDK only from the approved MicrobeTrace deployment, restrict `script-src`, and use SRI or a reviewed self-hosted copy if required by governance. | Any script loaded into the partner page executes with that page's JavaScript privileges. |
-| XSS in partner app | Popup timing and SDK validation reduce silent background abuse, but MicrobeTrace cannot protect data already exposed to malicious script in the partner page. | Maintain partner-side output encoding, CSP, dependency hygiene, and XSS testing. Keep secrets out of JavaScript-readable state when possible. | XSS in the authenticated partner app can call the SDK with data the page can read. |
+| XSS in partner app | User-activation timing and SDK validation reduce silent background abuse, but MicrobeTrace cannot protect data already exposed to malicious script in the partner page. | Maintain partner-side output encoding, CSP, dependency hygiene, and XSS testing. Keep secrets out of JavaScript-readable state when possible. | XSS in the authenticated partner app can call the SDK with data the page can read. |
 | Clickjacking or UI redress | The receiver refuses to run inside an embedded frame. WAR/Tomcat builds include `X-Frame-Options: DENY`, and deployment docs require `frame-ancestors 'none'`. | Protect the partner app with `frame-ancestors` or `X-Frame-Options`, and make the export action visibly name MicrobeTrace and the selected dataset. | A user can still be tricked by social engineering or compromised UI inside an already trusted page. |
-| Reverse tabnabbing / opener exposure | The SDK uses opener messaging intentionally and validates the receiver before transfer. The receiver validates the opener origin before storing data. | Use only approved MicrobeTrace targets. Consider a partner-side intermediate export page if opener exposure is unacceptable for your application. | The opener relationship cannot be fully removed from this popup-based handoff design. |
+| Reverse tabnabbing / opener exposure | The SDK uses opener messaging intentionally and validates the receiver before transfer. The receiver validates the opener origin before storing data. | Use only approved MicrobeTrace targets. Consider a partner-side intermediate export page if opener exposure is unacceptable for your application. | The opener relationship cannot be fully removed from this handoff design. |
 | Token or secret leakage | The SDK success receipt includes only `partnerId`, `handoffId`, timestamps, receiver URL, and file summaries. Receiver and Angular validation ignore arbitrary metadata beyond approved fields. | Never include cookies, bearer tokens, API keys, CSRF tokens, signed URLs, internal request headers, or debug traces in `files` or `metadata`. Scrub exports before constructing the payload. | MicrobeTrace cannot know whether a partner-provided cell value or metadata field is a secret. |
 | Browser storage exposure | Handoffs are stored under the `handoff:*` namespace on the MicrobeTrace origin, are one-time, short-lived, deleted after success/error, and expired or malformed records are cleaned up at startup and before new receiver storage. | Minimize payloads, prefer private windows for shared workstations, and use managed-device controls for sensitive workflows. | IndexedDB/localforage is local browser storage, not encrypted application storage; malware, local administrators, browser extensions, or MicrobeTrace-origin XSS can still inspect it. |
 | Handoff id leakage or replay | Handoff launches use `#handoff=...` fragments instead of query strings, query-form handoffs are consumed and cleaned if encountered, and handoff records are one-time and TTL-bound. | Do not log, paste, screenshot, or share full MicrobeTrace URLs containing `handoff`. Consume handoffs promptly. | Fragments can still appear in browser history, screenshots, copied URLs, and support workflows. |

@@ -51,6 +51,39 @@ test('SDK infers target from its script source', () => {
   );
 });
 
+test('SDK opens a new tab by default and retains popup mode as an opt-in', () => {
+  const tabContext = createSdkContext();
+  tabContext.MicrobeTraceEmbed.open({
+    partnerId: 'local-dev',
+    files: [{ name: 'nodes.csv', contents: 'id\nA\n' }],
+  });
+
+  assert.equal(tabContext.__openedTarget, '_blank');
+  assert.equal(tabContext.__openedFeatures, undefined);
+
+  const popupContext = createSdkContext();
+  popupContext.MicrobeTraceEmbed.open({
+    openMode: 'popup',
+    partnerId: 'local-dev',
+    files: [{ name: 'nodes.csv', contents: 'id\nA\n' }],
+  });
+
+  assert.equal(popupContext.__openedTarget, '_blank');
+  assert.equal(popupContext.__openedFeatures, 'popup=yes,width=960,height=720');
+});
+
+test('SDK rejects unsupported open modes', () => {
+  const context = createSdkContext();
+
+  assert.throws(() => {
+    context.MicrobeTraceEmbed.open({
+      openMode: 'same-tab',
+      partnerId: 'local-dev',
+      files: [{ name: 'nodes.csv', contents: 'id\nA\n' }],
+    });
+  }, /openMode/);
+});
+
 test('SDK rejects mismatched target origins unless explicitly allowed', () => {
   const blockedContext = createSdkContext();
 
@@ -383,8 +416,10 @@ function createSdkContext(overrides = {}) {
     crypto: Object.prototype.hasOwnProperty.call(overrides, 'crypto')
       ? overrides.crypto
       : { randomUUID: () => 'nonce-test' },
-    open(url) {
+    open(url, target, features) {
       context.__openedUrl = url;
+      context.__openedTarget = target;
+      context.__openedFeatures = features;
       return context.__popup;
     },
     setTimeout: () => 1,

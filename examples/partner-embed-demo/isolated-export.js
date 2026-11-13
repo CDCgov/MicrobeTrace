@@ -77,9 +77,9 @@
   }
 
   button.addEventListener('click', function () {
-    var bridgeWindow = window.open('about:blank', '_blank', 'popup=yes,width=960,height=720');
+    var bridgeWindow = window.open('about:blank', '_blank');
     if (!bridgeWindow) {
-      status.textContent = 'The export bridge window was blocked.';
+      status.textContent = 'The export bridge tab or window was blocked.';
       return;
     }
 

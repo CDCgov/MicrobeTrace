@@ -143,6 +143,9 @@
     if (!Array.isArray(options.files) || !options.files.length) {
       throw new Error('MicrobeTraceEmbed.open requires at least one file.');
     }
+    if (typeof options.openMode !== 'undefined' && options.openMode !== 'tab' && options.openMode !== 'popup') {
+      throw new Error('MicrobeTraceEmbed.open openMode must be either "tab" or "popup".');
+    }
     return options;
   }
 
@@ -153,10 +156,12 @@
     var openerOrigin = resolveOpenerOrigin();
     var receiverUrl = buildReceiverUrl(targetUrl, normalizedOptions.partnerId, nonce, openerOrigin);
     var receiverOrigin = receiverUrl.origin;
-    var popup = global.open(receiverUrl.toString(), '_blank', 'popup=yes,width=960,height=720');
+    var popup = normalizedOptions.openMode === 'popup'
+      ? global.open(receiverUrl.toString(), '_blank', 'popup=yes,width=960,height=720')
+      : global.open(receiverUrl.toString(), '_blank');
 
     if (!popup) {
-      return Promise.reject(new Error('The partner handoff window was blocked by the browser.'));
+      return Promise.reject(new Error('The partner handoff tab or window was blocked by the browser.'));
     }
 
     return new Promise(function (resolve, reject) {
