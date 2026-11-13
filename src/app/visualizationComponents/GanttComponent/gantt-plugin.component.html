@@ -63,7 +63,7 @@
                         style="overflow:visible">
                         <div class="col-4"><label for="gantt-color">Color</label></div>
                         <div class="col-8">
-                          <input type="color" id="gantt-color" [(ngModel)]="GanttEntryColor">
+                        <input type="color" id="gantt-color" [ngModel]="GanttEntryColor" (change)="GanttEntryColor = $any($event.target).value">
                           <a class='transparency-symbol' (click)="openOpacityBar($event)">⇳</a>
                         </div>
                       </div>

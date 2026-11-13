@@ -6,6 +6,7 @@ import {
   assertHeatmapMatchesBackingMatrix,
   launchProfileToHeatmap,
   openHeatmapSettingsDialog,
+  setHeatmapColorStop,
   saveSessionFromFileMenu,
   visitAppAndAcceptEula,
   waitForProcessingDialogToClear,
@@ -34,15 +35,6 @@ const setSelectButtonValue = (controlSelector: string, value: 'Yes' | 'No'): voi
     .find('p-togglebutton')
     .eq(targetIndex)
     .click({ force: true });
-};
-
-const setColorInput = (inputSelector: string, color: string): void => {
-  cy.get('@heatmapSettings').find(inputSelector).then(($input) => {
-    const input = $input.get(0) as HTMLInputElement;
-    input.value = color;
-    input.dispatchEvent(new Event('input', { bubbles: true }));
-    input.dispatchEvent(new Event('change', { bubbles: true }));
-  });
 };
 
 const ensureHeatmapViewAfterReload = (): void => {
@@ -82,9 +74,9 @@ describe('Journey Flow - Heatmap session round-trip', () => {
     setSelectButtonValue('#show-labels', 'Yes');
 
     openHeatmapAccordion('heatmap-color');
-    setColorInput('#low-color', colors.low);
-    setColorInput('#med-color', colors.medium);
-    setColorInput('#hi-color', colors.high);
+    setHeatmapColorStop(0, colors.low);
+    setHeatmapColorStop(1, colors.medium);
+    setHeatmapColorStop(2, colors.high);
 
     cy.closeSettingsPane('Heatmap Settings');
 

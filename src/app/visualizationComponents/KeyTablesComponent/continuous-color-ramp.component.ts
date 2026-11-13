@@ -18,6 +18,7 @@ import {
                 @if (label) {
                     <h6 class="continuous-ramp__label">{{ label }}</h6>
                 }
+                @if (showPreview) {
                 <div
                     class="continuous-ramp__gradient"
                     data-testid="continuous-color-gradient"
@@ -31,19 +32,21 @@ import {
                         <span [style.left.%]="getStopPercent(stop.value)">{{ formatValue(stop.value) }}</span>
                     }
                 </div>
+                }
 
                 @if (editable) {
                     <div class="continuous-ramp__domain form-group row">
-                        <div class="col-5"><label [for]="controlId + '-domain-kind'">Domain</label></div>
-                        <div class="col-7">
-                            <select
-                                class="form-control form-control-sm"
-                                [id]="controlId + '-domain-kind'"
+                        <div class="col-4"><label [for]="controlId + '-domain-kind'">Domain</label></div>
+                        <div class="col-8">
+                            <p-select
+                                class="width-percent-100"
+                                [id]="controlId + '-domain-select'"
+                                [inputId]="controlId + '-domain-kind'"
+                                [options]="[{ label: automaticDomainLabel, value: 'auto' }, { label: 'Custom bounds', value: 'custom' }]"
+                                optionLabel="label" optionValue="value" appendTo="body" ariaLabel="Domain"
                                 [ngModel]="config.domain.kind"
                                 (ngModelChange)="onDomainKindChange($event)">
-                                <option value="auto">Automatic (full data)</option>
-                                <option value="custom">Custom bounds</option>
-                            </select>
+                            </p-select>
                         </div>
                     </div>
 
@@ -55,7 +58,7 @@ import {
                                     type="number"
                                     class="form-control form-control-sm"
                                     [ngModel]="config.domain.min"
-                                    (ngModelChange)="onDomainBoundChange('min', $event)">
+                                    (change)="onDomainBoundChange('min', $any($event.target).value)">
                             </label>
                             <label>
                                 Maximum
@@ -63,7 +66,7 @@ import {
                                     type="number"
                                     class="form-control form-control-sm"
                                     [ngModel]="config.domain.max"
-                                    (ngModelChange)="onDomainBoundChange('max', $event)">
+                                    (change)="onDomainBoundChange('max', $any($event.target).value)">
                             </label>
                         </div>
                     }
@@ -86,7 +89,7 @@ import {
                                         class="form-control form-control-sm"
                                         [ngModel]="stop.value"
                                         [disabled]="first || last || resolved.constant"
-                                        (ngModelChange)="onStopValueChange($index, $event)">
+                                        (change)="onStopValueChange($index, $any($event.target).value)">
                                 </label>
                                 <input
                                     type="color"
@@ -113,6 +116,7 @@ import {
                         }
                     </div>
 
+                    @if (showMissingColor) {
                     <div class="continuous-ramp__missing form-group row">
                         <div class="col-5"><label [for]="controlId + '-missing-color'">Missing / invalid</label></div>
                         <div class="col-7 continuous-ramp__missing-controls">
@@ -128,6 +132,7 @@ import {
                                 (change)="onMissingColorChange($any($event.target).value)">
                         </div>
                     </div>
+                    }
 
                     @if (validationMessage) {
                         <div class="continuous-ramp__error" role="alert">{{ validationMessage }}</div>
@@ -171,6 +176,9 @@ export class ContinuousColorRampComponent {
     @Input() resolved: ResolvedVariableColorScale | null = null;
     @Input() config: VariableColorScaleConfig;
     @Input() editable = false;
+    @Input() showPreview = true;
+    @Input() showMissingColor = true;
+    @Input() automaticDomainLabel = 'Automatic (full data)';
     @Input() controlId = 'continuous-color-ramp';
     @Input() label = '';
     @Output() configChange = new EventEmitter<VariableColorScaleConfig>();
@@ -226,7 +234,7 @@ export class ContinuousColorRampComponent {
         if (this.config.domain.kind !== 'custom') {
             return;
         }
-        const value = Number(rawValue);
+        const value = rawValue === null || rawValue === undefined || String(rawValue).trim() === '' ? NaN : Number(rawValue);
         const min = bound === 'min' ? value : this.config.domain.min;
         const max = bound === 'max' ? value : this.config.domain.max;
         if (!Number.isFinite(min) || !Number.isFinite(max) || min >= max) {
@@ -254,7 +262,7 @@ export class ContinuousColorRampComponent {
     }
 
     onStopValueChange(index: number, rawValue: unknown): void {
-        const value = Number(rawValue);
+        const value = rawValue === null || rawValue === undefined || String(rawValue).trim() === '' ? NaN : Number(rawValue);
         const stops = this.cloneResolvedStops();
         const domain = this.resolved?.domain;
         if (!domain || !Number.isFinite(value) || index <= 0 || index >= stops.length - 1) {

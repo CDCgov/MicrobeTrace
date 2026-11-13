@@ -1033,7 +1033,7 @@
                     <div id="node-color-value-row" class="form-group row" title="What color should the nodes be?">
                       <div class="col-5"><label for="node-color">Nodes</label></div>
                       <div class="col-7">
-                        <input type="color" id="node-color" class="form-control form-control-sm" value="#1f77b4" [(ngModel)]="SelectedNodeColorVariable" (ngModelChange)="onNodeColorChanged()">
+                        <input type="color" id="node-color" class="form-control form-control-sm" value="#1f77b4" [ngModel]="SelectedNodeColorVariable" (change)="SelectedNodeColorVariable = $any($event.target).value; onNodeColorChanged()">
                       </div>
                     </div>
                   }
@@ -1175,7 +1175,7 @@
                     <div id="link-color-value-row" class="form-group row" title="What color should the links be?">
                       <div class="col-5"><label for="link-color">Links</label></div>
                       <div class="col-7">
-                        <input type="color" id="link-color" class="form-control form-control-sm" [value]="SelectedLinkColorVariable" (input)="onLinkColorChanged($any($event.target).value)" (change)="onLinkColorChanged($any($event.target).value)">
+                        <input type="color" id="link-color" class="form-control form-control-sm" [value]="SelectedLinkColorVariable" (change)="onLinkColorChanged($any($event.target).value)">
                       </div>
                     </div>
                   }
@@ -1195,14 +1195,14 @@
                   <div class="global-styling-color-row" title="What color should denote selection?">
                     <label for="selected-color">Selected node/link</label>
                     <div class="global-styling-color-control">
-                      <input type="color" id="selected-color" value="#ff8300" [(ngModel)]="SelectedColorVariable" (ngModelChange)="onSelectedColorChanged()">
+                      <input type="color" id="selected-color" value="#ff8300" [ngModel]="SelectedColorVariable" (change)="SelectedColorVariable = $any($event.target).value; onSelectedColorChanged()">
                       <span class="global-styling-color-value" aria-hidden="true">{{ SelectedColorVariable }}</span>
                     </div>
                   </div>
                   <div class="global-styling-color-row" title="What color should the background be?">
                     <label for="background-color">Background</label>
                     <div class="global-styling-color-control">
-                      <input type="color" id="background-color" value="#ffffff" [(ngModel)]="SelectedBackgroundColorVariable" (ngModelChange)="onBackgroundChanged()">
+                      <input type="color" id="background-color" value="#ffffff" [ngModel]="SelectedBackgroundColorVariable" (change)="SelectedBackgroundColorVariable = $any($event.target).value; onBackgroundChanged()">
                       <span class="global-styling-color-value" aria-hidden="true">{{ SelectedBackgroundColorVariable }}</span>
                     </div>
                   </div>

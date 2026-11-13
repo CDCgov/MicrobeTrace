@@ -7,6 +7,7 @@ import {
   goToHeatmapView,
   launchProfileToHeatmap,
   openHeatmapSettingsDialog,
+  setHeatmapColorStop,
 } from '../../../support/journey-helpers';
 
 type HeatmapAccordionPanel = 'heatmap-invert' | 'heatmap-labels' | 'heatmap-color';
@@ -31,15 +32,6 @@ function setSelectButtonValue(controlSelector: string, value: 'Yes' | 'No'): voi
     .find('p-togglebutton')
     .eq(targetIndex)
     .click({ force: true });
-}
-
-function setColorInput(inputSelector: string, color: string): void {
-  cy.get('@heatmapSettings').find(inputSelector).then(($input) => {
-    const input = $input.get(0) as HTMLInputElement;
-    input.value = color;
-    input.dispatchEvent(new Event('input', { bubbles: true }));
-    input.dispatchEvent(new Event('change', { bubbles: true }));
-  });
 }
 
 function openHeatmapExportDialog(): void {
@@ -220,11 +212,11 @@ describe('Journey Flow - Heatmap controls and export on uploaded data', () => {
     cy.window().its('commonService.session.style.widgets.heatmap-axislabels-show').should('equal', true);
 
     openHeatmapAccordion('heatmap-color');
-    setColorInput('#low-color', colors.low);
+    setHeatmapColorStop(0, colors.low);
     cy.window().its('commonService.session.style.widgets.heatmap-color-low').should('equal', colors.low);
-    setColorInput('#med-color', colors.medium);
+    setHeatmapColorStop(1, colors.medium);
     cy.window().its('commonService.session.style.widgets.heatmap-color-medium').should('equal', colors.medium);
-    setColorInput('#hi-color', colors.high);
+    setHeatmapColorStop(2, colors.high);
     cy.window().its('commonService.session.style.widgets.heatmap-color-high').should('equal', colors.high);
 
     assertHeatmapMatchesBackingMatrix({
@@ -331,9 +323,9 @@ describe('Journey Flow - Heatmap controls and export on uploaded data', () => {
     openHeatmapAccordion('heatmap-labels');
     setSelectButtonValue('#show-labels', 'Yes');
     openHeatmapAccordion('heatmap-color');
-    setColorInput('#low-color', colors.low);
-    setColorInput('#med-color', colors.medium);
-    setColorInput('#hi-color', colors.high);
+    setHeatmapColorStop(0, colors.low);
+    setHeatmapColorStop(1, colors.medium);
+    setHeatmapColorStop(2, colors.high);
     cy.closeSettingsPane('Heatmap Settings');
 
     assertHeatmapMatchesBackingMatrix({

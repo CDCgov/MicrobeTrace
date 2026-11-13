@@ -36,7 +36,7 @@
                 </div>
                 @if (selectedGraphType!='Single Date Field' || widgets['epiCurve-stackColorBy'] == 'None') {
                   <div class="col-2" style="padding: 0px 15px 0px 10px" title="Select a color for this date field.">
-                    <input type="color" id="epi-color-select" class="form-control" style="padding: 5px 8px;" [(ngModel)]="widgets['epiCurve-colors'][0]" (change)="onNodeColorChanged()">
+                    <input type="color" id="epi-color-select" class="form-control" style="padding: 5px 8px;" [ngModel]="widgets['epiCurve-colors'][0]" (change)="widgets['epiCurve-colors'][0] = $any($event.target).value; onNodeColorChanged()">
                   </div>
                 }
               </div>
@@ -49,7 +49,7 @@
                     <p-select [options]="FieldList" appendTo="body" class="width-percent-100" [(ngModel)]="SelectedDateFieldVariable2" (ngModelChange)="onDateFieldChange(1)"></p-select>
                   </div>
                   <div class="col-2" style="padding: 0px 15px 0px 10px" title="Select a color for this date field.">
-                    <input type="color" id="epi-color-select-2" class="form-control" style="padding: 5px 8px;" [(ngModel)]="widgets['epiCurve-colors'][1]" (change)="onNodeColorChanged()">
+                    <input type="color" id="epi-color-select-2" class="form-control" style="padding: 5px 8px;" [ngModel]="widgets['epiCurve-colors'][1]" (change)="widgets['epiCurve-colors'][1] = $any($event.target).value; onNodeColorChanged()">
                   </div>
                 </div>
               }
@@ -62,7 +62,7 @@
                     <p-select [options]="FieldList" appendTo="body" class="width-percent-100" [(ngModel)]="SelectedDateFieldVariable3" (ngModelChange)="onDateFieldChange(2)"></p-select>
                   </div>
                   <div class="col-2" style="padding: 0px 15px 0px 10px" title="Select a color for this date field.">
-                    <input type="color" id="epi-color-select-3" class="form-control" style="padding: 5px 8px;" [(ngModel)]="widgets['epiCurve-colors'][2]" (change)="onNodeColorChanged()">
+                    <input type="color" id="epi-color-select-3" class="form-control" style="padding: 5px 8px;" [ngModel]="widgets['epiCurve-colors'][2]" (change)="widgets['epiCurve-colors'][2] = $any($event.target).value; onNodeColorChanged()">
                   </div>
                 </div>
               }

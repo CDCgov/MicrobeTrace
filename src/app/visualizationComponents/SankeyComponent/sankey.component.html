@@ -84,7 +84,7 @@
                         <tr [pReorderableRow]="index" [attr.data-field]="rowData" [attr.data-index]="index">
                           <td><span class="pi pi-bars" pReorderableRowHandle></span></td>
                           <td>{{ rowData }}</td>
-                          <td><input class="sankey-layer-color-input" [attr.data-field]="rowData" [attr.data-index]="index" type="color" style="border:none" [(ngModel)]="layerColors[index]" (ngModelChange)="updateColors(index)"></td>
+                          <td><input class="sankey-layer-color-input" [attr.data-field]="rowData" [attr.data-index]="index" type="color" style="border:none" [ngModel]="layerColors[index]" (change)="layerColors[index] = $any($event.target).value; updateColors(index)"></td>
                           <td><p-button class="sankey-remove-field-button" [attr.data-field]="rowData" [attr.data-index]="index" icon="pi pi-times" (onClick)="removeField(rowData)"/></td>
                         </tr>
                       </ng-template>
@@ -100,7 +100,7 @@
                   </div>
                   @if (SelectedColorOption=='Uniform') {
                     <div div class="col-2">
-                      <input id="sankey-link-color-uniform" type="color" style="border:none" [(ngModel)]="SelectedColorForUniform">
+                      <input id="sankey-link-color-uniform" type="color" style="border:none" [ngModel]="SelectedColorForUniform" (change)="SelectedColorForUniform = $any($event.target).value">
                     </div>
                   }
                 </div>

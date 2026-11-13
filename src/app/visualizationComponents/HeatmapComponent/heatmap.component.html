@@ -146,29 +146,49 @@
                   <p-accordion-panel value="heatmap-color" style="color:#495057" >
                     <p-accordion-header>Color</p-accordion-header>
                     <p-accordion-content>
-                      <div>
+                      <div class="heatmap-color-settings">
+                        @if (numericHeatmap) {
+                          @if (colorScale?.mode === 'continuous') {
+                            <continuous-color-ramp
+                              id="heatmap-continuous-color-editor"
+                              data-testid="heatmap-continuous-color-editor"
+                              controlId="heatmap-continuous-color-editor"
+                              [label]="colorScaleDisplayFactor === 100 ? 'Color values (%)' : ''"
+                              [editable]="true"
+                              [showPreview]="false"
+                              [showMissingColor]="false"
+                              automaticDomainLabel="Automatic (heatmap data)"
+                              [resolved]="colorScale"
+                              [config]="colorScaleConfig"
+                              (configChange)="updateColorScale($event)">
+                            </continuous-color-ramp>
+                          } @else {
+                            <p>No numeric values are available to set a color domain.</p>
+                          }
+                        } @else {
                         <div class="form-group row gantt-color-row" title="What Should be the low color?" style="overflow:visible">
                           <div class="col-6"><label for="low-color">Low Color</label></div>
                           <div class="col-6">
-                            <input type="color" id="low-color" class="w-100" [(ngModel)]="loColor" (ngModelChange)="updateLoColor($event)">
+                            <input type="color" id="low-color" class="w-100" [ngModel]="loColor" (change)="updateLoColor($any($event.target).value)">
                           </div>
                         </div>
                         <div class="form-group row gantt-color-row" title="What Should be the medium color?" style="overflow:visible">
                           <div class="col-6"><label for="med-color">Medium Color</label></div>
                           <div class="col-6">
-                            <input type="color" id="med-color" class="w-100" [(ngModel)]="medColor" (ngModelChange)="updateMedColor($event)">
+                            <input type="color" id="med-color" class="w-100" [ngModel]="medColor" (change)="updateMedColor($any($event.target).value)">
                           </div>
                         </div>
                         <div class="form-group row gantt-color-row" title="What Should be the high color?" style="overflow:visible">
                           <div class="col-6"><label for="hi-color">High Color</label></div>
                           <div class="col-6">
-                            <input type="color" id="hi-color" class="w-100" [(ngModel)]="hiColor" (ngModelChange)="updateHiColor($event)">
+                            <input type="color" id="hi-color" class="w-100" [ngModel]="hiColor" (change)="updateHiColor($any($event.target).value)">
                           </div>
                         </div>
+                        }
                         <div class="form-group row gantt-color-row" title="What color should represent missing Heatmap values?" style="overflow:visible">
                           <div class="col-6"><label for="missing-color">Missing Data</label></div>
                           <div class="col-6">
-                            <input type="color" id="missing-color" class="w-100" [(ngModel)]="missingColor" (ngModelChange)="updateMissingColor($event)">
+                            <input type="color" id="missing-color" class="w-100" [ngModel]="missingColor" (change)="updateMissingColor($any($event.target).value)">
                           </div>
                         </div>
                       </div>

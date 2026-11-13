@@ -1801,6 +1801,18 @@ export function openHeatmapSettingsDialog(): void {
     .as('heatmapSettings');
 }
 
+export function setHeatmapColorStop(index: number, color: string): void {
+  cy.get('@heatmapSettings')
+    .find('#heatmap-continuous-color-editor .continuous-ramp__stop-row')
+    .eq(index)
+    .find('input[type="color"]')
+    .then(($input) => {
+      const input = $input.get(0) as HTMLInputElement;
+      input.value = color;
+      input.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+}
+
 export function openAlignmentSettingsDialog(): void {
   cy.get(byTestId(testIds.alignmentSettingsButton), { timeout: 15000 })
     .should('exist')

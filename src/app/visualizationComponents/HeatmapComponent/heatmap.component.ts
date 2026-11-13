@@ -18,6 +18,8 @@ import { buildSafeCsvRow } from '@app/contactTraceCommonServices/export-sanitiza
 import { CommonStoreService } from '@app/contactTraceCommonServices/common-store.services';
 import { Subject, takeUntil } from 'rxjs';
 import * as d3 from 'd3';
+import { ResolvedVariableColorScale, VariableColorScaleConfig, normalizeVariableColorScaleConfig } from '@app/contactTraceCommonServices/variable-color-scale';
+import { resolveHeatmapColorScale, scaleHeatmapColorConfig } from './heatmap-color-scale';
 
 type HeatmapDataLayout = 'distance' | 'long' | 'wide';
 type HeatmapValueSource = 'distance' | 'node' | 'link' | 'columns';
@@ -101,6 +103,11 @@ export class HeatmapComponent extends BaseComponentDirective implements OnInit, 
   medColor: string;
   hiColor: string;
   missingColor: string;
+  colorScale: ResolvedVariableColorScale | null = null;
+  colorScaleConfig: VariableColorScaleConfig;
+  colorScaleDisplayFactor = 1;
+  numericHeatmap = true;
+
   selectedDataLayout: HeatmapDataLayout;
   selectedXVariable: string;
   selectedYVariable: string;
@@ -229,6 +236,7 @@ export class HeatmapComponent extends BaseComponentDirective implements OnInit, 
       'heatmap-color-medium',
       'heatmap-color-low',
       'heatmap-color-missing',
+      'heatmap-color-scales',
       'heatmap-axislabels-show',
       'heatmap-x-variable',
       'heatmap-y-variable',
@@ -251,6 +259,9 @@ export class HeatmapComponent extends BaseComponentDirective implements OnInit, 
 
     if (!Array.isArray(this.widgets['heatmap-column-variables'])) {
       this.widgets['heatmap-column-variables'] = [];
+    }
+    if (typeof this.widgets['heatmap-color-scales'] !== 'object' || Array.isArray(this.widgets['heatmap-color-scales'])) {
+      this.widgets['heatmap-color-scales'] = {};
     }
 
     this.widgets['heatmap-data-layout'] = this.getDataLayoutForSource(
@@ -622,6 +633,7 @@ export class HeatmapComponent extends BaseComponentDirective implements OnInit, 
   private buildNumericHeatmapColorbar(
     matrix: any[],
     formatter: (value: number) => string,
+    domain?: { min: number; max: number },
   ): any {
     let minValue = Infinity;
     let maxValue = -Infinity;
@@ -632,6 +644,7 @@ export class HeatmapComponent extends BaseComponentDirective implements OnInit, 
       }
 
       for (const rawValue of row) {
+        if (rawValue === null || rawValue === undefined) continue;
         const value = Number(rawValue);
         if (!Number.isFinite(value)) {
           continue;
@@ -644,6 +657,11 @@ export class HeatmapComponent extends BaseComponentDirective implements OnInit, 
           maxValue = value;
         }
       }
+    }
+
+    if (domain) {
+      minValue = domain.min / this.colorScaleDisplayFactor;
+      maxValue = domain.max / this.colorScaleDisplayFactor;
     }
 
     if (!Number.isFinite(minValue) || !Number.isFinite(maxValue)) {
@@ -1079,7 +1097,8 @@ export class HeatmapComponent extends BaseComponentDirective implements OnInit, 
       matrix.z,
       (value) => matrix.isDistance
         ? this.formatHeatmapDistanceValue(value)
-        : this.formatGenericNumericValue(value)
+        : this.formatGenericNumericValue(value),
+      this.colorScale?.domain,
     );
     return colorbar ? { ...colorbar, ...missingColorbarPosition } : undefined;
   }
@@ -1143,13 +1162,24 @@ export class HeatmapComponent extends BaseComponentDirective implements OnInit, 
       this.heatmapLabels = matrix.xLabels;
       this.heatmapValueLabel = matrix.valueLabel;
       this.recordHeatmapDuplicateWarning(matrix.duplicateCount);
+      this.numericHeatmap = matrix.kind === 'numeric';
+      this.colorScaleDisplayFactor = matrix.isDistance && this.usesPercentageDistanceDisplay() ? 100 : 1;
+      const numericScale = this.numericHeatmap ? resolveHeatmapColorScale(
+        matrix.z,
+        this.widgets['heatmap-color-scales'][this.colorScaleKey],
+        [this.loColor, this.medColor, this.hiColor],
+        this.missingColor,
+        this.colorScaleDisplayFactor,
+      ) : null;
+      this.colorScale = numericScale?.resolved || null;
+      this.colorScaleConfig = numericScale?.config;
 
       const heatmapTrace: any = {
         x: matrix.xLabels,
         y: matrix.yLabels,
         z: matrix.z,
         type: 'heatmap',
-        colorscale: [
+        colorscale: numericScale?.colorscale || [
           [0, this.loColor],
           [0.5, this.medColor],
           [1, this.hiColor]
@@ -1157,6 +1187,7 @@ export class HeatmapComponent extends BaseComponentDirective implements OnInit, 
         hoverongaps: false,
         customdata: matrix.customdata,
         hovertemplate: `X: %{x}<br>Y: %{y}<br>${matrix.valueLabel}: %{customdata}<extra></extra>`,
+        ...numericScale?.bounds,
       };
 
       heatmapTrace.colorbar = this.buildHeatmapColorbar(matrix);
@@ -1259,6 +1290,28 @@ export class HeatmapComponent extends BaseComponentDirective implements OnInit, 
   updateLoColor(color: string): void {
     this.commonService.session.style.widgets['heatmap-color-low'] = color;
     this.loColor = color;
+    this.redrawHeatmap();
+  }
+
+  private get colorScaleKey(): string {
+    const value = this.parseValueKey(this.selectedValueKey);
+    return JSON.stringify([
+      value.source,
+      value.source === 'distance' ? this.heatmapMetric : value.variable,
+      ...(value.source === 'columns' ? [...this.selectedColumnVariables].sort() : []),
+    ]);
+  }
+
+  updateColorScale(config: VariableColorScaleConfig): void {
+    const stops = config.stops || [];
+    if (stops.length >= 2) {
+      this.widgets['heatmap-color-low'] = stops[0].color;
+      this.widgets['heatmap-color-medium'] = stops[Math.floor(stops.length / 2)].color;
+      this.widgets['heatmap-color-high'] = stops[stops.length - 1].color;
+    }
+    this.widgets['heatmap-color-scales'][this.colorScaleKey] = normalizeVariableColorScaleConfig(
+      scaleHeatmapColorConfig({ ...config, mode: 'continuous', missingColor: this.missingColor }, 1 / this.colorScaleDisplayFactor)
+    );
     this.redrawHeatmap();
   }
 

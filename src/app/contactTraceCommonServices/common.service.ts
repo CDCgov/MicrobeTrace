@@ -543,6 +543,7 @@ export class CommonService extends AppComponentBase implements OnInit {
             'heatmap-color-medium': '#ffffbf',
             'heatmap-color-low': '#313695',
             'heatmap-color-missing': '#d9d9d9',
+            'heatmap-color-scales': {},
             'heatmap-axislabels-show': false,
             'heatmap-x-variable': '_id',
             'heatmap-y-variable': '_id',

@@ -83,7 +83,7 @@
             type="color"
             class="key-table-card__color-input"
             [ngModel]="selectedNodeColorValue"
-            (ngModelChange)="onNodeColorValueChange($event)">
+            (change)="onNodeColorValueChange($any($event.target).value)">
         </div>
         <p class="key-table-card__empty">
           Choose a value for Color Nodes By to populate this table with per-group overrides.
@@ -197,7 +197,7 @@
             type="color"
             class="key-table-card__color-input"
             [ngModel]="selectedLinkColorValue"
-            (ngModelChange)="onLinkColorValueChange($event)">
+            (change)="onLinkColorValueChange($any($event.target).value)">
         </div>
         <p class="key-table-card__empty">
           Choose a value for Color Links By to populate this table with per-group overrides.

@@ -6,6 +6,7 @@ import {
   ensureHeatmapView,
   launchProfileToHeatmap,
   openHeatmapSettingsDialog,
+  setHeatmapColorStop,
   saveSessionFromFileMenu,
   visitAppAndAcceptEula,
   waitForProcessingDialogToClear,
@@ -174,6 +175,67 @@ function assertCapturedCsvRows(expectedRows: string[][]): void {
 }
 
 describe('Journey Flow - Custom Heatmap configuration on uploaded data', () => {
+  it('edits custom bounds and color stops while preserving data and per-value settings', () => {
+    launchProfileToHeatmap(nodeProfile);
+    configureNodeHeatmap({ value: 'HI Titer' });
+    cy.window().should((win: any) => {
+      const trace = win.commonService.visuals.heatmap.heatmapData[0];
+      expect(trace.zmin, 'automatic minimum excludes missing data').to.equal(20);
+      expect(trace.zmax).to.equal(80);
+    });
+
+    openHeatmapSettingsDialog();
+    openHeatmapAccordion('heatmap-color');
+    cy.get('#heatmap-continuous-color-editor [data-testid="continuous-color-gradient"]').should('not.exist');
+    selectHeatmapOption('#heatmap-continuous-color-editor-domain-select', 'Custom bounds');
+    cy.get('#heatmap-continuous-color-editor .continuous-ramp__bounds input').eq(0).clear().type('-20');
+    cy.get('#heatmap-continuous-color-editor .continuous-ramp__bounds input').eq(1).clear().type('100');
+    cy.get('#heatmap-continuous-color-editor').contains('button', 'Add Stop').click();
+    cy.get('#heatmap-continuous-color-editor .continuous-ramp__stop-row').should('have.length', 4);
+    cy.get('#heatmap-continuous-color-editor .continuous-ramp__stop-row').eq(1).find('input[type="number"]').clear().type('10').blur();
+    setHeatmapColorStop(1, '#00ff00');
+    cy.get('#heatmap-continuous-color-editor .continuous-ramp__stop-row').eq(2).find('button[title="Remove stop"]').click();
+    cy.get('#heatmap-continuous-color-editor .continuous-ramp__stop-row').should('have.length', 3);
+    cy.get('#heatmap-continuous-color-editor .continuous-ramp__stop-row').first().find('button[title="Remove stop"]').should('be.disabled');
+    cy.get('#heatmap-continuous-color-editor .continuous-ramp__stop-row').last().find('button[title="Remove stop"]').should('be.disabled');
+    cy.closeSettingsPane('Heatmap Settings');
+
+    cy.window().should((win: any) => {
+      const heatmap = win.commonService.visuals.heatmap;
+      const trace = heatmap.heatmapData[0];
+      expect(trace.zmin).to.equal(-20);
+      expect(trace.zmax).to.equal(100);
+      expect(trace.colorscale).to.deep.equal([[0, '#313695'], [0.25, '#00ff00'], [1, '#a50026']]);
+      expect(trace.z, 'color clipping does not change actual values').to.deep.equal([[40, null], [80, 20]]);
+      expect(heatmap.heatmapData[1].colorscale).to.deep.equal([[0, '#d9d9d9'], [1, '#d9d9d9']]);
+      expect(win.document.querySelector('#heatmap')._fullData[0].zmin, 'rendered custom domain').to.equal(-20);
+    });
+    captureHeatmapDownloadBlobs();
+    openHeatmapExportDialog();
+    cy.get('@heatmapExportDialog').find('#export-distance-matrix').click();
+    assertCapturedCsvRows([['', 'S1', 'S2'], ['Virus A', '40', ''], ['Virus B', '80', '20']]);
+    cy.closeSettingsPane('Export Heatmap');
+
+    configureNodeHeatmap({ value: 'Phenotype' });
+    openHeatmapSettingsDialog();
+    openHeatmapAccordion('heatmap-color');
+    cy.get('#heatmap-continuous-color-editor').should('not.exist');
+    cy.get('@heatmapSettings').find('#low-color').should('be.visible');
+    cy.closeSettingsPane('Heatmap Settings');
+    configureNodeHeatmap({ value: 'HI Titer' });
+    cy.window().its('commonService.visuals.heatmap.heatmapData.0.zmax').should('equal', 100);
+
+    openHeatmapSettingsDialog();
+    openHeatmapAccordion('heatmap-color');
+    selectHeatmapOption('#heatmap-continuous-color-editor-domain-select', 'Automatic (heatmap data)');
+    cy.closeSettingsPane('Heatmap Settings');
+    cy.window().should((win: any) => {
+      const trace = win.commonService.visuals.heatmap.heatmapData[0];
+      expect(trace.zmin).to.equal(20);
+      expect(trace.zmax).to.equal(80);
+    });
+  });
+
   it('renders node-backed numeric values with sorting, missing color, duplicate warning, and configured export', () => {
     const missingColor = '#123456';
 
@@ -285,7 +347,7 @@ describe('Journey Flow - Custom Heatmap configuration on uploaded data', () => {
 
     openHeatmapSettingsDialog();
     openHeatmapConfigurationTab();
-    selectHeatmapOption('#heatmap-data-layout', 'One cell value per record (long)');
+    selectHeatmapOption('#heatmap-data-layout', 'One row per sample/test result (long)');
     selectHeatmapOption('#heatmap-value-variable', 'AssayScore');
     cy.closeSettingsPane('Heatmap Settings');
     assertHeatmapReady();
@@ -305,6 +367,8 @@ describe('Journey Flow - Custom Heatmap configuration on uploaded data', () => {
         [5, 3],
         [null, null],
       ]);
+      expect(trace.zmin, 'link color domain excludes missing cells').to.equal(3);
+      expect(trace.zmax).to.equal(5);
       expect(missingTrace.name, 'link-backed missing trace').to.equal('No Data');
     });
   });
@@ -375,6 +439,14 @@ describe('Journey Flow - Custom Heatmap configuration on uploaded data', () => {
     setColorInput('#missing-color', missingColor);
     cy.closeSettingsPane('Heatmap Settings');
 
+    openHeatmapSettingsDialog();
+    openHeatmapAccordion('heatmap-color');
+    selectHeatmapOption('#heatmap-continuous-color-editor-domain-select', 'Custom bounds');
+    cy.get('#heatmap-continuous-color-editor .continuous-ramp__bounds input').eq(1).clear().type('100');
+    cy.get('#heatmap-continuous-color-editor').contains('button', 'Add Stop').click();
+    setHeatmapColorStop(1, '#123abc');
+    cy.closeSettingsPane('Heatmap Settings');
+
     saveSessionFromFileMenu(sessionFileBase);
     cy.readFile(sessionFilePath, 'utf8', { timeout: 30000 }).should((savedSession) => {
       expect(savedSession, 'saved custom Heatmap session').to.include('"heatmap-value-source":"node"');
@@ -396,6 +468,12 @@ describe('Journey Flow - Custom Heatmap configuration on uploaded data', () => {
       expect(widgets['heatmap-value-variable']).to.equal('HI_Titer');
       expect(widgets['heatmap-sort-by']).to.equal('Sort_Order');
       expect(widgets['heatmap-color-missing']).to.equal(missingColor);
+      const colorConfig = Object.values(widgets['heatmap-color-scales'])[0] as any;
+      expect(colorConfig.domain).to.deep.equal({ kind: 'custom', min: 20, max: 100 });
+      expect(colorConfig.stops).to.have.length(4);
+      expect(colorConfig.stops[1].color).to.equal('#123abc');
+      expect(trace.zmin).to.equal(20);
+      expect(trace.zmax).to.equal(100);
       expect(trace.x, 'restored custom x labels').to.deep.equal(['S2', 'S1']);
       expect(trace.y, 'restored custom y labels').to.deep.equal(['Virus B', 'Virus A']);
       expect(trace.z, 'restored custom z values').to.deep.equal([
