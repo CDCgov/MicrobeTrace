@@ -72,6 +72,7 @@ slr_linux.tgz
 
 cypress/screenshots/*
 cypress/downloads/*
+cypress/fixtures/performance/local/
 
 # Local PrimeUI license credentials and generated source
 /.env.local

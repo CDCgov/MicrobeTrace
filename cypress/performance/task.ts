@@ -1,5 +1,6 @@
 import fs from 'fs';
 import path from 'path';
+import { createHash } from 'crypto';
 import type { PluginEvents } from 'cypress';
 
 type PerformanceResult = {
@@ -211,8 +212,49 @@ function readRealSampleManifest(): RealSampleManifestResult {
   };
 }
 
-export function registerPerformanceTasks(on: PluginEvents): void {
+export function registerPerformanceTasks(on: PluginEvents, options: {
+  outputSubdir?: string;
+  runId?: string;
+  context?: Record<string, unknown>;
+  sigmaSessionFile?: string;
+} = {}): void {
+  const root = path.join(process.cwd(), 'cypress', 'downloads', 'performance');
+  const outputDir = path.resolve(root, options.outputSubdir || '.');
+  const relative = path.relative(root, outputDir);
+  if (relative.startsWith('..') || path.isAbsolute(relative)) {
+    throw new Error('Performance output must stay inside cypress/downloads/performance.');
+  }
   on('task', {
+    'perf:prepareSigmaLayoutSession'({ threshold }: { threshold: number }): string {
+      const manifest = JSON.parse(fs.readFileSync(path.join(process.cwd(), 'cypress/fixtures/performance/sigma-layout-nextstrain.json'), 'utf8'));
+      if (!(String(threshold) in manifest.visibleLinksByThreshold)) throw new Error(`Unsupported Nextstrain threshold: ${threshold}`);
+      const source = options.sigmaSessionFile || path.join(process.cwd(), 'cypress', 'fixtures', manifest.file);
+      const bytes = fs.readFileSync(source);
+      if (createHash('sha256').update(bytes).digest('hex') !== manifest.sha256) {
+        throw new Error('Nextstrain session differs from the frozen benchmark manifest.');
+      }
+      const saved = JSON.parse(bytes.toString('utf8'));
+      const session = saved.session;
+      if (session.data.nodes.length !== manifest.nodes
+        || session.data.nodes.some((node: any) => node.x != null || node.y != null)
+        || session.network.nodes?.length || session.network.timelineNodes?.length
+        || session.meta.rendererViewState) {
+        throw new Error('The layout benchmark requires the original session without saved positions.');
+      }
+      // Set the threshold before restoration starts; do not first lay out at 1.
+      session.style.widgets['link-threshold'] = threshold;
+      delete session.meta.performance;
+      delete session.meta.loadTime;
+      delete session.meta.readyTime;
+      delete session.meta.startTime;
+      // Pass a file path through Cypress, rather than serializing a 40 MB task
+      // result into its command history and then copying it back into selectFile.
+      const preparedDir = path.join(process.cwd(), 'cypress/fixtures/performance/local/prepared');
+      fs.mkdirSync(preparedDir, { recursive: true });
+      const prepared = path.join(preparedDir, `nextstrain-threshold-${threshold}.microbetrace`);
+      fs.writeFileSync(prepared, JSON.stringify(saved));
+      return prepared;
+    },
     'perf:readRealSampleManifest'(): RealSampleManifestResult {
       return readRealSampleManifest();
     },
@@ -220,6 +262,7 @@ export function registerPerformanceTasks(on: PluginEvents): void {
     'perf:writeResult'(result: PerformanceResult): WriteResultResponse {
       const runId = safeSegment(
         result.runId ||
+        options.runId ||
         process.env.MT_PERF_RUN_ID ||
         defaultPerfRunId
       );
@@ -228,13 +271,13 @@ export function registerPerformanceTasks(on: PluginEvents): void {
         result.scenario?.id ||
         'scenario'
       );
-      const outputDir = path.join(process.cwd(), 'cypress', 'downloads', 'performance');
       const timestamp = result.timestamp || new Date().toISOString();
       const stampedResult = {
         ...result,
         runId,
         scenarioId,
         timestamp,
+        benchmark: options.context,
       };
 
       fs.mkdirSync(outputDir, { recursive: true });

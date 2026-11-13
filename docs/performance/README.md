@@ -5,6 +5,7 @@ This folder contains performance-specific planning notes, baseline strategy, and
 ## Documents
 
 - `performance-baseline-plan.md`: performance harness design, dataset tiers, measurement model, interaction probes, budget workflow, and run commands.
+- `sigma-layout-performance.md`: repeated local Sigma layout and threshold-increase benchmarks, including the frozen Nextstrain session.
 - `performance-dataset-strategy-for-bioinformaticians.md`: bioinformatics-facing explanation of why we use both synthetic and real datasets.
 - `synthetic-performance-dataset-generation.md`: exact generation recipes and review notes for synthetic graph, FASTA, and Newick performance fixtures.
 - `dunes-performance-fixture-generation.md`: optional forked DUNES workflow for generating simpler FASTA-only simulated sequence fixtures.

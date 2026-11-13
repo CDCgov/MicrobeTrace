@@ -62,6 +62,8 @@
     "e2e:perf:report": "node scripts/package-performance-report.js",
     "e2e:perf:ci": "npm run e2e:perf && npm run e2e:perf:summarize && npm run e2e:perf:budgets:check && npm run e2e:perf:report",
     "e2e:perf:collect": "node scripts/run-performance-baseline.js",
+    "e2e:perf:sigma-layout:local": "node scripts/run-sigma-layout-performance.js",
+    "e2e:perf:sigma-layout": "start-server-and-test start:local-cypress http://127.0.0.1:4210 e2e:perf:sigma-layout:local",
     "e2e:newick-parity:capture:local": "npx cypress run --headless --browser chrome --config baseUrl=http://127.0.0.1:4210,trashAssetsBeforeRuns=false --env parityMode=1 --spec \"cypress/e2e/performance/newick-parity-capture.perf.cy.ts\"",
     "e2e:newick-parity:compare": "node scripts/compare-newick-parity.js",
     "e2e:newick-tree:capture:local": "npx cypress run --headless --browser chrome --config baseUrl=http://127.0.0.1:4210,trashAssetsBeforeRuns=false --env treeValidationMode=1 --spec \"cypress/e2e/performance/newick-tree-capture.perf.cy.ts\"",

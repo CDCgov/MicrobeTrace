@@ -1,0 +1,10 @@
+{
+  "file": "performance/local/Nextstrain-distance-1-no-positions.microbetrace",
+  "sha256": "83800ccc2a3d18891ff94bc3be3d1014b61d3e5304bf4470610e9037dadff882",
+  "treeSha256": "32a4baeaf1d2600b693134e9e43e479a26cdcbb1dcae969a41111c6628b29c6c",
+  "nodes": 4409,
+  "visibleLinksByThreshold": { "1": 2930, "5": 38548, "7": 83051 },
+  "excludedThreshold": { "threshold": 8, "visibleLinks": 109425 },
+  "description": "Frozen no-position MicrobeTrace session supplied for the Nextstrain layout review. Copy the original file into performance/local or pass --session to the local runner. The large session remains untracked.",
+  "countMethod": "All unordered leaf pairs in the saved tree, summing branch lengths to the lowest common ancestor; independent of application visibility and renderer sampling."
+}

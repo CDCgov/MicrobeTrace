@@ -41,7 +41,12 @@ export default defineConfig({
         });
       }
       registerOracleTasks(on);
-      registerPerformanceTasks(on);
+      registerPerformanceTasks(on, {
+        outputSubdir: config.env.perfOutputSubdir,
+        runId: config.env.perfRunId,
+        context: config.env.perfBenchmark,
+        sigmaSessionFile: config.env.perfSigmaSession,
+      });
       return config;
     },
   },

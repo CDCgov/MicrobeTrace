@@ -60,6 +60,7 @@ export type PerformanceCounts = {
 
 export type PerformanceLaunchOptions = {
   renderer?: 'sigma' | 'cytoscape-canvas' | 'cytoscape-webgl';
+  beforeLoad?: (win: PerfWindow) => void;
 };
 
 export type HeapSnapshot = {
@@ -300,6 +301,7 @@ export function launchPerformanceScenarioToTwoD(
 
   cy.window().then((win: unknown) => {
     const perfWindow = win as PerfWindow;
+    options.beforeLoad?.(perfWindow);
     marks.uploadStart = perfWindow.performance.now();
     initialHeap = readHeapUsed(perfWindow);
   });
@@ -325,6 +327,20 @@ export function launchPerformanceScenarioToTwoD(
   });
 
   ensureTwoDNetworkView(timeout);
+
+  // A Sigma adapter exists before its asynchronous layout has finished.
+  if (options.renderer === 'sigma') {
+    cy.window({ timeout }).should((win: any) => {
+      const twoD = win.commonService.visuals.twoD;
+      expect(twoD?.isRendererReady(), 'Sigma layout and renderer ready').to.equal(true);
+      expect(twoD?.sigmaLoading, 'Sigma loading finished').to.equal(false);
+      expect(twoD?.sigmaRendering, 'Sigma render finished').to.equal(false);
+      expect(twoD.sigmaRenderer.getGraph().order, 'Sigma resident nodes').to.equal(scenario.expected.nodes);
+      if (scenario.expected.visibleLinks !== undefined) {
+        expect(twoD.sigmaRenderer.getGraph().size, 'Sigma resident links').to.equal(scenario.expected.visibleLinks);
+      }
+    });
+  }
 
   return cy.window().then((win: unknown) => {
     marks.viewReady = (win as Window).performance.now();
