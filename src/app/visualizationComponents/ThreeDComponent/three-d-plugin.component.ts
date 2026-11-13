@@ -9,7 +9,7 @@ import { CommonService } from '@app/contactTraceCommonServices/common.service';
 import { CommonStoreService } from '@app/contactTraceCommonServices/common-store.services';
 import { ExportService } from '@app/contactTraceCommonServices/export.service';
 import { MicobeTraceNextPluginEvents } from '@app/helperClasses/interfaces';
-import { ThreeDNetworkRenderer } from './three-d-network-renderer.adapter';
+import { ThreeDNetworkRenderer, type ThreeDNavigationMode } from './three-d-network-renderer.adapter';
 import { color as parseColor } from 'd3-color';
 import { createGlobalSettingsDialogRequest, DialogRectSnapshot, GlobalSettingsDialogRequest } from '@app/helperClasses/globalSettingsDialogRequest';
 import { ThreeDShapeLegendChange, ThreeDShapeLegendModel } from './three-d-shape-legend.component';
@@ -50,6 +50,7 @@ export class ThreeDComponent extends BaseComponentDirective implements OnInit, A
   exportError = '';
   layoutFrozen = false;
   cameraRotating = false;
+  navigationMode: ThreeDNavigationMode = 'rotate';
   nodeCount = 0;
   linkCount = 0;
   nodeFields: Array<{ label: string; value: string }> = [];
@@ -144,6 +145,7 @@ export class ThreeDComponent extends BaseComponentDirective implements OnInit, A
       );
       if (this.destroyed) { renderer.destroy(); return; }
       this.renderer = renderer;
+      renderer.setNavigationMode(this.navigationMode);
       renderer.setOrientationIndicator(this.orientationIndicator.nativeElement);
       renderer.canvas.dataset.testid = 'threed-webgl-canvas';
       this.goldenLayoutComponentResize();
@@ -443,6 +445,12 @@ export class ThreeDComponent extends BaseComponentDirective implements OnInit, A
   toggleCameraRotation(): void {
     if (this.loading || this.error || !this.nodeCount) return;
     this.zone.runOutsideAngular(() => this.renderer?.setCameraRotating(!this.cameraRotating));
+  }
+
+  toggleNavigationMode(): void {
+    if (this.loading || this.error) return;
+    this.navigationMode = this.navigationMode === 'rotate' ? 'pan' : 'rotate';
+    this.zone.runOutsideAngular(() => this.renderer?.setNavigationMode(this.navigationMode));
   }
 
   resetCamera(): void { this.renderer?.resetCamera(); this.persistViewState(); }

@@ -13,6 +13,7 @@ import {
 
 interface CameraControls {
   target: ThreeDPoint;
+  mouseButtons: { LEFT: number; MIDDLE: number; RIGHT: number };
   dynamicDampingFactor: number;
   update(): void;
   reset(): void;
@@ -20,6 +21,8 @@ interface CameraControls {
   addEventListener(type: string, listener: () => void): void;
   removeEventListener(type: string, listener: () => void): void;
 }
+
+export type ThreeDNavigationMode = 'rotate' | 'pan';
 
 export class ThreeDNetworkRenderer {
   private graph: ForceGraph3DInstance<ThreeDNode, ThreeDLink>;
@@ -281,6 +284,12 @@ export class ThreeDNetworkRenderer {
   fit(): void {
     this.setCameraRotating(false);
     if (this.data.nodes.length) this.graph.zoomToFit(0, 35);
+  }
+
+  setNavigationMode(mode: ThreeDNavigationMode): void {
+    this.setCameraRotating(false);
+    this.stopCameraMotion();
+    this.controls.mouseButtons.LEFT = mode === 'pan' ? this.three.MOUSE.PAN : this.three.MOUSE.ROTATE;
   }
 
   setCameraRotating(playing: boolean): void {

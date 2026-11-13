@@ -4,13 +4,13 @@ Open **View > 3D Network** to explore the same visible network in three dimensio
 
 ## Navigation and selection
 
-- Drag to rotate freely using Classic-style trackball navigation, right-drag to pan, and scroll to zoom.
+- The toolbar's **Rotate / Pan** toggle chooses how dragging navigates the camera, using the same icon-and-text button style as Heatmap's **Zoom / Pan** control. **Rotate** is the default and uses Classic-style trackball navigation. Choose **Pan** to move the network with a left drag. Right-drag pans and scrolling zooms in either mode. The footer describes the active mode.
 - Click a node to select it. Shift-, Ctrl-, or Command-click toggles additional nodes. Click the background or press Escape to clear selection.
 - **Fit Network** frames the visible nodes. **Reset Camera** also restores the default viewing direction.
 - The lower-right **orientation compass** shows the world X (red), Y (green), and Z (blue) axes as you orbit or roll the camera, including during playback. Dashed arrows point away from you. An end-on axis appears as a dot toward you or a ring away from you.
-- **Play camera rotation** turns the camera around its current target once every 30 seconds. Click **Pause camera rotation** to hold the current angle. Dragging the view, fitting/resetting the camera, recalculating the layout, or hiding/closing the pane stops playback. Rotation works with a frozen layout, and zoom buttons adjust the distance while it plays. Saved sessions retain the camera angle and reopen with playback paused.
+- **Play camera rotation** turns the camera around its current target once every 30 seconds. Click **Pause camera rotation** to hold the current angle. Dragging the view, switching navigation modes, fitting/resetting the camera, recalculating the layout, or hiding/closing the pane stops playback. Rotation works with a frozen layout. Saved sessions retain the camera angle and reopen with playback paused.
 - **Freeze Layout** holds node positions while camera navigation remains available. **Resume Layout** restarts the forces. **Recalculate Layout** creates a fresh arrangement.
-- Focus the network and use `+` / `-` to zoom or `F` to fit. Table and 2D Network remain available for accessible inspection of individual records.
+- Focus the network and use `+` / `-` to zoom or `F` to fit. Separate zoom-in and zoom-out toolbar buttons are omitted, matching Heatmap's use of direct zoom gestures. Table and 2D Network remain available for accessible inspection of individual records.
 
 ## Settings and filtering
 

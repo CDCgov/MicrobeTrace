@@ -12,6 +12,14 @@
       data-testid="threed-fit-button" (click)="openCenter()" [disabled]="loading || !!error">
       <i class="flaticon-eye primary" aria-hidden="true"></i>
     </button>
+    <button type="button" class="btn btn-sm btn-clean btn-icon btn-icon-md three-d-mode-toggle"
+      [attr.aria-pressed]="navigationMode === 'pan'"
+      [attr.aria-label]="navigationMode === 'rotate' ? 'Rotate mode. Switch to pan mode.' : 'Pan mode. Switch to rotate mode.'"
+      [title]="navigationMode === 'rotate' ? 'Rotate mode: drag to rotate freely or scroll to zoom. Click for pan mode.' : 'Pan mode: drag to move the network or scroll to zoom. Click for rotate mode.'"
+      data-testid="threed-drag-mode-toggle" (click)="toggleNavigationMode()" [disabled]="loading || !!error">
+      <i [class]="navigationMode === 'rotate' ? 'pi pi-refresh primary' : 'pi pi-arrows-alt primary'" aria-hidden="true"></i>
+      {{ navigationMode === 'rotate' ? 'Rotate' : 'Pan' }}
+    </button>
     <button type="button" class="btn btn-sm btn-clean btn-icon btn-icon-md"
       [title]="layoutFrozen ? 'Resume Layout' : 'Freeze Layout'" [attr.aria-label]="layoutFrozen ? 'Resume Layout' : 'Freeze Layout'"
       [style.background]="layoutFrozen ? 'lightblue' : null" [attr.aria-pressed]="layoutFrozen"
@@ -32,14 +40,6 @@
       [attr.aria-pressed]="cameraRotating" [style.background]="cameraRotating ? 'lightblue' : null"
       data-testid="threed-play-button" (click)="toggleCameraRotation()" [disabled]="loading || !!error || nodeCount === 0">
       <i class="pi primary" [class.pi-play]="!cameraRotating" [class.pi-pause]="cameraRotating" aria-hidden="true"></i>
-    </button>
-    <button type="button" class="btn btn-sm btn-clean btn-icon btn-icon-md" title="Zoom in" aria-label="Zoom in"
-      (click)="zoom(0.8)" [disabled]="loading || !!error">
-      <i class="pi pi-plus primary" aria-hidden="true"></i>
-    </button>
-    <button type="button" class="btn btn-sm btn-clean btn-icon btn-icon-md" title="Zoom out" aria-label="Zoom out"
-      (click)="zoom(1.25)" [disabled]="loading || !!error">
-      <i class="pi pi-minus primary" aria-hidden="true"></i>
     </button>
   </div>
   <div class="three-d-stage">
@@ -81,7 +81,7 @@
   }
   <div class="three-d-footer">
     <span data-testid="threed-counts">{{ nodeCount | number }} nodes · {{ linkCount | number }} links</span>
-    <span id="threed-help">Drag to rotate freely · Right-drag to pan · Scroll to zoom · Click to select · Shift-click to add · +/− to zoom · F to fit</span>
+    <span id="threed-help">{{ navigationMode === 'rotate' ? 'Drag to rotate freely' : 'Drag to pan' }} · Right-drag to pan · Scroll to zoom · Click to select · Shift-click to add · +/− to zoom · F to fit</span>
   </div>
 </div>
 
