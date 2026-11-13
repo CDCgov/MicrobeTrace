@@ -17,6 +17,11 @@
         "http://127.0.0.1:5173"
       ]
     },
+    "syrup": {
+      "origins": [
+        "https://syrup.cpg.org.au"
+      ]
+    },
     "maage": {
       "origins": [
         "https://www.maage-brc.org"
