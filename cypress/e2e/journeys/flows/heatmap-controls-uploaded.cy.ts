@@ -167,7 +167,72 @@ describe('Journey Flow - Heatmap controls and export on uploaded data', () => {
     cy.closeSettingsPane('Heatmap Settings');
   });
 
-  it('re-centers the Heatmap after a manual viewport change', () => {
+  it('scales both axes with zoom and applies the relative size setting on release', () => {
+    launchProfileToHeatmap(profile);
+    openHeatmapSettingsDialog();
+    openHeatmapAccordion('heatmap-labels');
+    cy.get('@heatmapSettings').find('#heatmap-axis-label-size').should('be.disabled').and('have.value', '1');
+    cy.get('@heatmapSettings').find('.label-size-row').should('not.contain.text', 'px');
+    setSelectButtonValue('#show-labels', 'Yes');
+    cy.closeSettingsPane('Heatmap Settings');
+
+    cy.get('#heatmap .nsewdrag').then(($drag) => {
+      const rect = $drag[0].getBoundingClientRect();
+      const start = { clientX: rect.left + rect.width * 0.25, clientY: rect.top + rect.height * 0.25 };
+      const end = { clientX: rect.left + rect.width * 0.75, clientY: rect.top + rect.height * 0.75 };
+      cy.wrap($drag).trigger('mousedown', { ...start, eventConstructor: 'MouseEvent', button: 0, buttons: 1, force: true });
+      cy.get('body').trigger('mousemove', { ...end, eventConstructor: 'MouseEvent', buttons: 1, force: true });
+      cy.get('body').trigger('mouseup', { ...end, eventConstructor: 'MouseEvent', button: 0, force: true });
+    });
+    let zoomed: number[][];
+    let zoomedLabelSize: number;
+    cy.get('#heatmap').should(($plot) => {
+      expect(($plot[0] as any)._fullLayout.xaxis.tickfont.size, 'labels grow when zooming in').to.be.greaterThan(12);
+    }).then(($plot) => {
+      const layout = ($plot[0] as any)._fullLayout;
+      zoomed = [layout.xaxis.range.slice(), layout.yaxis.range.slice()];
+      zoomedLabelSize = layout.xaxis.tickfont.size;
+    });
+    openHeatmapSettingsDialog();
+    openHeatmapAccordion('heatmap-labels');
+    cy.get('@heatmapSettings').find('#heatmap-axis-label-size').invoke('val', 2).trigger('input');
+    cy.get('#heatmap').should(($plot) => expect(($plot[0] as any)._fullLayout.xaxis.tickfont.size).to.equal(zoomedLabelSize));
+    cy.window().its('commonService.session.style.widgets.heatmap-axislabels-size').should('equal', 12);
+    cy.get('@heatmapSettings').find('#heatmap-axis-label-size').trigger('change');
+    const assertLabelSize = (expected = () => 24) => {
+      cy.get('#heatmap').should(($plot) => {
+        const layout = ($plot[0] as any)._fullLayout;
+        expect(layout.xaxis.tickfont.size).to.be.closeTo(expected(), 0.2);
+        expect(layout.yaxis.tickfont.size).to.be.closeTo(expected(), 0.2);
+      });
+      for (const axis of ['x', 'y']) {
+        cy.get(`#heatmap .${axis}tick text`).should(($labels) => {
+          expect($labels.length).to.be.greaterThan(0);
+          $labels.each((_, label) => expect(parseFloat(getComputedStyle(label).fontSize)).to.be.closeTo(expected(), 0.2));
+        });
+      }
+    };
+    assertLabelSize(() => Math.min(72, zoomedLabelSize * 2));
+    cy.get('#heatmap').should(($plot) => {
+      const layout = ($plot[0] as any)._fullLayout;
+      expect([layout.xaxis.range, layout.yaxis.range], 'changing font size preserves zoom').to.deep.equal(zoomed);
+    });
+    setSelectButtonValue('#show-labels', 'No');
+    cy.get('@heatmapSettings').find('#heatmap-axis-label-size').should('be.disabled');
+    cy.get('#heatmap .xtick text, #heatmap .ytick text').should('not.exist');
+    setSelectButtonValue('#show-labels', 'Yes');
+    assertLabelSize();
+    cy.closeSettingsPane('Heatmap Settings');
+    openHeatmapSettingsDialog();
+    openHeatmapAccordion('heatmap-labels');
+    cy.get('@heatmapSettings').find('#heatmap-axis-label-size').should('have.value', '2');
+    cy.closeSettingsPane('Heatmap Settings');
+    cy.get('heatmapcomponent a[title="Center Screen"]').click();
+    cy.viewport(1024, 768);
+    assertLabelSize();
+  });
+
+  it('restores full Heatmap bounds after a stored viewport change', () => {
     launchProfileToHeatmap(profile);
     assertAfterLaunchCounts(profile);
     assertHeatmapMatchesBackingMatrix({

@@ -1,6 +1,6 @@
 import {
   Injector, Component, Output, EventEmitter,
-  ElementRef, Renderer2, ChangeDetectorRef, Inject, OnInit, OnDestroy,
+  ElementRef, Renderer2, ChangeDetectorRef, Inject, OnInit, OnDestroy, NgZone,
   ViewChild,
   ChangeDetectionStrategy
 } from '@angular/core';
@@ -20,6 +20,7 @@ import { Subject, takeUntil } from 'rxjs';
 import * as d3 from 'd3';
 import { ResolvedVariableColorScale, VariableColorScaleConfig, normalizeVariableColorScaleConfig } from '@app/contactTraceCommonServices/variable-color-scale';
 import { resolveHeatmapColorScale, scaleHeatmapColorConfig } from './heatmap-color-scale';
+import { resolveHeatmapLabelSize, translateHeatmapRange } from './heatmap-viewport';
 
 type HeatmapDataLayout = 'distance' | 'long' | 'wide';
 type HeatmapValueSource = 'distance' | 'node' | 'link' | 'columns';
@@ -96,9 +97,11 @@ export class HeatmapComponent extends BaseComponentDirective implements OnInit, 
   LongValueFieldGroups: any[] = [];
   heatmapLayout: any;
   heatmapConfig: object;
+  heatmapDragMode: 'zoom' | 'pan' = 'zoom';
   invertX: boolean;
   invertY: boolean;
   heatmapShowLabels: boolean;
+  heatmapLabelScale = 1;
   loColor: string;
   medColor: string;
   hiColor: string;
@@ -107,7 +110,6 @@ export class HeatmapComponent extends BaseComponentDirective implements OnInit, 
   colorScaleConfig: VariableColorScaleConfig;
   colorScaleDisplayFactor = 1;
   numericHeatmap = true;
-
   selectedDataLayout: HeatmapDataLayout;
   selectedXVariable: string;
   selectedYVariable: string;
@@ -122,10 +124,16 @@ export class HeatmapComponent extends BaseComponentDirective implements OnInit, 
     { label: 'No', value: false }
   ];
   dataLayoutOptions: SelectItem[] = [
-    { label: 'Calculated pairwise distances', value: 'distance' },
-    { label: 'One cell value per record (long)', value: 'long' },
-    { label: 'Multiple cell values per record (wide)', value: 'wide' },
+    { label: 'Genetic distance matrix', value: 'distance' },
+    { label: 'One row per sample (wide)', value: 'wide' },
+    { label: 'One row per sample/test result (long)', value: 'long' },
   ];
+  private readonly colorbarStyle = {
+    thicknessmode: 'pixels', thickness: 30,
+    x: 1.02, xanchor: 'left', xpad: 10, ypad: 10,
+  };
+  private readonly missingColorbarLength = 0.82;
+  private readonly missingLegendGap = 8;
   SelectedImageFilenameVariable = 'default_heatmap';
   SelectedNetworkExportFileTypeVariable = 'png';
   NetworkExportFileTypeList: object = [
@@ -133,7 +141,7 @@ export class HeatmapComponent extends BaseComponentDirective implements OnInit, 
     { label: 'jpeg', value: 'jpeg' },
     { label: 'svg', value: 'svg' }
   ];
-  SelectedDistanceMatrixFilenameVariable = 'distance_matrix.csv';
+  SelectedDistanceMatrixFilenameVariable = 'heatmap_data.csv';
   heatmapLabels: string[] = [];
   heatmapValueDisplayLabel = HEATMAP_DISTANCE_LABEL;
   heatmapValueLabel = HEATMAP_DISTANCE_LABEL;
@@ -144,6 +152,10 @@ export class HeatmapComponent extends BaseComponentDirective implements OnInit, 
 
   private lastHeatmapMatrix: HeatmapMatrixResult | null = null;
   private destroy$ = new Subject<void>();
+  private viewDestroyed = false;
+  private panStart: { pointerId: number; x: number; y: number; width: number; height: number; xRange: [number, number]; yRange: [number, number] } | null = null;
+  private pendingPan: { x: [number, number]; y: [number, number] } | null = null;
+  private panFrame: number | null = null;
 
   constructor(injector: Injector,
         private eventManager: EventManager,
@@ -154,6 +166,7 @@ export class HeatmapComponent extends BaseComponentDirective implements OnInit, 
         private renderer: Renderer2,
         private plotlyModule: PlotlyModule,
         private store: CommonStoreService,
+        private zone: NgZone,
       ) {
           super(elRef.nativeElement);
           this.visuals = commonService.visuals;
@@ -176,13 +189,117 @@ export class HeatmapComponent extends BaseComponentDirective implements OnInit, 
       return;
     }
 
-    const reCenter = {
-      'xaxis.autorange': true,
-      'yaxis.autorange': true
-    };
-    PlotlyModule.plotlyjs.relayout('heatmap', reCenter);
+    this.cancelPan();
+    this.heatmapLayout.xaxis = this.buildHeatmapAxisConfig(this.lastHeatmapMatrix?.xLabels || []);
+    this.heatmapLayout.yaxis = this.buildHeatmapAxisConfig(this.lastHeatmapMatrix?.yLabels || []);
     this.plot = PlotlyModule.plotlyjs.newPlot('heatmap', cloneDeep(this.heatmapData), this.heatmapLayout, this.heatmapConfig);
+    Promise.resolve(this.plot).then(() => this.bindHeatmapInteractions());
   }
+
+  toggleHeatmapDragMode(): void {
+    this.cancelPan();
+    this.heatmapDragMode = this.heatmapDragMode === 'zoom' ? 'pan' : 'zoom';
+    if (this.heatmapLayout) {
+      this.heatmapLayout.dragmode = this.heatmapDragMode === 'zoom' ? 'zoom' : false;
+      PlotlyModule.plotlyjs.relayout(this.heatmapContainerRef.nativeElement, { dragmode: this.heatmapLayout.dragmode });
+    }
+  }
+
+  private bindHeatmapInteractions(): void {
+    if (this.viewDestroyed) return;
+    // Keep pointer movement local to this plot instead of refreshing every Angular view.
+    this.zone.runOutsideAngular(() => {
+      const plot = this.heatmapContainerRef.nativeElement;
+      plot.removeListener('plotly_relayout', this.onHeatmapRelayout);
+      plot.on('plotly_relayout', this.onHeatmapRelayout);
+      plot.addEventListener('pointerdown', this.startPan, { capture: true, passive: false });
+      window.addEventListener('pointermove', this.movePan, { capture: true, passive: false });
+      window.addEventListener('pointerup', this.endPan, true);
+      window.addEventListener('pointercancel', this.cancelPan);
+      window.addEventListener('blur', this.cancelPan);
+    });
+  }
+
+  private onHeatmapRelayout = (changes: Record<string, unknown>): void => {
+    if (Object.keys(changes).some(key => /^[xy]axis\.(range|autorange)/.test(key))) {
+      this.syncZoomLabelSize();
+    }
+  };
+
+  private syncZoomLabelSize(): void {
+    if (this.viewDestroyed || !this.heatmapShowLabels || !this.lastHeatmapMatrix) return;
+    const plot = this.heatmapContainerRef.nativeElement;
+    const layout = plot._fullLayout;
+    if (!layout) return;
+    const size = resolveHeatmapLabelSize(
+      this.heatmapLabelScale, this.lastHeatmapMatrix.xLabels.length, this.lastHeatmapMatrix.yLabels.length,
+      layout.xaxis.range, layout.yaxis.range,
+    );
+    if (layout.xaxis.tickfont.size === size && layout.yaxis.tickfont.size === size) return;
+    PlotlyModule.plotlyjs.relayout(plot, {
+      'xaxis.tickfont.size': size, 'yaxis.tickfont.size': size,
+      'xaxis.tickfont.color': this.widgets['background-color-contrast'],
+      'yaxis.tickfont.color': this.widgets['background-color-contrast'],
+    });
+  }
+
+  private startPan = (event: PointerEvent): void => {
+    if (this.heatmapDragMode !== 'pan' || event.button !== 0 || this.panStart || !this.lastHeatmapMatrix) return;
+    if (!(event.target instanceof Element) || !event.target.classList.contains('nsewdrag')) return;
+    const plot = this.heatmapContainerRef.nativeElement;
+    const layout = plot._fullLayout;
+    const rect = event.target.getBoundingClientRect();
+    if (!layout || !rect.width || !rect.height) return;
+    event.preventDefault();
+    event.stopPropagation();
+    this.panStart = {
+      pointerId: event.pointerId, x: event.clientX, y: event.clientY, width: rect.width, height: rect.height,
+      xRange: [...layout.xaxis.range] as [number, number], yRange: [...layout.yaxis.range] as [number, number],
+    };
+    plot.classList.add('heatmap-panning');
+  };
+
+  private movePan = (event: PointerEvent): void => {
+    const start = this.panStart;
+    if (!start || start.pointerId !== event.pointerId) return;
+    event.preventDefault();
+    event.stopPropagation();
+    this.pendingPan = {
+      x: translateHeatmapRange(start.xRange, -(event.clientX - start.x) * (start.xRange[1] - start.xRange[0]) / start.width, this.lastHeatmapMatrix.xLabels.length),
+      y: translateHeatmapRange(start.yRange, (event.clientY - start.y) * (start.yRange[1] - start.yRange[0]) / start.height, this.lastHeatmapMatrix.yLabels.length),
+    };
+    if (this.panFrame === null) {
+      this.panFrame = requestAnimationFrame(() => {
+        this.panFrame = null;
+        this.applyPendingPan();
+      });
+    }
+  };
+
+  private applyPendingPan(): void {
+    if (!this.pendingPan) return;
+    const ranges = this.pendingPan;
+    this.pendingPan = null;
+    PlotlyModule.plotlyjs.relayout(this.heatmapContainerRef.nativeElement, {
+      'xaxis.range': ranges.x, 'yaxis.range': ranges.y,
+      'xaxis.autorange': false, 'yaxis.autorange': false,
+    });
+  }
+
+  private endPan = (event: PointerEvent): void => {
+    if (this.panStart?.pointerId !== event.pointerId) return;
+    this.movePan(event);
+    this.applyPendingPan();
+    this.cancelPan();
+  };
+
+  private cancelPan = (): void => {
+    if (this.panFrame !== null) cancelAnimationFrame(this.panFrame);
+    this.panFrame = null;
+    this.panStart = null;
+    this.pendingPan = null;
+    this.heatmapContainerRef?.nativeElement.classList.remove('heatmap-panning');
+  };
 
   ngOnInit(): void {
     this.viewActive = true;
@@ -238,6 +355,7 @@ export class HeatmapComponent extends BaseComponentDirective implements OnInit, 
       'heatmap-color-missing',
       'heatmap-color-scales',
       'heatmap-axislabels-show',
+      'heatmap-axislabels-size',
       'heatmap-x-variable',
       'heatmap-y-variable',
       'heatmap-data-layout',
@@ -324,6 +442,10 @@ export class HeatmapComponent extends BaseComponentDirective implements OnInit, 
     this.invertX = Boolean(this.widgets['heatmap-invertX']);
     this.invertY = Boolean(this.widgets['heatmap-invertY']);
     this.heatmapShowLabels = Boolean(this.widgets['heatmap-axislabels-show']);
+    const labelSize = Number(this.widgets['heatmap-axislabels-size']);
+    // Retain the original stored base size so existing sessions keep their slider position.
+    this.heatmapLabelScale = Number.isFinite(labelSize) ? Math.max(0.5, Math.min(2, labelSize / 12)) : 1;
+    this.widgets['heatmap-axislabels-size'] = Math.round(this.heatmapLabelScale * 120) / 10;
     this.loColor = this.widgets['heatmap-color-low'];
     this.medColor = this.widgets['heatmap-color-medium'];
     this.hiColor = this.widgets['heatmap-color-high'];
@@ -703,7 +825,15 @@ export class HeatmapComponent extends BaseComponentDirective implements OnInit, 
       tickvals: labels,
       ticktext: labels,
       showticklabels: this.heatmapShowLabels,
+      tickfont: { size: 12 * this.heatmapLabelScale },
       automargin: true,
+      fixedrange: false,
+      ...(labels.length ? { minallowed: -0.5, maxallowed: labels.length - 0.5 } : {}),
+      showline: true,
+      linecolor: '#000000',
+      linewidth: 1,
+      mirror: true,
+      zeroline: false,
     };
 
     if (!config.showticklabels) {
@@ -1082,37 +1212,56 @@ export class HeatmapComponent extends BaseComponentDirective implements OnInit, 
   private buildHeatmapColorbar(matrix: HeatmapMatrixResult): any {
     const missingColorbarPosition = matrix.hasMissing
       ? {
-        len: 0.82,
-        y: 0.41,
+        len: this.missingColorbarLength,
+        y: this.missingColorbarLength / 2,
         yanchor: 'middle',
       }
       : {};
 
-    if (matrix.kind === 'categorical') {
-      const colorbar = this.buildCategoricalColorbar(matrix.categories);
-      return colorbar ? { ...colorbar, ...missingColorbarPosition } : undefined;
-    }
-
-    const colorbar = this.buildNumericHeatmapColorbar(
-      matrix.z,
-      (value) => matrix.isDistance
-        ? this.formatHeatmapDistanceValue(value)
-        : this.formatGenericNumericValue(value),
-      this.colorScale?.domain,
-    );
-    return colorbar ? { ...colorbar, ...missingColorbarPosition } : undefined;
+    const colorbar = matrix.kind === 'categorical'
+      ? this.buildCategoricalColorbar(matrix.categories)
+      : this.buildNumericHeatmapColorbar(
+        matrix.z,
+        (value) => matrix.isDistance
+          ? this.formatHeatmapDistanceValue(value)
+          : this.formatGenericNumericValue(value),
+        this.colorScale?.domain,
+      );
+    return { ...this.colorbarStyle, ...colorbar, ...missingColorbarPosition };
   }
 
-  private buildMissingLegendLayout(hasMissing: boolean): any {
-    return hasMissing
-      ? {
-        x: 1.02,
-        y: 1,
-        xanchor: 'left',
-        yanchor: 'top',
-        traceorder: 'normal',
-      }
-      : undefined;
+  private buildMissingDataLegend(hasMissing: boolean): any {
+    if (!hasMissing) return { showlegend: false, shapes: [], annotations: [] };
+
+    const { x, xpad, ypad, thickness } = this.colorbarStyle;
+    // Anchor to the colorbar's top, then use pixels for a fixed square and gap.
+    const bottom = this.missingLegendGap - ypad;
+    return {
+      showlegend: false,
+      shapes: [{
+        name: 'No Data', type: 'rect',
+        xref: 'paper', yref: 'paper', xsizemode: 'pixel', ysizemode: 'pixel',
+        xanchor: x, x0: xpad, x1: xpad + thickness,
+        yanchor: this.missingColorbarLength, y0: bottom, y1: bottom + thickness,
+        fillcolor: this.missingColor, line: { color: '#666666', width: 1 },
+      }],
+      annotations: [{
+        text: 'No Data', showarrow: false,
+        xref: 'paper', yref: 'paper', x, y: this.missingColorbarLength,
+        xshift: xpad + thickness + this.missingLegendGap,
+        yshift: bottom + thickness / 2,
+        xanchor: 'left', yanchor: 'middle',
+        font: { size: 12, color: this.widgets['background-color-contrast'] },
+      }],
+    };
+  }
+
+  private missingLegendRightMargin(width: number, left: number, hasMissing: boolean): number {
+    if (!hasMissing) return 0;
+    const { x, xpad, thickness } = this.colorbarStyle;
+    // Reserve the square, gap, and 60px for its label within the exported SVG.
+    const legendWidth = xpad + thickness + this.missingLegendGap + 60;
+    return Math.ceil(((x - 1) * (width - left) + legendWidth) / x);
   }
 
   private async buildHeatmapMatrix(): Promise<HeatmapMatrixResult> {
@@ -1157,7 +1306,9 @@ export class HeatmapComponent extends BaseComponentDirective implements OnInit, 
   }
 
   drawHeatmap(): void {
+    this.cancelPan();
     this.buildHeatmapMatrix().then((matrix) => {
+      if (this.viewDestroyed) return;
       this.lastHeatmapMatrix = matrix;
       this.heatmapLabels = matrix.xLabels;
       this.heatmapValueLabel = matrix.valueLabel;
@@ -1207,7 +1358,7 @@ export class HeatmapComponent extends BaseComponentDirective implements OnInit, 
           zmax: 1,
           hoverongaps: false,
           showscale: false,
-          showlegend: true,
+          showlegend: false,
           legendrank: 0,
           name: 'No Data',
           customdata: matrix.customdata,
@@ -1219,23 +1370,31 @@ export class HeatmapComponent extends BaseComponentDirective implements OnInit, 
 
       const marginLeft = this.heatmapShowLabels ? 90 : 10;
       const marginBottom = this.heatmapShowLabels ? 75 : 10;
+      const width = $('#heatmap').parent().width() - 35;
       this.heatmapLayout = {
           xaxis: this.buildHeatmapAxisConfig(matrix.xLabels),
           yaxis: this.buildHeatmapAxisConfig(matrix.yLabels),
-          width: $('#heatmap').parent().width() - 35,
+          dragmode: this.heatmapDragMode === 'zoom' ? 'zoom' : false,
+          width,
           height: $('#heatmap').parent().height() - 90,
-          margin: { t: 0, l: marginLeft, b: marginBottom, r: 0 },
-          legend: this.buildMissingLegendLayout(matrix.hasMissing),
+          // Keep the mirrored top stroke inside the SVG instead of clipping it.
+          margin: { t: 4, l: marginLeft, b: marginBottom, r: this.missingLegendRightMargin(width, marginLeft, matrix.hasMissing) },
+          ...this.buildMissingDataLegend(matrix.hasMissing),
         };
       this.heatmapConfig = {
           displaylogo: false,
-          displayModeBar: false
+          displayModeBar: false,
+          scrollZoom: true,
+          doubleClick: 'reset',
+          showAxisDragHandles: false,
+          showAxisRangeEntryBoxes: false,
         };
 
       const plot = PlotlyModule.plotlyjs.newPlot('heatmap', cloneDeep(this.heatmapData), this.heatmapLayout, this.heatmapConfig);
       this.plot = plot;
 
       Promise.resolve(plot).then(() => {
+        this.bindHeatmapInteractions();
         this.setBackground();
         this.store.setNetworkRendered(true);
       });
@@ -1257,13 +1416,15 @@ export class HeatmapComponent extends BaseComponentDirective implements OnInit, 
       const marginBottom = this.heatmapShowLabels ? 75 : 10;
       const xLabels = this.lastHeatmapMatrix?.xLabels || [];
       const yLabels = this.lastHeatmapMatrix?.yLabels || [];
+      const width = $('#heatmap').parent().width() - 35;
       this.heatmapLayout = {
         xaxis: this.buildHeatmapAxisConfig(xLabels),
         yaxis: this.buildHeatmapAxisConfig(yLabels),
-        width: $('#heatmap').parent().width() - 35,
+        dragmode: this.heatmapDragMode === 'zoom' ? 'zoom' : false,
+        width,
         height: $('#heatmap').parent().height() - 90,
-        margin: { t: 0, l: marginLeft, b: marginBottom, r: 0 },
-        legend: this.buildMissingLegendLayout(Boolean(this.lastHeatmapMatrix?.hasMissing)),
+        margin: { t: 4, l: marginLeft, b: marginBottom, r: this.missingLegendRightMargin(width, marginLeft, Boolean(this.lastHeatmapMatrix?.hasMissing)) },
+        ...this.buildMissingDataLegend(Boolean(this.lastHeatmapMatrix?.hasMissing)),
       };
       this.openCenter();
     }
@@ -1271,6 +1432,7 @@ export class HeatmapComponent extends BaseComponentDirective implements OnInit, 
 
   redrawHeatmap(): void {
     if (!$('#heatmap').length) return;
+    this.cancelPan();
     if (this.plot) PlotlyModule.plotlyjs.purge('heatmap');
     this.heatmapValueDisplayLabel = this.getHeatmapValueDisplayLabel();
     this.drawHeatmap();
@@ -1285,6 +1447,7 @@ export class HeatmapComponent extends BaseComponentDirective implements OnInit, 
     $('#heatmap .xtitle, .ytitle').css('fill', contrast);
     $('#heatmap .xaxislayer-above text').css('fill', contrast);
     $('#heatmap .yaxislayer-above text').css('fill', contrast);
+    $('#heatmap .annotation-text').css('fill', contrast);
   }
 
   updateLoColor(color: string): void {
@@ -1349,6 +1512,11 @@ export class HeatmapComponent extends BaseComponentDirective implements OnInit, 
     this.heatmapShowLabels = showLabels;
     this.commonService.session.style.widgets['heatmap-axislabels-show'] = this.heatmapShowLabels;
     this.redrawHeatmap();
+  }
+
+  updateLabelSize(): void {
+    this.widgets['heatmap-axislabels-size'] = Math.round(this.heatmapLabelScale * 120) / 10;
+    this.syncZoomLabelSize();
   }
 
   updateDataLayout(layout: HeatmapDataLayout): void {
@@ -1458,6 +1626,37 @@ export class HeatmapComponent extends BaseComponentDirective implements OnInit, 
     this.redrawHeatmap();
   }
 
+  private buildCenteredImageExport(content: HTMLElement): any {
+    const plot = content as HTMLElement & { data: any[]; layout: any; _fullLayout: any };
+    const figure = { data: cloneDeep(plot.data), layout: cloneDeep(plot.layout) };
+    const fullLayout = plot._fullLayout;
+    const svg = content.querySelector<SVGSVGElement>('svg.main-svg');
+    const canvas = svg?.getBoundingClientRect();
+    // Clipped heatmap images can extend outside the axes after zooming.
+    const boxes = Array.from(content.querySelectorAll<SVGGraphicsElement>(
+      '.xaxislayer-above, .yaxislayer-above, .xlines-above, .ylines-above, .infolayer, .layer-above .shapelayer',
+    )).map(group => group.getBoundingClientRect()).filter(box => box.height > 0);
+    if (!canvas?.height || !fullLayout?._size || !boxes.length) return figure;
+
+    const scale = fullLayout.height / canvas.height;
+    const topGap = (Math.min(...boxes.map(box => box.top)) - canvas.top) * scale;
+    const bottomGap = fullLayout.height - (Math.max(...boxes.map(box => box.bottom)) - canvas.top) * scale;
+    const padding = 12;
+    const height = Math.ceil(fullLayout.height + Math.max(0, padding * 2 - topGap - bottomGap));
+    const addedHeight = height - fullLayout.height;
+    const shift = (bottomGap + addedHeight - topGap) / 2;
+    const { t, b, l, r, p } = fullLayout._size;
+    figure.layout = {
+      ...figure.layout,
+      autosize: false,
+      width: fullLayout.width,
+      height,
+      // Freeze the measured margins so labels, the legend, and cells move together.
+      margin: { t: t + shift, b: b + addedHeight - shift, l, r, pad: p, autoexpand: false },
+    };
+    return figure;
+  }
+
   async saveImage(): Promise<void> {
     const fileName = this.SelectedImageFilenameVariable;
     const domId = 'heatmap';
@@ -1469,10 +1668,11 @@ export class HeatmapComponent extends BaseComponentDirective implements OnInit, 
     }
 
     try {
-      const dataUrl = await PlotlyModule.plotlyjs.toImage(content, {
+      const figure = this.buildCenteredImageExport(content);
+      const dataUrl = await PlotlyModule.plotlyjs.toImage(figure, {
         format: exportImageType,
-        width: null,
-        height: null,
+        width: figure.layout.width,
+        height: figure.layout.height,
       });
       saveAs(dataUrl, fileName + '.' + exportImageType);
     } catch (error) {
@@ -1505,6 +1705,14 @@ export class HeatmapComponent extends BaseComponentDirective implements OnInit, 
   }
 
   ngOnDestroy(): void {
+    this.viewDestroyed = true;
+    this.cancelPan();
+    this.heatmapContainerRef?.nativeElement.removeListener?.('plotly_relayout', this.onHeatmapRelayout);
+    this.heatmapContainerRef?.nativeElement.removeEventListener('pointerdown', this.startPan, true);
+    window.removeEventListener('pointermove', this.movePan, true);
+    window.removeEventListener('pointerup', this.endPan, true);
+    window.removeEventListener('pointercancel', this.cancelPan);
+    window.removeEventListener('blur', this.cancelPan);
     this.destroy$.next();
     this.destroy$.complete();
   }

@@ -12,10 +12,19 @@
           <a title="Center Screen" class="btn btn-sm btn-clean btn-icon btn-icon-md" style="float:left"
             (click)="openCenter()"><i class="flaticon-eye primary"></i></a>
           </span>
+          <button type="button" id="heatmap-drag-mode" data-testid="heatmap-drag-mode-toggle"
+            class="btn btn-sm btn-clean btn-icon btn-icon-md heatmap-mode-toggle"
+            [attr.aria-pressed]="heatmapDragMode === 'pan'"
+            [attr.aria-label]="heatmapDragMode === 'zoom' ? 'Zoom mode. Switch to pan mode.' : 'Pan mode. Switch to zoom mode.'"
+            [title]="heatmapDragMode === 'zoom' ? 'Zoom mode: drag a box or use the mouse wheel. Click for pan mode.' : 'Pan mode: zoom in, then drag within the data. Click for zoom mode.'"
+            (click)="toggleHeatmapDragMode()">
+            <i [class]="heatmapDragMode === 'zoom' ? 'pi pi-search-plus primary' : 'pi pi-arrows-alt primary'" aria-hidden="true"></i>
+            {{ heatmapDragMode === 'zoom' ? 'Zoom' : 'Pan' }}
+          </button>
           <span style="font-size: 1.25rem; padding-left: 15px; padding-top: 10px;">Current Heatmap Value: {{this.heatmapValueDisplayLabel}}</span>
         </div>
         <div class="m-portlet__body" style="height: 100%; overflow: auto">
-            <div #heatmapContainer id="heatmap">
+            <div #heatmapContainer id="heatmap" [class.heatmap-pan-mode]="heatmapDragMode === 'pan'">
           </div>
         </div>
       </div>
@@ -41,8 +50,24 @@
 
                 @if (selectedDataLayout === 'long') {
                   <div class="heatmap-layout-help">
-                    Each record becomes one Heatmap cell. Choose the fields containing the column label, row label, and value.<br>
-                    Example: <strong>Test | Virus | Result</strong>
+                    Each node (row on input CSV) contains one result for a sample and a test.
+                    Choose the fields containing the sample label, test label, and result.
+                    <details class="heatmap-layout-example">
+                      <summary>See an example</summary>
+                      <div class="heatmap-layout-example__table">
+                        <table class="table table-sm">
+                          <caption class="sr-only">Long input: one test result per node</caption>
+                          <thead><tr><th scope="col">SampleID</th><th scope="col">testID</th><th scope="col">result</th></tr></thead>
+                          <tbody>
+                            <tr><td>sample_1</td><td>test_1</td><td>12</td></tr>
+                            <tr><td>sample_1</td><td>test_2</td><td>24</td></tr>
+                          </tbody>
+                        </table>
+                      </div>
+                      <p>Choose <strong>Row Axis = SampleID</strong>, <strong>Column Axis = testID</strong>, and <strong>Cell Value = result</strong>.
+                        The sample_1 Heatmap row contains 12 under test_1 and 24 under test_2.</p>
+                      <p class="mb-0">Keep the node import ID unique, even when SampleID repeats to group test results.</p>
+                    </details>
                   </div>
                   <div class="form-group row heatmap-x-variable-row" title="Column containing the Heatmap column-axis labels." style="overflow:visible">
                     <div class="col-4"><label for="heatmap-x-variable">Column Axis</label></div>
@@ -73,8 +98,23 @@
 
                 @if (selectedDataLayout === 'wide') {
                   <div class="heatmap-layout-help">
-                    Each record becomes one Heatmap row. Choose the field that labels the row, then choose the fields containing its values.<br>
-                    Example: <strong>Virus | A/Bris/10/07 | A/Per/16/09 | ...</strong>
+                    Each node (row on input CSV) becomes one Heatmap row, with test results in separate columns.
+                    Choose the field containing the sample label, then choose the test-result columns.
+                    <details class="heatmap-layout-example">
+                      <summary>See an example</summary>
+                      <div class="heatmap-layout-example__table">
+                        <table class="table table-sm">
+                          <caption class="sr-only">Wide input: multiple test-result columns per node</caption>
+                          <thead><tr><th scope="col">SampleID</th><th scope="col">test1Result</th><th scope="col">test2Result</th><th scope="col">…</th></tr></thead>
+                          <tbody>
+                            <tr><td>sample_1</td><td>12</td><td>24</td><td>…</td></tr>
+                            <tr><td>sample_2</td><td>18</td><td>30</td><td>…</td></tr>
+                          </tbody>
+                        </table>
+                      </div>
+                      <p class="mb-0">Choose <strong>Row Labels = SampleID</strong> and <strong>Value Columns = test1Result, test2Result, …</strong>.
+                        Each selected test-result column becomes a Heatmap column.</p>
+                    </details>
                   </div>
                   <div class="form-group row heatmap-y-variable-row" title="Field used to label each Heatmap row." style="overflow:visible">
                     <div class="col-4"><label for="heatmap-y-variable">Row Labels</label></div>
@@ -96,7 +136,8 @@
 
                 @if (selectedDataLayout === 'distance') {
                   <div class="heatmap-layout-help">
-                    Display the active genetic distance matrix. The optional label fields only change the text shown on each axis.
+                    Use the same genetic distances used throughout MicrobeTrace. Distances can be provided in a link list or distance matrix,
+                    or calculated by MicrobeTrace from a Newick tree or from genetic sequences using SNP or TN93.
                   </div>
                   <div class="form-group row heatmap-x-variable-row" title="Field used for Heatmap column-axis labels." style="overflow:visible">
                     <div class="col-4"><label for="heatmap-x-variable">Column Labels</label></div>
@@ -203,6 +244,13 @@
                           <p-select-button id="show-labels" [options]="invertOptions" fluid [(ngModel)]="heatmapShowLabels" (ngModelChange)="updateShowLabels($event)"></p-select-button>
                         </div>
                       </div>
+                      <div class="form-group row label-size-row" title="Set the label size for both heatmap axes.">
+                        <div class="col-6"><label for="heatmap-axis-label-size">Axis Label Size</label></div>
+                        <div class="col-6">
+                          <input id="heatmap-axis-label-size" type="range" class="custom-range" min="0.5" max="2" step="0.05"
+                            [(ngModel)]="heatmapLabelScale" (change)="updateLabelSize()" [disabled]="!heatmapShowLabels">
+                        </div>
+                      </div>
                     </div>
                   </p-accordion-content>
                   </p-accordion-panel>
@@ -236,11 +284,11 @@
             <div class="form-group row">
               <div class="col-8">
                 <input type="text" id="distance-matrix-filename" class="form-control form-control-sm"
-                  placeholder="Distance Matrix Filename" [(ngModel)]="SelectedDistanceMatrixFilenameVariable">
+                  placeholder="Heatmap Data Filename" aria-label="Heatmap Data Filename" [(ngModel)]="SelectedDistanceMatrixFilenameVariable">
                 </div>
                 <div class="col-8">
                   <button type="button" id="export-distance-matrix" class="btn btn-primary"
-                  (click)="saveDistanceMatrix()">Save Distance Matrix</button>
+                  (click)="saveDistanceMatrix()">Save Raw Heatmap Data</button>
                 </div>
               </div>
             </div>

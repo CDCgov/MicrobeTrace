@@ -58,7 +58,7 @@ describe('Color pickers commit once after selection', () => {
     };
     launchProfileToHeatmap(profile);
     openHeatmapSettingsDialog();
-    selectOption('#heatmap-data-layout', 'One cell value per record (long)');
+    selectOption('#heatmap-data-layout', 'One row per sample/test result (long)');
     cy.get('@heatmapSettings').contains('.nav-link', 'Appearance').click();
     cy.get('@heatmapSettings').contains('.p-accordionheader', 'Color').click();
     assertColorCommit('#heatmap-continuous-color-editor .continuous-ramp__stop-row:first input[type="color"]', 'heatmap', 'updateColorScale', 'heatmap-color-low', '#123456');

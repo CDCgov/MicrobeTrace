@@ -15,7 +15,32 @@
 }
 
 #heatmap {
-  padding: 60px 20px 10px 10px
+  padding: 60px 20px 10px 10px;
+  box-sizing: border-box;
+}
+
+.heatmap-mode-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  width: auto;
+  min-width: 76px;
+  padding: 0 0.5rem;
+
+  &[aria-pressed='true'] {
+    background: #eef0f3;
+  }
+}
+
+:host ::ng-deep #heatmap.heatmap-pan-mode .nsewdrag {
+  cursor: grab !important;
+  touch-action: none;
+}
+
+:host ::ng-deep #heatmap.heatmap-panning {
+  &, * { cursor: grabbing !important; }
+  .hoverlayer { visibility: hidden; }
 }
 
 .p-component p-dropdown {
@@ -43,6 +68,42 @@
   border-left: 3px solid #5867dd;
   font-size: 0.875rem;
   line-height: 1.35;
+}
+
+.heatmap-color-settings {
+  max-height: 55vh;
+  padding: 0 15px;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.heatmap-layout-example {
+  margin-top: 0.5rem;
+
+  summary {
+    cursor: pointer;
+    font-weight: 600;
+  }
+
+  &__table {
+    overflow-x: auto;
+    margin: 0.65rem 0;
+  }
+
+  table {
+    margin: 0;
+    background: #fff;
+    border: 1px solid #dee2e6;
+  }
+
+  thead {
+    background: #e9edf3;
+  }
+
+  th, td {
+    padding: 0.4rem 0.5rem;
+    white-space: nowrap;
+  }
 }
 
 .bottom-table{

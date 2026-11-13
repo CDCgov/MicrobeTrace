@@ -545,6 +545,7 @@ export class CommonService extends AppComponentBase implements OnInit {
             'heatmap-color-missing': '#d9d9d9',
             'heatmap-color-scales': {},
             'heatmap-axislabels-show': false,
+            'heatmap-axislabels-size': 12,
             'heatmap-x-variable': '_id',
             'heatmap-y-variable': '_id',
             'heatmap-data-layout': 'distance',

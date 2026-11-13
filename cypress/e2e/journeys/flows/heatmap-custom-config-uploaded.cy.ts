@@ -124,7 +124,7 @@ function configureNodeHeatmap(options: {
 }): void {
   openHeatmapSettingsDialog();
   openHeatmapConfigurationTab();
-  selectHeatmapOption('#heatmap-data-layout', 'One cell value per record (long)');
+  selectHeatmapOption('#heatmap-data-layout', 'One row per sample/test result (long)');
   selectHeatmapOption('#heatmap-x-variable', 'Serum');
   selectHeatmapOption('#heatmap-y-variable', 'Isolate ID');
   selectHeatmapOption('#heatmap-value-variable', options.value);
@@ -174,8 +174,25 @@ function assertCapturedCsvRows(expectedRows: string[][]): void {
   });
 }
 
+function assertMissingLegendGeometry(): void {
+  cy.get('#heatmap').should(($plot) => {
+    const plot = $plot.get(0) as HTMLElement & { _fullLayout: any };
+    expect(plot._fullLayout.width, 'plot resized to its view').to.be.closeTo($plot.parent().width()! - 35, 1);
+    const square = plot.querySelector('.shape-group path')!.getBoundingClientRect();
+    const gradient = plot.querySelector('.cbfill')!.getBoundingClientRect();
+    const label = plot.querySelector('.annotation-text')!;
+    const svg = plot.querySelector('svg.main-svg')!.getBoundingClientRect();
+    expect(square.width, 'square matches gradient width').to.be.closeTo(gradient.width, 1);
+    expect(square.height, 'swatch is square').to.be.closeTo(square.width, 1);
+    expect(square.left, 'square aligns with gradient').to.be.closeTo(gradient.left, 1);
+    expect(gradient.top - square.bottom, 'small fixed gap above gradient').to.be.closeTo(8, 1);
+    expect(label.textContent).to.equal('No Data');
+    expect(label.getBoundingClientRect().right, 'label fits in the exported plot').to.be.at.most(svg.right);
+  });
+}
+
 describe('Journey Flow - Custom Heatmap configuration on uploaded data', () => {
-  it('edits custom bounds and color stops while preserving data and per-value settings', () => {
+  it('edits custom bounds and color stops while preserving data, per-value settings, and the square missing-data legend', () => {
     launchProfileToHeatmap(nodeProfile);
     configureNodeHeatmap({ value: 'HI Titer' });
     cy.window().should((win: any) => {
@@ -208,12 +225,36 @@ describe('Journey Flow - Custom Heatmap configuration on uploaded data', () => {
       expect(trace.colorscale).to.deep.equal([[0, '#313695'], [0.25, '#00ff00'], [1, '#a50026']]);
       expect(trace.z, 'color clipping does not change actual values').to.deep.equal([[40, null], [80, 20]]);
       expect(heatmap.heatmapData[1].colorscale).to.deep.equal([[0, '#d9d9d9'], [1, '#d9d9d9']]);
+      expect(heatmap.heatmapLayout.shapes[0].name).to.equal('No Data');
+      expect(heatmap.heatmapLayout.shapes[0].fillcolor).to.equal('#d9d9d9');
       expect(win.document.querySelector('#heatmap')._fullData[0].zmin, 'rendered custom domain').to.equal(-20);
     });
+    assertMissingLegendGeometry();
+    cy.viewport(1024, 768);
+    assertMissingLegendGeometry();
+    cy.viewport(1280, 720);
+    assertMissingLegendGeometry();
+
     captureHeatmapDownloadBlobs();
     openHeatmapExportDialog();
     cy.get('@heatmapExportDialog').find('#export-distance-matrix').click();
     assertCapturedCsvRows([['', 'S1', 'S2'], ['Virus A', '40', ''], ['Virus B', '80', '20']]);
+    const imageName = `heatmap-missing-legend-${Date.now()}`;
+    cy.get('@heatmapExportDialog').find('#tree-image-filename').clear().type(imageName);
+    setHeatmapExportFileType('svg');
+    cy.get('@heatmapExportDialog').find('#export-tree').click();
+    cy.readFile(`${Cypress.config('downloadsFolder')}/${imageName}.svg`, 'utf8').then(svg => {
+      const document = new DOMParser().parseFromString(svg, 'image/svg+xml');
+      const square = document.querySelector<SVGElement>('.shape-group path');
+      expect(square !== null, 'missing-data square is exported').to.equal(true);
+      expect(square!.style.fill).to.equal('rgb(217, 217, 217)');
+      expect(document.querySelector('.annotation-text')?.textContent).to.equal('No Data');
+      for (const selector of ['.xlines-above', '.ylines-above']) {
+        const border = document.querySelector<SVGElement>(selector)!;
+        expect(border.style.stroke, 'exported matrix border').to.equal('rgb(0, 0, 0)');
+        expect(border.style.strokeWidth).to.equal('1px');
+      }
+    });
     cy.closeSettingsPane('Export Heatmap');
 
     configureNodeHeatmap({ value: 'Phenotype' });
@@ -381,7 +422,16 @@ describe('Journey Flow - Custom Heatmap configuration on uploaded data', () => {
 
     openHeatmapSettingsDialog();
     openHeatmapConfigurationTab();
-    selectHeatmapOption('#heatmap-data-layout', 'Multiple cell values per record (wide)');
+    cy.get('@heatmapSettings').find('#heatmap-data-layout').click();
+    cy.get('.p-select-overlay:visible li[role="option"]').should(($options) => {
+      expect($options.toArray().map(option => option.textContent!.trim())).to.deep.equal([
+        'Genetic distance matrix',
+        'One row per sample (wide)',
+        'One row per sample/test result (long)',
+      ]);
+    });
+    cy.get('.p-select-overlay:visible').contains('li[role="option"]', 'Genetic distance matrix').click();
+    selectHeatmapOption('#heatmap-data-layout', 'One row per sample (wide)');
     cy.closeSettingsPane('Heatmap Settings');
     assertHeatmapReady();
 
@@ -415,6 +465,8 @@ describe('Journey Flow - Custom Heatmap configuration on uploaded data', () => {
         [40, 1280, 640],
         [null, 640, null],
       ]);
+      expect(trace.zmin, 'wide color domain excludes nonnumeric markers').to.equal(40);
+      expect(trace.zmax).to.equal(1280);
       expect(trace.colorbar.ticktext, 'wide numeric legend').to.satisfy((labels: string[]) => (
         labels.length > 0
         && labels.every((label) => Number.isFinite(Number(String(label).replace(/,/g, ''))))
