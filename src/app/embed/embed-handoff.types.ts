@@ -21,6 +21,7 @@ export const EMBED_HANDOFF_ALLOWED_DEFAULT_VIEWS = [
     'Waterfall',
 ] as const;
 export const EMBED_HANDOFF_ALLOWED_DISTANCE_METRICS = ['snps', 'tn93'] as const;
+export const EMBED_HANDOFF_ALLOWED_NETWORK_DISTANCE_SOURCES = ['auto', 'sequences', 'links', 'newick'] as const;
 export const EMBED_HANDOFF_ALLOWED_AMBIGUITY_STRATEGIES = ['AVERAGE', 'RESOLVE', 'SKIP', 'GAPMM', 'HIVTRACE-G'] as const;
 export const EMBED_HANDOFF_ALLOWED_NODE_SHAPES = [
     'ellipse',
@@ -43,6 +44,7 @@ export type EmbedFileKind = typeof EMBED_HANDOFF_ALLOWED_KINDS[number];
 export type EmbedFileKindInput = EmbedFileKind | 'auto';
 export type EmbedLaunchDefaultView = typeof EMBED_HANDOFF_ALLOWED_DEFAULT_VIEWS[number];
 export type EmbedLaunchDistanceMetric = typeof EMBED_HANDOFF_ALLOWED_DISTANCE_METRICS[number];
+export type EmbedLaunchNetworkDistanceSource = typeof EMBED_HANDOFF_ALLOWED_NETWORK_DISTANCE_SOURCES[number];
 export type EmbedLaunchAmbiguityStrategy = typeof EMBED_HANDOFF_ALLOWED_AMBIGUITY_STRATEGIES[number];
 export type EmbedLaunchNodeShape = typeof EMBED_HANDOFF_ALLOWED_NODE_SHAPES[number];
 export type EmbedLaunchTN93DistanceDisplayFormat = typeof EMBED_HANDOFF_ALLOWED_TN93_DISTANCE_DISPLAY_FORMATS[number];
@@ -100,6 +102,7 @@ export interface EmbedLaunchGlobalSettingsV1 {
 export interface EmbedLaunchOptionsV1 {
     datasetName?: string;
     defaultView?: EmbedLaunchDefaultView;
+    networkDistanceSource?: EmbedLaunchNetworkDistanceSource;
     distanceMetric?: EmbedLaunchDistanceMetric;
     linkThreshold?: number;
     ambiguityStrategy?: EmbedLaunchAmbiguityStrategy;

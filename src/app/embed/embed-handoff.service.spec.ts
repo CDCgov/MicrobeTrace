@@ -130,6 +130,7 @@ describe('EmbedHandoffService', () => {
             launch: {
                 datasetName: ' Preferred dataset ',
                 defaultView: 'Table',
+                networkDistanceSource: 'SEQUENCES',
                 distanceMetric: 'TN93',
                 linkThreshold: '0.02',
                 ambiguityStrategy: 'resolve',
@@ -174,6 +175,7 @@ describe('EmbedHandoffService', () => {
         expect(result.handoff.launch).toEqual({
             datasetName: 'Preferred dataset',
             defaultView: 'Table',
+            networkDistanceSource: 'sequences',
             distanceMetric: 'tn93',
             linkThreshold: 0.02,
             ambiguityStrategy: 'RESOLVE',
@@ -219,6 +221,24 @@ describe('EmbedHandoffService', () => {
         }
 
         expect(result.message).toContain('defaultView');
+    });
+
+    it('rejects an unsupported network distance source', async () => {
+        seedValidHandoff({
+            launch: {
+                networkDistanceSource: 'combined',
+            },
+        });
+
+        const result = await service.consumePendingHandoffFromUrl();
+
+        expect(result.status).toBe('error');
+        if (result.status !== 'error') {
+            fail('Expected an error result.');
+            return;
+        }
+
+        expect(result.message).toContain('networkDistanceSource');
     });
 
     it('rejects launch field settings that are not present in imported fields', async () => {

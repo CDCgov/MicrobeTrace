@@ -1342,7 +1342,16 @@ export class CommonService extends AppComponentBase implements OnInit {
         );
     }
 
+    private usesNewickForNetworkDistances(): boolean {
+        const source = (this.session.meta as any)?.partnerEmbed?.networkDistanceSource;
+        return source !== 'sequences' && source !== 'links';
+    }
+
     private hasNewickBackedDistanceSource(newickString: any): boolean {
+        if (!this.usesNewickForNetworkDistances()) {
+            return false;
+        }
+
         if (typeof newickString !== 'string' || newickString.trim().length === 0) {
             return false;
         }

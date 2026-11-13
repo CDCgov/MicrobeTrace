@@ -17,6 +17,7 @@
     'Waterfall'
   ]);
   var ALLOWED_DISTANCE_METRICS = new Set(['snps', 'tn93']);
+  var ALLOWED_NETWORK_DISTANCE_SOURCES = new Set(['auto', 'sequences', 'links', 'newick']);
   var ALLOWED_AMBIGUITY_STRATEGIES = new Set(['AVERAGE', 'RESOLVE', 'SKIP', 'GAPMM', 'HIVTRACE-G']);
   var ALLOWED_NODE_SHAPES = new Set([
     'ellipse',
@@ -667,6 +668,14 @@
 
     if (typeof launch.defaultView !== 'undefined') {
       normalized.defaultView = requireAllowedLaunchString(launch.defaultView, ALLOWED_DEFAULT_VIEWS, 'defaultView');
+    }
+
+    if (typeof launch.networkDistanceSource !== 'undefined') {
+      normalized.networkDistanceSource = requireAllowedLaunchString(
+        String(launch.networkDistanceSource).toLowerCase(),
+        ALLOWED_NETWORK_DISTANCE_SOURCES,
+        'networkDistanceSource'
+      );
     }
 
     if (typeof launch.distanceMetric !== 'undefined') {

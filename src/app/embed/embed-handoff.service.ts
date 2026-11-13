@@ -7,6 +7,7 @@ import {
     EMBED_HANDOFF_ALLOWED_AMBIGUITY_STRATEGIES,
     EMBED_HANDOFF_ALLOWED_DEFAULT_VIEWS,
     EMBED_HANDOFF_ALLOWED_DISTANCE_METRICS,
+    EMBED_HANDOFF_ALLOWED_NETWORK_DISTANCE_SOURCES,
     EMBED_HANDOFF_ALLOWED_NODE_SHAPES,
     EMBED_HANDOFF_ALLOWED_TN93_DISTANCE_DISPLAY_FORMATS,
     ConsumeEmbedHandoffResult,
@@ -43,6 +44,7 @@ const NODE_ID_HEADERS = ['id', 'sampleid', 'sample_id', 'nodeid', 'node_id'];
 const NODE_SEQUENCE_HEADERS = ['seq', 'sequence'];
 const ALLOWED_DEFAULT_VIEWS = new Set<string>(EMBED_HANDOFF_ALLOWED_DEFAULT_VIEWS);
 const ALLOWED_DISTANCE_METRICS = new Set<string>(EMBED_HANDOFF_ALLOWED_DISTANCE_METRICS);
+const ALLOWED_NETWORK_DISTANCE_SOURCES = new Set<string>(EMBED_HANDOFF_ALLOWED_NETWORK_DISTANCE_SOURCES);
 const ALLOWED_AMBIGUITY_STRATEGIES = new Set<string>(EMBED_HANDOFF_ALLOWED_AMBIGUITY_STRATEGIES);
 const ALLOWED_NODE_SHAPES = new Set<string>(EMBED_HANDOFF_ALLOWED_NODE_SHAPES);
 const ALLOWED_TN93_DISTANCE_DISPLAY_FORMATS = new Set<string>(EMBED_HANDOFF_ALLOWED_TN93_DISTANCE_DISPLAY_FORMATS);
@@ -338,6 +340,15 @@ export class EmbedHandoffService {
         if (typeof launch.defaultView !== 'undefined') {
             const defaultView = this.requireAllowedLaunchString(launch.defaultView, ALLOWED_DEFAULT_VIEWS, 'defaultView');
             normalized.defaultView = defaultView as EmbedLaunchOptionsV1['defaultView'];
+        }
+
+        if (typeof launch.networkDistanceSource !== 'undefined') {
+            const networkDistanceSource = this.requireAllowedLaunchString(
+                String(launch.networkDistanceSource).toLowerCase(),
+                ALLOWED_NETWORK_DISTANCE_SOURCES,
+                'networkDistanceSource'
+            );
+            normalized.networkDistanceSource = networkDistanceSource as EmbedLaunchOptionsV1['networkDistanceSource'];
         }
 
         if (typeof launch.distanceMetric !== 'undefined') {

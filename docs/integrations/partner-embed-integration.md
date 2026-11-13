@@ -209,6 +209,7 @@ Optional fields:
 {
   datasetName: 'My dataset',
   defaultView: '2D Network', // or Table, Map, Heatmap, Phylogenetic Tree, etc.
+  networkDistanceSource: 'sequences', // auto, sequences, links, or newick
   distanceMetric: 'snps', // or tn93
   linkThreshold: 16,
   ambiguityStrategy: 'AVERAGE', // AVERAGE, RESOLVE, SKIP, GAPMM, HIVTRACE-G
@@ -235,6 +236,7 @@ Supported launch settings:
 | --- | --- | --- |
 | `launch.datasetName` | string | Names this handed-off dataset and displays the name in the MicrobeTrace toolbar. Preferred over `metadata.datasetName` when both are supplied. |
 | `launch.defaultView` | `2D Network`, `Epi Curve`, `Sankey`, `Table`, `Crosstab`, `Map`, `Bubble`, `Gantt Chart`, `Phylogenetic Tree`, `Alignment View`, `Heatmap`, `Waterfall` | Chooses the first view MicrobeTrace opens after import. |
+| `launch.networkDistanceSource` | `auto`, `sequences`, `links`, or `newick` | Selects which handed-off data generates network distance links. `sequences` computes from FASTA/MAPLE while retaining Newick for the tree; `links` uses imported link, molten, or matrix distances without recomputing sequence or Newick links; `newick` uses patristic tree distances. `auto` preserves the legacy behavior. |
 | `launch.distanceMetric` | `snps` or `tn93` | Sets the distance metric used for initial network construction. |
 | `launch.linkThreshold` | non-negative number | Sets the initial filtering threshold. If both `distanceMetric` and `linkThreshold` are supplied, this custom threshold is preserved instead of being replaced by the metric default. |
 | `launch.ambiguityStrategy` | `AVERAGE`, `RESOLVE`, `SKIP`, `GAPMM`, `HIVTRACE-G` | Sets the TN93 ambiguity handling strategy. |
@@ -475,6 +477,14 @@ the mapping explicitly:
 }
 ```
 
+When a partner sends a thresholded molten file alongside MAPLE and Newick, set
+`launch.networkDistanceSource` to `links`. MicrobeTrace will use the imported
+molten distances for the network, retain MAPLE for sequence/alignment use, retain
+Newick for the Phylogenetic Tree, and skip both browser-side sequence comparisons
+and patristic-link generation. Set `launch.linkThreshold` to the threshold used
+to create the molten export. Pairs omitted above that export threshold are not
+available if a user later raises the MicrobeTrace threshold.
+
 ### Sending MAPLE output from Syrup
 
 MAPLE is the preferred alignment handoff when Syrup already has reference-relative
@@ -506,7 +516,8 @@ await MicrobeTraceEmbed.open({
   ],
   launch: {
     datasetName: 'Syrup analysis',
-    defaultView: 'Phylogenetic Tree'
+    defaultView: '2D Network',
+    networkDistanceSource: 'sequences'
   }
 });
 ```

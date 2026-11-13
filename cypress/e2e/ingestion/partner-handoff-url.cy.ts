@@ -90,6 +90,122 @@ describe('partner handoff URL handling', () => {
       tn93DistanceDisplayFormat: undefined,
     });
   });
+
+  it('uses MAPLE distances while retaining Newick as tree-only data', () => {
+    const handoffId = 'cypress-maple-network-source-handoff';
+
+    visitAndSeedHandoff(handoffId, {
+      files: [
+        {
+          name: 'syrup-tree.nwk',
+          kind: 'newick',
+          mimeType: 'text/plain',
+          contents: '(A:0.1,B:0.1);',
+        },
+        {
+          name: 'syrup-alignment.maple',
+          kind: 'maple',
+          mimeType: 'text/x-maple',
+          contents: '>REF\nAAAA\n>A\n>B\nT\t1\n',
+        },
+      ],
+      launchOverrides: {
+        defaultView: '2D Network',
+        networkDistanceSource: 'sequences',
+        distanceMetric: 'snps',
+        linkThreshold: 16,
+        globalSettings: {
+          nodeColorBy: 'None',
+          linkColorBy: 'None',
+          nodeShapeBy: 'None',
+        },
+      },
+    });
+    cy.visit(`/#handoff=${handoffId}`);
+
+    cy.window({ timeout: 120000 }).should((win) => {
+      const session = (win as any).commonService.session;
+      const handoffError = win.document.querySelector('.alert-danger')?.textContent?.trim();
+      const files = session.files?.map((file) => file.name).join(', ') || 'none';
+      expect(
+        session.meta?.partnerEmbed?.networkDistanceSource,
+        `handoff error: ${handoffError || 'none'}; files: ${files}`
+      ).to.equal('sequences');
+    });
+    cy.window({ timeout: 120000 })
+      .its('commonService.session.network.isFullyLoaded')
+      .should('equal', true);
+
+    cy.window().should((win) => {
+      const session = (win as any).commonService.session;
+      expect(session.meta.partnerEmbed.networkDistanceSource).to.equal('sequences');
+      expect(session.data.newickString).to.contain('(A:0.1,B:0.1)');
+      expect(session.data.links).to.have.length(1);
+      expect(session.data.links[0].origin).to.deep.equal(['Genetic Distance']);
+      expect(session.data.links[0].distanceOrigin).to.equal('Genetic Distance');
+    });
+  });
+
+  it('uses thresholded molten links without recomputing MAPLE or Newick distances', () => {
+    const handoffId = 'cypress-molten-network-source-handoff';
+
+    visitAndSeedHandoff(handoffId, {
+      files: [
+        {
+          name: 'syrup-tree.nwk',
+          kind: 'newick',
+          mimeType: 'text/plain',
+          contents: '(A:0.1,B:0.1,C:0.2);',
+        },
+        {
+          name: 'thresholded-molten.tsv',
+          kind: 'link',
+          mimeType: 'text/tab-separated-values',
+          contents: 'sequence_1\tsequence_2\tdistance\nA\tA\t0\nA\tB\t1\nB\tA\t1\n',
+          options: {
+            extension: 'tsv',
+            field1: 'sequence_1',
+            field2: 'sequence_2',
+            field3: 'distance',
+          },
+        },
+        {
+          name: 'syrup-alignment.maple',
+          kind: 'maple',
+          mimeType: 'text/x-maple',
+          contents: '>REF\nAAAA\n>A\n>B\nT\t1\n>C\nG\t2\n',
+        },
+      ],
+      launchOverrides: {
+        defaultView: '2D Network',
+        networkDistanceSource: 'links',
+        distanceMetric: 'snps',
+        linkThreshold: 1,
+        globalSettings: {
+          nodeColorBy: 'None',
+          linkColorBy: 'None',
+          nodeShapeBy: 'None',
+        },
+      },
+    });
+    cy.visit(`/#handoff=${handoffId}`);
+
+    cy.window({ timeout: 120000 })
+      .its('commonService.session.meta.partnerEmbed.networkDistanceSource')
+      .should('equal', 'links');
+    cy.window({ timeout: 120000 })
+      .its('commonService.session.network.isFullyLoaded')
+      .should('equal', true);
+
+    cy.window().should((win) => {
+      const session = (win as any).commonService.session;
+      expect(session.meta.partnerEmbed.networkDistanceSource).to.equal('links');
+      expect(session.data.newickString).to.contain('(A:0.1,B:0.1,C:0.2)');
+      expect(session.data.links).to.have.length(1);
+      expect(session.data.links[0].origin).to.deep.equal(['thresholded-molten.tsv']);
+      expect(session.data.links[0].distance).to.equal(1);
+    });
+  });
 });
 
 type HandoffSeedOptions = {

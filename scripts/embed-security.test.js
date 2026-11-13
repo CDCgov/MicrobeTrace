@@ -147,6 +147,7 @@ test('SDK forwards documented launch options to the receiver', () => {
     files: [{ name: 'nodes.csv', contents: 'id\nA\n' }],
     launch: {
       defaultView: 'Table',
+      networkDistanceSource: 'links',
       distanceMetric: 'tn93',
       linkThreshold: 0.02,
     },
@@ -165,6 +166,7 @@ test('SDK forwards documented launch options to the receiver', () => {
   assert.equal(context.__popupMessages.length, 1);
   assert.deepEqual(context.__popupMessages[0].message.launch, {
     defaultView: 'Table',
+    networkDistanceSource: 'links',
     distanceMetric: 'tn93',
     linkThreshold: 0.02,
   });
@@ -219,6 +221,7 @@ test('receiver stores normalized launch options and includes them in the receipt
       launch: {
         datasetName: ' Partner Launch ',
         defaultView: 'Table',
+        networkDistanceSource: 'LINKS',
         distanceMetric: 'TN93',
         linkThreshold: '0.02',
         ambiguityStrategy: 'resolve',
@@ -257,6 +260,7 @@ test('receiver stores normalized launch options and includes them in the receipt
   const expectedLaunch = {
     datasetName: 'Partner Launch',
     defaultView: 'Table',
+    networkDistanceSource: 'links',
     distanceMetric: 'tn93',
     linkThreshold: 0.02,
     ambiguityStrategy: 'RESOLVE',
@@ -306,6 +310,22 @@ test('receiver rejects invalid launch options before storage', async () => {
   const errorMessage = context.__openerMessages.find((message) => message.message.type === 'MT_HANDOFF_ERROR');
   assert.equal(context.__store.has('handoff:handoff-test-id'), false);
   assert.match(errorMessage.message.message, /defaultView/);
+});
+
+test('receiver rejects an unsupported network distance source', async () => {
+  const context = createReceiverContext();
+
+  await waitForReceiverReady(context);
+  await sendReceiverTransfer(context, `
+      launch: {
+        networkDistanceSource: 'combined'
+      },
+  `);
+  await settle();
+
+  const errorMessage = context.__openerMessages.find((message) => message.message.type === 'MT_HANDOFF_ERROR');
+  assert.equal(context.__store.has('handoff:handoff-test-id'), false);
+  assert.match(errorMessage.message.message, /networkDistanceSource/);
 });
 
 test('receiver rejects malformed continuous color scales before storage', async () => {

@@ -1063,11 +1063,12 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
     const widgets = this.commonService.session.style.widgets;
     const datasetName = launch?.datasetName ?? metadataDatasetName;
 
-    if (datasetName) {
+    if (datasetName || launch?.networkDistanceSource) {
       const meta = this.commonService.session.meta as any;
       meta.partnerEmbed = {
         ...(meta.partnerEmbed || {}),
-        datasetName,
+        ...(datasetName ? { datasetName } : {}),
+        ...(launch?.networkDistanceSource ? { networkDistanceSource: launch.networkDistanceSource } : {}),
       };
     }
 
@@ -1165,6 +1166,16 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
       microbeTrace.syncThresholdDisplayFromStoredValue?.();
       microbeTrace.cdref?.markForCheck?.();
     }
+  }
+
+  private getNetworkDistanceSource(): NonNullable<EmbedLaunchOptionsV1['networkDistanceSource']> {
+    const source = (this.commonService.session.meta as any)?.partnerEmbed?.networkDistanceSource;
+    return source === 'sequences' || source === 'links' || source === 'newick' ? source : 'auto';
+  }
+
+  private shouldUseNetworkDistanceSource(source: Exclude<NonNullable<EmbedLaunchOptionsV1['networkDistanceSource']>, 'auto'>): boolean {
+    const selectedSource = this.getNetworkDistanceSource();
+    return selectedSource === 'auto' || selectedSource === source;
   }
 
   private applyEmbedVariableColorScale(
@@ -2343,7 +2354,10 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
             timings: treeReady.timings
           });
 
-          this.applyPatristicDistanceDefaults(treeReady.maxDistance);
+          const useNewickForNetwork = this.shouldUseNetworkDistanceSource('newick');
+          if (useNewickForNetwork) {
+            this.applyPatristicDistanceDefaults(treeReady.maxDistance);
+          }
           const leafNames = treeReady.leafNames?.length
             ? treeReady.leafNames.map(this.commonService.filterXSS)
             : this.workerComputeService.getPatristicLeafNames().map(this.commonService.filterXSS);
@@ -2361,57 +2375,74 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
             totalLeaves: leafNames.length
           });
 
-          const analysisStart = Date.now();
-          const analysisResult = await this.workerComputeService.collectPatristicDistanceAnalysisEdges(
-            this.commonService.session
-          );
-          if (!isCurrentLoad()) return;
+          let activeThreshold = Number(this.commonService.session.style.widgets['link-threshold']);
+          let newLinks = 0;
+          let links = 0;
+          let guardrail: any = null;
 
-          if (!analysisResult.skipped && analysisResult.edges.length > 0) {
-            this.commonService.setPatristicThresholdAnalysisEdges('distance', leafNames, analysisResult.edges);
-          }
-          this.commonService.recordPerformanceTiming('ingestion', 'buildNewickThresholdAnalysis', analysisStart, {
-            file: file.name,
-            totalPairs: analysisResult.totalPairs,
-            sampledPairs: analysisResult.edges.length,
-            method: analysisResult.method,
-            skipped: analysisResult.skipped,
-            skipReason: analysisResult.skipReason
-          });
+          if (useNewickForNetwork) {
+            const analysisStart = Date.now();
+            const analysisResult = await this.workerComputeService.collectPatristicDistanceAnalysisEdges(
+              this.commonService.session
+            );
+            if (!isCurrentLoad()) return;
 
-          // Newick threshold analysis must be available before the first edge
-          // query so Smart Launch cannot generate a guardrailed partial network
-          // with the pre-launch default and apply its recommendation afterward.
-          await this.applySmartLaunchRecommendation(loadGeneration);
-          if (!isCurrentLoad()) return;
-          const activeThreshold = Number(this.commonService.session.style.widgets['link-threshold']);
-          const requeryStart = Date.now();
-          const patristicResult = await this.workerComputeService.ensurePatristicEdgesForThreshold(
-            activeThreshold,
-            this.commonService.addLink.bind(this.commonService),
-            this.commonService.filterXSS,
-            this.commonService.session,
-            {
-              origin,
-              distanceOrigin: file.name,
-              check,
-              newickString: normalizedNewick,
+            if (!analysisResult.skipped && analysisResult.edges.length > 0) {
+              this.commonService.setPatristicThresholdAnalysisEdges('distance', leafNames, analysisResult.edges);
             }
-          );
+            this.commonService.recordPerformanceTiming('ingestion', 'buildNewickThresholdAnalysis', analysisStart, {
+              file: file.name,
+              totalPairs: analysisResult.totalPairs,
+              sampledPairs: analysisResult.edges.length,
+              method: analysisResult.method,
+              skipped: analysisResult.skipped,
+              skipReason: analysisResult.skipReason
+            });
 
-          if (!isCurrentLoad()) return;
+            // Newick threshold analysis must be available before the first edge
+            // query so Smart Launch cannot generate a guardrailed partial network
+            // with the pre-launch default and apply its recommendation afterward.
+            await this.applySmartLaunchRecommendation(loadGeneration);
+            if (!isCurrentLoad()) return;
+            activeThreshold = Number(this.commonService.session.style.widgets['link-threshold']);
+            const requeryStart = Date.now();
+            const patristicResult = await this.workerComputeService.ensurePatristicEdgesForThreshold(
+              activeThreshold,
+              this.commonService.addLink.bind(this.commonService),
+              this.commonService.filterXSS,
+              this.commonService.session,
+              {
+                origin,
+                distanceOrigin: file.name,
+                check,
+                newickString: normalizedNewick,
+              }
+            );
 
-          this.commonService.recordPerformanceTiming('ingestion', 'computeNewickPatristicEdges', requeryStart, {
-            file: file.name,
-            leaves: leafNames.length,
-            threshold: activeThreshold,
-            totalLinks: patristicResult?.totalLinks ?? 0,
-            newLinks: patristicResult?.newLinks ?? 0
-          });
+            if (!isCurrentLoad()) return;
 
-          let newLinks = patristicResult?.newLinks ?? 0;
-          let links = patristicResult?.totalLinks ?? 0;
-          let guardrail = patristicResult?.guardrail;
+            this.commonService.recordPerformanceTiming('ingestion', 'computeNewickPatristicEdges', requeryStart, {
+              file: file.name,
+              leaves: leafNames.length,
+              threshold: activeThreshold,
+              totalLinks: patristicResult?.totalLinks ?? 0,
+              newLinks: patristicResult?.newLinks ?? 0
+            });
+
+            newLinks = patristicResult?.newLinks ?? 0;
+            links = patristicResult?.totalLinks ?? 0;
+            guardrail = patristicResult?.guardrail;
+          } else {
+            this.commonService.recordPerformanceTiming('ingestion', 'computeNewickPatristicEdges', Date.now(), {
+              file: file.name,
+              leaves: leafNames.length,
+              threshold: activeThreshold,
+              totalLinks: 0,
+              newLinks: 0,
+              skipped: true,
+              reason: `network-distance-source-${this.getNetworkDistanceSource()}`
+            });
+          }
 
           if (!isCurrentLoad()) return;
 
@@ -2432,7 +2463,11 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
           if (guardrail?.message) {
             this.showMessage(` - ${guardrail.message}`);
           }
-          this.showMessage(` - Parsed ${newLinks} New, ${links} Total Links from Newick Tree.`);
+          if (useNewickForNetwork) {
+            this.showMessage(` - Parsed ${newLinks} New, ${links} Total Links from Newick Tree.`);
+          } else {
+            this.showMessage(` - Kept ${file.name} for the Phylogenetic Tree without generating network links.`);
+          }
           if (fileNum === nFiles) this.processData(loadGeneration);
         }).catch((error: any) => {
           if (!isCurrentLoad()) return;
@@ -2498,7 +2533,11 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
     let renderLimit: number | null = null;
     let noRenderableThreshold = false;
 
-    if (recommendedIndex >= 0 && this.commonService.session.data.newickSource === 'newick') {
+    if (
+      recommendedIndex >= 0
+      && this.commonService.session.data.newickSource === 'newick'
+      && this.shouldUseNetworkDistanceSource('newick')
+    ) {
       const renderable = await this.workerComputeService.findMaxRenderablePatristicThresholdIndex(
         summary.thresholds,
         this.commonService.session,
@@ -2562,6 +2601,17 @@ export class FilesComponent extends BaseComponentDirective implements OnInit {
         skipped: true,
         reason: 'no-sequences'
       });
+      await this.applySmartLaunchRecommendation(loadGeneration);
+      if (!isCurrentLoad()) return;
+      return this.commonService.runHamsters();
+    }
+
+    if (!this.shouldUseNetworkDistanceSource('sequences')) {
+      this.commonService.recordPerformanceTiming('sequence', 'processSequenceTotal', processSequenceStart, {
+        skipped: true,
+        reason: `network-distance-source-${this.getNetworkDistanceSource()}`
+      });
+      this.showMessage(` - Kept sequence data without recomputing network links; using ${this.getNetworkDistanceSource()} distances.`);
       await this.applySmartLaunchRecommendation(loadGeneration);
       if (!isCurrentLoad()) return;
       return this.commonService.runHamsters();
