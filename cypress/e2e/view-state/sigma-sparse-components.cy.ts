@@ -49,6 +49,11 @@ describe('Sigma sparse disconnected-component layout', () => {
       expect(singletonPositions, 'singleton node count').to.have.length(303);
       expect(closestSingletonToCluster, 'clear space between clusters and singletons')
         .to.be.greaterThan(20);
+      expect(
+        Math.min(...linkedPositions.map(position => position.y))
+          - Math.max(...singletonPositions.map(position => position.y)),
+        'linked force-directed region below singleton grid',
+      ).to.be.greaterThan(20);
     });
   });
 

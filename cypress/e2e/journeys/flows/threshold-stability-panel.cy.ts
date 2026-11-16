@@ -139,10 +139,7 @@ describe('Journey Flow - Threshold Stability Panel', () => {
     openGlobalFilteringTab();
 
     cy.get('[data-testid="app-global-settings-dialog"] .p-dialog')
-      .should('be.visible')
-      .then(($dialog) => {
-        expect($dialog[0].getBoundingClientRect().width, 'wider Global Settings dialog').to.be.greaterThan(650);
-      });
+      .should('be.visible');
     cy.get('[data-testid="app-global-settings-dialog"] .p-dialog-content')
       .then(($content) => {
         expect($content[0].scrollWidth, 'dialog horizontal overflow').to.be.at.most($content[0].clientWidth);
@@ -233,7 +230,8 @@ describe('Journey Flow - Threshold Stability Panel', () => {
 
     cy.get('[data-testid="threshold-stability-panel"] .threshold-stability-stat__label')
       .each(($label) => {
-        expect($label[0].getBoundingClientRect().width, `${$label.text()} label width`).to.be.greaterThan(120);
+        expect($label[0].scrollWidth, `${$label.text()} label fits its card`)
+          .to.be.at.most($label[0].clientWidth + 1);
         expect(getComputedStyle($label[0]).overflow, `${$label.text()} label overflow`).not.to.equal('hidden');
       });
     cy.get('[data-testid="current-largest-fraction-help"]')

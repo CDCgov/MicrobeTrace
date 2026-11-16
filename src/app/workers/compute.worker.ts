@@ -191,7 +191,7 @@ function handleLinks(payload: any, jobId: number): void {
       for (let i = 0; i < n; i++) {
         const source = subset[i]._seqInt;
         for (let j = 0; j < i; j++) {
-          output[t++] = tn93.onInts(source, subset[j]._seqInt, strategy);
+          output[t++] = tn93.onInts(source, subset[j]._seqInt, strategy, threshold);
         }
       }
     } else {

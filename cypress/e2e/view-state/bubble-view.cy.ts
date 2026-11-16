@@ -3,6 +3,11 @@ import { visitAppAndAcceptEula } from '../../support/journey-helpers';
 let takeScreenshots = false;
 const getCy = () => cy.window().then(win => win.commonService.visuals.bubble.cy)
 
+const selectCategoricalColorScale = (target: 'node' | 'link'): void => {
+  cy.get(`#${target}-color-scale-mode`).click();
+  cy.contains('li[role="option"]', 'Categorical', { timeout: 10000 }).click();
+};
+
 const showFloatingNodeColorTable = (): void => {
   cy.get('#node-color-table-row')
     .contains('.p-togglebutton-label', 'Show')
@@ -263,6 +268,7 @@ describe('Bubble View', () => {
       cy.openGlobalSettings();
       cy.get('#node-color-variable').click()
       cy.get('li[role="option"]').contains('Cluster').click()
+      selectCategoricalColorScale('node')
       cy.contains('#global-settings-modal .nav-link', 'Filtering').click();
       for (let i = 0; i < 6; i++) {
         cy.get('#link-threshold').type('{uparrow}');
@@ -319,6 +325,7 @@ describe('Bubble View', () => {
       cy.openGlobalSettings();
       cy.get('#node-color-variable').click()
       cy.get('li[role="option"]').contains('Cluster').click()
+      selectCategoricalColorScale('node')
       cy.wait(500)
       let initialDef;
       let initialBGImage;

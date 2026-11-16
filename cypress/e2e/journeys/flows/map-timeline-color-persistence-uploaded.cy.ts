@@ -39,7 +39,9 @@ const setLinkColorVariableToNone = (): void => {
   });
 
   cy.window().its('commonService.session.style.widgets.link-color-variable').should('equal', 'None');
-  cy.get('#link-color', { timeout: 15000 }).should('be.visible');
+  cy.get('#link-color', { timeout: 15000 })
+    .scrollIntoView()
+    .should('be.visible');
 };
 
 const assertRenderedNodeColor = (nodeId: string, expectedColor: string): void => {

@@ -177,6 +177,19 @@ test('receiver stores normalized launch options and includes them in the receipt
         globalSettings: {
           nodeColorBy: 'id',
           linkColorBy: 'distance',
+          nodeColorScale: {
+            mode: 'auto',
+            missingColor: '#eae553'
+          },
+          linkColorScale: {
+            mode: 'continuous',
+            domain: { min: 0, max: 10 },
+            stops: [
+              { value: 0, color: '#440154' },
+              { value: 5, color: '#21918c' },
+              { value: 10, color: '#fde725' }
+            ]
+          },
           nodeShapeBy: 'seq',
           nodeColor: '#123456',
           linkColor: '#654321',
@@ -202,6 +215,19 @@ test('receiver stores normalized launch options and includes them in the receipt
     globalSettings: {
       nodeColorBy: 'id',
       linkColorBy: 'distance',
+      nodeColorScale: {
+        mode: 'auto',
+        missingColor: '#eae553',
+      },
+      linkColorScale: {
+        mode: 'continuous',
+        domain: { min: 0, max: 10 },
+        stops: [
+          { value: 0, color: '#440154' },
+          { value: 5, color: '#21918c' },
+          { value: 10, color: '#fde725' },
+        ],
+      },
       nodeShapeBy: 'seq',
       nodeColor: '#123456',
       linkColor: '#654321',
@@ -231,6 +257,33 @@ test('receiver rejects invalid launch options before storage', async () => {
   const errorMessage = context.__openerMessages.find((message) => message.message.type === 'MT_HANDOFF_ERROR');
   assert.equal(context.__store.has('handoff:handoff-test-id'), false);
   assert.match(errorMessage.message.message, /defaultView/);
+});
+
+test('receiver rejects malformed continuous color scales before storage', async () => {
+  const context = createReceiverContext();
+
+  await waitForReceiverReady(context);
+  await sendReceiverTransfer(context, `
+      launch: {
+        globalSettings: {
+          nodeColorBy: 'id',
+          nodeColorScale: {
+            mode: 'continuous',
+            domain: { min: 0, max: 10 },
+            stops: [
+              { value: 0, color: '#440154' },
+              { value: 8, color: '#21918c' },
+              { value: 7, color: '#fde725' }
+            ]
+          }
+        }
+      },
+  `);
+  await settle();
+
+  const errorMessage = context.__openerMessages.find((message) => message.message.type === 'MT_HANDOFF_ERROR');
+  assert.equal(context.__store.has('handoff:handoff-test-id'), false);
+  assert.match(errorMessage.message.message, /increase strictly/);
 });
 
 test('receiver continues to reject full session payloads', async () => {

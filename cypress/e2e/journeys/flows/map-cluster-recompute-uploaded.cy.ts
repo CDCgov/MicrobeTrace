@@ -159,6 +159,8 @@ describe('Journey Flow - Map uploaded cluster-color recompute', () => {
     openGlobalStylingTab();
     selectPrimeOption('#node-color-variable', 'Cluster');
     selectPrimeOption('#link-tooltip-variable', 'Cluster');
+    selectPrimeOption('#node-color-scale-mode', 'Categorical');
+    selectPrimeOption('#link-color-scale-mode', 'Categorical');
 
     cy.window().its('commonService.session.style.widgets.node-color-variable').should('equal', 'cluster');
     cy.window().its('commonService.session.style.widgets.link-color-variable').should('equal', 'cluster');

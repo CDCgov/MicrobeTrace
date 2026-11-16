@@ -21,18 +21,26 @@ type WinWithMT = Window & {
 
 type CountMap = Record<string, number>;
 
+const escapeRegExp = (value: string): string => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
 const selectPrimeOption = (selector: string, label: string): void => {
-  cy.get(selector).click({ force: true });
-  cy.get('body').then(($body) => {
-    const overlay = $body.find('.p-select-overlay:visible').last();
-
-    expect(overlay.length, `visible PrimeNG overlay for ${selector}`).to.be.greaterThan(0);
-
-    cy.wrap(overlay)
-      .contains('li[role="option"]', label, { timeout: 15000 })
+  cy.get(selector, { timeout: 15000 })
+    .scrollIntoView()
+    .should('be.visible')
+    .click({ force: true });
+  cy.get('.p-select-overlay:visible', { timeout: 15000 })
+    .last()
+    .should('be.visible')
+    .within(() => {
+      cy.contains(
+        'li[role="option"]',
+        new RegExp(`^\\s*${escapeRegExp(label)}\\s*$`),
+        { timeout: 15000 },
+      )
       .scrollIntoView()
       .click({ force: true });
-  }).wait(50);
+    });
+  cy.get('body').find('.p-select-overlay:visible').should('have.length', 0);
 };
 
 const readColorTableCounts = ($table: JQuery<HTMLElement>): CountMap => {
@@ -135,6 +143,7 @@ describe('Journey Flow - Timeline key table refresh', () => {
     selectPrimeOption('#link-tooltip-variable', 'Cluster');
     cy.window().its('commonService.session.style.widgets.node-color-variable').should('equal', nodeColorField);
     cy.window().its('commonService.session.style.widgets.link-color-variable').should('equal', linkColorField);
+    selectPrimeOption('#link-color-scale-mode', 'Categorical');
     cy.get('#key-tables-node-table', { timeout: 15000 }).should('be.visible');
     cy.get('#key-tables-link-table', { timeout: 15000 }).should('be.visible');
     assertNodeColorTableMatchesVisibleNodes(nodeColorField, 'timeline max');

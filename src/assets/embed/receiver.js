@@ -484,6 +484,69 @@
     return numericValue;
   }
 
+  function normalizeVariableColorScale(value, fieldName) {
+    if (!isPlainObject(value)) {
+      throw new Error('Launch option "' + fieldName + '" must be an object.');
+    }
+
+    var allowedModes = new Set(['auto', 'categorical', 'continuous']);
+    if (typeof value.mode !== 'string' || !allowedModes.has(value.mode)) {
+      throw new Error('Launch option "' + fieldName + '.mode" used an unsupported value.');
+    }
+
+    var normalized = { mode: value.mode };
+    if (typeof value.domain !== 'undefined') {
+      if (!isPlainObject(value.domain)) {
+        throw new Error('Launch option "' + fieldName + '.domain" must contain finite min and max values.');
+      }
+      var min = Number(value.domain.min);
+      var max = Number(value.domain.max);
+      if (!Number.isFinite(min) || !Number.isFinite(max) || min >= max) {
+        throw new Error('Launch option "' + fieldName + '.domain" must have finite min less than max.');
+      }
+      normalized.domain = { min: min, max: max };
+    }
+
+    if (typeof value.stops !== 'undefined') {
+      if (!normalized.domain) {
+        throw new Error('Launch option "' + fieldName + '.stops" requires a custom domain.');
+      }
+      if (!Array.isArray(value.stops) || value.stops.length < 2) {
+        throw new Error('Launch option "' + fieldName + '.stops" must contain at least two stops.');
+      }
+      normalized.stops = value.stops.map(function (stop, index) {
+        if (!isPlainObject(stop)) {
+          throw new Error('Launch option "' + fieldName + '.stops[' + index + ']" must be an object.');
+        }
+        var stopValue = Number(stop.value);
+        if (!Number.isFinite(stopValue) || typeof stop.color !== 'string' || !HEX_COLOR_PATTERN.test(stop.color.trim())) {
+          throw new Error('Launch option "' + fieldName + '.stops[' + index + ']" must have a finite value and 6-digit hex color.');
+        }
+        return { value: stopValue, color: stop.color.trim() };
+      });
+      var strictlyIncreasing = normalized.stops.every(function (stop, index) {
+        return index === 0 || stop.value > normalized.stops[index - 1].value;
+      });
+      if (!strictlyIncreasing
+        || normalized.stops[0].value !== normalized.domain.min
+        || normalized.stops[normalized.stops.length - 1].value !== normalized.domain.max) {
+        throw new Error('Launch option "' + fieldName + '.stops" must increase strictly and span the custom domain.');
+      }
+    }
+
+    if (typeof value.missingColor !== 'undefined') {
+      if (typeof value.missingColor !== 'string' || !HEX_COLOR_PATTERN.test(value.missingColor.trim())) {
+        throw new Error('Launch option "' + fieldName + '.missingColor" must be a 6-digit hex color.');
+      }
+      normalized.missingColor = value.missingColor.trim();
+    }
+
+    if (normalized.mode === 'categorical' && (normalized.domain || normalized.stops)) {
+      throw new Error('Launch option "' + fieldName + '" cannot use a domain or stops in categorical mode.');
+    }
+    return normalized;
+  }
+
   function normalizeLaunchGlobalSettings(globalSettings) {
     if (!isPlainObject(globalSettings)) {
       throw new Error('Launch option "globalSettings" must be an object.');
@@ -513,6 +576,19 @@
       }
       normalized[fieldName] = value.trim();
     });
+
+    ['nodeColorScale', 'linkColorScale'].forEach(function (fieldName) {
+      if (typeof globalSettings[fieldName] !== 'undefined') {
+        normalized[fieldName] = normalizeVariableColorScale(globalSettings[fieldName], 'globalSettings.' + fieldName);
+      }
+    });
+
+    if (normalized.nodeColorScale && (!normalized.nodeColorBy || normalized.nodeColorBy === 'None')) {
+      throw new Error('Launch global setting "nodeColorScale" requires "nodeColorBy".');
+    }
+    if (normalized.linkColorScale && (!normalized.linkColorBy || normalized.linkColorBy === 'None')) {
+      throw new Error('Launch global setting "linkColorScale" requires "linkColorBy".');
+    }
 
     if (typeof globalSettings.nodeShape !== 'undefined') {
       normalized.nodeShape = requireAllowedLaunchString(globalSettings.nodeShape, ALLOWED_NODE_SHAPES, 'globalSettings.nodeShape');

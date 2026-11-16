@@ -6,6 +6,7 @@ import {
   assertMapReady,
   assertMapRenderedCounts,
   assertMetricCount,
+  expandAccordionTabByHeader,
   goTo2DNetworkView,
   goToMapView,
   goToTableView,
@@ -48,6 +49,7 @@ const assertDatalistExcludes = (selector: string, value: string): void => {
 
 const applyNodeSubset = (field: string, operator: string, value: string, excludedValue: string): void => {
   openGlobalFilteringTab();
+  expandAccordionTabByHeader('#network-subset-filtering', 'Subset Nodes');
   cy.get('#network-subset-node-field').select(field);
   cy.get('#network-subset-node-operator').select(operator);
   assertDatalistIncludes('#network-subset-node-value-options', value);
@@ -63,6 +65,7 @@ const applyNodeSubset = (field: string, operator: string, value: string, exclude
 
 const applyLinkSubset = (field: string, operator: string, value: string, excludedValue: string): void => {
   openGlobalFilteringTab();
+  expandAccordionTabByHeader('#network-subset-filtering', 'Subset Links');
   cy.get('#network-subset-link-field').select(field);
   cy.get('#network-subset-link-operator').select(operator);
   assertDatalistIncludes('#network-subset-link-value-options', value);

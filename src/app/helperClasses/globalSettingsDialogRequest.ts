@@ -7,23 +7,29 @@ export type DialogRectSnapshot = {
     height: number;
 };
 
+export type GlobalSettingsStylingTarget = 'node-color-ramp' | 'link-color-ramp';
+
 export type GlobalSettingsDialogRequest = string | {
     activeTab?: string;
     sourceDialogRect?: DialogRectSnapshot;
+    stylingTarget?: GlobalSettingsStylingTarget;
 };
 
 export type NormalizedGlobalSettingsDialogRequest = {
     activeTab: string;
     sourceDialogRect?: DialogRectSnapshot;
+    stylingTarget?: GlobalSettingsStylingTarget;
 };
 
 export function createGlobalSettingsDialogRequest(
     activeTab: string = 'Styling',
-    event?: MouseEvent
+    event?: MouseEvent,
+    stylingTarget?: GlobalSettingsStylingTarget
 ): Exclude<GlobalSettingsDialogRequest, string> {
     return {
         activeTab,
-        sourceDialogRect: getSourceDialogRect(event)
+        sourceDialogRect: getSourceDialogRect(event),
+        stylingTarget
     };
 }
 

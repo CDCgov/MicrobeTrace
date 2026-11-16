@@ -112,23 +112,16 @@ export function layoutSparseDisconnectedComponents(
     return unchanged(components.length, connectedComponents, singletons);
   }
 
-  // Give every real cluster its own cell and distribute those cells through
-  // the singleton field. This keeps clusters visible without relegating all of
-  // them to one edge of the canvas. Stable keys make repeated layouts deterministic.
+  // Keep the regular singleton grid separate from force-directed linked components.
+  // Mixing both visual grammars in the same rows makes edges and clusters difficult
+  // to follow, while a dedicated linked region preserves their force-directed shapes.
   const linkedComponents = components
     .filter(component => component.linked)
     .sort((left, right) => right.nodes.length - left.nodes.length || left.key.localeCompare(right.key));
   const singletonComponents = components
     .filter(component => !component.linked)
     .sort((left, right) => left.key.localeCompare(right.key));
-  const orderedComponents = [...singletonComponents];
-  linkedComponents.forEach((component, index) => {
-    const insertionIndex = Math.round(
-      ((index + 1) * (singletonComponents.length + linkedComponents.length))
-      / (linkedComponents.length + 1),
-    );
-    orderedComponents.splice(Math.min(insertionIndex, orderedComponents.length), 0, component);
-  });
+  const orderedComponents = [...singletonComponents, ...linkedComponents];
   components.splice(0, components.length, ...orderedComponents);
 
   const gap = Math.max(8, spacing * 0.3);
@@ -147,24 +140,35 @@ export function layoutSparseDisconnectedComponents(
     Math.sqrt(totalArea * viewportAspect),
   );
 
-  type Row = { items: Component[]; width: number; height: number };
-  const rows: Row[] = [];
-  let row: Row = { items: [], width: 0, height: 0 };
-  components.forEach(component => {
-    const nextWidth = row.width + (row.items.length > 0 ? gap : 0) + component.width;
-    if (row.items.length > 0 && nextWidth > targetWidth) {
-      rows.push(row);
-      row = { items: [], width: 0, height: 0 };
-    }
-    row.width += (row.items.length > 0 ? gap : 0) + component.width;
-    row.height = Math.max(row.height, component.height);
-    row.items.push(component);
-  });
-  if (row.items.length > 0) rows.push(row);
+  type Row = { items: Component[]; width: number; height: number; section: 'singletons' | 'linked' };
+  const packRows = (sectionComponents: Component[], section: Row['section']): Row[] => {
+    const sectionRows: Row[] = [];
+    let row: Row = { items: [], width: 0, height: 0, section };
+    sectionComponents.forEach(component => {
+      const nextWidth = row.width + (row.items.length > 0 ? gap : 0) + component.width;
+      if (row.items.length > 0 && nextWidth > targetWidth) {
+        sectionRows.push(row);
+        row = { items: [], width: 0, height: 0, section };
+      }
+      row.width += (row.items.length > 0 ? gap : 0) + component.width;
+      row.height = Math.max(row.height, component.height);
+      row.items.push(component);
+    });
+    if (row.items.length > 0) sectionRows.push(row);
+    return sectionRows;
+  };
+  const rows = [
+    ...packRows(singletonComponents, 'singletons'),
+    ...packRows(linkedComponents, 'linked'),
+  ];
+  const sectionGap = Math.max(gap * 3, spacing);
 
   const positions = new Map<string, { x: number; y: number }>();
   let y = 0;
-  rows.forEach(currentRow => {
+  rows.forEach((currentRow, rowIndex) => {
+    if (rowIndex > 0 && currentRow.section !== rows[rowIndex - 1].section) {
+      y += sectionGap - gap;
+    }
     let x = 0;
     currentRow.items.forEach((component, index) => {
       if (index > 0) x += gap;

@@ -215,6 +215,7 @@ TWO_D_RENDERER_CASES.forEach(({ label, mode }) => {
       let targetNodeId = '';
       let selectedNodeIds: string[] = [];
       let originalPosition = { x: 0, y: 0 };
+      let selectionHighlightCount = 0;
 
       cy.window().then((win: any) => {
         const nodes = getTwoDNodeSnapshots(win);
@@ -232,6 +233,8 @@ TWO_D_RENDERER_CASES.forEach(({ label, mode }) => {
       waitForRender(mode);
 
       cy.window().then((win: any) => {
+        // Sigma also emphasizes links incident to nodes that remain selected.
+        selectionHighlightCount = getHighlightedIncidentEdgeCount(win, targetNodeId);
         hoverTwoDNode(win, targetNodeId, true);
         expect(getHighlightedIncidentEdgeCount(win, targetNodeId), 'highlighted incident edges')
           .to.be.greaterThan(0);
@@ -240,7 +243,13 @@ TWO_D_RENDERER_CASES.forEach(({ label, mode }) => {
 
       cy.window().then((win: any) => {
         hoverTwoDNode(win, targetNodeId, false);
-        expect(getHighlightedIncidentEdgeCount(win, targetNodeId), 'cleared incident highlights').to.equal(0);
+      });
+      cy.window().should((win: any) => {
+        expect(getHighlightedIncidentEdgeCount(win, targetNodeId), 'restored selection highlights')
+          .to.equal(selectionHighlightCount);
+        expect(getSelectedTwoDNodeIds(win), 'selection preserved after mouseout').to.deep.equal(selectedNodeIds);
+      });
+      cy.window().then((win: any) => {
         openTwoDNodeContextMenu(win, targetNodeId);
       });
       cy.get('#context-menu').should('be.visible');
@@ -259,6 +268,34 @@ TWO_D_RENDERER_CASES.forEach(({ label, mode }) => {
         expect(Number(sessionNode.y), 'session y').to.be.closeTo(nextPosition.y, 0.001);
       });
       cy.get('#numberOfSelectedNodes').should('have.text', '2');
+    });
+
+    it('clears hover-only link highlights when no nodes are selected', () => {
+      let targetNodeId = '';
+      cy.window().then((win: any) => {
+        targetNodeId = getTwoDEdgeSnapshots(win)[0].source;
+        selectTwoDNodesFromExternalView(win, []);
+        win.commonService.visuals.twoD.onDontHighlightNeighborsHighlightNeighborsChange('Highlighted');
+        hoverTwoDNode(win, targetNodeId, false);
+      });
+      waitForRender(mode);
+
+      cy.window().should((win: any) => {
+        expect(getSelectedTwoDNodeIds(win), 'empty selection').to.deep.equal([]);
+        expect(getHighlightedIncidentEdgeCount(win, targetNodeId), 'initial highlights').to.equal(0);
+      });
+      cy.window().then((win: any) => hoverTwoDNode(win, targetNodeId, true));
+      cy.window().should((win: any) => {
+        expect(getHighlightedIncidentEdgeCount(win, targetNodeId), 'hover highlights').to.be.greaterThan(0);
+      });
+      cy.get('#tooltip').should('be.visible');
+
+      cy.window().then((win: any) => hoverTwoDNode(win, targetNodeId, false));
+      cy.window().should((win: any) => {
+        expect(getHighlightedIncidentEdgeCount(win, targetNodeId), 'cleared hover-only highlights').to.equal(0);
+        expect(getSelectedTwoDNodeIds(win), 'selection remains empty').to.deep.equal([]);
+      });
+      cy.get('#tooltip').should('not.be.visible');
     });
 
     it('represents the same grouping membership and editable palette as hulls or fallback parents', () => {

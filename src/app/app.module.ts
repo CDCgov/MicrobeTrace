@@ -87,6 +87,7 @@ import { WaterfallComponent } from './visualizationComponents/WaterfallComponent
 import { SankeyComponent } from './visualizationComponents/SankeyComponent/sankey.component';
 import { KeyTablesComponent } from './visualizationComponents/KeyTablesComponent/key-tables.component';
 import { StyleKeyTableComponent } from './visualizationComponents/KeyTablesComponent/style-key-table.component';
+import { ContinuousColorRampComponent } from './visualizationComponents/KeyTablesComponent/continuous-color-ramp.component';
 import { UpdatesDialogComponent } from './updates/updates-dialog.component';
 import * as PlotlyJS from 'plotly.js-dist-min';
 import { PlotlyModule } from 'angular-plotly.js';
@@ -139,6 +140,7 @@ export class TestedComponent {
         SankeyComponent,
         KeyTablesComponent,
         StyleKeyTableComponent,
+        ContinuousColorRampComponent,
         UpdatesDialogComponent,
     ],
     exports: [
