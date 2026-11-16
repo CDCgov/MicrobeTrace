@@ -57,6 +57,7 @@ import {
 import {
     assignSigmaOverviewPositions,
     selectSigmaLayoutBackbone,
+    shouldComputeSigmaInitialLayout,
     SigmaNetworkRendererAdapter,
     type SigmaEdgeDetailMode,
     type SigmaNodeShape,
@@ -950,6 +951,8 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
     thresholdSubscription: any;
     threshold: number;
     private pendingThresholdIncreaseRelayout = false;
+    /** The current layout is only the placeholder grid used while no links exist. */
+    private layoutUsedNoLinkGrid = false;
     networkUpdatedSubscription: any;
     settingsLoadedSubscription: any;
     private styleFileSub: any;
@@ -1860,12 +1863,17 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                 && this.getNetworkLayout() === 'order-by-size'
                 && !this.isTimelineFilteringActive();
             this.pendingThresholdIncreaseRelayout = false;
-            const needsInitialLayout = !this.sigmaRenderer
-                || networkData.nodes.some(node => !this.hasFinitePosition(node));
+            const needsInitialLayout = shouldComputeSigmaInitialLayout(
+                Boolean(this.sigmaRenderer),
+                this.layoutUsedNoLinkGrid,
+                networkData.links.length,
+                networkData.nodes.some(node => !this.hasFinitePosition(node))
+            );
 
             if ((needsInitialLayout || settleMergedClusters)
                 && !this.commonService.session.network.allPinned) {
                 this.sigmaLoadingMessage = 'Computing the network layout';
+                if (networkData.links.length > 0) this.layoutUsedNoLinkGrid = false;
                 this.cdref.markForCheck();
                 const overviewLayout = assignSigmaOverviewPositions(
                     networkData.nodes,
@@ -3334,6 +3342,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
             return { nodes, links, tickBatches: 0, ticksPerYield: 0 };
         }
         if (!links || links.length === 0) {
+            this.layoutUsedNoLinkGrid = true;
             this.assignNoLinkGridPositions(nodes, initial || nodes.some(node => !this.hasFinitePosition(node)));
 
             if (!nodes.some(node => node?.isCollapsedAggregate === true)) {

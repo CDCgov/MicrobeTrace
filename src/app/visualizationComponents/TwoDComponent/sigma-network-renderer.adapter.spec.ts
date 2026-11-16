@@ -3,10 +3,28 @@ import {
   assignSigmaOverviewPositions,
   clipSigmaEdgeSegment,
   selectSigmaLayoutBackbone,
+  shouldComputeSigmaInitialLayout,
   SigmaNetworkRendererAdapter,
 } from './sigma-network-renderer.adapter';
 
 describe('Sigma network renderer adapter', () => {
+  it('replaces a no-link placeholder grid when links arrive asynchronously', () => {
+    expect(shouldComputeSigmaInitialLayout(true, true, 1, false)).toBeTrue();
+  });
+
+  it('does not repeatedly lay out a stable node-only grid', () => {
+    expect(shouldComputeSigmaInitialLayout(true, true, 0, false)).toBeFalse();
+  });
+
+  it('preserves a completed linked layout with finite node positions', () => {
+    expect(shouldComputeSigmaInitialLayout(true, false, 1, false)).toBeFalse();
+  });
+
+  it('retains the existing first-render and missing-position layout triggers', () => {
+    expect(shouldComputeSigmaInitialLayout(false, false, 0, false)).toBeTrue();
+    expect(shouldComputeSigmaInitialLayout(true, false, 1, true)).toBeTrue();
+  });
+
   it('flips custom SVG paths upright while centering them on the Sigma canvas', () => {
     const context = {
       translate: jasmine.createSpy('translate'),
