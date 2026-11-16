@@ -363,6 +363,17 @@ export interface SigmaOverviewLayoutResult {
   method: 'group-by' | 'distance-cohorts' | 'unchanged';
 }
 
+export function shouldComputeSigmaInitialLayout(
+  rendererInitialized: boolean,
+  layoutUsedNoLinkGrid: boolean,
+  linkCount: number,
+  hasUnpositionedNodes: boolean,
+): boolean {
+  return !rendererInitialized
+    || (layoutUsedNoLinkGrid && linkCount > 0)
+    || hasUnpositionedNodes;
+}
+
 /**
  * Places dense networks into readable cohort islands. An explicit Group By
  * field wins when it yields meaningful groups; otherwise the layout derives

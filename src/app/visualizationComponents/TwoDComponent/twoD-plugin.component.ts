@@ -57,6 +57,7 @@ import {
 import {
     assignSigmaOverviewPositions,
     selectSigmaLayoutBackbone,
+    shouldComputeSigmaInitialLayout,
     SigmaNetworkRendererAdapter,
     type SigmaEdgeDetailMode,
     type SigmaNodeShape,
@@ -1862,9 +1863,12 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Mic
                 && this.getNetworkLayout() === 'order-by-size'
                 && !this.isTimelineFilteringActive();
             this.pendingThresholdIncreaseRelayout = false;
-            const needsInitialLayout = !this.sigmaRenderer
-                || (this.layoutUsedNoLinkGrid && networkData.links.length > 0)
-                || networkData.nodes.some(node => !this.hasFinitePosition(node));
+            const needsInitialLayout = shouldComputeSigmaInitialLayout(
+                Boolean(this.sigmaRenderer),
+                this.layoutUsedNoLinkGrid,
+                networkData.links.length,
+                networkData.nodes.some(node => !this.hasFinitePosition(node))
+            );
 
             if ((needsInitialLayout || settleMergedClusters)
                 && !this.commonService.session.network.allPinned) {
