@@ -1,6 +1,8 @@
 /// <reference types="cypress" />
 
-import { visitAppAndAcceptEula } from '../../support/journey-helpers';
+import { installSaveAsCaptureHook, saveSessionFromFileMenu, visitAppAndAcceptEula, writeCapturedDownloadToDisk } from '../../support/journey-helpers';
+import { applyDeterministicDashboardSplitLayout, openDashboardExportDialog, setDashboardExportFilename } from '../../support/dashboard-helpers';
+import { applyThreeDInvestigationStyling } from '../../support/threed-helpers';
 
 const openThreeD = (): void => {
   cy.get('[data-testid="app-view-menu-button"]').click();
@@ -64,6 +66,30 @@ describe('3D Network - shared network and view state', () => {
     });
     cy.get('[data-testid="threed-canvas"]').focus().type('{esc}');
     cy.window().should((win: any) => expect(win.commonService.session.data.nodes.every((node: any) => !node.selected)).to.equal(true));
+  });
+
+  it('uses exactly 150 steps and identical coordinates on repeated recalculation', () => {
+    let expected: any;
+    for (let run = 0; run < 2; run++) {
+      cy.window().then({ timeout: 30000 }, (win: any) => new Cypress.Promise<void>(resolve => {
+        const view = win.commonService.visuals.threeD;
+        const graph = view.renderer.graph;
+        const originalTick = graph.onEngineTick();
+        const originalStop = graph.onEngineStop();
+        let ticks = 0;
+        graph.onEngineTick(() => { ticks++; originalTick?.(); });
+        graph.onEngineStop(() => {
+          graph.onEngineTick(originalTick).onEngineStop(originalStop);
+          originalStop?.();
+          expect(ticks, 'deterministic simulation steps').to.equal(150);
+          const coordinates = view.renderer.getState().positions;
+          if (run === 0) expected = coordinates;
+          else expect(coordinates, 'repeated layout coordinates').to.deep.equal(expected);
+          resolve();
+        });
+        view.openRefreshScreen();
+      }));
+    }
   });
 
   it('follows subset and timeline filtering without retaining dangling links', () => {
@@ -144,5 +170,127 @@ describe('3D Network - shared network and view state', () => {
       expect(win.commonService.visuals.threeD.settings.nodeSize).to.equal(7.5);
       expect(win.commonService.visuals.microbeTrace.displayloadingInformationModal).to.equal(false);
     });
+  });
+
+  it('restores styled 3D coordinates, camera projection, and shared selection from a saved session file', () => {
+    const name = `threed-styled-session-${Date.now()}`;
+    const path = `${Cypress.config('downloadsFolder')}/${name}.microbetrace`;
+    let expected: any;
+    let selected: string;
+    cy.get('[data-testid="threed-freeze-button"]').click();
+    cy.window().then((win: any) => applyThreeDInvestigationStyling(win));
+    cy.get('[data-testid="threed-camera-yz"]').click();
+    cy.window().then((win: any) => {
+      const view = win.commonService.visuals.threeD;
+      selected = view.renderer.graphData.nodes[0].id;
+      view.selectNode(selected, { shiftKey: false, ctrlKey: false, metaKey: false });
+      expected = JSON.parse(JSON.stringify(view.renderer.getState()));
+    });
+    installSaveAsCaptureHook();
+    saveSessionFromFileMenu(name);
+    writeCapturedDownloadToDisk(`${name}.microbetrace`, path);
+    cy.visit('/?skipEula=1&skipDemoSession=1');
+    cy.get('#fileDropRef').selectFile(path, { force: true });
+    cy.get('[data-testid="threed-webgl-canvas"]', { timeout: 60000 }).should('be.visible');
+    cy.window().should((win: any) => {
+      const common = win.commonService;
+      const view = common.visuals.threeD;
+      const state = view.renderer.getState();
+      expect(state.positions, 'restored coordinates').to.deep.equal(expected.positions);
+      expect(state.layoutFrozen, 'restored frozen layout').to.equal(true);
+      expect(state.camera.projection, 'restored camera projection').to.deep.equal(expected.camera.projection);
+      for (const part of ['position', 'target', 'up']) for (const axis of ['x', 'y', 'z']) {
+        expect(state.camera[part][axis], `restored camera ${part}.${axis}`).to.be.closeTo(expected.camera[part][axis], 1e-6);
+      }
+      expect(view.settings.nodeShapeField).to.equal('qaCategory');
+      expect(view.settings.nodeBorderWidth).to.equal(1.25);
+      expect(view.renderer.graphData.links.some((link: any) => link.overlayColor && link.targetArrow)).to.equal(true);
+      expect(common.session.data.nodes.filter((node: any) => node.selected).map((node: any) => node._id)).to.deep.equal([selected]);
+    });
+  });
+
+  it('includes the rendered 3D graph in a real dashboard PNG', () => {
+    applyDeterministicDashboardSplitLayout(['2D Network', '3D Network'], '3D Network');
+    cy.get('[data-testid="threed-webgl-canvas"]', { timeout: 30000 }).should('be.visible');
+    cy.get('[data-testid="threed-freeze-button"]').then(button => {
+      if (button.attr('aria-pressed') !== 'true') cy.wrap(button).click();
+    });
+    cy.window().then((win: any) => {
+      const home = win.commonService.visuals.microbeTrace;
+      home.SelectedColorNodesByVariable = 'None'; home.onColorNodesByChanged();
+      home.SelectedNodeColorVariable = '#ff00ff'; home.onNodeColorChanged();
+      Object.assign(win.commonService.visuals.threeD.settings, { nodeSize: 9, nodeBorderWidth: 0 });
+      win.commonService.visuals.threeD.changeSettings();
+    });
+    cy.window().should((win: any) => {
+      expect(win.commonService.visuals.threeD.renderer.graphData.nodes.every((node: any) => /255, 0, 255|#ff00ff/i.test(node.color))).to.equal(true);
+    });
+    installSaveAsCaptureHook();
+    openDashboardExportDialog();
+    setDashboardExportFilename('threed-dashboard');
+    cy.get('[data-testid="dashboard-export-confirm"]').click();
+    cy.window({ timeout: 30000 }).should((win: any) => expect(win.__mtCapturedDownloads?.some((item: any) => item.fileName === 'threed-dashboard.png')).to.equal(true));
+    cy.window().then(async (win: any) => {
+      const download = win.__mtCapturedDownloads.find((item: any) => item.fileName === 'threed-dashboard.png');
+      const bitmap = await win.createImageBitmap(await (await win.fetch(download.dataUrl)).blob());
+      const canvas = win.document.createElement('canvas'); canvas.width = bitmap.width; canvas.height = bitmap.height;
+      const context = canvas.getContext('2d'); context.drawImage(bitmap, 0, 0); bitmap.close();
+      // Only inspect the right-hand 3D pane. A blank WebGL capture must fail even if 2D renders correctly.
+      const pixels = context.getImageData(Math.ceil(canvas.width / 2), 80, Math.floor(canvas.width / 2), canvas.height - 80).data;
+      let colored = 0;
+      for (let i = 0; i < pixels.length; i += 4) if (pixels[i] > 90 && pixels[i + 2] > 90 && pixels[i + 1] < Math.min(pixels[i], pixels[i + 2]) * 0.65) colored++;
+      expect(colored, 'magenta graph pixels in exported 3D pane').to.be.greaterThan(100);
+    });
+  });
+
+  it('releases styled graphics resources and stops rendering across repeated close/reopen cycles', () => {
+    for (let cycle = 0; cycle < 6; cycle++) {
+      cy.window().then((win: any) => applyThreeDInvestigationStyling(win));
+      cy.window().should((win: any) => {
+        const graph = win.commonService.visuals.threeD.renderer.graph;
+        expect(graph.renderer().info.memory.textures, 'label textures allocated').to.be.greaterThan(0);
+        expect(graph.graphData().links.some((link: any) => link.overlayColor && link.targetArrow)).to.equal(true);
+      });
+      cy.window().then((win: any) => {
+        const common = win.commonService;
+        const adapter = common.visuals.threeD.renderer;
+        const graph = adapter.graph;
+        const renderer = graph.renderer();
+        const resources = new Set<any>();
+        const disposed = new Set<any>();
+        graph.scene().traverse((object: any) => {
+          // Sprite geometry is a Three.js singleton, shared by subsequent renderers.
+          if (object.geometry && !object.isSprite) resources.add(object.geometry);
+          for (const material of object.material ? [object.material].flat() : []) {
+            resources.add(material); if (material.map) resources.add(material.map);
+          }
+        });
+        resources.forEach((resource: any) => resource.addEventListener('dispose', () => disposed.add(resource)));
+        win.__threeDCleanup = { adapter, renderer, gl: renderer.getContext(), canvas: renderer.domElement, resources, disposed };
+        common.visuals.threeD.toggleCameraRotation();
+        common.visuals.microbeTrace._removeGlView('3D Network');
+      });
+      cy.get('[data-testid="threed-view"]').should('not.exist');
+      cy.window().should((win: any) => {
+        const state = win.__threeDCleanup;
+        expect(state.gl.isContextLost(), 'closed WebGL context released').to.equal(true);
+        expect(state.canvas.isConnected, 'closed canvas detached').to.equal(false);
+        expect(state.disposed.size, 'all scene-owned resources disposed').to.equal(state.resources.size);
+        expect(state.adapter.graph).to.equal(null);
+        expect(state.adapter.rotationFrame).to.equal(null);
+        expect(state.adapter.nodeObjects.meshes.size).to.equal(0);
+        expect(state.adapter.linkObjects.size).to.equal(0);
+      });
+      cy.window().then((win: any) => {
+        const state = win.__threeDCleanup;
+        const frame = state.renderer.info.render.frame;
+        return new Cypress.Promise<void>(resolve => win.setTimeout(() => {
+          expect(state.renderer.info.render.frame, 'closed renderer remains stopped').to.equal(frame);
+          delete win.__threeDCleanup; resolve();
+        }, 200));
+      });
+      openThreeD();
+      assertVisibleGraphMatchesSession();
+    }
   });
 });

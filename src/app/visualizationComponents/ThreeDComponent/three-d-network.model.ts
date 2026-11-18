@@ -9,12 +9,16 @@ export interface ThreeDPoint {
 
 export interface ThreeDViewState {
   version: 1;
-  camera: { position: ThreeDPoint; target: ThreeDPoint; up: ThreeDPoint };
+  camera: { position: ThreeDPoint; target: ThreeDPoint; up: ThreeDPoint;
+    projection?: { fov: number; near: number; far: number; zoom: number } };
   positions: Record<string, ThreeDPoint>;
   layoutFrozen: boolean;
 }
 
 export interface ThreeDSettings {
+  shapeVersion: 1 | 2;
+  nodeDetail: 'auto' | 'balanced' | 'fine';
+  lightingMode: 'fixed' | 'camera';
   nodeShape: ThreeDNodeShape;
   nodeShapeField: string;
   nodeShapeMappings: Record<string, Record<string, ThreeDNodeShape>>;
@@ -56,6 +60,8 @@ export interface ThreeDNode {
   value: number;
   tooltip: string;
   radius?: number;
+  /** Renderer-only bounding radius after shape prominence normalization. */
+  renderRadius?: number;
   label?: string;
   x?: number;
   y?: number;
@@ -68,12 +74,14 @@ export interface ThreeDNode {
   vz?: number;
 }
 
-export type ThreeDNodeShape = 'sphere' | 'cube' | 'cone' | 'cylinder' | 'diamond' | 'pyramid';
+export type ThreeDNodeShape = 'sphere' | 'cube' | 'cone' | 'cylinder' | 'diamond' | 'pyramid' | 'torus' | 'pill' | 'star';
 
 export const THREE_D_NODE_SHAPES: Array<{ label: string; value: ThreeDNodeShape }> = [
   { label: 'Sphere', value: 'sphere' }, { label: 'Cube', value: 'cube' },
   { label: 'Cone', value: 'cone' }, { label: 'Cylinder', value: 'cylinder' },
   { label: 'Diamond', value: 'diamond' }, { label: 'Square pyramid', value: 'pyramid' },
+  { label: 'Torus / ring', value: 'torus' }, { label: 'Pill / capsule', value: 'pill' },
+  { label: '5-point star', value: 'star' },
 ];
 
 function validShape(value: unknown): value is ThreeDNodeShape {
@@ -150,6 +158,13 @@ export function normalizeThreeDViewState(value: any): ThreeDViewState | null {
   // Sessions saved with orbit controls have no roll and use the upright default.
   const up = savedUp && Math.hypot(savedUp.x, savedUp.y, savedUp.z) > 0
     ? savedUp : { x: 0, y: 1, z: 0 };
+  const savedProjection = value.camera.projection;
+  if (savedProjection != null && (!['fov', 'near', 'far', 'zoom'].every(key => typeof savedProjection[key] === 'number' && Number.isFinite(savedProjection[key]))
+    || savedProjection.fov <= 0 || savedProjection.fov >= 180 || savedProjection.near <= 0
+    || savedProjection.far <= savedProjection.near || savedProjection.zoom <= 0)) return null;
+  const projection = savedProjection == null ? {} : { projection: {
+    fov: savedProjection.fov, near: savedProjection.near, far: savedProjection.far, zoom: savedProjection.zoom,
+  } };
   const positions: Record<string, ThreeDPoint> = Object.create(null);
   if (value.positions && typeof value.positions === 'object' && !Array.isArray(value.positions)) {
     Object.entries(value.positions).forEach(([id, point]) => {
@@ -157,7 +172,7 @@ export function normalizeThreeDViewState(value: any): ThreeDViewState | null {
       if (normalized) positions[id] = normalized;
     });
   }
-  return { version: 1, camera: { position, target, up }, positions, layoutFrozen: value.layoutFrozen === true };
+  return { version: 1, camera: { position, target, up, ...projection }, positions, layoutFrozen: value.layoutFrozen === true };
 }
 
 function bounded(value: any, fallback: number, min: number, max: number): number {
@@ -174,6 +189,9 @@ function tooltipFields(value: unknown, fallback: string): string[] {
 // Retain Classic's widget names so style/session imports keep their 3D settings.
 export function readThreeDSettings(widgets: Record<string, any>): ThreeDSettings {
   return {
+    shapeVersion: widgets['3DNet-shape-version'] === 1 ? 1 : 2,
+    nodeDetail: ['auto', 'balanced', 'fine'].includes(widgets['3DNet-node-detail']) ? widgets['3DNet-node-detail'] : 'balanced',
+    lightingMode: widgets['3DNet-lighting-mode'] === 'camera' ? 'camera' : 'fixed',
     nodeShape: validShape(widgets['3DNet-node-shape']) ? widgets['3DNet-node-shape'] : 'sphere',
     nodeShapeField: String(widgets['3DNet-node-shape-variable'] ?? 'None'),
     nodeShapeMappings: readShapeMappings(widgets['3DNet-node-shape-mappings']),
@@ -211,6 +229,9 @@ export function readThreeDSettings(widgets: Record<string, any>): ThreeDSettings
 }
 
 export function writeThreeDSettings(widgets: Record<string, any>, settings: ThreeDSettings): void {
+  widgets['3DNet-shape-version'] = settings.shapeVersion;
+  widgets['3DNet-node-detail'] = settings.nodeDetail;
+  widgets['3DNet-lighting-mode'] = settings.lightingMode;
   widgets['3DNet-node-shape'] = settings.nodeShape;
   widgets['3DNet-node-shape-variable'] = settings.nodeShapeField;
   widgets['3DNet-node-shape-mappings'] = readShapeMappings(settings.nodeShapeMappings);

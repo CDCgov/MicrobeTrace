@@ -103,6 +103,7 @@ type DashboardOpenComponentCountOptions = {
 };
 
 const dashboardPaneSelectors: Record<string, string> = {
+  '3D Network': '[data-testid="threed-view"]',
   '2D Network': '#cy',
   'Transmission Chain Explorer': '#transmission-chain-cy',
   Map: '.mapStyle',
@@ -301,6 +302,10 @@ const buildDeterministicSplitLayout = (viewNames: string[]): any => {
   const normalizedNames = viewNames.map((viewName) => normalizeViewName(viewName));
   const requestedViews = new Set(normalizedNames);
 
+  if (requestedViews.has('3D Network')) {
+    return { root: { type: 'row', content: normalizedNames.map(viewName => buildSinglePaneStack(viewName)) } };
+  }
+
   if (
     ['2D Network', 'Map', 'Bubble', 'Table', 'Aggregate', 'Crosstab', 'Waterfall']
       .every((viewName) => requestedViews.has(viewName))
@@ -408,6 +413,10 @@ export function assertDashboardViewReady(viewName: string): void {
   const normalizedViewName = normalizeViewName(viewName);
 
   switch (normalizedViewName) {
+    case '3D Network':
+      cy.get('[data-testid="threed-webgl-canvas"]', { timeout: 30000 }).should('be.visible');
+      cy.get('[data-testid="threed-canvas"]').should('have.attr', 'data-rendered', 'true');
+      break;
     case '2D Network':
       cy.get('#cy, [data-testid="sigma-network"]', { timeout: 30000 }).should('be.visible');
       cy.window({ timeout: 30000 }).should((win: any) => {

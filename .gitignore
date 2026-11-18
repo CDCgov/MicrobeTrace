@@ -5,6 +5,11 @@
 /tmp
 /out-tsc
 
+# Local visual reviews, capture tools, and generated artifacts
+/local-artifacts/
+/output/playwright/
+/output/wiki/
+
 # dependencies
 /node_modules
 /node_modules_dev

@@ -64,6 +64,20 @@ describe('3D link arrowheads', () => {
     arrows.destroy();
   });
 
+  it('reserves the actual normalized shape bounds without changing nominal node size', () => {
+    const arrows = new ThreeDLinkArrows(Three), parent = new Three.Group(), data = link();
+    data.source = { radius: 2, renderRadius: 10 } as any;
+    data.target = { radius: 2, renderRadius: 10 } as any;
+    arrows.create(parent, data);
+    arrows.position(data, { x: 0, y: 0, z: 0 }, { x: 0, y: 0, z: 23 });
+    expect(mesh(parent).visible).toBe(false);
+    arrows.position(data, { x: 0, y: 0, z: 0 }, { x: 0, y: 0, z: 50 });
+    expect(mesh(parent).visible).toBe(true);
+    expect(mesh(parent).position.z - mesh(parent).scale.z + 25).toBeGreaterThanOrEqual(10);
+    expect((data.source as any).radius).toBe(2);
+    arrows.destroy();
+  });
+
   it('releases materials after filtering and shared geometry when the view closes', () => {
     const arrows = new ThreeDLinkArrows(Three), parent = new Three.Group(), data = link();
     arrows.create(parent, data);

@@ -264,6 +264,17 @@ describe('3D network data and saved state', () => {
     expect(updated.nodes[0].shape).not.toBe(updated.nodes[1].shape);
   });
 
+  it('round-trips new shape families in uniform and category settings', () => {
+    for (const shape of ['torus', 'pill', 'star'] as const) {
+      const settings = readThreeDSettings({ '3DNet-node-shape': shape, '3DNet-node-shape-mappings': { group: { A: shape } } });
+      const widgets: any = {};
+      writeThreeDSettings(widgets, settings);
+      const restored = readThreeDSettings(widgets);
+      expect(restored.nodeShape).toBe(shape);
+      expect(restored.nodeShapeMappings.group.A).toBe(shape);
+    }
+  });
+
   it('rejects invalid saved shapes and safely maps empty and prototype-like category keys', () => {
     const mappings = JSON.parse('{"__proto__":{"__proto__":"cube","bad":"unknown"}}');
     const shaped = readThreeDSettings({ '3DNet-node-shape': 'bad', '3DNet-node-shape-variable': '__proto__', '3DNet-node-shape-mappings': mappings });

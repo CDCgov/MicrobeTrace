@@ -7130,9 +7130,9 @@ ${warnings.join('\n')}`,
         if (!viewName || viewName === KeyTablesComponent.componentTypeName) {
             return;
         }
-        // Explorer handles pane resizing itself. Re-centering it for a docked
-        // color table would change chain positions during a styling change.
-        if (viewName === 'Transmission Chain Explorer') {
+        // These views handle pane resizing themselves. Docking a legend must
+        // preserve the chain positions or the investigator's 3D camera pose.
+        if (viewName === 'Transmission Chain Explorer' || viewName === '3D Network') {
             return;
         }
 

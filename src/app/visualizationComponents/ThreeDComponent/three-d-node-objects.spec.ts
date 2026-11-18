@@ -9,10 +9,21 @@ describe('3D node shape resources', () => {
   const frameClasses = { LineSegments2, LineSegmentsGeometry, LineMaterial };
   const node = (id = 'A'): ThreeDNode => ({ id, shape: 'sphere', color: '#123456', value: 8, tooltip: '' });
 
-  it('shares geometry between nodes and keeps all six shapes within the same size bound', () => {
+  it('shares geometry and matches average projected area across the six convex families', () => {
     const objects = new ThreeDNodeObjects(Three, frameClasses);
     const meshes = THREE_D_NODE_SHAPES.map(option => objects.create({ ...node(option.value), shape: option.value }));
-    meshes.forEach(mesh => expect(mesh.geometry.boundingSphere!.radius).toBeCloseTo(1, 5));
+    const areas = meshes.slice(0, 6).map(mesh => {
+      const geometry = mesh.geometry.index ? mesh.geometry.toNonIndexed() : mesh.geometry, p = geometry.getAttribute('position');
+      let area = 0;
+      for (let i = 0; i < p.count; i += 3) {
+        const a = new Three.Vector3().fromBufferAttribute(p, i), b = new Three.Vector3().fromBufferAttribute(p, i + 1), c = new Three.Vector3().fromBufferAttribute(p, i + 2);
+        area += b.sub(a).cross(c.sub(a)).length() / 2;
+      }
+      if (geometry !== mesh.geometry) geometry.dispose();
+      return area;
+    });
+    areas.forEach(area => expect(area).toBeCloseTo(areas[0], 4));
+    meshes.forEach(mesh => expect(mesh.geometry.boundingSphere!.radius).toBeGreaterThanOrEqual(0.99999));
     const extra = objects.create(node('another sphere'));
     expect(extra.geometry).toBe(meshes[0].geometry);
     objects.destroy();
@@ -25,9 +36,11 @@ describe('3D node shape resources', () => {
     const mesh = objects.create(data);
     mesh.position.set(10, 20, 30);
     expect(mesh.scale.x).toBe(10);
+    const sphereGeometry = mesh.geometry;
     data.shape = 'cube'; data.color = 'rgba(255, 0, 0, 0.5)'; data.value = 27;
     objects.sync([data], 2);
-    expect(mesh.geometry.type).toBe('BoxGeometry');
+    expect(mesh.geometry).not.toBe(sphereGeometry);
+    expect(mesh.geometry.getAttribute('color')).toBeDefined();
     expect(mesh.scale.x).toBe(6);
     expect(mesh.position.toArray()).toEqual([10, 20, 30]);
     const material = mesh.material as Three.MeshLambertMaterial;
@@ -68,7 +81,10 @@ describe('3D node shape resources', () => {
     const frame = mesh.getObjectByName('node-frame') as LineSegments2;
     expect(frame.material.opacity).toBe(0.25);
     expect(frame.material.linewidth).toBe(2);
-    expect(mesh.getObjectByName('node-outline')).toBeUndefined();
+    const outline = mesh.getObjectByName('node-outline') as Three.Mesh<Three.BufferGeometry, Three.ShaderMaterial>;
+    expect(outline.material.uniforms.opacity.value).toBe(0.25);
+    expect(outline.material.depthTest).toBe(true);
+    expect(outline.material.depthWrite).toBe(false);
     expect(mesh.position.toArray()).toEqual([10, 20, 30]);
     const texture = (label.material as Three.SpriteMaterial).map;
     const dispose = spyOn(texture, 'dispose').and.callThrough();
@@ -98,7 +114,7 @@ describe('3D node shape resources', () => {
     objects.destroy();
   });
 
-  it('draws the twelve cube edges without face diagonals or an inflated silhouette', () => {
+  it('draws the twelve cube edges in screen pixels without a duplicate silhouette pass', () => {
     const objects = new ThreeDNodeObjects(Three, frameClasses);
     const data = { ...node(), shape: 'cube' as const, radius: 4 };
     objects.sync([data], 4, { ...readThreeDSettings({}), nodeBorderWidth: 3 });
@@ -116,6 +132,9 @@ describe('3D node shape resources', () => {
     expect(frame.material.worldUnits).toBe(false);
     expect(frame.material.depthTest).toBe(true);
     expect(mesh.getObjectByName('node-outline')).toBeUndefined();
+    expect(frame.material.linewidth).toBe(3);
+    objects.resize(900, 600);
+    expect(frame.material.resolution.toArray()).toEqual([900, 600]);
     objects.destroy();
   });
 
@@ -141,7 +160,7 @@ describe('3D node shape resources', () => {
 
   it('shares frame resources, updates shape edges, removes zero-width frames, and disposes resources', () => {
     const objects = new ThreeDNodeObjects(Three, frameClasses);
-    const a = { ...node('A'), shape: 'cube' as any }, b = { ...node('B'), shape: 'cube' as any };
+    const a = { ...node('A'), shape: 'cone' as any }, b = { ...node('B'), shape: 'cone' as any };
     const settings = { ...readThreeDSettings({}), nodeBorderWidth: 2 };
     objects.sync([a, b], 4, settings);
     const first = objects.create(a), second = objects.create(b);
@@ -151,14 +170,128 @@ describe('3D node shape resources', () => {
     expect(firstFrame.material).toBe(secondFrame.material);
     const geometryDispose = spyOn(firstFrame.geometry, 'dispose').and.callThrough();
     const materialDispose = spyOn(firstFrame.material, 'dispose').and.callThrough();
+    const firstOutline = first.getObjectByName('node-outline') as Three.Mesh;
+    const secondOutline = second.getObjectByName('node-outline') as Three.Mesh;
+    expect(firstOutline.geometry).toBe(secondOutline.geometry);
+    expect(firstOutline.material).toBe(secondOutline.material);
+    const outlineGeometryDispose = spyOn(firstOutline.geometry, 'dispose').and.callThrough();
+    const outlineMaterialDispose = spyOn(firstOutline.material as Three.ShaderMaterial, 'dispose').and.callThrough();
     a.shape = 'diamond'; objects.sync([a, b], 4, settings);
     expect(firstFrame.geometry).not.toBe(secondFrame.geometry);
     objects.sync([a, b], 4, { ...settings, nodeBorderWidth: 0 });
     expect(first.getObjectByName('node-frame')).toBeUndefined();
     expect(second.getObjectByName('node-frame')).toBeUndefined();
+    expect(first.getObjectByName('node-outline')).toBeUndefined();
+    expect(outlineMaterialDispose).toHaveBeenCalledTimes(1);
     expect(materialDispose).toHaveBeenCalledTimes(1);
     expect(geometryDispose).not.toHaveBeenCalled();
     objects.destroy();
     expect(geometryDispose).toHaveBeenCalledTimes(1);
+    expect(outlineGeometryDispose).toHaveBeenCalledTimes(1);
+  });
+
+  it('renders new families with distinct meshes, no grid on smooth shapes, and bounded arrow clearance', () => {
+    const objects = new ThreeDNodeObjects(Three, frameClasses);
+    const nodes: ThreeDNode[] = THREE_D_NODE_SHAPES.map(option => ({ ...node(option.value), shape: option.value, radius: 5 }));
+    objects.sync(nodes, 4, { ...readThreeDSettings({}), nodeBorderWidth: 1 });
+    const meshes = nodes.map(data => objects.create(data));
+    expect(meshes[6].geometry.type).toBe('TorusGeometry');
+    expect(meshes[7].geometry.type).toBe('CapsuleGeometry');
+    expect(meshes[8].geometry.type).toBe('ExtrudeGeometry');
+    for (const index of [0, 6, 7]) expect(meshes[index].getObjectByName('node-frame').visible).toBe(false);
+    for (const index of [1, 4, 5, 8]) expect((meshes[index].material as Three.MeshLambertMaterial).vertexColors).toBe(true);
+    nodes.forEach((data, index) => {
+      expect(data.radius).toBe(5);
+      expect(data.renderRadius).toBeCloseTo(5 * meshes[index].geometry.boundingSphere!.radius);
+    });
+    objects.destroy();
+  });
+
+  it('batches opaque surfaces and edges while preserving per-node picking, colors, and positions', () => {
+    const scene = new Three.Scene(), camera = new Three.PerspectiveCamera(50, 1, 0.1, 10000);
+    camera.position.z = 100; camera.updateMatrixWorld();
+    const objects = new ThreeDNodeObjects(Three, frameClasses);
+    objects.enableBatching(scene);
+    const nodes = [{ ...node('A'), radius: 2, x: 0, y: 0, z: 0 }, { ...node('B'), radius: 3, x: 10, y: 0, z: 0 },
+      { ...node('C'), shape: 'cube' as const, radius: 2, x: 20, y: 0, z: 0 }];
+    objects.sync(nodes, 4, { ...readThreeDSettings({}), nodeBorderWidth: 1 });
+    const meshes = nodes.map(n => { const mesh = objects.create(n); mesh.position.set(n.x, n.y, n.z); scene.add(mesh); return mesh; });
+    objects.prepareFrame({ camera, height: 800 });
+    const batchRoot = scene.getObjectByName('3d-node-batches');
+    const surfaces = batchRoot.children.filter(o => o.name === 'node-surfaces') as Three.InstancedMesh[];
+    expect(surfaces.length).toBe(2);
+    expect(surfaces.map(o => o.count).sort()).toEqual([1, 2]);
+    const sphereBatch = surfaces.find(o => o.count === 2)!;
+    const matrix = new Three.Matrix4(); sphereBatch.getMatrixAt(1, matrix);
+    expect(matrix.elements[12]).toBe(10); expect(matrix.elements[0]).toBe(3);
+    const color = new Three.Color(); sphereBatch.getColorAt(0, color);
+    expect(color.getHexString()).toBe('123456');
+    expect((meshes[0].material as Three.Material).visible).toBe(false);
+    const ray = new Three.Raycaster(); ray.setFromCamera(new Three.Vector2(0, 0), camera);
+    expect(ray.intersectObject(meshes[0], false).length).toBeGreaterThan(0);
+    const frame = batchRoot.getObjectByName('node-frame') as LineSegments2;
+    expect(frame.geometry.getAttribute('instanceStart').count).toBe(12);
+    const first = frame.geometry.getAttribute('instanceStart');
+    expect(first.getX(0)).toBeGreaterThan(15);
+    objects.destroy();
+    expect(scene.getObjectByName('3d-node-batches')).toBeUndefined();
+  });
+
+  it('uses individual transparent nodes for category opacity and neighbor dimming', () => {
+    const scene = new Three.Scene(), camera = new Three.PerspectiveCamera(); camera.position.z = 100; camera.updateMatrixWorld();
+    const objects = new ThreeDNodeObjects(Three, frameClasses); objects.enableBatching(scene);
+    const a = { ...node('A'), radius: 2 }, b = { ...node('B'), radius: 2, color: 'rgba(20,30,40,0.5)' };
+    const settings = { ...readThreeDSettings({}), nodeBorderWidth: 1 };
+    objects.sync([a, b], 4, settings);
+    const first = objects.create(a), second = objects.create(b); scene.add(first, second);
+    objects.prepareFrame({ camera, height: 800 });
+    expect((first.material as Three.Material).visible).toBe(false);
+    expect((second.material as Three.Material).opacity).toBe(0.5);
+    expect(second.getObjectByName('node-outline')).toBeDefined();
+    objects.sync([a, b], 4, settings, new Set(['A']));
+    objects.prepareFrame({ camera, height: 800 });
+    expect((first.material as Three.Material).opacity).toBeCloseTo(0.12);
+    expect(scene.getObjectByName('3d-node-batches').children.length).toBe(0);
+    objects.destroy();
+  });
+
+  it('adapts curved detail to zoom and fixes adaptive exports to Balanced without changing node values', () => {
+    const objects = new ThreeDNodeObjects(Three, frameClasses), camera = new Three.PerspectiveCamera(50, 1, 0.1, 10000);
+    const data = { ...node(), radius: 4, x: 0, y: 0, z: 0 };
+    objects.sync([data], 4, { ...readThreeDSettings({}), nodeDetail: 'auto' });
+    const mesh = objects.create(data);
+    camera.position.z = 1000; camera.updateMatrixWorld(); objects.prepareFrame({ camera, height: 800 });
+    expect(mesh.geometry.getIndex().count / 3).toBe(168);
+    const coarse = mesh.geometry;
+    camera.position.z = 10; camera.updateMatrixWorld(); objects.prepareFrame({ camera, height: 800 });
+    expect(mesh.geometry.getIndex().count / 3).toBeGreaterThan(440);
+    objects.prepareFrame({ camera, height: 800 }, true);
+    expect(mesh.geometry.getIndex().count / 3).toBe(440);
+    camera.position.z = 1000; camera.updateMatrixWorld(); objects.prepareFrame({ camera, height: 800 });
+    expect(mesh.geometry).toBe(coarse); expect(data.radius).toBe(4);
+    objects.destroy();
+  });
+
+  it('retains the earlier shape proportions and outlines when that saved style is selected', () => {
+    const objects = new ThreeDNodeObjects(Three, frameClasses), data = { ...node(), shape: 'cube' as const };
+    objects.sync([data], 4, { ...readThreeDSettings({}), shapeVersion: 1, nodeBorderWidth: 1 });
+    const mesh = objects.create(data);
+    expect(mesh.getObjectByName('node-outline')).toBeDefined();
+    objects.sync([data], 4, { ...readThreeDSettings({}), shapeVersion: 2, nodeBorderWidth: 1 });
+    expect(mesh.getObjectByName('node-outline')).toBeUndefined();
+    objects.destroy();
+  });
+
+  it('keeps coarse cylinder detail free of side-generator lines', () => {
+    const objects = new ThreeDNodeObjects(Three, frameClasses), camera = new Three.PerspectiveCamera(50, 1, 0.1, 10000);
+    const data = { ...node(), shape: 'cylinder' as const, radius: 4, x: 0, y: 0, z: 0 };
+    objects.sync([data], 4, { ...readThreeDSettings({}), nodeDetail: 'auto', nodeBorderWidth: 1 });
+    const mesh = objects.create(data); camera.position.z = 1000; camera.updateMatrixWorld();
+    objects.prepareFrame({ camera, height: 800 });
+    const edges = (mesh.getObjectByName('node-frame') as LineSegments2).geometry;
+    const starts = edges.getAttribute('instanceStart'), ends = edges.getAttribute('instanceEnd');
+    expect(starts.count).toBe(24);
+    for (let i = 0; i < starts.count; i++) expect(starts.getY(i)).toBeCloseTo(ends.getY(i));
+    objects.destroy();
   });
 });

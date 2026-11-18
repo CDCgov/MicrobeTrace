@@ -6,6 +6,9 @@ import { ThreeDLinkArrows } from './three-d-link-arrows';
 import { labelWorldHeight, ThreeDTextSprites } from './three-d-text-sprites';
 import type * as Three from 'three';
 import { color as parseColor } from 'd3-color';
+import { initialThreeDPosition, orderThreeDLayout, seedThreeDForce, THREE_D_LAYOUT } from './three-d-layout';
+import { threeDCameraPresetPose, type ThreeDCameraPreset } from './three-d-camera-presets';
+import { createThreeDLighting } from './three-d-lighting';
 import {
   finiteThreeDPoint, ThreeDGraphData, ThreeDLink, ThreeDNode, ThreeDPoint,
   ThreeDSettings, ThreeDViewState,
@@ -30,6 +33,8 @@ export class ThreeDNetworkRenderer {
   private frozen = false;
   private destroyed = false;
   private fitOnSettle = false;
+  private initialPresentationPending = false;
+  private preparingInitialLayout = false;
   private restoringPositions = false;
   private positions = new Map<string, ThreeDPoint>();
   private cameraChanged: () => void;
@@ -51,6 +56,11 @@ export class ThreeDNetworkRenderer {
   private customLinkSignature = '';
   private linkObjects = new Map<string, Three.Group>();
   private linkWidthAccessor = (link: ThreeDLink) => link.width ?? this.settings?.linkWidth ?? 1.6;
+  private initialProjection: ThreeDViewState['camera']['projection'];
+  private lighting: ReturnType<typeof createThreeDLighting>;
+  private lightingSignature = '';
+  private originalRender?: Three.WebGLRenderer['render'];
+  private capturing = false;
 
   static async create(
     host: HTMLElement,
@@ -58,6 +68,7 @@ export class ThreeDNetworkRenderer {
     onStateChange: () => void,
     onContextLost: () => void,
     onRotationChange: (playing: boolean) => void = () => {},
+    onInitialLayoutChange: (preparing: boolean) => void = () => {},
   ): Promise<ThreeDNetworkRenderer> {
     const [{ default: ForceGraph3D }, three, { LineSegments2 }, { LineSegmentsGeometry }, { LineMaterial }] = await Promise.all([
       import('3d-force-graph'), import('three'), import('three/addons/lines/LineSegments2.js'),
@@ -66,7 +77,7 @@ export class ThreeDNetworkRenderer {
     return new ThreeDNetworkRenderer(new ForceGraph3D(host, {
       controlType: 'trackball', rendererConfig: { antialias: true, preserveDrawingBuffer: true },
     }) as ForceGraph3DInstance<ThreeDNode, ThreeDLink>, onSelect, onStateChange, onContextLost, onRotationChange, three,
-    { LineSegments2, LineSegmentsGeometry, LineMaterial });
+    { LineSegments2, LineSegmentsGeometry, LineMaterial }, onInitialLayoutChange);
   }
 
   private constructor(
@@ -77,9 +88,27 @@ export class ThreeDNetworkRenderer {
     private onRotationChange: (playing: boolean) => void,
     private three: typeof import('three'),
     frameClasses: ThreeDNodeFrameClasses,
+    private onInitialLayoutChange: (preparing: boolean) => void,
   ) {
     this.graph = graph;
+    const camera = graph.camera() as Three.PerspectiveCamera;
+    this.initialProjection = { fov: camera.fov, near: camera.near, far: camera.far, zoom: camera.zoom };
     this.nodeObjects = new ThreeDNodeObjects(three, frameClasses);
+    this.lighting = createThreeDLighting(three, 2);
+    this.graph.lights(this.lighting.lights);
+    if (graph.scene()?.isScene) this.nodeObjects.enableBatching(graph.scene());
+    const graphics = graph.renderer();
+    if (typeof graphics.render === 'function') {
+      this.originalRender = graphics.render;
+      graphics.render = (scene, renderCamera) => {
+        if (!this.destroyed) {
+          renderCamera.updateMatrixWorld();
+          this.lighting.update(renderCamera, this.controls.target as Three.Vector3);
+          this.nodeObjects.prepareFrame?.({ camera: renderCamera, height: graph.height() }, this.capturing);
+        }
+        this.originalRender!.call(graphics, scene, renderCamera);
+      };
+    }
     this.linkLabels = new ThreeDTextSprites(three);
     this.linkOverlays = new ThreeDLinkOverlays(three);
     this.linkArrows = new ThreeDLinkArrows(three);
@@ -90,16 +119,22 @@ export class ThreeDNetworkRenderer {
       .onNodeClick((node, event) => onSelect(node.id, event))
       .onNodeHover(node => { this.hovered = node?.id ?? null; if (this.settings?.highlightNeighbors) this.updateHighlight(); })
       .onBackgroundClick(event => onSelect(null, event))
-      .warmupTicks(0).cooldownTicks(150).cooldownTime(6000)
+      .warmupTicks(0).cooldownTicks(THREE_D_LAYOUT.iterationLimit).cooldownTime(Infinity)
       .onEngineStop(() => {
         if (this.destroyed) return;
+        // An empty update can finish while the large-network advisory is open.
+        // Keep the first framing pending until actual nodes have been prepared.
+        if (this.initialPresentationPending && !this.data.nodes.length) return;
         if (this.fitOnSettle) {
           this.fitOnSettle = false;
           this.fit();
         }
         this.updateLabelScales();
+        this.initialPresentationPending = false;
+        this.setInitialLayoutPreparing(false);
         onStateChange();
       });
+    ['link', 'charge'].forEach(name => seedThreeDForce(this.graph.d3Force(name)));
     this.cameraChanged = () => { this.orientation?.update(this.graph.camera()); this.updateLabelScales(); onStateChange(); };
     this.cameraInteractionStarted = () => { this.fitOnSettle = false; this.setCameraRotating(false); };
     this.controls.addEventListener('change', this.cameraChanged);
@@ -114,6 +149,7 @@ export class ThreeDNetworkRenderer {
   get canvas(): HTMLCanvasElement { return this.graph.renderer().domElement; }
   get nodes(): ReadonlyMap<string, ThreeDNode> { return new Map(this.data.nodes.map(node => [node.id, node])); }
   get savedPositions(): ReadonlyMap<string, ThreeDPoint> { return this.positions; }
+  get graphData(): ThreeDGraphData { return this.data; }
 
   setOrientationIndicator(element: SVGSVGElement): void {
     this.orientation = new ThreeDOrientationIndicator(element, this.graph.camera());
@@ -129,17 +165,26 @@ export class ThreeDNetworkRenderer {
   }
 
   setData(data: ThreeDGraphData, settings: ThreeDSettings, background: string): void {
+    if (this.initialPresentationPending) this.setInitialLayoutPreparing(data.nodes.length > 0);
+    orderThreeDLayout(data);
     this.capturePositions();
     const lengthChanged = this.settings && this.settings.linkLength !== settings.linkLength;
     this.settings = { ...settings };
+    const lightingSignature = `${settings.shapeVersion}:${settings.lightingMode}`;
+    if (lightingSignature !== this.lightingSignature) {
+      this.lightingSignature = lightingSignature;
+      this.lighting = createThreeDLighting(this.three, settings.shapeVersion, settings.lightingMode === 'camera');
+      this.graph.lights(this.lighting.lights);
+    }
     this.graph.camera().updateMatrixWorld();
     const topologyChanged = data.nodes.length !== this.data.nodes.length || data.links.length !== this.data.links.length
       || data.nodes.some((node, i) => node.id !== this.data.nodes[i]?.id)
       || data.links.some((link, i) => link.key !== this.data.links[i]?.key);
     if (topologyChanged) {
       const preserveRestoredPositions = this.restoringPositions && data.nodes.every(node => this.positions.has(node.id));
+      this.graph.cooldownTicks(this.frozen || preserveRestoredPositions ? 0 : THREE_D_LAYOUT.iterationLimit);
       data.nodes.forEach((node, index) => {
-        if (!finiteThreeDPoint(node)) Object.assign(node, this.positions.get(node.id));
+        if (!finiteThreeDPoint(node)) Object.assign(node, this.positions.get(node.id) ?? initialThreeDPosition(index));
         if (this.frozen || preserveRestoredPositions) this.fixNode(node, index);
         else { delete node.fx; delete node.fy; delete node.fz; }
       });
@@ -238,7 +283,12 @@ export class ThreeDNetworkRenderer {
     this.graph.graphData(this.data);
     this.frozen = state?.layoutFrozen === true;
     this.restoringPositions = Boolean(state);
+    this.initialPresentationPending = !state;
+    this.setInitialLayoutPreparing(false);
     this.fitOnSettle = !state;
+    const camera = this.graph.camera() as Three.PerspectiveCamera;
+    Object.assign(camera, this.initialProjection, state?.camera.projection ?? {});
+    camera.updateProjectionMatrix();
     if (state) {
       const { up } = state.camera;
       this.graph.camera().up.set(up.x, up.y, up.z);
@@ -246,6 +296,12 @@ export class ThreeDNetworkRenderer {
       this.controls.update();
     }
     this.orientation?.update(this.graph.camera());
+  }
+
+  private setInitialLayoutPreparing(preparing: boolean): void {
+    if (preparing === this.preparingInitialLayout) return;
+    this.preparingInitialLayout = preparing;
+    this.onInitialLayoutChange(preparing);
   }
 
   private capturePositions(): void {
@@ -258,12 +314,14 @@ export class ThreeDNetworkRenderer {
   getState(validIds?: ReadonlySet<string>): ThreeDViewState {
     this.capturePositions();
     if (validIds) this.positions.forEach((_, id) => { if (!validIds.has(id)) this.positions.delete(id); });
+    const camera = this.graph.camera() as Three.PerspectiveCamera;
     return {
       version: 1,
       camera: {
         position: finiteThreeDPoint(this.graph.cameraPosition())!,
         target: finiteThreeDPoint(this.controls.target)!,
         up: finiteThreeDPoint(this.graph.camera().up)!,
+        projection: { fov: camera.fov, near: camera.near, far: camera.far, zoom: camera.zoom },
       },
       positions: Object.fromEntries(this.positions), layoutFrozen: this.frozen,
     };
@@ -272,6 +330,7 @@ export class ThreeDNetworkRenderer {
   resize(width: number, height: number): void {
     if (width <= 0 || height <= 0) return;
     this.graph.width(Math.round(width)).height(Math.round(height));
+    this.nodeObjects.resize(width, height);
     this.updateLabelScales();
     if (this.resizeFrame !== null) cancelAnimationFrame(this.resizeFrame);
     // Trackball maps pointer positions using the canvas bounds, which change when docked.
@@ -290,6 +349,20 @@ export class ThreeDNetworkRenderer {
     this.setCameraRotating(false);
     this.stopCameraMotion();
     this.controls.mouseButtons.LEFT = mode === 'pan' ? this.three.MOUSE.PAN : this.three.MOUSE.ROTATE;
+  }
+
+  setCameraPreset(preset: ThreeDCameraPreset): void {
+    if (!this.data.nodes.length) return;
+    this.fitOnSettle = false;
+    this.setCameraRotating(false);
+    this.stopCameraMotion();
+    const target = this.controls.target;
+    const current = this.graph.cameraPosition();
+    const pose = threeDCameraPresetPose(preset, target, Math.hypot(current.x - target.x, current.y - target.y, current.z - target.z));
+    this.graph.camera().up.set(pose.up.x, pose.up.y, pose.up.z);
+    this.graph.cameraPosition(pose.position, pose.target, 0);
+    this.controls.update();
+    this.cameraChanged();
   }
 
   setCameraRotating(playing: boolean): void {
@@ -352,14 +425,13 @@ export class ThreeDNetworkRenderer {
 
   private fixNode(node: ThreeDNode, index: number): void {
     // New nodes in a frozen view still need a finite initial position.
-    const radius = 20 * Math.cbrt(index + 1);
-    const angle = index * Math.PI * (3 - Math.sqrt(5));
-    const point = finiteThreeDPoint(node) ?? { x: radius * Math.cos(angle), y: radius * Math.sin(angle), z: index % 2 ? radius / 2 : -radius / 2 };
+    const point = finiteThreeDPoint(node) ?? initialThreeDPosition(index);
     Object.assign(node, point, { fx: point.x, fy: point.y, fz: point.z, vx: 0, vy: 0, vz: 0 });
   }
 
   setFrozen(frozen: boolean): void {
     this.frozen = frozen;
+    this.graph.cooldownTicks(frozen ? 0 : THREE_D_LAYOUT.iterationLimit);
     this.data.nodes.forEach((node, index) => {
       if (frozen) this.fixNode(node, index);
       else { delete node.fx; delete node.fy; delete node.fz; }
@@ -371,11 +443,16 @@ export class ThreeDNetworkRenderer {
     this.setCameraRotating(false);
     this.positions.clear();
     this.frozen = false;
-    this.data.nodes.forEach(node => {
-      for (const key of ['x', 'y', 'z', 'fx', 'fy', 'fz', 'vx', 'vy', 'vz']) delete node[key];
+    this.restoringPositions = false;
+    this.data.nodes.forEach((node, index) => {
+      for (const key of ['fx', 'fy', 'fz']) delete node[key];
+      Object.assign(node, initialThreeDPosition(index), { vx: 0, vy: 0, vz: 0 });
     });
     this.fitOnSettle = true;
-    this.graph.graphData(this.data).d3ReheatSimulation();
+    // Reinitialize the forces synchronously. Re-submitting graphData defers its
+    // reset, allowing extra simulation steps before the queued update runs.
+    ['link', 'charge'].forEach(name => this.graph.d3Force(name)?.initialize?.(this.data.nodes, undefined, 3));
+    this.graph.cooldownTicks(THREE_D_LAYOUT.iterationLimit).d3ReheatSimulation();
   }
 
   setVisible(visible: boolean): void {
@@ -386,7 +463,9 @@ export class ThreeDNetworkRenderer {
   }
 
   snapshot(): HTMLCanvasElement {
-    this.graph.renderer().render(this.graph.scene(), this.graph.camera());
+    this.capturing = true;
+    try { this.graph.renderer().render(this.graph.scene(), this.graph.camera()); }
+    finally { this.capturing = false; }
     const canvas = document.createElement('canvas');
     canvas.width = this.canvas.width;
     canvas.height = this.canvas.height;
@@ -402,6 +481,7 @@ export class ThreeDNetworkRenderer {
     this.destroyed = true;
     if (this.resizeFrame !== null) cancelAnimationFrame(this.resizeFrame);
     const renderer = this.graph.renderer();
+    if (this.originalRender) renderer.render = this.originalRender;
     this.controls.removeEventListener('change', this.cameraChanged);
     this.controls.removeEventListener('start', this.cameraInteractionStarted);
     this.canvas.removeEventListener('webglcontextlost', this.contextLost);
@@ -417,6 +497,7 @@ export class ThreeDNetworkRenderer {
     this.cameraChanged = null;
     this.cameraInteractionStarted = null;
     this.onRotationChange = null;
+    this.onInitialLayoutChange = null;
     this.orientation = null;
     this.contextLost = null;
     this.data = { nodes: [], links: [] };

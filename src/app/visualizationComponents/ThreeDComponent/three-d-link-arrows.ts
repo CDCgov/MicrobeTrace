@@ -61,8 +61,8 @@ export class ThreeDLinkArrows {
     if (!meshes) return;
     this.direction.set(end.x - start.x, end.y - start.y, end.z - start.z);
     const length = this.direction.length();
-    const sourceRadius = typeof link.source === 'object' ? link.source.radius ?? 0 : 0;
-    const targetRadius = typeof link.target === 'object' ? link.target.radius ?? 0 : 0;
+    const sourceRadius = typeof link.source === 'object' ? link.source.renderRadius ?? link.source.radius ?? 0 : 0;
+    const targetRadius = typeof link.target === 'object' ? link.target.renderRadius ?? link.target.radius ?? 0 : 0;
     const available = length - sourceRadius - targetRadius;
     const visible = Number.isFinite(length) && available >= 4;
     meshes.forEach(mesh => mesh.visible = visible && (mesh.name === 'source-arrow' ? Boolean(link.sourceArrow) : Boolean(link.targetArrow)));

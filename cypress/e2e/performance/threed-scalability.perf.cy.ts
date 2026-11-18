@@ -4,6 +4,7 @@ import {
   applyPreLaunchFileSettings, ensurePreLaunchProfileSynced,
   launchAndWaitForProcessing, visitAppAndAcceptEula,
 } from '../../support/journey-helpers';
+import { applyThreeDInvestigationStyling } from '../../support/threed-helpers';
 import {
   assertScenarioExpectedCounts, collectPerformanceCounts, startPerformanceCapture,
   stopPerformanceCapture, writePerformanceResult,
@@ -85,22 +86,23 @@ async function cameraProbe(
 describeThreeD('3D Network opt-in capacity benchmark', { retries: 0, numTestsKeptInMemory: 0 }, () => {
   // Rotate the order across independent invocations to reduce warm-cache/order bias.
   const sampleIndex = Number(Cypress.env('perfThreeDSampleIndex') || 0);
-  const offset = sampleIndex % graphCases.length;
-  const ordered = [...graphCases.slice(offset), ...graphCases.slice(0, offset)];
   const filter = String(Cypress.env('perfThreeDCase') || '');
-  const selected = ordered.filter(item => !filter || filter.split('+').includes(`${item.nodes}n-${item.links}l`));
+  const styled = Cypress.env('perfThreeDStyle') === 'investigation';
+  const matching = graphCases.filter(item => !filter || filter.split('+').includes(`${item.nodes}n-${item.links}l`));
+  const offset = sampleIndex % Math.max(1, matching.length);
+  const selected = [...matching.slice(offset), ...matching.slice(0, offset)];
 
   selected.forEach(({ nodes, links }) => {
     const stem = `${nodes}n-${links}l`;
     const scenario: PerformanceScenario = {
-      id: `threed-${stem}`, title: `3D Network: ${nodes} nodes, ${links} links`,
+      id: `threed-${stem}${styled ? '-investigation' : ''}`, title: `3D Network: ${nodes} nodes, ${links} links (${styled ? 'investigation styling' : 'default styling'})`,
       files: [
         { name: `performance/threed/${stem}-nodes.csv`, datatype: 'node', field1: '_id' },
         { name: `performance/threed/${stem}-links.csv`, datatype: 'link', field1: 'source', field2: 'target', field3: 'distance' },
       ],
       preLaunch: { metric: 'snps', threshold: 16, defaultView: '3D Network' },
       expected: { nodes, totalLinks: links, visibleLinks: links },
-      metadata: { renderer: '3d-force-graph', fixtureKind: 'deterministic-generated', sampleIndex, camera: 'trackball', probeVersion: 2 },
+      metadata: { renderer: '3d-force-graph', fixtureKind: 'deterministic-generated', sampleIndex, camera: 'trackball', probeVersion: 5, styleProfile: styled ? 'investigation' : 'default' },
     };
 
     it(scenario.title, () => {
@@ -138,6 +140,9 @@ describeThreeD('3D Network opt-in capacity benchmark', { retries: 0, numTestsKep
         }, { once: true });
       });
       launchAndWaitForProcessing(180000);
+      if (nodes > 750 || links > 1500) {
+        cy.get('[data-testid="threed-performance-continue"]', { timeout: 30000 }).should('be.visible').click();
+      }
       cy.window({ timeout: 180000 }).should(win => {
         expect((win as any).__threeDPerf.firstPaint, '3D first rendered frame').to.be.greaterThan(0);
       });
@@ -146,6 +151,7 @@ describeThreeD('3D Network opt-in capacity benchmark', { retries: 0, numTestsKep
         const common = win.commonService;
         const view = common.visuals.threeD;
         const graph = view.renderer.graph;
+        const layoutBudget = { cooldownTicks: graph.cooldownTicks(), cooldownTime: Number.isFinite(graph.cooldownTime()) ? graph.cooldownTime() : null };
         const wait = (ms: number) => new Promise<void>(resolve => win.setTimeout(resolve, ms));
         const waitFor = async (predicate: () => boolean, label: string, timeout = 30000) => {
           const start = win.performance.now();
@@ -167,6 +173,24 @@ describeThreeD('3D Network opt-in capacity benchmark', { retries: 0, numTestsKep
           Object.entries(values).forEach(([key, value]) => { metrics[`${prefix}${key[0].toUpperCase()}${key.slice(1)}`] = value; });
         };
         const glRenderer = graph.renderer();
+        if (styled) {
+          const styleStart = win.performance.now();
+          applyThreeDInvestigationStyling(win);
+          await waitFor(() => graph.graphData().nodes.every((node: any) => node.label)
+            && graph.graphData().links.some((link: any) => link.overlayColor && link.targetArrow), 'investigation style data');
+          const frame = glRenderer.info.render.frame;
+          await waitFor(() => glRenderer.info.render.frame >= frame + 3, 'investigation styling painted');
+          metrics.stylingToPaintMs = win.performance.now() - styleStart;
+          const styledObjects: Record<string, number> = {};
+          graph.scene().traverse((object: any) => {
+            if (object.visible && object.name) styledObjects[object.name] = (styledObjects[object.name] || 0) + 1;
+          });
+          for (const name of ['node-frame', 'node-label', 'link-label', 'origin-overlay', 'source-arrow', 'target-arrow']) {
+            const count = styledObjects[name] || 0;
+            expect(count, `painted investigation objects: ${name}`).to.be.greaterThan(0);
+            metrics[`styledObjects:${name}`] = count;
+          }
+        }
         const waitForPaint = async (expectedNodes: number, expectedLinks: number) => {
           await waitFor(() => {
             const attached = sceneCounts(graph);
@@ -188,19 +212,21 @@ describeThreeD('3D Network opt-in capacity benchmark', { retries: 0, numTestsKep
           viewportWidth: win.innerWidth, viewportHeight: win.innerHeight,
         };
         let engineStopped = false;
+        let engineStopTime = 0;
         let ticks = 0;
         const originalStop = graph.onEngineStop();
         const originalTick = graph.onEngineTick();
-        graph.onEngineStop(() => { engineStopped = true; originalStop?.(); });
+        graph.onEngineStop(() => { engineStopped = true; engineStopTime = win.performance.now(); originalStop?.(); });
         graph.onEngineTick(() => { ticks++; originalTick?.(); });
         const layoutStart = win.performance.now();
         view.openRefreshScreen();
         merge('layoutOrbit', await cameraProbe(win, graph, 'orbit', 1500));
         metrics.layoutTicksDuringProbe = ticks;
         metrics.layoutStoppedDuringProbe = engineStopped ? 1 : 0;
-        await waitFor(() => engineStopped, 'force layout cooldown', 15000);
-        metrics.layoutCooldownMs = win.performance.now() - layoutStart;
+        await waitFor(() => engineStopped, 'force layout cooldown', 120000);
+        metrics.layoutCooldownMs = engineStopTime - layoutStart;
         metrics.layoutTotalTicks = ticks;
+        expect(ticks, 'complete deterministic layout iteration budget').to.equal(150);
         graph.onEngineStop(originalStop).onEngineTick(originalTick);
         if (!view.layoutFrozen) view.toggleFrozen();
         view.openCenter();
@@ -249,7 +275,8 @@ describeThreeD('3D Network opt-in capacity benchmark', { retries: 0, numTestsKep
           counts: collectPerformanceCounts(win),
           heap: { initialUsedJSHeapSize: initialHeap, finalUsedJSHeapSize: finalHeap, deltaUsedJSHeapSize: finalHeap !== null && initialHeap !== null ? finalHeap - initialHeap : null },
           longTasks: { count: tasks.length, maxDurationMs: Math.max(0, ...tasks.map(task => task.duration)), totalDurationMs: tasks.reduce((sum, task) => sum + task.duration, 0) },
-          app: { loadTimeMs: common.session.meta.loadTime ?? null, performance: { threeD: { environment, layout: { cooldownTicks: 150, cooldownTime: 6000 }, settings: view.settings } } },
+          app: { loadTimeMs: common.session.meta.loadTime ?? null, performance: { threeD: { environment,
+            layout: layoutBudget, settings: view.settings } } },
         };
       });
       cy.then(() => writePerformanceResult(scenario, measurement));

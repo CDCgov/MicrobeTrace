@@ -1,22 +1,22 @@
-<div class="three-d-wrapper" data-testid="threed-view" [attr.aria-busy]="loading">
+<div class="three-d-wrapper" data-testid="threed-view" [class.three-d-preparing]="preparingInitialLayout" [attr.aria-busy]="loading || preparingInitialLayout">
   <div class="three-d-toolbar tool-btn-container m-portlet" role="toolbar" aria-label="3D Network controls" data-html2canvas-ignore>
     <button type="button" class="btn btn-sm btn-clean btn-icon btn-icon-md" title="Settings" aria-label="Settings"
       data-testid="threed-settings-button" (click)="openSettings()">
       <i class="flaticon-settings primary" aria-hidden="true"></i>
     </button>
     <button type="button" class="btn btn-sm btn-clean btn-icon btn-icon-md" title="Export Screen" aria-label="Export Screen"
-      data-testid="threed-export-button" (click)="openExport()" [disabled]="loading || !!error">
+      data-testid="threed-export-button" (click)="openExport()" [disabled]="loading || preparingInitialLayout || !!error">
       <i class="flaticon-download primary" aria-hidden="true"></i>
     </button>
     <button type="button" class="btn btn-sm btn-clean btn-icon btn-icon-md" title="Fit Network" aria-label="Fit Network"
-      data-testid="threed-fit-button" (click)="openCenter()" [disabled]="loading || !!error">
+      data-testid="threed-fit-button" (click)="openCenter()" [disabled]="loading || preparingInitialLayout || !!error">
       <i class="flaticon-eye primary" aria-hidden="true"></i>
     </button>
     <button type="button" class="btn btn-sm btn-clean btn-icon btn-icon-md three-d-mode-toggle"
       [attr.aria-pressed]="navigationMode === 'pan'"
       [attr.aria-label]="navigationMode === 'rotate' ? 'Rotate mode. Switch to pan mode.' : 'Pan mode. Switch to rotate mode.'"
       [title]="navigationMode === 'rotate' ? 'Rotate mode: drag to rotate freely or scroll to zoom. Click for pan mode.' : 'Pan mode: drag to move the network or scroll to zoom. Click for rotate mode.'"
-      data-testid="threed-drag-mode-toggle" (click)="toggleNavigationMode()" [disabled]="loading || !!error">
+      data-testid="threed-drag-mode-toggle" (click)="toggleNavigationMode()" [disabled]="loading || preparingInitialLayout || !!error">
       <i [class]="navigationMode === 'rotate' ? 'pi pi-refresh primary' : 'pi pi-arrows-alt primary'" aria-hidden="true"></i>
       {{ navigationMode === 'rotate' ? 'Rotate' : 'Pan' }}
     </button>
@@ -27,26 +27,27 @@
       <i class="flaticon-pin primary" aria-hidden="true"></i>
     </button>
     <button type="button" class="btn btn-sm btn-clean btn-icon btn-icon-md" title="Recalculate Layout" aria-label="Recalculate Layout"
-      data-testid="threed-recalculate-button" (click)="openRefreshScreen()" [disabled]="loading || !!error">
+      data-testid="threed-recalculate-button" (click)="openRefreshScreen()" [disabled]="loading || preparingInitialLayout || !!error">
       <i class="flaticon-refresh primary" aria-hidden="true"></i>
     </button>
     <button type="button" class="btn btn-sm btn-clean btn-icon btn-icon-md" title="Reset Camera" aria-label="Reset Camera"
-      data-testid="threed-reset-camera-button" (click)="resetCamera()" [disabled]="loading || !!error">
+      data-testid="threed-reset-camera-button" (click)="resetCamera()" [disabled]="loading || preparingInitialLayout || !!error">
       <i class="pi pi-undo primary" aria-hidden="true"></i>
     </button>
     <button type="button" class="btn btn-sm btn-clean btn-icon btn-icon-md"
       [title]="cameraRotating ? 'Pause camera rotation' : 'Play camera rotation'"
       [attr.aria-label]="cameraRotating ? 'Pause camera rotation' : 'Play camera rotation'"
       [attr.aria-pressed]="cameraRotating" [style.background]="cameraRotating ? 'lightblue' : null"
-      data-testid="threed-play-button" (click)="toggleCameraRotation()" [disabled]="loading || !!error || nodeCount === 0">
+      data-testid="threed-play-button" (click)="toggleCameraRotation()" [disabled]="loading || preparingInitialLayout || !!error || nodeCount === 0">
       <i class="pi primary" [class.pi-play]="!cameraRotating" [class.pi-pause]="cameraRotating" aria-hidden="true"></i>
     </button>
   </div>
   <div class="three-d-stage">
     <div #graphHost class="three-d-canvas" data-testid="threed-canvas" role="region" tabindex="0"
       aria-label="Interactive 3D network" aria-describedby="threed-help" (keydown)="onCanvasKeydown($event)"></div>
+    <div class="three-d-compass-controls" role="group" aria-label="3D orientation and camera views" data-testid="threed-compass-controls"
+      [class.three-d-compass-hidden]="loading || preparingInitialLayout || !!error || nodeCount === 0">
     <svg #orientationIndicator class="three-d-compass" data-testid="threed-orientation"
-      [class.three-d-compass-hidden]="loading || !!error || nodeCount === 0"
       viewBox="0 0 100 100" role="img" aria-label="3D orientation: red X axis, green Y axis, blue Z axis">
       <title>3D orientation</title>
       <desc>World axes follow the camera orientation. Dashed arrows point away from you. An end-on axis is a dot toward you or a ring away from you.</desc>
@@ -67,9 +68,15 @@
         <text x="62" y="62">Z</text>
       </g>
     </svg>
+    @for (preset of cameraPresets; track preset.value) {
+      <button type="button" class="btn btn-sm three-d-camera-preset" [attr.data-preset]="preset.value" [title]="preset.description"
+        [attr.aria-label]="preset.label + ' camera view'" [attr.data-testid]="'threed-camera-' + preset.value" data-html2canvas-ignore
+        (click)="setCameraPreset(preset.value)" [disabled]="loading || preparingInitialLayout || !!error || nodeCount === 0">{{preset.label}}</button>
+    }
+    </div>
   </div>
-  @if (loading) {
-    <div class="three-d-message" role="status">Loading 3D Network…</div>
+  @if ((loading || preparingInitialLayout) && !error) {
+    <div class="three-d-message" role="status">{{loading ? 'Loading 3D Network…' : 'Preparing 3D layout…'}}</div>
   } @else if (error) {
     <div class="three-d-message" role="alert" data-testid="threed-error">
       <p>{{ error }}</p>
@@ -86,6 +93,29 @@
 </div>
 
 @if (viewActive) {
+  <p-dialog data-testid="threed-performance-advisory" [visible]="performanceAdvisoryOpen" header="Large network in 3D"
+    appendTo="body" [modal]="true" [closable]="false" [closeOnEscape]="false" [draggable]="false" [resizable]="false"
+    [style]="{width: '560px', maxWidth: '95vw'}">
+    <p><strong>3D complements the 2D Network view.</strong> Use 3D to inspect connections from different angles, and 2D for an overview of larger networks.</p>
+    <p>Your current view contains <strong>{{nodeCount | number}} nodes and {{linkCount | number}} links</strong>. Camera movement and layout calculations may be slower at this size.</p>
+    @if (performanceAdvisoryTier === 2) {
+      <p role="note">This graph exceeds the recommended size for smooth 3D navigation, even with the layout frozen. Filter to a smaller subset or explore the full network in 2D.</p>
+    }
+    <ul class="three-d-performance-tips">
+      <li>Use <strong>Settings &gt; Filtering</strong> to show a smaller subset before exploring it in 3D.</li>
+      @if (layoutFrozen) {
+        <li>The layout is already frozen. Filtering can further improve responsiveness.</li>
+      } @else {
+        <li>Let the layout settle, then select <strong>Freeze Layout</strong> (the pin button) for smoother navigation. You can still rotate, pan, and zoom.</li>
+      }
+    </ul>
+    <p>For a starting point, aim for about {{recommendedNodeCount | number}} visible nodes and {{recommendedLinkCount | number}} links. Responsiveness varies with your computer and display settings.</p>
+    <ng-template #footer>
+      <button type="button" class="btn btn-light btn-sm" (click)="openTwoD()">Open 2D Network</button>
+      <button type="button" class="btn btn-primary btn-sm" data-testid="threed-performance-continue" (click)="continueInThreeD()">Continue in 3D</button>
+    </ng-template>
+  </p-dialog>
+
   <p-dialog data-testid="threed-settings-dialog" [(visible)]="settingsOpen" header="3D Network Settings" appendTo="body" styleClass="network-settings-dialog">
     <div class="three-d-settings">
       <tabset class="tab-container tabbable-line">
@@ -122,6 +152,18 @@
                   <div class="col-4"><label>Shape</label></div>
                   <div class="col-8"><button pButton type="button" class="ui-button-raised width-percent-100" (click)="openShapes($event)" [style]="{'background-color':'#2196f3','border':'1px solid #2196f3'}"><span class="p-button-label">Show Shapes</span></button></div>
                 </div>
+                <div class="form-group row" title="The saved shape presentation. Earlier refined retains the previous proportions and outlines.">
+                  <div class="col-4"><label for="threed-shape-style">Shape Style</label></div>
+                  <div class="col-8"><p-select inputId="threed-shape-style" ariaLabel="3D Shape Style" [options]="shapeStyleOptions" optionLabel="label" optionValue="value" appendTo="body" class="width-percent-100" [(ngModel)]="settings.shapeVersion" (ngModelChange)="changeSettings()"></p-select></div>
+                </div>
+                <div class="form-group row" title="Adaptive detail simplifies small nodes and increases detail when zoomed in. Image exports use fixed Balanced detail unless Fine is selected.">
+                  <div class="col-4"><label for="threed-shape-detail">Detail</label></div>
+                  <div class="col-8"><p-select inputId="threed-shape-detail" ariaLabel="3D Shape Detail" [options]="shapeDetailOptions" optionLabel="label" optionValue="value" appendTo="body" class="width-percent-100" [(ngModel)]="settings.nodeDetail" (ngModelChange)="changeSettings()"></p-select></div>
+                </div>
+                <div class="form-group row" title="Camera fill keeps a gentle neutral fill light aligned with your viewing direction.">
+                  <div class="col-4"><label for="threed-lighting">Lighting</label></div>
+                  <div class="col-8"><p-select inputId="threed-lighting" ariaLabel="3D Lighting" [options]="lightingOptions" optionLabel="label" optionValue="value" appendTo="body" class="width-percent-100" [(ngModel)]="settings.lightingMode" (ngModelChange)="changeSettings()"></p-select></div>
+                </div>
                 <div class="form-group row" title="Choose where to display the 3D node shape table.">
                   <div class="col-4"><label>Shape Table</label></div>
                   <div class="col-8"><p-select-button ariaLabel="3D Shape Table" [options]="tableModes" [allowEmpty]="false" fluid [ngModel]="shapeLegend.mode" (ngModelChange)="changeShapeLegend({type:'mode',value:$event})"></p-select-button></div>
@@ -144,7 +186,7 @@
                   </div>
                 </div>
                 }
-                <div class="form-group row" title="Width in pixels of the 3D shape's frame edges. Set to 0 to hide the frame.">
+                <div class="form-group row" title="Width in pixels of the shape silhouette and structural edges. Smooth shapes have no internal grid. Set to 0 to hide outlines.">
                   <div class="col-4"><label for="threed-node-border-width">Border Width</label></div>
                   <div class="col-8"><input id="threed-node-border-width" class="form-control form-control-sm" type="number" min="0" max="10" step="0.1" [(ngModel)]="settings.nodeBorderWidth" (ngModelChange)="changeSettings()"></div>
                 </div>
@@ -220,6 +262,16 @@
               <div class="form-group row" title="Highlight a node's neighbors when hovering over it."><div class="col-4"><label>Neighbors</label></div><div class="col-8"><p-select-button ariaLabel="Highlight Neighbors" [options]="neighborOptions" [allowEmpty]="false" fluid [(ngModel)]="settings.highlightNeighbors" (ngModelChange)="changeSettings()"></p-select-button></div></div>
             </p-accordion-content>
           </p-accordion-panel></p-accordion>
+          <p-accordion [value]="null" [multiple]="true"><p-accordion-panel value="threed-network-layout" style="color:#495057">
+            <p-accordion-header>Layout</p-accordion-header><p-accordion-content>
+              <p>Recalculating the same visible network with the same link length produces a repeatable layout. Restoring saved coordinates preserves a specific arrangement.</p>
+              <p>Restore a layout JSON file on the same visible network to recover its coordinates and camera. The restored layout stays frozen.</p>
+              <input #layoutFileInput type="file" accept=".json,application/json" hidden data-testid="threed-layout-file" (change)="restoreLayoutFile($event)">
+              <button type="button" class="btn btn-light btn-sm" data-testid="threed-layout-restore" (click)="layoutFileInput.click()" [disabled]="loading || !!error">Restore layout and camera</button>
+              @if (layoutImportError) { <p role="alert" class="three-d-settings-note">{{layoutImportError}}</p> }
+              @if (layoutImportMessage) { <p role="status" class="three-d-settings-note">{{layoutImportMessage}}</p> }
+            </p-accordion-content>
+          </p-accordion-panel></p-accordion>
         </tab>
       </tabset>
       <p class="three-d-settings-note">Colors, background, distance threshold, and filtering follow the global settings.</p>
@@ -230,24 +282,54 @@
     <three-d-shape-legend [model]="shapeLegend" tableId="threed-floating-shape-table" (change)="changeShapeLegend($event)"></three-d-shape-legend>
   </p-dialog>
 
-  <p-dialog data-testid="threed-export-dialog" [(visible)]="exportOpen" header="Export 3D Network" appendTo="body" [style]="{width: '400px', maxWidth: '95vw'}">
-    <label for="threed-export-filename">Filename</label>
-    <input id="threed-export-filename" class="form-control form-control-sm" [(ngModel)]="exportFilename">
-    <label>File type</label><p-select ariaLabel="3D Export File Type" [options]="exportFiletypes" [(ngModel)]="exportFiletype" appendTo="body" class="width-percent-100"></p-select>
-    <label for="threed-export-scale">Image scale</label>
-    <input id="threed-export-scale" class="form-control form-control-sm" type="number" min="1" max="5" step="0.5" [(ngModel)]="exportScale">
-    <label class="three-d-check"><input type="checkbox" [(ngModel)]="exportNodeTable"> Include node color key</label>
-    <label class="three-d-check"><input type="checkbox" [(ngModel)]="exportLinkTable"> Include link color key</label>
-    <label class="three-d-check"><input type="checkbox" [(ngModel)]="exportShapeTable" [disabled]="settings.nodeShapeField === 'None'"> Include 3D node shape key</label>
-    <p class="three-d-settings-note">Export scope: visible network ({{nodeCount | number}} nodes, {{linkCount | number}} links)</p>
-    @if (exportError) { <p role="alert">{{ exportError }}</p> }
-    <button type="button" class="btn btn-light btn-sm" (click)="exportOpen=false">Cancel</button>
-    <button type="button" class="btn btn-primary btn-sm" data-testid="threed-export-confirm" (click)="exportImage()">Export {{exportFiletype | uppercase}}</button>
+  <p-dialog data-testid="threed-export-dialog" [(visible)]="exportOpen" header="Export Network Image" appendTo="body" [style]="{maxWidth: '95vw'}">
+    <form class="modal-dialog three-d-export" novalidate (ngSubmit)="exportImage()">
+      <div class="modal-content">
+        <div class="modal-body">
+          <div class="export-scope-label" [attr.title]="nodeCount + ' nodes, ' + linkCount + ' links'">{{exportScopeLabel}}</div>
+          <div class="form-group row three-d-export-file">
+            <div class="col-8"><input id="threed-export-filename" name="filename" type="text" class="form-control form-control-sm" placeholder="Filename" aria-label="Filename" [(ngModel)]="exportFilename"></div>
+            <div class="col-4"><p-select id="threed-export-filetype" name="filetype" ariaLabel="3D Export File Type" [options]="exportFiletypes" [(ngModel)]="exportFiletype" appendTo="body" [style]="{width:'100%'}"></p-select></div>
+          </div>
+          <p-accordion [value]="null" [multiple]="true">
+            <p-accordion-panel value="export-advanced" style="color:#495057">
+              <p-accordion-header>Advanced</p-accordion-header>
+              <p-accordion-content [pt]="{root: {style: {overflow: 'hidden'}}}">
+                <div class="form-group row">
+                  <div class="col-3"><label for="threed-export-scale">Scale</label></div>
+                  <div class="col-9"><input id="threed-export-scale" name="scale" class="form-control form-control-sm" type="number" min="0.1" max="2" step="0.1" [(ngModel)]="exportScale" (ngModelChange)="updateExportResolution()"></div>
+                </div>
+                <div class="form-group row" title="Network image size. Displayed key tables and padding can increase the final dimensions.">
+                  <div class="col-3">Resolution</div><div id="threed-export-dimensions" class="col-9 text-right" aria-live="polite">{{exportResolution}}</div>
+                </div>
+                <div class="row">
+                  <div class="col-3"><label for="threed-export-quality">Quality</label></div>
+                  <div class="col-9"><input id="threed-export-quality" name="quality" type="range" class="custom-range" min="0" max="1" step="0.01" [(ngModel)]="exportQuality"><span>{{exportQuality}}</span></div>
+                </div>
+                <p class="three-d-export-note">Displayed color and 3D shape keys are included. PNG uses lossless quality.</p>
+              </p-accordion-content>
+            </p-accordion-panel>
+            <p-accordion-panel value="export-layout" style="color:#495057">
+              <p-accordion-header>Layout and camera</p-accordion-header>
+              <p-accordion-content [pt]="{root: {style: {overflow: 'hidden'}}}">
+                <p>Save the visible node coordinates and camera settings. Restore this file through <strong>3D Network Settings &gt; Network &gt; Layout</strong>.</p>
+                <button type="button" class="btn btn-light btn-sm" data-testid="threed-layout-export" (click)="exportLayout()">Export layout and camera (JSON)</button>
+              </p-accordion-content>
+            </p-accordion-panel>
+          </p-accordion>
+          @if (exportError) { <p role="alert" class="text-danger three-d-export-note">{{exportError}}</p> }
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-error" (click)="exportOpen=false">Cancel</button>
+          <button type="submit" class="btn btn-primary" data-testid="threed-export-confirm" [disabled]="exporting">Export</button>
+        </div>
+      </div>
+    </form>
   </p-dialog>
 }
 
 <div #shapeExportTable class="three-d-export-key" aria-hidden="true" inert>
-  @if (exportShapeTable) {
+  @if (settings.nodeShapeField !== 'None' && shapeLegend.mode !== 'Hide') {
     <table id="threed-export-shape-table">
       <tr><th>{{shapeLegend.headers.value}}</th>@if (shapeLegend.showCounts) {<th>{{shapeLegend.headers.count}}</th>}@if (shapeLegend.showFrequencies) {<th>{{shapeLegend.headers.frequency}}</th>}<th>Shape</th></tr>
       @for (row of shapeLegend.rows; track row.trackKey) {

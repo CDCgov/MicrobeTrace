@@ -10,10 +10,14 @@ import { CommonStoreService } from '@app/contactTraceCommonServices/common-store
 import { ExportService } from '@app/contactTraceCommonServices/export.service';
 import { MicobeTraceNextPluginEvents } from '@app/helperClasses/interfaces';
 import { ThreeDNetworkRenderer, type ThreeDNavigationMode } from './three-d-network-renderer.adapter';
+import { buildThreeDLayoutFile, readThreeDLayoutFile } from './three-d-layout';
+import { THREE_D_CAMERA_PRESETS, type ThreeDCameraPreset } from './three-d-camera-presets';
+import { saveAs } from 'file-saver';
+import { version, commitHash } from '../../../environments/version';
 import { color as parseColor } from 'd3-color';
 import { createGlobalSettingsDialogRequest, DialogRectSnapshot, GlobalSettingsDialogRequest } from '@app/helperClasses/globalSettingsDialogRequest';
 import { ThreeDShapeLegendChange, ThreeDShapeLegendModel } from './three-d-shape-legend.component';
-import { THREE_D_SHAPE_TREE, threeDShapePreview } from './three-d-shape-previews';
+import { THREE_D_SHAPE_TREE, threeDShapePreview, threeDShapeTree } from './three-d-shape-previews';
 import {
   buildThreeDGraph, ensureThreeDShapeMapping, normalizeThreeDViewState, readThreeDSettings, ThreeDSettings,
   THREE_D_NODE_SHAPES, ThreeDLinkColors, ThreeDNodeShape, threeDShapeCategory,
@@ -38,31 +42,41 @@ export class ThreeDComponent extends BaseComponentDirective implements OnInit, A
   exportOpen = false;
   exportFilename = '3d_network';
   exportScale = 1;
-  exportNodeTable = false;
-  exportLinkTable = false;
-  exportShapeTable = false;
   exportFiletype = 'png';
   exportQuality = 0.92;
   exportFiletypes = ['png', 'jpeg', 'webp'];
+  exportResolution = '';
+  exporting = false;
   viewActive = true;
   loading = true;
+  preparingInitialLayout = false;
   error = '';
   exportError = '';
+  layoutImportError = '';
+  layoutImportMessage = '';
   layoutFrozen = false;
   cameraRotating = false;
   navigationMode: ThreeDNavigationMode = 'rotate';
+  cameraPresets = THREE_D_CAMERA_PRESETS;
   nodeCount = 0;
   linkCount = 0;
+  performanceAdvisoryOpen = false;
+  performanceAdvisoryTier = 0;
+  readonly recommendedNodeCount = 750;
+  readonly recommendedLinkCount = 1500;
   nodeFields: Array<{ label: string; value: string }> = [];
   linkFields: Array<{ label: string; value: string }> = [];
   sizeFields: Array<{ label: string; value: string }> = [];
   linkSizeFields: Array<{ label: string; value: string }> = [];
   orientationOptions = ['Middle', 'Top', 'Bottom', 'Left', 'Right'];
+  shapeStyleOptions = [{ label: 'Optimized', value: 2 }, { label: 'Earlier refined', value: 1 }];
+  shapeDetailOptions = [{ label: 'Balanced', value: 'balanced' }, { label: 'Adaptive to zoom', value: 'auto' }, { label: 'Fine', value: 'fine' }];
+  lightingOptions = [{ label: 'Fixed', value: 'fixed' }, { label: 'Camera fill', value: 'camera' }];
   hideShowOptions = [{ label: 'Hide', value: false }, { label: 'Show', value: true }];
   tableModes = ['Show', 'Dock', 'Hide'];
   reciprocalOptions = [{ label: 'Reciprocal', value: true }, { label: 'Non-Reciprocal', value: false }];
   neighborOptions = [{ label: 'Normal', value: false }, { label: 'Highlighted', value: true }];
-  shapePreview = threeDShapePreview;
+  shapePreview = (shape: string) => threeDShapePreview(shape, this.settings.shapeVersion, this.settings.lightingMode);
   shapeDialogStyle: Record<string, string> = { width: '540px', maxWidth: '95vw' };
   private shapeDialogSource?: DialogRectSnapshot;
   shapeLegend: ThreeDShapeLegendModel = {
@@ -82,10 +96,13 @@ export class ThreeDComponent extends BaseComponentDirective implements OnInit, A
   private sourceNodes: any[] | null = null;
   private persistedState: ThreeDViewState | null = null;
   private needsRestore = true;
+  private performanceAdvisorySource: any[] | null = null;
+  private acknowledgedPerformanceTier = 0;
+  private renderingDeferred = false;
   private resizeHandler = () => this.goldenLayoutComponentResize();
   private hideHandler = () => this.setViewVisible(false);
   private showHandler = () => this.setViewVisible(true);
-  private documentVisibilityHandler = () => this.renderer?.setVisible(this.viewActive && !document.hidden && !this.error);
+  private documentVisibilityHandler = () => this.renderer?.setVisible(this.viewActive && !document.hidden && !this.error && !this.performanceAdvisoryOpen);
 
   constructor(
     @Inject(BaseComponentDirective.GoldenLayoutContainerInjectionToken) private container: ComponentContainer,
@@ -142,6 +159,14 @@ export class ThreeDComponent extends BaseComponentDirective implements OnInit, A
           this.cameraRotating = playing;
           this.cdref.markForCheck();
         }),
+        preparing => {
+          if (this.destroyed) return;
+          this.zone.run(() => {
+            this.preparingInitialLayout = preparing;
+            this.graphHost.nativeElement.dataset.rendered = String(!preparing && !this.renderingDeferred && !this.error);
+            this.cdref.markForCheck();
+          });
+        },
       );
       if (this.destroyed) { renderer.destroy(); return; }
       this.renderer = renderer;
@@ -173,12 +198,15 @@ export class ThreeDComponent extends BaseComponentDirective implements OnInit, A
     this.zone.runOutsideAngular(() => void this.initializeRenderer());
   }
 
-  openTwoD(): void { this.commonService.visuals.microbeTrace.Viewclick('2D Network'); }
+  openTwoD(): void {
+    this.performanceAdvisoryOpen = false;
+    this.commonService.visuals.microbeTrace.Viewclick('2D Network');
+  }
 
   private setViewVisible(visible: boolean): void {
-    if (!visible) this.persistViewState();
+    if (!visible) { this.persistViewState(); this.performanceAdvisoryOpen = false; }
     this.viewActive = visible;
-    this.renderer?.setVisible(visible && !document.hidden && !this.error);
+    this.renderer?.setVisible(visible && !document.hidden && !this.error && !this.performanceAdvisoryOpen);
     if (visible) { this.goldenLayoutComponentResize(); this.requestUpdate(); }
     this.cdref.markForCheck();
   }
@@ -235,10 +263,14 @@ export class ThreeDComponent extends BaseComponentDirective implements OnInit, A
       link => this.getLinkColors(link),
       this.renderer.nodes, this.renderer.savedPositions,
     );
-    this.renderer.setData(data, this.settings, session.style.widgets['background-color'] || '#ffffff');
     this.nodeCount = data.nodes.length;
     this.linkCount = data.links.length;
-    this.graphHost.nativeElement.dataset.rendered = 'true';
+    const needsPerformanceReview = this.updatePerformanceAdvisory();
+    this.renderingDeferred = needsPerformanceReview;
+    // Give users the advisory before starting the larger graph's layout and rendering work.
+    if (!needsPerformanceReview) this.renderer.setData(data, this.settings, session.style.widgets['background-color'] || '#ffffff');
+    this.renderer.setVisible(this.viewActive && !document.hidden && !needsPerformanceReview);
+    this.graphHost.nativeElement.dataset.rendered = String(!needsPerformanceReview && !this.preparingInitialLayout);
     this.graphHost.nativeElement.dataset.updateMs = (performance.now() - start).toFixed(1);
     this.zone.run(() => {
       if (this.viewActive && session.data.nodes.length) this.store.setNetworkRendered(true);
@@ -247,6 +279,26 @@ export class ThreeDComponent extends BaseComponentDirective implements OnInit, A
     if (this.nodeCount && this.shapeLegend.mode === 'Dock' && !this.commonService.visuals.keyTables) {
       this.commonService.visuals.microbeTrace.ensureDockedKeyTablesViewVisible(false);
     }
+  }
+
+  private updatePerformanceAdvisory(): boolean {
+    const source = this.commonService.session.data.nodes;
+    if (this.performanceAdvisorySource !== source) {
+      this.performanceAdvisorySource = source;
+      this.acknowledgedPerformanceTier = 0;
+    }
+    // Advisory tiers follow the measured default-style guidance, not hard capacity limits.
+    this.performanceAdvisoryTier = this.nodeCount > 2000 || this.linkCount > 4000 ? 2
+      : this.nodeCount > this.recommendedNodeCount || this.linkCount > this.recommendedLinkCount ? 1 : 0;
+    const needsReview = this.performanceAdvisoryTier > this.acknowledgedPerformanceTier;
+    this.performanceAdvisoryOpen = this.viewActive && needsReview;
+    return needsReview;
+  }
+
+  continueInThreeD(): void {
+    this.acknowledgedPerformanceTier = Math.max(this.acknowledgedPerformanceTier, this.performanceAdvisoryTier);
+    this.performanceAdvisoryOpen = false;
+    this.requestUpdate();
   }
 
   private getLinkColors(link: any): ThreeDLinkColors {
@@ -315,20 +367,22 @@ export class ThreeDComponent extends BaseComponentDirective implements OnInit, A
       .map(([key, count]) => ({ key, label: key === 'null' ? '(Empty)' : key, count }));
     const state = this.commonService.session.style.widgets['3DNet-node-shape-table-state'] ?? {};
     const names = state.names?.[this.settings.nodeShapeField] ?? {};
+    const shapeTree = threeDShapeTree(this.settings.shapeVersion, this.settings.lightingMode);
     const total = this.shapeCategories.reduce((sum, category) => sum + category.count, 0);
     const rows = this.shapeCategories.map(category => {
       const shape = this.settings.nodeShapeMappings[this.settings.nodeShapeField]?.[category.key] ?? this.settings.nodeShape;
       return { rawValue: category.key, trackKey: `3d-shape-${category.key}`,
         displayName: Object.prototype.hasOwnProperty.call(names, category.key) ? String(names[category.key]) : category.label,
         count: category.count, frequency: total ? Number((category.count / total).toFixed(3)) : 0,
-        shapeKey: shape, shapeSelection: THREE_D_SHAPE_TREE.find(option => option.key === shape) };
+        shapeKey: shape, shapeSelection: shapeTree.find(option => option.key === shape) };
     });
     const sort = ['value', 'count', 'frequency'].includes(state.sort) ? state.sort : 'count';
     rows.sort((a, b) => (sort === 'value' ? a.displayName.localeCompare(b.displayName, undefined, { numeric: true })
       : Number(a[sort]) - Number(b[sort])) * (state.descending !== false ? -1 : 1) || a.displayName.localeCompare(b.displayName));
     this.shapeLegend = {
       fields: this.nodeFields, field: this.settings.nodeShapeField,
-      uniformShape: THREE_D_SHAPE_TREE.find(option => option.key === this.settings.nodeShape), rows,
+      uniformShape: shapeTree.find(option => option.key === this.settings.nodeShape), rows,
+      shapeVersion: this.settings.shapeVersion, lightingMode: this.settings.lightingMode,
       headers: { value: String(state.headers?.value ?? `Node ${this.nodeFields.find(field => field.value === this.settings.nodeShapeField)?.label ?? 'Value'}`),
         count: String(state.headers?.count ?? 'Count'), frequency: String(state.headers?.frequency ?? 'Frequency') },
       mode: ['Show', 'Dock', 'Hide'].includes(state.mode) ? state.mode : this.defaultShapeLegendMode(),
@@ -413,7 +467,7 @@ export class ThreeDComponent extends BaseComponentDirective implements OnInit, A
   }
 
   public persistViewState(): void {
-    if (!this.renderer || this.needsRestore || this.sourceNodes !== this.commonService.session.data.nodes
+    if (!this.renderer || this.needsRestore || this.renderingDeferred || this.preparingInitialLayout || this.sourceNodes !== this.commonService.session.data.nodes
       || this.persistedState !== ((this.commonService.session.meta as any).threeDViewState ?? null)) return;
     const state = normalizeThreeDViewState(this.renderer.getState(new Set(this.sourceNodes.map(threeDNodeId))));
     if (!state) return;
@@ -425,6 +479,7 @@ export class ThreeDComponent extends BaseComponentDirective implements OnInit, A
     if (!this.graphHost || !this.renderer) return;
     const { width, height } = this.graphHost.nativeElement.getBoundingClientRect();
     this.zone.runOutsideAngular(() => this.renderer?.resize(width, height));
+    if (this.exportOpen) this.updateExportResolution();
   }
 
   changeSettings(): void {
@@ -454,31 +509,119 @@ export class ThreeDComponent extends BaseComponentDirective implements OnInit, A
   }
 
   resetCamera(): void { this.renderer?.resetCamera(); this.persistViewState(); }
+  setCameraPreset(preset: ThreeDCameraPreset): void {
+    if (this.loading || this.error || this.renderingDeferred || !this.nodeCount) return;
+    this.zone.runOutsideAngular(() => this.renderer?.setCameraPreset(preset));
+    this.persistViewState();
+  }
   openCenter(): void { this.renderer?.fit(); this.persistViewState(); }
   zoom(factor: number): void { this.renderer?.zoom(factor); this.persistViewState(); }
   openRefreshScreen(): void { this.layoutFrozen = false; this.zone.runOutsideAngular(() => this.renderer?.recalculate()); }
   openSettings(): void { this.rebuildFields(); this.settingsOpen = !this.settingsOpen; }
   openGlobalColors(event: MouseEvent): void { this.DisplayGlobalSettingsDialogEvent.emit(createGlobalSettingsDialogRequest('Styling', event)); }
-  openExport(): void { this.exportError = ''; this.exportOpen = true; }
+  openExport(): void { this.exportError = ''; this.updateExportResolution(); this.exportOpen = true; }
 
-  exportImage(): void {
+  get exportScopeLabel(): string {
+    return this.commonService.isNetworkSubsetFilterActive()
+      ? `Export scope: filtered visible network (${this.commonService.getNetworkSubsetFilterLabel()})`
+      : 'Export scope: full visible network';
+  }
+
+  updateExportResolution(): void {
+    const bounds = this.graphHost?.nativeElement.getBoundingClientRect();
+    const scale = Number(this.exportScale);
+    this.exportResolution = bounds && Number.isFinite(scale) && scale >= 0.1 && scale <= 2
+      ? `${Math.floor(bounds.width * scale)} x ${Math.floor(bounds.height * scale)}` : '—';
+  }
+
+  exportLayout(): void {
     try {
-      if (!this.renderer || this.error) throw new Error('The 3D view is not ready to export.');
-      const scale = Number(this.exportScale);
-      if (!Number.isFinite(scale) || scale < 1 || scale > 5) throw new Error('Choose an image scale between 1 and 5.');
-      const canvas = this.renderer.snapshot();
-      const bounds = this.graphHost.nativeElement.getBoundingClientRect();
-      this.exportService.setExportOptions({ filename: this.exportFilename || '3d_network', filetype: this.exportFiletype, scale, quality: this.exportQuality });
-      const tables = this.exportShapeTable && this.settings.nodeShapeField !== 'None'
-        ? [this.shapeExportTable.nativeElement.querySelector('table')] : [];
-      this.exportService.requestRendererRasterExport(canvas, bounds.width, bounds.height, tables, this.exportNodeTable, this.exportLinkTable);
+      if (!this.renderer || this.error || this.loading || this.renderingDeferred || this.preparingInitialLayout) throw new Error('Wait for the 3D view to finish loading before exporting its layout.');
+      const { width, height } = this.graphHost.nativeElement.getBoundingClientRect();
+      const file = buildThreeDLayoutFile(this.renderer.graphData, this.renderer.getState(),
+        { width, height }, { version, commit: commitHash }, this.settings.linkLength, this.settings);
+      const filename = (this.exportFilename.trim().replace(/\.(png|jpeg|webp|json)$/i, '') || '3d_network') + '-layout.json';
+      saveAs(new Blob([JSON.stringify(file, null, 2)], { type: 'application/json;charset=utf-8' }), filename);
+      this.exportError = '';
       this.exportOpen = false;
     } catch (error) {
-      this.exportError = error instanceof Error ? error.message : 'The image could not be exported.';
+      this.exportError = error instanceof Error ? error.message : 'The layout could not be exported.';
+    }
+  }
+
+  async restoreLayoutFile(event: Event): Promise<void> {
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0];
+    if (!file) return;
+    this.layoutImportError = '';
+    this.layoutImportMessage = '';
+    try {
+      const content = await file.text();
+      if (this.destroyed) return;
+      if (!this.renderer || this.error || this.loading || this.renderingDeferred || this.preparingInitialLayout) throw new Error('Wait for the 3D view to finish loading before restoring a layout.');
+      const parsed = JSON.parse(content);
+      const state = readThreeDLayoutFile(parsed, this.renderer.graphData);
+      if (parsed.rendering) {
+        this.settings.shapeVersion = parsed.rendering.shapeVersion;
+        this.settings.nodeDetail = parsed.rendering.nodeDetail;
+        this.settings.lightingMode = parsed.rendering.lightingMode;
+        writeThreeDSettings(this.commonService.session.style.widgets, this.settings);
+      }
+      const positions = { ...this.renderer.getState().positions, ...state.positions };
+      (this.commonService.session.meta as any).threeDViewState = { ...state, positions };
+      this.needsRestore = true;
+      this.requestUpdate();
+      this.layoutImportMessage = 'Layout and camera restored. The layout is frozen to preserve these coordinates.';
+    } catch (error) {
+      this.layoutImportError = error instanceof SyntaxError ? 'The file is not valid JSON.'
+        : error instanceof Error ? error.message : 'The layout could not be restored.';
+    } finally {
+      input.value = '';
+      this.cdref.markForCheck();
+    }
+  }
+
+  async exportImage(): Promise<void> {
+    if (this.exporting) return;
+    let started = false;
+    try {
+      if (!this.renderer || this.error || this.loading || this.renderingDeferred || this.preparingInitialLayout) throw new Error('Wait for the 3D view to finish loading before exporting an image.');
+      const scale = Number(this.exportScale);
+      const quality = Number(this.exportQuality);
+      if (!Number.isFinite(scale) || scale < 0.1 || scale > 2) throw new Error('Choose an image scale between 0.1 and 2.');
+      if (!Number.isFinite(quality) || quality < 0 || quality > 1) throw new Error('Choose an image quality between 0 and 1.');
+      if (!this.exportFiletypes.includes(this.exportFiletype)) throw new Error('Choose PNG, JPEG, or WebP for the image.');
+      this.exporting = true;
+      this.exportService.setExportOptions({ filename: this.exportFilename.trim() || '3d_network', filetype: this.exportFiletype, scale, quality });
+      this.exportOpen = false;
+      this.exportService.beginExport('Preparing network image', 5);
+      started = true;
+      await this.exportService.waitForUiPaint();
+      if (this.destroyed) { this.exportService.failExport(); return; }
+      if (!this.renderer || this.error || this.loading || this.renderingDeferred || this.preparingInitialLayout) throw new Error('The 3D view is no longer ready to export. Reopen the view and try again.');
+      this.exportService.updateExportProgress('Capturing visible network layers', 15);
+      const canvas = this.renderer.snapshot();
+      const bounds = this.graphHost.nativeElement.getBoundingClientRect();
+      const shapeTable = this.shapeExportTable.nativeElement.querySelector('table');
+      const tables = this.settings.nodeShapeField !== 'None' && this.shapeLegend.mode !== 'Hide' && shapeTable ? [shapeTable] : [];
+      this.exportService.updateExportProgress('Composing network and key tables', 45);
+      // Shared color keys follow their Show/Dock/Hide state, like 2D. Only the
+      // independent 3D shape key is supplied here; the 2D shape key is excluded.
+      this.exportService.requestRendererRasterExport(canvas, bounds.width, bounds.height, tables, true, true, false);
+    } catch (error) {
+      if (started) this.exportService.failExport();
+      if (!this.destroyed) {
+        this.exportError = error instanceof Error ? error.message : 'The image could not be exported.';
+        this.exportOpen = true;
+      }
+    } finally {
+      this.exporting = false;
+      if (!this.destroyed) this.cdref.markForCheck();
     }
   }
 
   onCanvasKeydown(event: KeyboardEvent): void {
+    if (this.preparingInitialLayout) return;
     if (event.key === '+' || event.key === '=') this.zoom(0.8);
     else if (event.key === '-') this.zoom(1.25);
     else if (event.key.toLowerCase() === 'f') this.openCenter();

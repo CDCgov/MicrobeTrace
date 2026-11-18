@@ -2,9 +2,11 @@ import { Component, EventEmitter, HostListener, Input, Output } from '@angular/c
 import { TreeNode } from 'primeng/api';
 import { NODE_SHAPE_TREE_SELECT_PASS_THROUGH } from '@app/contactTraceCommonServices/node-shape-picker';
 import { StyleKeyTableRow, StyleKeyTableSortColumn } from '../KeyTablesComponent/style-key-table.component';
-import { THREE_D_SHAPE_TREE, threeDShapePreview } from './three-d-shape-previews';
+import { threeDShapeTree, threeDShapePreview } from './three-d-shape-previews';
 
 export interface ThreeDShapeLegendModel {
+  shapeVersion?: 1 | 2;
+  lightingMode?: 'fixed' | 'camera';
   fields: Array<{ label: string; value: string }>;
   field: string;
   uniformShape: TreeNode;
@@ -76,8 +78,8 @@ export class ThreeDShapeLegendComponent {
   @Input() model: ThreeDShapeLegendModel;
   @Input() tableId = 'threed-shape-table';
   @Output() change = new EventEmitter<ThreeDShapeLegendChange>();
-  shapes = THREE_D_SHAPE_TREE;
-  preview = threeDShapePreview;
+  get shapes(): TreeNode[] { return threeDShapeTree(this.model?.shapeVersion ?? 2, this.model?.lightingMode ?? 'fixed'); }
+  preview = (shape: string) => threeDShapePreview(shape, this.model?.shapeVersion ?? 2, this.model?.lightingMode ?? 'fixed');
   shapePassThrough = NODE_SHAPE_TREE_SELECT_PASS_THROUGH;
   menuOpen = false;
   @HostListener('document:click') closeMenu(): void { this.menuOpen = false; }

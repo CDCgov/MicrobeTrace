@@ -227,7 +227,7 @@ export class ExportService {
       return {
         shapeKey: decodeURIComponent(shapeKey),
         label: decodeURIComponent(label),
-        previewSrc: previewSrc.startsWith('data:image/svg+xml') ? previewSrc : undefined
+        previewSrc: previewSrc.startsWith('data:image/svg+xml') || /^data:image\/png;base64,[A-Za-z0-9+/]+=*$/.test(previewSrc) ? previewSrc : undefined
       };
     }
 

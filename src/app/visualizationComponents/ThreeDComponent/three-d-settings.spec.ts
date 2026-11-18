@@ -52,6 +52,18 @@ describe('3D shape legend and settings isolation', () => {
     expect(component.shapeLegend.rows.find(row => row.rawValue === 'one').shapeKey).toBe('cube');
   });
 
+  it('saves rendering choices independently and selects previews for the saved shape version', () => {
+    Object.assign(component.settings, { shapeVersion: 1, nodeDetail: 'auto', lightingMode: 'camera' });
+    component.changeSettings();
+    const restored = readThreeDSettings(JSON.parse(JSON.stringify(common.session.style.widgets)));
+    expect(restored.shapeVersion).toBe(1); expect(restored.nodeDetail).toBe('auto'); expect(restored.lightingMode).toBe('camera');
+    component.openSettings();
+    expect(component.shapeLegend.shapeVersion).toBe(1);
+    expect(component.shapeLegend.uniformShape.data.previewSrc).toMatch(/^data:image\/png;base64,/);
+    expect(common.session.style.widgets['node-symbol-variable']).toBe('type');
+    expect(common.session.style.widgets['link-opacity']).toBe(0.8);
+  });
+
   it('increases transparency from left to right without changing 2D alpha or saved 3D appearance', () => {
     component.settings = readThreeDSettings({ '3DNet-link-transparency': 0.75 });
     expect(component.linkTransparency).toBe(0.75);
@@ -111,5 +123,87 @@ describe('3D shape legend and settings isolation', () => {
     common.session.style.widgets['node-symbol-table-visible'] = 'Dock';
     component.openShapes(new MouseEvent('click'));
     expect(component.shapeLegend.mode).toBe('Dock');
+  });
+
+  describe('large-network performance advisory', () => {
+    const review = () => (component as any).updatePerformanceAdvisory() as boolean;
+
+    it('uses both visible node and link counts, with inclusive recommended boundaries', () => {
+      for (const [nodes, links, tier] of [[750, 1500, 0], [751, 0, 1], [20, 1501, 1], [2000, 4000, 1], [2001, 1, 2], [20, 4001, 2]]) {
+        component.nodeCount = nodes;
+        component.linkCount = links;
+        expect(review()).withContext(`${nodes} nodes / ${links} links`).toBe(tier > 0);
+        expect(component.performanceAdvisoryTier).toBe(tier);
+      }
+    });
+
+    it('does not repeat an acknowledged advisory until the graph reaches the higher tier', () => {
+      component.nodeCount = 1000;
+      expect(review()).toBeTrue();
+      component.continueInThreeD();
+      expect(component.performanceAdvisoryOpen).toBeFalse();
+      expect(component.requestUpdate).toHaveBeenCalled();
+      component.nodeCount = 1800;
+      expect(review()).toBeFalse();
+      component.linkCount = 4001;
+      expect(review()).toBeTrue();
+      component.continueInThreeD();
+      expect(review()).toBeFalse();
+    });
+
+    it('closes the advisory when filtering brings the graph below the recommendation', () => {
+      component.nodeCount = 1000;
+      expect(review()).toBeTrue();
+      component.nodeCount = 20;
+      component.linkCount = 30;
+      expect(review()).toBeFalse();
+      expect(component.performanceAdvisoryOpen).toBeFalse();
+      component.nodeCount = 1000;
+      expect(review()).toBeTrue();
+    });
+
+    it('reviews each newly loaded dataset without writing acknowledgements to shared style settings', () => {
+      component.nodeCount = 1000;
+      const widgets = JSON.stringify(common.session.style.widgets);
+      review();
+      component.continueInThreeD();
+      common.session.data.nodes = [...common.session.data.nodes];
+      expect(review()).toBeTrue();
+      expect(JSON.stringify(common.session.style.widgets)).toBe(widgets);
+    });
+
+    it('defers rendering unreviewed large graphs while hidden without opening a dialog', () => {
+      component.viewActive = false;
+      component.nodeCount = 1000;
+      expect(review()).toBeTrue();
+      expect(component.performanceAdvisoryOpen).toBeFalse();
+      component.viewActive = true;
+      expect(review()).toBeTrue();
+      expect(component.performanceAdvisoryOpen).toBeTrue();
+    });
+
+    it('preserves saved camera and layout state while rendering is deferred', () => {
+      const getState = jasmine.createSpy('getState');
+      common.session.meta = {};
+      Object.assign(component as any, {
+        renderer: { getState }, needsRestore: false, renderingDeferred: true,
+        sourceNodes: common.session.data.nodes, persistedState: null,
+      });
+      component.persistViewState();
+      expect(getState).not.toHaveBeenCalled();
+      expect(common.session.meta.threeDViewState).toBeUndefined();
+    });
+  });
+
+  it('does not persist the intermediate camera or positions while preparing the first layout', () => {
+    const getState = jasmine.createSpy('getState');
+    common.session.meta = {};
+    Object.assign(component as any, {
+      renderer: { getState }, needsRestore: false, renderingDeferred: false,
+      sourceNodes: common.session.data.nodes, persistedState: null, preparingInitialLayout: true,
+    });
+    component.persistViewState();
+    expect(getState).not.toHaveBeenCalled();
+    expect(common.session.meta.threeDViewState).toBeUndefined();
   });
 });
