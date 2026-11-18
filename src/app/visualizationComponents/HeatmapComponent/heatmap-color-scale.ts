@@ -51,14 +51,23 @@ export function resolveHeatmapColorScale(
     resolved = resolveVariableColorScale(values, 'value', config);
   }
   if (resolved.constant) {
-    const colors = config.stops!.map(stop => stop.color);
+    const stops = config.stops!;
+    const colors = stops.map(stop => stop.color);
     const middleColor = colors[Math.floor(colors.length / 2)];
+    const stopMin = stops[0].value;
+    const stopSpan = stops[stops.length - 1].value - stopMin;
+    // Keep the full gradient even when every cell has the same value. Plotly
+    // expands the constant numeric range itself, as it did before the editor.
+    const colorscale: [number, string][] = stops.map((stop, index) => [
+      stopSpan > 0 ? (stop.value - stopMin) / stopSpan : index / (stops.length - 1),
+      stop.color,
+    ]);
     resolved = {
       ...resolved,
       stops: colors.map(color => ({ value: min, color })),
       colorMap: value => parseContinuousNumber(value).kind === 'number' ? middleColor : missingColor,
     };
-    return { config, resolved, colorscale: [[0, middleColor], [1, middleColor]] };
+    return { config, resolved, colorscale };
   }
   return {
     config,
