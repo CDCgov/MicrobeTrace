@@ -42,6 +42,7 @@
 # misc
 /.env.local
 /src/environments/primeui-license.generated.ts
+/src/assets/maplibre/maplibre-gl-worker.js
 /.playwright-cli/
 /.angular/cache
 /.sass-cache
