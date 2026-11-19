@@ -1137,11 +1137,11 @@ export class SigmaNetworkRendererAdapter {
       settings: {
         autoRescaleContent: 'nodes' as const,
         enableNodeDrag: this.nodeDraggingEnabled,
-        getDraggedNodes: draggedNode => [draggedNode],
         // Sigma v4's drag manager retains the graph supplied at construction.
-        // Edge LOD swaps the display graph, so the adapter applies pointer
-        // deltas to the current graph instead of letting that stale reference
-        // write node positions.
+        // Graph refreshes can introduce collapsed IDs absent from that graph.
+        // Keep Sigma's pointer session, but let the adapter handle node state
+        // and positions using the current graph and the event's primary node.
+        getDraggedNodes: () => [],
         dragPositionToAttributes: () => ({}),
         enableEdgeEvents: true,
         hideEdgesOnMove: false,
@@ -1358,15 +1358,20 @@ export class SigmaNetworkRendererAdapter {
       this.callbacks.onNodeContextMenu?.(node, event);
     });
     this.renderer.on('nodeDragStart', payload => {
-      this.startNodeDrag(payload.allDraggedNodes, payload.event);
+      const nodeIds = payload.allDraggedNodes.length ? payload.allDraggedNodes : [payload.node];
+      this.startNodeDrag(nodeIds, payload.event);
+      this.renderer?.setNodesState(nodeIds, { isDragged: true });
     });
     this.renderer.on('nodeDrag', payload => {
-      this.applyNodeDrag(payload.allDraggedNodes, payload.event);
-      this.syncDraggedNodePositions(payload.allDraggedNodes, false);
+      const nodeIds = payload.allDraggedNodes.length ? payload.allDraggedNodes : [payload.node];
+      this.applyNodeDrag(nodeIds, payload.event);
+      this.syncDraggedNodePositions(nodeIds, false);
     });
     this.renderer.on('nodeDragEnd', payload => {
-      this.applyNodeDrag(payload.allDraggedNodes, payload.event);
-      this.syncDraggedNodePositions(payload.allDraggedNodes, true);
+      const nodeIds = payload.allDraggedNodes.length ? payload.allDraggedNodes : [payload.node];
+      this.applyNodeDrag(nodeIds, payload.event);
+      this.syncDraggedNodePositions(nodeIds, true);
+      this.renderer?.setNodesState(nodeIds, { isDragged: false });
       this.nodeDragStartPointer = null;
       this.nodeDragStartPositions.clear();
       this.rebuildGroupHulls();
