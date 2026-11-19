@@ -427,7 +427,7 @@ describe('Journey Flow - Map custom floorplan GeoJSON and manual positions', () 
     cy.get('@mapSettings')
       .find('#map-user-geojson-color')
       .invoke('val', customGeoJSONColor)
-      .trigger('input');
+      .trigger('change');
     cy.get('@mapSettings')
       .find('#map-user-geojson-transparency')
       .invoke('val', String(customGeoJSONTransparency))

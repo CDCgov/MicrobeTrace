@@ -6186,7 +6186,7 @@ ${warnings.join('\n')}`,
                     }
 
                     editor.scrollIntoView({ block: 'center', inline: 'nearest' });
-                    editor.querySelector<HTMLElement>('select:not([disabled]), input:not([disabled]), button:not([disabled])')
+                    editor.querySelector<HTMLElement>('[role="combobox"]:not([aria-disabled="true"]), select:not([disabled]), input:not([disabled]), button:not([disabled])')
                         ?.focus({ preventScroll: true });
                 });
             });

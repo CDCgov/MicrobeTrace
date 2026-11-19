@@ -1,0 +1,6 @@
+row_id,Serum,Isolate ID,HI_Titer,Phenotype,Sort_Order
+row-1,S1,Virus A,40,Low,2
+row-2,S1,Virus A,160,High,9
+row-3,S1,Virus B,80,Medium,1
+row-4,S2,Virus A,null,null,1
+row-5,S2,Virus B,20,Low,1

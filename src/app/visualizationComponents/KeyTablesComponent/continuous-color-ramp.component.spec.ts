@@ -1,5 +1,6 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { FormsModule } from '@angular/forms';
+import { SelectModule } from 'primeng/select';
 import { createDefaultVariableColorScaleConfig, resolveVariableColorScale } from '@app/contactTraceCommonServices/variable-color-scale';
 import { ContinuousColorRampComponent } from './continuous-color-ramp.component';
 
@@ -77,7 +78,7 @@ describe('ContinuousColorRampComponent', () => {
   it('commits color-picker changes only after the picker selection is finished', async () => {
     await TestBed.configureTestingModule({
       declarations: [ContinuousColorRampComponent],
-      imports: [FormsModule],
+      imports: [FormsModule, SelectModule],
     }).compileComponents();
     const fixture: ComponentFixture<ContinuousColorRampComponent> = TestBed.createComponent(ContinuousColorRampComponent);
     const component = fixture.componentInstance;
@@ -89,8 +90,16 @@ describe('ContinuousColorRampComponent', () => {
 
     const colorInput = fixture.nativeElement.querySelector('.continuous-ramp__stop-row input[type="color"]') as HTMLInputElement;
     const missingColorInput = fixture.nativeElement.querySelector('#continuous-color-ramp-missing-color') as HTMLInputElement;
+    const minInput = fixture.nativeElement.querySelector('.continuous-ramp__bounds input') as HTMLInputElement;
+    const stopInput = fixture.nativeElement.querySelectorAll('.continuous-ramp__stop-row input[type="number"]')[1] as HTMLInputElement;
     const colorChange = spyOn(component, 'onStopColorChange');
     const missingColorChange = spyOn(component, 'onMissingColorChange');
+    const boundChange = spyOn(component, 'onDomainBoundChange');
+    const stopChange = spyOn(component, 'onStopValueChange');
+    minInput.value = '-20';
+    minInput.dispatchEvent(new Event('input', { bubbles: true }));
+    stopInput.value = '3';
+    stopInput.dispatchEvent(new Event('input', { bubbles: true }));
     colorInput.value = '#123456';
     colorInput.dispatchEvent(new Event('input', { bubbles: true }));
     missingColorInput.value = '#654321';
@@ -98,11 +107,42 @@ describe('ContinuousColorRampComponent', () => {
 
     expect(colorChange).not.toHaveBeenCalled();
     expect(missingColorChange).not.toHaveBeenCalled();
+    expect(boundChange).not.toHaveBeenCalled();
+    expect(stopChange).not.toHaveBeenCalled();
 
     colorInput.dispatchEvent(new Event('change', { bubbles: true }));
     missingColorInput.dispatchEvent(new Event('change', { bubbles: true }));
+    minInput.dispatchEvent(new Event('change', { bubbles: true }));
+    stopInput.dispatchEvent(new Event('change', { bubbles: true }));
 
     expect(colorChange).toHaveBeenCalledOnceWith(0, '#123456');
     expect(missingColorChange).toHaveBeenCalledOnceWith('#654321');
+    expect(boundChange).toHaveBeenCalledOnceWith('min', '-20');
+    expect(stopChange).toHaveBeenCalledOnceWith(1, '3');
+  });
+
+  it('can show only the editor while leaving the gradient and missing-data display to the view', async () => {
+    await TestBed.configureTestingModule({
+      declarations: [ContinuousColorRampComponent],
+      imports: [FormsModule, SelectModule],
+    }).compileComponents();
+    const fixture = TestBed.createComponent(ContinuousColorRampComponent);
+    const component = fixture.componentInstance;
+    const configured = buildComponent();
+    component.editable = true;
+    component.config = configured.config;
+    component.resolved = configured.resolved;
+    component.showPreview = false;
+    component.showMissingColor = false;
+    component.automaticDomainLabel = 'Automatic (heatmap data)';
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.querySelector('[data-testid="continuous-color-gradient"]')).toBeNull();
+    expect(fixture.nativeElement.querySelector('.continuous-ramp__missing')).toBeNull();
+    expect(fixture.nativeElement.querySelectorAll('.continuous-ramp__stop-row').length).toBe(3);
+    expect(fixture.nativeElement.querySelector('p-select')).not.toBeNull();
+    expect(fixture.nativeElement.textContent).toContain('Custom bounds');
   });
 });

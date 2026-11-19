@@ -6,6 +6,7 @@ import {
   assertHeatmapMatchesBackingMatrix,
   launchProfileToHeatmap,
   openHeatmapSettingsDialog,
+  setHeatmapColorStop,
   saveSessionFromFileMenu,
   visitAppAndAcceptEula,
   waitForProcessingDialogToClear,
@@ -15,6 +16,7 @@ import { byTestId, testIds } from '../../../support/selectors';
 type HeatmapAccordionPanel = 'heatmap-invert' | 'heatmap-labels' | 'heatmap-color';
 
 const openHeatmapAccordion = (panelValue: HeatmapAccordionPanel): void => {
+  cy.get('@heatmapSettings').contains('.nav-link', 'Appearance').click({ force: true });
   cy.get('@heatmapSettings')
     .find(`p-accordion-panel[value="${panelValue}"] .p-accordionheader`)
     .first()
@@ -33,15 +35,6 @@ const setSelectButtonValue = (controlSelector: string, value: 'Yes' | 'No'): voi
     .find('p-togglebutton')
     .eq(targetIndex)
     .click({ force: true });
-};
-
-const setColorInput = (inputSelector: string, color: string): void => {
-  cy.get('@heatmapSettings').find(inputSelector).then(($input) => {
-    const input = $input.get(0) as HTMLInputElement;
-    input.value = color;
-    input.dispatchEvent(new Event('input', { bubbles: true }));
-    input.dispatchEvent(new Event('change', { bubbles: true }));
-  });
 };
 
 const ensureHeatmapViewAfterReload = (): void => {
@@ -79,11 +72,12 @@ describe('Journey Flow - Heatmap session round-trip', () => {
 
     openHeatmapAccordion('heatmap-labels');
     setSelectButtonValue('#show-labels', 'Yes');
+    cy.get('@heatmapSettings').find('#heatmap-axis-label-size').invoke('val', 2).trigger('input').trigger('change');
 
     openHeatmapAccordion('heatmap-color');
-    setColorInput('#low-color', colors.low);
-    setColorInput('#med-color', colors.medium);
-    setColorInput('#hi-color', colors.high);
+    setHeatmapColorStop(0, colors.low);
+    setHeatmapColorStop(1, colors.medium);
+    setHeatmapColorStop(2, colors.high);
 
     cy.closeSettingsPane('Heatmap Settings');
 
@@ -118,11 +112,17 @@ describe('Journey Flow - Heatmap session round-trip', () => {
         expect(widgets['heatmap-invertX']).to.equal(true);
         expect(widgets['heatmap-invertY']).to.equal(true);
         expect(widgets['heatmap-axislabels-show']).to.equal(true);
+        expect(widgets['heatmap-axislabels-size']).to.equal(24);
         expect(widgets['heatmap-color-low']).to.equal(colors.low);
         expect(widgets['heatmap-color-medium']).to.equal(colors.medium);
         expect(widgets['heatmap-color-high']).to.equal(colors.high);
       });
 
+    cy.get('#heatmap').should(($plot) => {
+      const layout = ($plot[0] as any)._fullLayout;
+      expect(layout.xaxis.tickfont.size).to.equal(24);
+      expect(layout.yaxis.tickfont.size).to.equal(24);
+    });
     assertHeatmapMatchesBackingMatrix({
       invertX: true,
       invertY: true,
