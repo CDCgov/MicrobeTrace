@@ -1,4 +1,5 @@
 import { hierarchy } from 'd3';
+import { ClusterFootprintIndex } from './cluster-footprint-index';
 
 export interface ClusterGeneticEdge {
   source: string;
@@ -81,6 +82,35 @@ interface PackedFamily {
   points: PackedCluster[];
   byId: Map<string, PackedCluster>;
   bounds: { left: number; right: number; top: number; bottom: number };
+  index?: ClusterFootprintIndex;
+}
+
+function pushFamily(heap: number[], family: number): void {
+  let index = heap.length;
+  heap.push(family);
+  while (index > 0) {
+    const parent = (index - 1) >>> 1;
+    if (heap[parent] <= family) break;
+    heap[index] = heap[parent];
+    index = parent;
+  }
+  heap[index] = family;
+}
+
+function popFamily(heap: number[]): number | undefined {
+  const first = heap[0], last = heap.pop();
+  if (heap.length) {
+    let index = 0;
+    while (index * 2 + 1 < heap.length) {
+      let child = index * 2 + 1;
+      if (child + 1 < heap.length && heap[child + 1] < heap[child]) child++;
+      if (heap[child] >= last!) break;
+      heap[index] = heap[child];
+      index = child;
+    }
+    heap[index] = last!;
+  }
+  return first;
 }
 
 /** Join occupied cluster footprints, rather than reserving an enclosing circle
@@ -89,14 +119,43 @@ interface PackedFamily {
  * with another footprint, keeping the required gap between every cluster pair.
  */
 function packMergeFamilies(children: PackedFamily[], joins: ClusterMergeLink[], gap: number): PackedFamily {
-  const [placed, ...remaining] = children;
-  while (remaining.length) {
-    const crosses = (edge: ClusterMergeLink, family: PackedFamily) => (
-      placed.byId.has(edge.source) && family.byId.has(edge.target)
-    ) || (placed.byId.has(edge.target) && family.byId.has(edge.source));
-    const connected = remaining.findIndex(family => joins.some(edge => crosses(edge, family)));
-    const next = remaining.splice(Math.max(0, connected), 1)[0];
-    const edge = joins.find(edge => crosses(edge, next));
+  const placed = children[0];
+  // Index the smaller incoming families; the first family's existing map handles
+  // its members without rescanning a large accumulated family at every level.
+  const incoming = new Map<string, number>();
+  children.forEach((family, index) => {
+    if (index) family.points.forEach(point => incoming.set(point.id, index));
+  });
+  const familyOf = (id: string) => incoming.get(id) ?? (placed.byId.has(id) ? 0 : undefined);
+  const adjacent: Array<Array<{ other: number; edge: number }>> = children.map(() => []);
+  joins.forEach((edge, index) => {
+    const left = familyOf(edge.source), right = familyOf(edge.target);
+    if (left === undefined || right === undefined || left === right) return;
+    adjacent[left].push({ other: right, edge: index });
+    adjacent[right].push({ other: left, edge: index });
+  });
+  const used = new Uint8Array(children.length);
+  const connection = new Int32Array(children.length).fill(-1);
+  const eligible: number[] = [];
+  const connect = (index: number) => adjacent[index].forEach(({ other, edge }) => {
+    if (used[other]) return;
+    if (connection[other] < 0) pushFamily(eligible, other);
+    if (connection[other] < 0 || edge < connection[other]) connection[other] = edge;
+  });
+  used[0] = 1;
+  connect(0);
+  let fallback = 1;
+  let collisionIndex = placed.index;
+  if (!collisionIndex && placed.points.length >= 64) collisionIndex = new ClusterFootprintIndex(placed.points);
+  for (let count = 1; count < children.length; count++) {
+    let chosen = popFamily(eligible);
+    while (chosen !== undefined && used[chosen]) chosen = popFamily(eligible);
+    if (chosen === undefined) {
+      while (used[fallback]) fallback++;
+      chosen = fallback;
+    }
+    const next = children[chosen];
+    const edge = connection[chosen] < 0 ? undefined : joins[connection[chosen]];
     const leftAnchor = edge
       ? placed.byId.get(placed.byId.has(edge.source) ? edge.source : edge.target)!
       : { x: (placed.bounds.left + placed.bounds.right) / 2, y: (placed.bounds.top + placed.bounds.bottom) / 2, radius: 0 };
@@ -118,15 +177,21 @@ function packMergeFamilies(children: PackedFamily[], joins: ClusterMergeLink[], 
       const angle = angleOffset + direction * Math.PI / 8;
       const ux = Math.cos(angle), uy = Math.sin(angle);
       let separation = 0;
-      for (const left of placed.points) {
+      if (collisionIndex) {
         for (const right of next.points) {
-          const dx = right.x + baseX - left.x;
-          const dy = right.y + baseY - left.y;
-          const perpendicular = dx * uy - dy * ux;
-          const radius = left.radius + right.radius + gap;
-          if (Math.abs(perpendicular) >= radius) continue;
-          separation = Math.max(separation, -(dx * ux + dy * uy)
-            + Math.sqrt(Math.max(0, radius * radius - perpendicular * perpendicular)));
+          separation = collisionIndex.requiredSeparation(right, baseX, baseY, ux, uy, gap, separation);
+        }
+      } else {
+        for (const left of placed.points) {
+          for (const right of next.points) {
+            const dx = right.x + baseX - left.x;
+            const dy = right.y + baseY - left.y;
+            const perpendicular = dx * uy - dy * ux;
+            const radius = left.radius + right.radius + gap;
+            if (Math.abs(perpendicular) >= radius) continue;
+            separation = Math.max(separation, -(dx * ux + dy * uy)
+              + Math.sqrt(Math.max(0, radius * radius - perpendicular * perpendicular)));
+          }
         }
       }
       const x = baseX + ux * separation, y = baseY + uy * separation;
@@ -145,9 +210,14 @@ function packMergeFamilies(children: PackedFamily[], joins: ClusterMergeLink[], 
       const translated = { ...point, x: point.x + best!.x, y: point.y + best!.y };
       placed.points.push(translated);
       placed.byId.set(point.id, translated);
+      collisionIndex?.add(translated);
     }
     placed.bounds = best!.bounds;
+    used[chosen] = 1;
+    connect(chosen);
+    if (!collisionIndex && placed.points.length >= 64) collisionIndex = new ClusterFootprintIndex(placed.points);
   }
+  placed.index = collisionIndex;
   return placed;
 }
 

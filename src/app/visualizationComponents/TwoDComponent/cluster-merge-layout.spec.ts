@@ -70,6 +70,27 @@ describe('Closest-pair cluster merge backbone', () => {
     expect(Math.max(...positions.map(p => p.y)) - Math.min(...positions.map(p => p.y))).toBeGreaterThan(40);
   });
 
+  it('preserves family and anchor selection with tied connections and disconnected families', () => {
+    const footprints = Array.from({ length: 8 }, (_, i) => ({
+      id: String.fromCharCode(65 + i), radius: 12 + i % 3 * 11, x: i * 17, y: i % 2 * -21,
+    }));
+    const links = [['A', 'F', 1], ['C', 'F', 1], ['B', 'G', 1], ['A', 'B', 1], ['D', 'E', 2]]
+      .map(([source, target, distance]) => ({ source: String(source), target: String(target), distance: Number(distance),
+        sourceNodeId: String(source), targetNodeId: String(target) }));
+    // Coordinates captured from the exhaustive packer before indexing.
+    const expected = [
+      [28.48960658472902, -2.2246036485996825], [-26.37350832269466, 1.6533626553831482],
+      [1.992522028022293, 80.23462117193725], [83.29504988733673, -118.87527769221614],
+      [111.75373160158759, -52.38060636190811], [79.8518030243405, 39.22325247085191],
+      [23.396078356493994, -45.92879074993099], [173.5947168401845, 14.298042154482658],
+    ];
+    const actual = positionClusterMergeHierarchy(footprints, links, 20, 50);
+    footprints.forEach((footprint, index) => {
+      expect(actual.get(footprint.id)!.x).toBeCloseTo(expected[index][0], 8);
+      expect(actual.get(footprint.id)!.y).toBeCloseTo(expected[index][1], 8);
+    });
+  });
+
   it('keeps a deep merge hierarchy compact without overlapping its cluster footprints', () => {
     const footprints = Array.from({ length: 80 }, (_, i) => ({ id: String(i), radius: 10, x: 0, y: 0 }));
     const links = footprints.slice(1).map((cluster, i) => ({

@@ -1,6 +1,118 @@
 import { enableGroupingShow } from '../../support/journey-helpers';
 
 describe('Sigma cluster-first layout', () => {
+  it('waits for global and 2D settings, then calculates the initial layout once', () => {
+    let releaseSettings: () => void;
+    let settingsRequested = false;
+    cy.visit('/?skipEula=1&skipDemoSession=1&renderer=sigma');
+    cy.window().should((win: any) => expect(win.commonService).to.exist);
+    cy.window().then((win: any) => {
+      const common = win.commonService, store = common.store;
+      const setSettingsLoaded = store.setSettingsLoaded.bind(store);
+      cy.stub(store, 'setSettingsLoaded').callsFake((loaded: boolean) => {
+        if (loaded) settingsRequested = true;
+        else setSettingsLoaded(false);
+      });
+      releaseSettings = () => setSettingsLoaded(true);
+      cy.spy(common, 'getClusterMergeLayoutEdges').as('mergeLayoutLookup');
+      cy.spy(common, 'recordPerformanceDuration').as('renderRecords');
+    });
+    cy.get('#fileDropRef').selectFile([
+      { contents: Cypress.Buffer.from('ID\nA1\nA2\nB1\nB2'), fileName: 'StartupNodes.csv', mimeType: 'text/csv' },
+      { contents: Cypress.Buffer.from('source,target,distance\nA1,A2,1\nB1,B2,1\nA2,B1,5'), fileName: 'StartupLinks.csv', mimeType: 'text/csv' },
+    ], { force: true });
+    cy.get('#launch', { timeout: 30000 }).should('not.be.disabled').click();
+    cy.window().should((win: any) => {
+      const twoD = win.commonService.visuals.twoD;
+      expect(settingsRequested, 'global settings reached the readiness notification').to.equal(true);
+      expect(twoD.sigmaViewInitialized).to.equal(true);
+      expect(twoD.sigmaRenderer, 'no graph is rendered with incomplete settings').to.equal(null);
+      expect(twoD.isRendererReady()).to.equal(false);
+    });
+    cy.get('@mergeLayoutLookup').should('not.have.been.called');
+    cy.window().then((win: any) => {
+      const twoD = win.commonService.visuals.twoD;
+      Object.assign(twoD.widgets, { 'link-length': 73, 'node-radius': 18, 'polygons-show': true, 'polygons-foci': 'cluster' });
+      twoD.loadSettings();
+      releaseSettings();
+    });
+    cy.window({ timeout: 30000 }).should((win: any) => {
+      const twoD = win.commonService.visuals.twoD;
+      expect(twoD.isRendererReady()).to.equal(true);
+      expect(twoD.sigmaRenderer.getGraph().order).to.equal(4);
+      expect(twoD.SelectedLinkLengthVariable).to.equal(73);
+      expect(twoD.SelectedNodeRadiusSizeVariable).to.equal(18);
+      expect(twoD.sigmaRenderer.getSummary().groupHullCount).to.be.greaterThan(0);
+    });
+    cy.get('@mergeLayoutLookup').should('have.been.calledOnce');
+    cy.get('@renderRecords').then((spy: any) => {
+      expect(spy.getCalls().filter((call: any) => call.args[1] === 'twoDSigmaRender'),
+        'one completed initial graph render').to.have.length(1);
+    });
+    cy.window().then(async (win: any) => {
+      const twoD = win.commonService.visuals.twoD;
+      twoD.SelectedLinkLengthVariable = 95;
+      await twoD.onLinkLengthChange(95);
+      expect(twoD.isRendererReady(), 'a real link-length change still completes').to.equal(true);
+    });
+    cy.get('@mergeLayoutLookup').should('have.been.calledTwice');
+  });
+
+  it('reuses the renderer and unaffected members while separating clusters and singletons after threshold decreases', () => {
+    cy.visit('/?skipEula=1&skipDemoSession=1&renderer=sigma');
+    cy.get('#fileDropRef').selectFile([
+      { contents: Cypress.Buffer.from('ID\nA1\nA2\nB1\nB2\nS\nZ1\nZ2'), fileName: 'SplitNodes.csv', mimeType: 'text/csv' },
+      { contents: Cypress.Buffer.from('source,target,distance\nA1,A2,1\nB1,B2,1\nZ1,Z2,1\nA2,B1,3\nB2,S,5\nB1,Z1,100'), fileName: 'SplitLinks.csv', mimeType: 'text/csv' },
+    ], { force: true });
+    cy.get('#launch', { timeout: 30000 }).should('not.be.disabled').click();
+    cy.window({ timeout: 60000 }).should((win: any) => {
+      expect(win.commonService.visuals.twoD.isRendererReady()).to.equal(true);
+      expect(win.commonService.visuals.twoD.sigmaRenderer.getGraph().order).to.equal(7);
+    });
+    cy.window().then({ timeout: 60000 }, async (win: any) => {
+      const common = win.commonService, twoD = common.visuals.twoD;
+      const adapter = twoD.sigmaRenderer, renderer = adapter.getRenderer();
+      for (const threshold of [1, 3, 5, 3, 1]) {
+        await common.applyLinkThreshold(threshold);
+        const started = Date.now(), expectedLinks = threshold === 1 ? 3 : threshold === 3 ? 4 : 5;
+        while (!twoD.isRendererReady() || twoD.sigmaRenderer.getGraph().size !== expectedLinks) {
+          if (Date.now() - started > 20000) throw new Error('Threshold layout did not finish');
+          await new Promise(resolve => win.setTimeout(resolve, 20));
+        }
+        await new Promise(resolve => win.requestAnimationFrame(() => win.requestAnimationFrame(resolve)));
+        expect(twoD.sigmaRenderer, 'adapter survives threshold updates').to.equal(adapter);
+        expect(adapter.getRenderer(), 'WebGL renderer survives threshold updates').to.equal(renderer);
+        expect(twoD.sigmaLayoutDiagnostics.reusedClusters, 'unaffected Z pair reuses its member geometry').to.be.greaterThan(0);
+        const graph = adapter.getGraph(), seen = new Set<string>();
+        const footprints: Array<{ x: number; y: number; radius: number }> = [];
+        graph.forEachNode((id: string) => {
+          if (seen.has(id)) return;
+          const pending = [id], members: any[] = [];
+          seen.add(id);
+          while (pending.length) {
+            const next = pending.pop()!;
+            members.push(graph.getNodeAttributes(next));
+            graph.neighbors(next).forEach((neighbor: string) => {
+              if (!seen.has(neighbor)) { seen.add(neighbor); pending.push(neighbor); }
+            });
+          }
+          const x = members.reduce((sum, node) => sum + node.x, 0) / members.length;
+          const y = members.reduce((sum, node) => sum + node.y, 0) / members.length;
+          footprints.push({ x, y, radius: Math.max(...members.map(node =>
+            Math.hypot(node.x - x, node.y - y) + twoD.getNodeCollisionRadius(node.raw))) });
+        });
+        footprints.forEach((left, index) => footprints.slice(index + 1).forEach(right => {
+          expect(Math.hypot(left.x - right.x, left.y - right.y) - left.radius - right.radius,
+            'split components and singletons occupy separate footprints').to.be.greaterThan(0);
+        }));
+      }
+      await twoD.updateLayout();
+      expect(twoD.sigmaRenderer, 'explicit recalculation reuses the adapter').to.equal(adapter);
+      expect(adapter.getRenderer(), 'explicit recalculation reuses the WebGL renderer').to.equal(renderer);
+      expect(twoD.sigmaLayoutDiagnostics.reusedClusters, 'explicit recalculation still settles members').to.equal(0);
+    });
+  });
+
   it('uses hidden genetic distances for merge-aware placement and freezes that placement during sensitivity exploration', () => {
     const nodeIds = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2', 'D1', 'D2', 'Unknown1', 'Unknown2'];
     const links = [

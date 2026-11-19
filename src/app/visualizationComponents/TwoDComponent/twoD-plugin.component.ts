@@ -17,7 +17,7 @@ import { getCustomNodeShapeData, getCustomNodeShapeVectorData, getMixedNodeShape
 import type cytoscape from 'cytoscape';
 import type { Core, Style } from 'cytoscape';
 import { layoutClustersBySize } from './cluster-size-layout';
-import { layoutClusterForces } from './cluster-force-layout';
+import { layoutClusterForces, type ClusterMemberLayout } from './cluster-force-layout';
 import { Subject, Subscription, takeUntil } from 'rxjs';
 //import fcose from 'cytoscape-fcose';
 import * as d3f from 'd3-force';
@@ -168,6 +168,15 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Aft
     private sigmaRenderer: SigmaNetworkRendererAdapter | null = null;
     private sigmaRendering = false;
     private sigmaRenderQueued = false;
+    private sigmaRenderTimer: ReturnType<typeof setTimeout> | null = null;
+    private sigmaViewInitialized = false;
+    private sigmaSettingsReady = false;
+    private sigmaViewSettingsGeneration = -1;
+    private sigmaLayoutRequested = false;
+    private sigmaStyleRefreshQueued = false;
+    private sigmaStylesCaptured = false;
+    private sigmaMemberLayouts = new Map<string, ClusterMemberLayout>();
+    sigmaLayoutDiagnostics: { simulatedClusters: number; reusedClusters: number; simulatedNodes: number; memberTicks: number } | null = null;
     private sigmaRecoveryInProgress = false;
     private readonly sigmaLayoutGroupByNodeId = new Map<string, string>();
     private readonly sigmaManuallyPositionedNodeIds = new Set<string>();
@@ -1033,7 +1042,8 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Aft
 
     public isRendererReady(): boolean {
         if (this.sigmaActive) {
-            return Boolean(this.sigmaRenderer && !this.sigmaLoading && !this.sigmaRendering);
+            return Boolean(this.sigmaRenderer && this.sigmaSettingsReady && !this.sigmaLoading && !this.sigmaRendering
+                && !this.sigmaRenderQueued && !this.sigmaLayoutRequested && !this.sigmaStyleRefreshQueued);
         }
         return Boolean(this.cy && !(typeof this.cy.destroyed === 'function' && this.cy.destroyed()));
     }
@@ -1841,8 +1851,30 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Aft
         }, 0);
     }
 
+    private scheduleSigmaRenderAfterSettings(): void {
+        if (!this.sigmaActive || this.isDestroyed || !this.sigmaRenderQueued
+            || !this.sigmaViewInitialized || !this.store.settingsLoadedValue
+            || this.sigmaViewSettingsGeneration !== this.commonService.getDataLoadGeneration()
+            || this.sigmaRenderTimer !== null) return;
+
+        // Settings notifications and view initialization can request rendering in
+        // the same turn. Start once they have all restored their saved values.
+        this.sigmaRenderTimer = setTimeout(() => {
+            this.sigmaRenderTimer = null;
+            if (this.isDestroyed || !this.store.settingsLoadedValue
+                || this.sigmaViewSettingsGeneration !== this.commonService.getDataLoadGeneration()) return;
+            this.sigmaSettingsReady = true;
+            void this.renderSigma(false);
+        }, 0);
+    }
+
     private async renderSigma(timelineTick = false): Promise<void> {
         if (!this.sigmaActive || this.isDestroyed) return;
+        if (!this.sigmaSettingsReady || !this.store.settingsLoadedValue) {
+            this.sigmaRenderQueued = true;
+            this.scheduleSigmaRenderAfterSettings();
+            return;
+        }
         if (this.sigmaRendering) {
             this.sigmaRenderQueued = true;
             return;
@@ -1857,7 +1889,11 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Aft
         }
 
         const renderStartedAt = this.getPerformanceNow();
+        if (this.sigmaRenderTimer !== null) clearTimeout(this.sigmaRenderTimer);
+        this.sigmaRenderTimer = null;
+        this.sigmaRenderQueued = false;
         this.sigmaRendering = true;
+        this.sigmaStylesCaptured = false;
         this.sigmaLoading = true;
         this.sigmaLoadingMessage = 'Preparing the complete client-side graph';
         this.setNetworkRendering(true);
@@ -1868,6 +1904,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Aft
             const dataGeneration = this.commonService.getDataLoadGeneration();
             if (dataGeneration !== this.sigmaLayoutDataGeneration) {
                 this.sigmaManuallyPositionedNodeIds.clear();
+                this.sigmaMemberLayouts.clear();
                 this.sigmaLayoutDataGeneration = dataGeneration;
             }
             let networkData = this.getVisibleNetworkDataForRender(
@@ -1897,8 +1934,10 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Aft
                 && this.getNetworkLayout() === 'order-by-size'
                 && !this.isTimelineFilteringActive();
             this.pendingThresholdIncreaseRelayout = false;
-            const needsInitialLayout = !this.sigmaRenderer
+            const requestedLayout = this.sigmaLayoutRequested;
+            const needsInitialLayout = requestedLayout || !this.sigmaRenderer
                 || networkData.nodes.some(node => !this.hasFinitePosition(node));
+            this.sigmaLayoutRequested = false;
             const previousGraph = this.sigmaRenderer?.getGraph();
             const topologyChanged = previousGraph && !this.isTimelineFilteringActive() && (
                 previousGraph.order !== networkData.nodes.length
@@ -1928,6 +1967,9 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Aft
                         preserveCenters,
                         geneticEdges,
                         anchoredNodeIds: this.sigmaManuallyPositionedNodeIds,
+                        memberLayouts: this.sigmaMemberLayouts,
+                        reuseMembers: !needsInitialLayout,
+                        onSettled: diagnostics => { this.sigmaLayoutDiagnostics = diagnostics; },
                         ticks,
                         runTicks: (simulation, count) => this.runStoppedD3Ticks(
                             simulation, count, this.getD3TicksPerYield(networkData.nodes, layoutBackbone)
@@ -1978,6 +2020,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Aft
             }
             this.updateRendererAccessibleFeatures(networkData.nodes);
 
+            this.sigmaStylesCaptured = true;
             const sigmaNodes = networkData.nodes.map(node => {
                 const [color, opacity] = this.getNodeColor(node);
                 const nodeId = this.getNodeId(node);
@@ -2133,8 +2176,12 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Aft
             this.sigmaRendering = false;
             this.cdref.markForCheck();
             if (this.sigmaRenderQueued && !this.isDestroyed && this.sigmaActive) {
-                this.sigmaRenderQueued = false;
-                setTimeout(() => void this.renderSigma(false), 0);
+                // Keep readiness false until the queued render actually starts.
+                this.sigmaRenderTimer = setTimeout(() => {
+                    this.sigmaRenderTimer = null;
+                    this.sigmaRenderQueued = false;
+                    void this.renderSigma(false);
+                }, 0);
             }
         }
     }
@@ -2155,7 +2202,18 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Aft
             this.sigmaRenderer = null;
             this.sigmaLayoutGroupByNodeId.clear();
         }
-        void this.renderSigma(false);
+        // Color-domain updates and networkUpdated$ can arrive in the same turn.
+        // Let the full network update start first; its final style pass then
+        // includes these changes without building the same graph twice.
+        if (recomputeLayout) {
+            void this.renderSigma(false);
+        } else if (!this.sigmaStyleRefreshQueued) {
+            this.sigmaStyleRefreshQueued = true;
+            queueMicrotask(() => {
+                this.sigmaStyleRefreshQueued = false;
+                if (!this.sigmaRendering || this.sigmaStylesCaptured) void this.renderSigma(false);
+            });
+        }
         return true;
     }
 
@@ -2860,7 +2918,9 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Aft
         this.settingsLoadedSubscription = this.store.settingsLoaded$
         .pipe(takeUntil(this.destroy$))
         .subscribe(loaded => {
-            if(loaded && this.commonService.activeTab === '2D Network') {
+            if (!loaded) this.sigmaSettingsReady = false;
+            if (loaded && (this.commonService.activeTab === '2D Network'
+                || (this.sigmaActive && this.sigmaRenderQueued))) {
 
                  this._rerender();
 
@@ -3120,6 +3180,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Aft
 
     ngAfterViewInit(): void {
         console.log('--- TwoD ngAfterViewInit called');
+        this.sigmaViewInitialized = true;
 
         if (
             this.commonService.session.data.nodes.length > 0
@@ -6114,8 +6175,7 @@ export class TwoDComponent extends BaseComponentDirective implements OnInit, Aft
 
         if (this.sigmaActive) {
             this.captureSigmaNodePositions();
-            this.sigmaRenderer?.destroy();
-            this.sigmaRenderer = null;
+            this.sigmaLayoutRequested = true;
             this.sigmaLayoutGroupByNodeId.clear();
             await this.renderSigma(false);
             return;
@@ -8644,6 +8704,9 @@ scaleLinkWidth() {
         this.containerShowTimer = null;
         if (this.rerenderTimeout) clearTimeout(this.rerenderTimeout);
         this.rerenderTimeout = null;
+        if (this.sigmaRenderTimer !== null) clearTimeout(this.sigmaRenderTimer);
+        this.sigmaRenderTimer = null;
+        this.sigmaMemberLayouts.clear();
         if (this.thresholdSensitivityFrame !== null) cancelAnimationFrame(this.thresholdSensitivityFrame);
         this.thresholdSensitivityFrame = null;
         this.pendingPartialUpdate = false;
@@ -8709,6 +8772,11 @@ scaleLinkWidth() {
             return;
         }
 
+        if (this.sigmaActive
+            && this.sigmaViewSettingsGeneration !== this.commonService.getDataLoadGeneration()) {
+            this.loadSettings();
+        }
+
         if (this.suppressUnsafeCanvasFallbackIfNeeded()) {
             return;
         }
@@ -8760,6 +8828,16 @@ scaleLinkWidth() {
      * (ie. onPolygonLabelVariableChange, onPolygonLabelVariableChange, onPolygonLabelOrientationChange all call redrawPolygonLabels) XXXXX
      */
     loadSettings() {
+        this.sigmaSettingsReady = false;
+        try {
+            this.applyViewSettings();
+            this.sigmaViewSettingsGeneration = this.commonService.getDataLoadGeneration();
+        } finally {
+            this.scheduleSigmaRenderAfterSettings();
+        }
+    }
+
+    private applyViewSettings(): void {
         this.ensureNodeCollapseWidgetDefaults();
         this.ensureNetworkLayoutWidgetDefault();
 

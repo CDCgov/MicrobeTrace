@@ -865,7 +865,9 @@ export class SigmaNetworkRendererAdapter {
   }
 
   setSelectedColor(color: string): void {
-    this.selectedColor = color || '#ff2d55';
+    const selectedColor = color || '#ff2d55';
+    if (this.selectedColor === selectedColor) return;
+    this.selectedColor = selectedColor;
     this.renderer?.refresh();
   }
 
@@ -896,11 +898,13 @@ export class SigmaNetworkRendererAdapter {
   }
 
   setNodeDraggingEnabled(enabled: boolean): void {
+    if (this.nodeDraggingEnabled === enabled) return;
     this.nodeDraggingEnabled = enabled;
     this.renderer?.setSetting('enableNodeDrag', enabled);
   }
 
   setNeighborHighlighting(enabled: boolean): void {
+    if (this.highlightNeighbors === Boolean(enabled)) return;
     const changed = this.highlightNeighbors !== Boolean(enabled);
     this.highlightNeighbors = Boolean(enabled);
     this.rebuildActiveNeighborhood();

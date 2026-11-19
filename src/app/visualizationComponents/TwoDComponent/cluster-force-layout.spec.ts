@@ -1,4 +1,4 @@
-import { layoutClusterForces } from './cluster-force-layout';
+import { layoutClusterForces, type ClusterMemberLayout } from './cluster-force-layout';
 
 const options = {
   linkLength: 50,
@@ -25,6 +25,47 @@ const bounds = (nodes: Array<{ x: number; y: number }>) => {
 };
 
 describe('Cluster-first force layout', () => {
+  it('reuses only unchanged member geometry on automatic updates and still settles explicit recalculations', async () => {
+    const graph = makeGraph(3), memberLayouts = new Map<string, ClusterMemberLayout>();
+    let diagnostics: any;
+    const cachedOptions = { ...options, memberLayouts, onSettled: (value: any) => { diagnostics = value; } };
+    await layoutClusterForces(graph.nodes, graph.links, graph.links, cachedOptions);
+    expect(diagnostics.simulatedClusters).toBe(3);
+    graph.groups[0].forEach(node => { node.x += 500; node.y -= 200; });
+    await layoutClusterForces(graph.nodes, graph.links, graph.links, { ...cachedOptions, preserveCenters: true, reuseMembers: true,
+      groupBy: node => `renumbered:${node.id.split('-')[0]}` });
+    expect(diagnostics.reusedClusters).toBe(3);
+    expect(diagnostics.memberTicks).toBe(0);
+    graph.groups[1][0].x += 100;
+    await layoutClusterForces(graph.nodes, graph.links, graph.links, { ...cachedOptions, reuseMembers: true });
+    expect(diagnostics.simulatedClusters).toBe(1);
+    expect(diagnostics.reusedClusters).toBe(2);
+    await layoutClusterForces(graph.nodes, graph.links, graph.links, cachedOptions);
+    expect(diagnostics.simulatedClusters).toBe(3);
+  });
+
+  it('invalidates member reuse for changed links, sizes, merges and splits', async () => {
+    const graph = makeGraph(3), memberLayouts = new Map<string, ClusterMemberLayout>();
+    let diagnostics: any;
+    const cachedOptions = { ...options, memberLayouts, reuseMembers: true, onSettled: (value: any) => { diagnostics = value; } };
+    await layoutClusterForces(graph.nodes, graph.links, graph.links, cachedOptions);
+    const extra = { source: graph.groups[2][0].id, target: graph.groups[2][2].id };
+    await layoutClusterForces(graph.nodes, graph.links, [...graph.links, extra], cachedOptions);
+    expect(diagnostics.simulatedClusters).toBe(1);
+    await layoutClusterForces(graph.nodes, graph.links, graph.links, { ...cachedOptions, nodeRadius: () => 18 });
+    expect(diagnostics.simulatedClusters).toBe(3);
+    const bridge = { source: graph.groups[0][0].id, target: graph.groups[1][0].id };
+    await layoutClusterForces(graph.nodes, [...graph.links, bridge], [...graph.links, bridge], cachedOptions);
+    expect(diagnostics.simulatedClusters).toBe(2);
+    await layoutClusterForces(graph.nodes, graph.links, graph.links, cachedOptions);
+    expect(diagnostics.simulatedClusters).toBe(2);
+    expect(diagnostics.reusedClusters).toBe(1);
+    const circles = graph.groups.map(bounds);
+    circles.forEach((left, index) => circles.slice(index + 1).forEach(right => {
+      expect(Math.hypot(left.x - right.x, left.y - right.y)).toBeGreaterThan(left.radius + right.radius);
+    }));
+  });
+
   it('separates 325 unequal components without changing their nodes or links', async () => {
     const graph = makeGraph(325);
     const originalLinks = JSON.parse(JSON.stringify(graph.links));
@@ -137,5 +178,18 @@ describe('Cluster-first force layout', () => {
     const current = bounds(graph.groups[0]);
     expect(current.x).toBeCloseTo(dragged.x, 6);
     expect(current.y).toBeCloseTo(dragged.y, 6);
+  });
+
+  it('separates conflicting dragged footprints while retaining a valid anchor', async () => {
+    const nodes = [{ id: 'A', x: 0, y: 0 }, { id: 'B', x: 0, y: 0 }, { id: 'C', x: 200, y: 0 }];
+    await layoutClusterForces(nodes, [], [], { ...options, preserveCenters: true,
+      anchoredNodeIds: new Set(['A', 'B']),
+      geneticEdges: [{ source: 'A', target: 'B', distance: 1 }, { source: 'B', target: 'C', distance: 10 }],
+    });
+    expect(nodes[0].x).toBe(0);
+    expect(nodes[0].y).toBe(0);
+    nodes.forEach((left, index) => nodes.slice(index + 1).forEach(right => {
+      expect(Math.hypot(left.x - right.x, left.y - right.y)).toBeGreaterThan(24);
+    }));
   });
 });
