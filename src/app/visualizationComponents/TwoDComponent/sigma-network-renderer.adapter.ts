@@ -1096,6 +1096,8 @@ export class SigmaNetworkRendererAdapter {
   private createRenderer(): void {
     const rendererOptions = {
       settings: {
+        // Docked views can receive shared selection updates while their tab is hidden.
+        allowInvalidContainer: true,
         autoRescaleContent: 'nodes' as const,
         enableNodeDrag: this.nodeDraggingEnabled,
         getDraggedNodes: draggedNode => [draggedNode],

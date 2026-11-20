@@ -392,9 +392,12 @@ function buildNewickFixtures() {
   });
 }
 
-ensureDir(outDir);
-buildGraphFixtures();
-buildSequenceFixtures();
-buildNewickFixtures();
+if (require.main === module) {
+  ensureDir(outDir);
+  buildGraphFixtures();
+  buildSequenceFixtures();
+  buildNewickFixtures();
+  console.log(`Generated performance fixtures in ${path.relative(process.cwd(), outDir)}`);
+}
 
-console.log(`Generated performance fixtures in ${path.relative(process.cwd(), outDir)}`);
+module.exports = { buildGraphFixture };

@@ -68,6 +68,7 @@
         <button class="navbar-item" data-testid="app-view-menu-button" mat-button [matMenuTriggerFor]="viewMenu"><i class="far nav-icon flaticon-web"></i>View<span class="dropdown-symbol">&#9660;</span></button>
         <mat-menu #viewMenu="matMenu" overlapTrigger="false">
           <button data-testid="app-view-menu-2d-network" mat-menu-item (click)="Viewclick('2D Network')">2D Network</button>
+          <button data-testid="app-view-menu-3d-network" mat-menu-item (click)="Viewclick('3D Network')">3D Network</button>
           <button data-testid="app-view-menu-aggregate" mat-menu-item (click)="Viewclick('Aggregate')">Aggregate</button>
           <button data-testid="app-view-menu-alignment" mat-menu-item (click)="Viewclick('Alignment View')">Alignment View</button>
           <button data-testid="app-view-menu-bubble" mat-menu-item (click)="Viewclick('Bubble')">Bubble</button>
@@ -407,6 +408,7 @@
     </mat-menu>
     <mat-menu #viewMenuBottom="matMenu" overlapTrigger="false">
       <button mat-menu-item (click)="updateLaunchView('2D Network')">2D Network</button>
+      <button mat-menu-item (click)="updateLaunchView('3D Network')">3D Network</button>
       <button mat-menu-item (click)="updateLaunchView('Table')">Table</button>
       <button mat-menu-item (click)="updateLaunchView('Network Statistics')">Network Statistics</button>
       <button mat-menu-item (click)="updateLaunchView('Map')">Bubbles</button>
@@ -1261,7 +1263,7 @@
                     <div class="col-6"><label>Timeline Speed: {{ timelineSpeed }} ms</label></div>
                     <div class="col-6"><input type="range" class="custom-range" min="0" step="1" [max]="timelineSpeedOptions.length - 1" [ngModel]="timelineSpeedIndex" (ngModelChange)="onTimelineSpeedIndexChanged($event)"></div>
                   </div>
-                  <div>Timeline works on 2D Network, Map, and Bubble Views.</div>
+                  <div>Timeline works on 2D Network, 3D Network, Map, and Bubble Views.</div>
                 </div>
               </tab>
             </tabset>

@@ -48,6 +48,7 @@ import {
     type ThresholdSweepSummary
 } from './threshold-analysis';
 import * as tn93 from 'tn93';
+import { normalizeThreeDViewState } from '@app/visualizationComponents/ThreeDComponent/three-d-network.model';
 import { normalizeHIVTraceNetwork } from './hivtrace-import';
 
 interface SequencePairwiseLinkGuardrails {
@@ -145,6 +146,7 @@ export class CommonService extends AppComponentBase implements OnInit {
 
     private readonly restorableDashboardViews = new Set<string>([
         '2D Network',
+        '3D Network',
         'Transmission Chain Explorer',
         'Map',
         'Table',
@@ -179,6 +181,8 @@ export class CommonService extends AppComponentBase implements OnInit {
     private readonly legacyViewNameMap: { [key: string]: string } = {
         '2d_network': '2D Network',
         '2dnetwork': '2D Network',
+        '3d_network': '3D Network',
+        '3dnetwork': '3D Network',
         'network': '2D Network',
         'geo_map': 'Map',
         'geomap': 'Map',
@@ -3113,6 +3117,7 @@ export class CommonService extends AppComponentBase implements OnInit {
         if (oldSession.meta?.rendererViewState) {
             (this.session.meta as any).rendererViewState = oldSession.meta.rendererViewState;
         }
+        (this.session.meta as any).threeDViewState = normalizeThreeDViewState(oldSession.meta?.threeDViewState);
         this.session.meta.startTime = Date.now();
 
 

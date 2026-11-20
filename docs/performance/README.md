@@ -4,6 +4,7 @@ This folder contains performance-specific planning notes, baseline strategy, and
 
 ## Documents
 
+- `3d-network-capacity.md`: repeated 3D layout and camera-navigation benchmarks, graph-size recommendation, and opt-in reproduction commands.
 - `performance-baseline-plan.md`: performance harness design, dataset tiers, measurement model, interaction probes, budget workflow, and run commands.
 - `performance-dataset-strategy-for-bioinformaticians.md`: bioinformatics-facing explanation of why we use both synthetic and real datasets.
 - `synthetic-performance-dataset-generation.md`: exact generation recipes and review notes for synthetic graph, FASTA, and Newick performance fixtures.

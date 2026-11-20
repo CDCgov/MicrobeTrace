@@ -1,0 +1,13 @@
+[
+  { "nodes": 250, "links": 500 },
+  { "nodes": 250, "links": 2500 },
+  { "nodes": 500, "links": 1000 },
+  { "nodes": 500, "links": 2000 },
+  { "nodes": 500, "links": 5000 },
+  { "nodes": 750, "links": 1500 },
+  { "nodes": 1000, "links": 2000 },
+  { "nodes": 1000, "links": 4000 },
+  { "nodes": 2000, "links": 4000 },
+  { "nodes": 2000, "links": 10000 },
+  { "nodes": 5000, "links": 10000 }
+]

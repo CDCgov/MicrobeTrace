@@ -6,6 +6,7 @@ export const testIds = {
   appViewMenuButton: 'app-view-menu-button',
   appGoldenLayoutHost: 'app-golden-layout-host',
   appViewMenuTwoD: 'app-view-menu-2d-network',
+  appViewMenuThreeD: 'app-view-menu-3d-network',
   appViewMenuTransmissionChain: 'app-view-menu-transmission-chain',
   appViewMenuTable: 'app-view-menu-table',
   appViewMenuMap: 'app-view-menu-map',

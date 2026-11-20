@@ -14,6 +14,7 @@ import { TimelineComponent } from './visualizationComponents/TimelineComponent/t
 import { TableComponent } from './visualizationComponents/TableComponent/table-plugin-component';
 import { NetworkStatisticsComponent } from './visualizationComponents/NetworkStatisticsComponent/network-statistics-plugin.component';
 import { TwoDComponent } from './visualizationComponents/TwoDComponent/twoD-plugin.component';
+import { ThreeDComponent } from './visualizationComponents/ThreeDComponent/three-d-plugin.component';
 import { TransmissionChainExplorerComponent } from './visualizationComponents/TransmissionChainExplorerComponent/transmission-chain-explorer.component';
 import { AlignmentViewComponent } from './visualizationComponents/AlignmentViewComponent/alignment-view-plugin-component';
 import { CrosstabComponent } from './visualizationComponents/CrosstabComponent/crosstab-plugin.component';
@@ -73,6 +74,7 @@ export class GoldenLayoutHostComponent implements OnDestroy {
 
     this.goldenLayoutComponentService.registerComponentType(FilesComponent.componentTypeName, FilesComponent);
     this.goldenLayoutComponentService.registerComponentType(TwoDComponent.componentTypeName, TwoDComponent);
+    this.goldenLayoutComponentService.registerComponentType(ThreeDComponent.componentTypeName, ThreeDComponent);
     this.goldenLayoutComponentService.registerComponentType(TransmissionChainExplorerComponent.componentTypeName, TransmissionChainExplorerComponent);
     this.goldenLayoutComponentService.registerComponentType(TableComponent.componentTypeName, TableComponent);
     this.goldenLayoutComponentService.registerComponentType(NetworkStatisticsComponent.componentTypeName, NetworkStatisticsComponent);

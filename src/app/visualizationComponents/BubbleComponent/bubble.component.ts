@@ -106,6 +106,8 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
 
   private suppressCySelectionEvents: boolean = false;
   private cytoscapeFactoryPromise: Promise<typeof cytoscape> | null = null;
+  private destroyed = false;
+  private resizeTimer: ReturnType<typeof setTimeout> | null = null;
 
   private destroy$ = new Subject<void>();
 
@@ -216,6 +218,7 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
 
   async ngAfterViewInit(): Promise<void> {
     await this.generateCytoscape();
+    if (this.destroyed) return;
     if (this.SelectedNodeCollapsingTypeVariable) {
       this.refreshCollapsedData();
     }
@@ -223,6 +226,11 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
   }
 
   ngOnDestroy(): void {
+    this.destroyed = true;
+    if (this.resizeTimer !== null) {
+      clearTimeout(this.resizeTimer);
+      this.resizeTimer = null;
+    }
     this.destroy$.next();
     this.destroy$.complete();
     $(document).off('.bubbleView');
@@ -269,7 +277,7 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
     // Bubble can be the first launched view, so it must explicitly release
     // the shared processing modal after its first Cytoscape draw completes.
     window.setTimeout(() => {
-      this.store.setNetworkRendered(true);
+      if (!this.destroyed) this.store.setNetworkRendered(true);
     }, 0);
   }
 
@@ -1147,13 +1155,19 @@ export class BubbleComponent extends BaseComponentDirective implements OnInit, M
     }
   }
 
-  goldenLayoutComponentResize() {    
+  goldenLayoutComponentResize() {
+    if (this.destroyed) return;
     this.viewHeight = this.container.height - 73;
     this.viewWidth = this.container.width - 42;
-    this.cdref.detectChanges()
-    setTimeout(() => {
-      this.cy.fit(this.cy.nodes(), 30);
-      this.onLabelSizeChange()
+    this.cdref.detectChanges();
+    if (this.resizeTimer !== null) clearTimeout(this.resizeTimer);
+    const cy = this.cy;
+    if (!cy) return;
+    this.resizeTimer = setTimeout(() => {
+      this.resizeTimer = null;
+      if (this.destroyed || this.cy !== cy || cy.destroyed()) return;
+      cy.fit(cy.nodes(), 30);
+      this.onLabelSizeChange();
     }, 200);
   }
 

@@ -10,7 +10,7 @@ import {
 
 type DistanceMetric = 'tn93' | 'snps';
 type FileDatatype = 'link' | 'node' | 'matrix' | 'fasta' | 'newick' | 'MT/other';
-type DefaultView = '2D Network' | 'Table' | 'Map' | 'Phylogenetic Tree' | 'Alignment View';
+type DefaultView = '2D Network' | '3D Network' | 'Table' | 'Map' | 'Phylogenetic Tree' | 'Alignment View';
 
 export type PerformanceFileLoadSpec = {
   name: string;
@@ -43,7 +43,7 @@ export type PerformanceScenario = {
 };
 
 export type PerformanceCounts = {
-  activeRenderer: 'sigma' | 'cytoscape-canvas' | 'cytoscape-webgl' | 'unknown';
+  activeRenderer: 'sigma' | 'cytoscape-canvas' | 'cytoscape-webgl' | '3d-force-graph' | 'unknown';
   nodes: number;
   visibleNodes: number;
   totalLinks: number;
@@ -151,7 +151,9 @@ export function collectPerformanceCounts(win: PerfWindow): PerformanceCounts {
   const clusters = data.clusters || [];
   const twoD = win.commonService?.visuals?.twoD;
   const sigmaSummary = twoD?.sigmaSummary;
-  const activeRenderer = twoD?.sigmaActive
+  const activeRenderer = win.commonService?.visuals?.threeD?.viewActive
+    ? '3d-force-graph'
+    : twoD?.sigmaActive
     ? 'sigma'
     : (twoD?.requestedRendererMode || (win.cytoscapeInstance ? 'cytoscape-canvas' : 'unknown'));
 

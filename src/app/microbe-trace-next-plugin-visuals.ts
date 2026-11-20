@@ -3,6 +3,7 @@ import { Injectable } from "@angular/core";
 import { MicrobeTraceNextHomeComponent } from "./microbe-trace-next-plugin.component";
 import { FilesComponent } from "./filesComponent/files-plugin.component";
 import { TwoDComponent } from "./visualizationComponents/TwoDComponent/twoD-plugin.component";
+import type { ThreeDComponent } from "./visualizationComponents/ThreeDComponent/three-d-plugin.component";
 import { TransmissionChainExplorerComponent } from './visualizationComponents/TransmissionChainExplorerComponent/transmission-chain-explorer.component';
 import { MapComponent } from "./visualizationComponents/MapComponent/map-plugin.component";
 import { TableComponent } from "./visualizationComponents/TableComponent/table-plugin-component";
@@ -26,6 +27,7 @@ export class MicrobeTraceNextVisuals {
     public microbeTrace: MicrobeTraceNextHomeComponent;
     public filesPlugin: FilesComponent;
     public twoD: TwoDComponent;
+    public threeD?: ThreeDComponent;
     public transmissionChain: TransmissionChainExplorerComponent;
     public gisMap: MapComponent;
     public tableComp: TableComponent;
