@@ -1,5 +1,7 @@
 /// <reference types="cypress" />
 
+import { expandAccordionTabByHeader, openGlobalStylingTab } from '../../support/journey-helpers';
+
 const shapes = [
   { key: 'rhomboid', label: '(Rhombus)' },
   { key: 'heptagon', label: '(Heptagon)' },
@@ -24,13 +26,19 @@ describe('Sigma basic node shapes', () => {
   });
 
   it('applies each basic shape through the global picker and returns to Circle', () => {
-    cy.contains('Settings').first().click();
-    cy.get('#node-symbol-variable').click();
+    openGlobalStylingTab();
+    cy.contains('.p-dialog-title:visible', 'Global Settings').closest('.p-dialog').as('globalSettings');
+    expandAccordionTabByHeader('@globalSettings', 'Node Shape');
+    cy.get('#node-symbol-variable').scrollIntoView().should('be.visible').click();
     cy.contains('[role="option"]', /^None$/).click();
 
     [...shapes, { key: 'ellipse', label: '(Circle)' }].forEach(({ key, label }) => {
-      cy.get('#node-shape-value-row .p-treeselect').click();
-      cy.contains('.shapeTreeSelectPanel [role="treeitem"]', label).click();
+      cy.get('#node-shape-value-row .p-treeselect').scrollIntoView().click();
+      cy.get(`.shapeTreeSelectPanel:visible .p-tree-node-leaf[data-id="${key}"] .p-tree-node-label`)
+        .should('contain.text', label)
+        .scrollIntoView()
+        .click();
+      cy.get('.shapeTreeSelectPanel').should('not.exist');
       cy.window().should((win: any) => {
         const adapter = win.commonService.visuals.twoD.sigmaRenderer;
         const graph = adapter.getGraph();

@@ -109,15 +109,19 @@ const openGlobalShapeSettingsFromTwoD = (): void => {
 const applyMinimumClusterSize = (size: number): void => {
   openGlobalFilteringTab();
   cy.get(byTestId(testIds.filterMinimumClusterSize))
+    .should('be.visible')
     .should('not.be.disabled')
-    .clear()
-    .wait(100)
-    .type(String(size))
     .then(($input) => {
-      const input = $input.get(0);
+      // Match the other filtering journeys: replacing the whole value avoids
+      // an intermediate empty value being restored to 1 before typing resumes.
+      const input = $input.get(0) as HTMLInputElement;
+      input.focus();
+      input.value = String(size);
+      input.dispatchEvent(new Event('input', { bubbles: true }));
       input.dispatchEvent(new Event('change', { bubbles: true }));
-      input.dispatchEvent(new Event('blur', { bubbles: true }));
-    });
+      input.blur();
+    })
+    .should('have.value', String(size));
 
   cy.window()
     .its('commonService.session.style.widgets.cluster-minimum-size')
